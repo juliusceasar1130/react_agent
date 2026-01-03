@@ -17,4 +17,5 @@ agent = create_agent(
     tools=[],
 )
 result = agent.invoke({"messages": {"role": "user", "content": "上海有什么好玩的"}})
-print(result["messages"][-1].pretty_print())
+print(result)
+# print(result["messages"][-1].pretty_print())

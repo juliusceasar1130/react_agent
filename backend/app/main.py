@@ -1,14 +1,17 @@
+import logging
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
-import logging
-from .database import get_db, create_tables
-from .api import router
 
+# 配置日志（必须在导入其他模块之前）- 2026-01-02
 logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+    level=logging.DEBUG,
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
 logger = logging.getLogger(__name__)
+
+from .database import get_db, create_tables
+from .api import router
 
 
 @asynccontextmanager  # 装饰器，将函数标记为异步上下文管理器

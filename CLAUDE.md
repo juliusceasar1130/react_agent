@@ -8,11 +8,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ### 技术栈
 
-| 层 | 技术 |
-|----|------|
-| **后端** | FastAPI + SQLAlchemy + SQLite + LangChain |
+| 层       | 技术                                             |
+| -------- | ------------------------------------------------ |
+| **后端** | FastAPI + SQLAlchemy + postgresql + LangChain    |
 | **前端** | Vue 3 + TypeScript + Vite + Pinia + Tailwind CSS |
-| **AI** | DeepSeek + LangChain Agent |
+| **AI**   | DeepSeek + LangChain Agent                       |
 
 ### 核心功能
 
@@ -52,7 +52,7 @@ backend/app/              # 后端应用核心
 ├── crud.py              # 数据库 CRUD 操作层
 ├── models.py            # SQLAlchemy ORM 模型
 ├── schemas.py           # Pydantic 数据验证 Schema
-├── database.py          # SQLite 数据库连接
+├── database.py          # postgresql 数据库连接
 ├── config.py            # 配置管理（环境变量）
 ├── services.py          # LangChain Agent 服务层
 └── test.py              # 测试文件
@@ -111,7 +111,7 @@ frontend/                # Vue 3 前端应用
 ┌─────────────────▼───────────────────────────────┐
 │      Database Layer (database.py, models.py)     │
 │  - SQLAlchemy ORM                                │
-│  - SQLite 数据库                                  │
+│  - postgresql 数据库                                  │
 └─────────────────────────────────────────────────┘
 
 ┌─────────────────────────────────────────────────┐
@@ -154,29 +154,29 @@ frontend/                # Vue 3 前端应用
 
 ### Session API（会话管理）
 
-| 方法   | 路径                               | 功能                               |
-| ------ | ---------------------------------- | ---------------------------------- |
-| POST   | `/api/chat/sessions`               | 创建会话                           |
-| GET    | `/api/chat/sessions`               | 获取所有会话（按 updated_at 降序） |
-| GET    | `/api/chat/sessions/{session_id}`  | 获取单个会话                       |
-| PUT    | `/api/chat/sessions/{session_id}`  | 更新会话                           |
-| DELETE | `/api/chat/sessions/{session_id}`  | 删除会话（级联删除消息）           |
+| 方法   | 路径                              | 功能                               |
+| ------ | --------------------------------- | ---------------------------------- |
+| POST   | `/api/chat/sessions`              | 创建会话                           |
+| GET    | `/api/chat/sessions`              | 获取所有会话（按 updated_at 降序） |
+| GET    | `/api/chat/sessions/{session_id}` | 获取单个会话                       |
+| PUT    | `/api/chat/sessions/{session_id}` | 更新会话                           |
+| DELETE | `/api/chat/sessions/{session_id}` | 删除会话（级联删除消息）           |
 
 ### Message API（消息 CRUD）
 
-| 方法   | 路径                                    | 功能                       |
-| ------ | --------------------------------------- | -------------------------- |
-| POST   | `/api/chat/messages`                    | 创建消息                   |
-| GET    | `/api/chat/messages/{message_id}`       | 获取单条消息               |
-| GET    | `/api/chat/sessions/{session_id}/messages` | 获取会话的所有消息     |
-| DELETE | `/api/chat/messages/{message_id}`      | 删除消息                   |
+| 方法   | 路径                                       | 功能               |
+| ------ | ------------------------------------------ | ------------------ |
+| POST   | `/api/chat/messages`                       | 创建消息           |
+| GET    | `/api/chat/messages/{message_id}`          | 获取单条消息       |
+| GET    | `/api/chat/sessions/{session_id}/messages` | 获取会话的所有消息 |
+| DELETE | `/api/chat/messages/{message_id}`          | 删除消息           |
 
 ### Chat API（Agent 聊天）
 
-| 方法   | 路径                  | 功能                   |
-| ------ | --------------------- | ---------------------- |
-| POST   | `/api/chat/message`   | 发送消息（非流式）      |
-| POST   | `/api/chat/stream`    | 发送消息（流式 SSE）    |
+| 方法 | 路径                | 功能                 |
+| ---- | ------------------- | -------------------- |
+| POST | `/api/chat/message` | 发送消息（非流式）   |
+| POST | `/api/chat/stream`  | 发送消息（流式 SSE） |
 
 #### 非流式请求
 
@@ -224,67 +224,75 @@ data: [DONE]
 
 ### ChatSession（会话表）
 
-| 字段 | 类型 | 说明 |
-|------|------|------|
-| `id` | String(UUID) | 主键 |
-| `title` | String(255) | 会话标题 |
-| `created_at` | DateTime | 创建时间 |
-| `updated_at` | DateTime | 更新时间（自动更新） |
-| `messages` | Relationship | 一对多关联 ChatMessage |
+| 字段         | 类型         | 说明                   |
+| ------------ | ------------ | ---------------------- |
+| `id`         | String(UUID) | 主键                   |
+| `title`      | String(255)  | 会话标题               |
+| `created_at` | DateTime     | 创建时间               |
+| `updated_at` | DateTime     | 更新时间（自动更新）   |
+| `messages`   | Relationship | 一对多关联 ChatMessage |
 
 ### ChatMessage（消息表）
 
-| 字段 | 类型 | 说明 |
-|------|------|------|
-| `id` | String(UUID) | 主键 |
-| `session_id` | String(FK) | 外键关联 ChatSession（CASCADE） |
-| `role` | String | user/assistant/system/tool |
-| `content` | Text | 消息内容 |
-| `tool_calls` | JSON/NULL | 工具调用信息（JSON 字符串） |
-| `tool_results` | JSON/NULL | 工具执行结果（JSON 字符串） |
-| `created_at` | DateTime | 创建时间 |
+| 字段           | 类型         | 说明                            |
+| -------------- | ------------ | ------------------------------- |
+| `id`           | String(UUID) | 主键                            |
+| `session_id`   | String(FK)   | 外键关联 ChatSession（CASCADE） |
+| `role`         | String       | user/assistant/system/tool      |
+| `content`      | Text         | 消息内容                        |
+| `tool_calls`   | JSON/NULL    | 工具调用信息（JSON 字符串）     |
+| `tool_results` | JSON/NULL    | 工具执行结果（JSON 字符串）     |
+| `created_at`   | DateTime     | 创建时间                        |
 
 ## 代码规范
 
 ### 后端规范
 
 #### CRUD 操作
+
 - 函数应返回 `Optional[T]`
 - 创建操作返回模型实例
 - 更新使用 `model_dump(exclude_unset=True, exclude_none=True)` 过滤 None 值
 - 删除操作返回布尔值
 
 #### Schema 定义
+
 - 所有 Response Schema 配置 `model_config = ConfigDict(from_attributes=True)`
 - 使用 `model_config` 而非 `Config` 类（Pydantic v2）
 
 #### 数据库操作
+
 - 使用 `Depends(get_db)` 注入数据库会话
 - 主键统一使用 UUID 字符串
 - 利用级联删除机制
 
 #### Agent 服务
+
 - 工具调用验证：只保存有效的 tool_calls（有 name 和 id）
 - 对话历史：不恢复 tool_calls，让 agent 重新决策
 
 ### 前端规范
 
 #### 组件开发
+
 - 使用 `<script setup>` 语法
 - Props 使用 TypeScript 接口定义
 - Emits 使用 TypeScript 泛型定义
 
 #### 状态管理
+
 - 使用 Pinia Setup Stores
 - Refs 自动解包，不需要 `.value`
 - 删除会话时清除关联的 messages store
 
 #### 流式处理
+
 - 使用乐观更新立即显示用户消息
 - 流式完成后重新加载消息列表
 - 错误时清理临时状态
 
 #### 样式
+
 - 使用 Tailwind CSS 工具类
 - 响应式设计（移动优先）
 
@@ -306,6 +314,7 @@ data: [DONE]
 ### 1. 流式输出实现
 
 **后端**：使用 `StreamingResponse` + SSE
+
 ```python
 async def generate_stream():
     async for chunk in agent_service.process_stream(...):
@@ -338,21 +347,21 @@ if hasattr(msg, "tool_calls") and msg.tool_calls:
 const tempUserMessage: Message = {
   id: `temp-user-${Date.now()}`,
   session_id: currentSession.id,
-  role: 'user',
+  role: "user",
   content,
-  created_at: new Date().toISOString()
-}
-messagesStore.messages.push(tempUserMessage)
+  created_at: new Date().toISOString(),
+};
+messagesStore.messages.push(tempUserMessage);
 ```
 
 ### 4. Pinia Setup Store Refs 自动解包
 
 ```typescript
 // ❌ 错误
-messagesStore.messages.value.push(item)
+messagesStore.messages.value.push(item);
 
 // ✅ 正确
-messagesStore.messages.push(item)
+messagesStore.messages.push(item);
 ```
 
 ## 常见问题
@@ -383,12 +392,12 @@ A: 确保 `onComplete` 回调中调用 `clearStreamingMessage()`
 
 ## 依赖版本
 
-| 包 | 版本 |
-|----|------|
-| FastAPI | 最新 |
-| SQLAlchemy | 最新 |
-| Pydantic | v2 |
-| Vue | 3.4+ |
-| Pinia | 2.1+ |
-| TypeScript | 5.3+ |
+| 包           | 版本 |
+| ------------ | ---- |
+| FastAPI      | 最新 |
+| SQLAlchemy   | 最新 |
+| Pydantic     | v2   |
+| Vue          | 3.4+ |
+| Pinia        | 2.1+ |
+| TypeScript   | 5.3+ |
 | Tailwind CSS | 3.4+ |

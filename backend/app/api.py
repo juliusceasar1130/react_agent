@@ -174,7 +174,11 @@ def delete_message_endpoint(message_id: str, db: Session = Depends(get_db)):
 
 @router.post("/message", response_model=ChatResponse)
 async def send_message(chat_request: ChatRequest, db: Session = Depends(get_db)):
-    """发送消息（非流式）"""
+    """发送消息（非流式）
+
+    修改时间: 2025-01-03
+    修改内容: 使用 PostgresSaver 自动管理历史，删除手动历史加载逻辑
+    """
     logger.info("api.py - send_message - 用户发送非流式消息")
     logger.info(f"ChatRequest: {chat_request}")
 
@@ -187,19 +191,7 @@ async def send_message(chat_request: ChatRequest, db: Session = Depends(get_db))
     if not session_id:
         raise HTTPException(status_code=400, detail="session_id不能为空")
 
-    # 获取历史消息
-    history_messages = crud.get_messages_by_session(db, session_id)
-    history = []
-    for msg in history_messages:
-        history.append(
-            {
-                "role": msg.role,
-                "content": msg.content,
-                "tool_calls": msg.tool_calls,
-                "tool_results": msg.tool_results,
-            }
-        )
-    logger.info(f"本会话历史消息数量: {len(history)}")
+    # ✅ 删除手动历史加载逻辑（PostgresSaver 自动管理）
 
     # 保存用户消息
     logger.info("保存用户消息到数据库")
@@ -208,9 +200,16 @@ async def send_message(chat_request: ChatRequest, db: Session = Depends(get_db))
         MessageCreate(session_id=session_id, role="user", content=chat_request.message),
     )
 
+    # ✅ 构建 config（thread_id 对应 session_id）
+    config = {"configurable": {"thread_id": str(session_id)}}
+
     # 使用Agent处理消息
-    logger.info("调用Agent处理消息")
-    agent_response = await agent_service.process_message(chat_request.message, history)
+    logger.info("调用Agent处理消息（PostgresSaver 自动管理历史）")
+    agent_response = await agent_service.process_message(
+        chat_request.message,
+        session_id,
+        config
+    )
 
     # 保存Assistant消息
     logger.info("保存Assistant消息到数据库")
@@ -232,7 +231,11 @@ async def send_message(chat_request: ChatRequest, db: Session = Depends(get_db))
 
 @router.post("/stream")
 async def stream_message_post(chat_request: ChatRequest, db: Session = Depends(get_db)):
-    """流式发送消息（POST方法）- 真正的流式处理"""
+    """流式发送消息（POST方法）- 真正的流式处理
+
+    修改时间: 2025-01-03
+    修改内容: 使用 PostgresSaver 自动管理历史，删除手动历史加载逻辑
+    """
     logger.info("Received streaming chat request via POST")
     logger.info(f"ChatRequest: {chat_request}")
 
@@ -254,41 +257,36 @@ async def stream_message_post(chat_request: ChatRequest, db: Session = Depends(g
         MessageCreate(session_id=session_id, role="user", content=chat_request.message),
     )
 
-    # 获取历史消息（排除刚添加的用户消息）
-    history_messages = crud.get_messages_by_session(db, session_id)
-    history = []
-    for msg in history_messages[:-1]:  # 排除刚添加的用户消息
-        history.append(
-            {
-                "role": msg.role,
-                "content": msg.content,
-                "tool_calls": msg.tool_calls,
-                "tool_results": msg.tool_results,
-            }
-        )
+    # ✅ 删除手动历史加载逻辑（PostgresSaver 自动管理）
 
     async def generate():
         logger.info("Starting real stream generation")
         logger.info(f"消息: {chat_request.message}")
         logger.info(f"会话ID: {session_id}")
-        logger.info(f"历史消息数量: {len(history)}")
 
         try:
+            # ✅ 构建 config（thread_id 对应 session_id）
+            config = {"configurable": {"thread_id": str(session_id)}}
+
             full_content = ""
             tool_calls_data = None
+            tool_results_data = None  # 2025-01-02
 
             logger.info("开始调用agent_service.process_stream...")
 
-            # 使用真正的流式处理
+            # ✅ 使用真正的流式处理（传递 config）
             async for chunk in agent_service.process_stream(
-                chat_request.message, history
+                chat_request.message,
+                session_id,
+                config
             ):
                 if chunk["is_final"]:
-                    # 最终块，包含工具调用信息
+                    # 最终块，包含工具调用信息和工具结果 - 2025-01-02
                     tool_calls_data = chunk.get("tool_calls")
-                    logger.info(f"收到最终块，工具调用: {tool_calls_data}")
+                    tool_results_data = chunk.get("tool_results")
+                    logger.info(f"收到最终块，工具调用: {tool_calls_data}, 工具结果: {len(tool_results_data) if tool_results_data else 0} 个")
 
-                    # 保存完整的Assistant消息到数据库
+                    # 保存完整的Assistant消息到数据库（包含 tool_results）
                     if full_content:
                         assistant_message = crud.create_message(
                             db,
@@ -299,6 +297,11 @@ async def stream_message_post(chat_request: ChatRequest, db: Session = Depends(g
                                 tool_calls=(
                                     json.dumps(tool_calls_data)
                                     if tool_calls_data
+                                    else None
+                                ),
+                                tool_results=(  # 2025-01-02 添加 tool_results
+                                    json.dumps(tool_results_data)
+                                    if tool_results_data
                                     else None
                                 ),
                             ),
@@ -312,6 +315,7 @@ async def stream_message_post(chat_request: ChatRequest, db: Session = Depends(g
                         "content": "",
                         "is_final": True,
                         "tool_calls": tool_calls_data,
+                        "tool_results": tool_results_data,  # 2025-01-02 添加
                     }
                     yield f"data: {json.dumps(final_data)}\n\n"
                 else:
