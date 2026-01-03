@@ -13,13 +13,16 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 | **后端** | FastAPI + SQLAlchemy + postgresql + LangChain    |
 | **前端** | Vue 3 + TypeScript + Vite + Pinia + Tailwind CSS |
 | **AI**   | DeepSeek + LangChain Agent                       |
+| **状态** | PostgresSaver + psycopg_pool                     |
 
 ### 核心功能
 
 - 多会话管理（创建、删除、切换）
 - 流式/非流式聊天输出
 - LangChain Agent 工具调用（arXiv 论文搜索）
-- 对话历史持久化
+- 对话历史持久化（ChatMessage 表）
+- **Agent 状态管理**（PostgresSaver 检查点）
+- **自动对话摘要**（SummarizationMiddleware）
 
 ## 环境
 
@@ -111,7 +114,8 @@ frontend/                # Vue 3 前端应用
 ┌─────────────────▼───────────────────────────────┐
 │      Database Layer (database.py, models.py)     │
 │  - SQLAlchemy ORM                                │
-│  - postgresql 数据库                                  │
+│  - postgresql 数据库                              │
+│  - ChatSession/ChatMessage 表（前端显示）        │
 └─────────────────────────────────────────────────┘
 
 ┌─────────────────────────────────────────────────┐
@@ -119,8 +123,22 @@ frontend/                # Vue 3 前端应用
 │  - LangChain Agent 初始化                        │
 │  - 流式/非流式消息处理                            │
 │  - 工具调用（arXiv）                              │
+│  - PostgresSaver 检查点管理                      │
+│  - SummarizationMiddleware 自动摘要              │
+└─────────────────┬───────────────────────────────┘
+                  │ ConnectionPool
+┌─────────────────▼───────────────────────────────┐
+│      Checkpoint Storage (PostgresSaver)          │
+│  - checkpoints 表（状态存储）                     │
+│  - checkpoint_blobs 表（大型数据）                │
+│  - checkpoint_writes 表（写入记录）               │
 └─────────────────────────────────────────────────┘
 ```
+
+**数据流说明**：
+- **ChatMessage 表**：存储聊天记录，供前端查询和展示
+- **PostgresSaver**：自动管理 Agent 状态，包括对话历史和工具调用结果
+- **thread_id**：对应系统的 `session_id`，用于标识会话线程
 
 ### 前端架构
 
@@ -244,6 +262,18 @@ data: [DONE]
 | `tool_results` | JSON/NULL    | 工具执行结果（JSON 字符串）     |
 | `created_at`   | DateTime     | 创建时间                        |
 
+### PostgresSaver 检查点表（自动创建）
+
+PostgresSaver 会在首次启动时自动创建以下表：
+
+| 表名                | 说明                               | 主键                           |
+| ------------------- | ---------------------------------- | ------------------------------ |
+| `checkpoints`       | 存储 Agent 状态检查点              | (thread_id, checkpoint_ns, checkpoint_id) |
+| `checkpoint_blobs`  | 存储大型检查点二进制数据           | (thread_id, checkpoint_ns, checkpoint_id, index) |
+| `checkpoint_writes` | 存储检查点写入记录                 | (thread_id, checkpoint_ns, checkpoint_id, step) |
+
+**注意**：这些表由 PostgresSaver 自动管理，无需手动操作。`thread_id` 对应系统的 `session_id`。
+
 ## 代码规范
 
 ### 后端规范
@@ -269,7 +299,68 @@ data: [DONE]
 #### Agent 服务
 
 - 工具调用验证：只保存有效的 tool_calls（有 name 和 id）
-- 对话历史：不恢复 tool_calls，让 agent 重新决策
+- **PostgresSaver 初始化**：使用 `ConnectionPool` 而非 `from_conn_string()`
+- **config 传递**：所有 Agent 调用必须传递 `{"configurable": {"thread_id": str(session_id)}}`
+- **自动历史管理**：无需手动加载历史，PostgresSaver 自动处理
+
+**PostgresSaver 初始化模式**：
+```python
+from psycopg_pool import ConnectionPool
+from langgraph.checkpoint.postgres import PostgresSaver
+from langchain.agents.middleware import SummarizationMiddleware
+
+# 创建连接池（保持连接打开）
+self.conn_pool = ConnectionPool(
+    conninfo=settings.database_url,
+    min_size=1,
+    max_size=10,
+    timeout=30
+)
+
+# 创建 PostgresSaver
+self.checkpointer = PostgresSaver(self.conn_pool)
+try:
+    self.checkpointer.setup()  # 首次使用自动创建表
+except Exception:
+    pass  # 表已存在
+
+# 配置自动摘要
+summarization_middleware = SummarizationMiddleware(
+    model=llm,
+    trigger=("tokens", 4000),  # token 数超过 4000 时触发
+    keep=("messages", 20)       # 保留最近 20 条消息
+)
+
+# 创建 Agent
+self.agent = create_agent(
+    model=llm,
+    tools=tools,
+    system_prompt=system_prompt,
+    checkpointer=self.checkpointer,
+    middleware=[summarization_middleware]
+)
+```
+
+**Agent 调用模式**：
+```python
+# 构建 config
+config = {"configurable": {"thread_id": str(session_id)}}
+
+# 非流式调用
+result = self.agent.invoke(
+    {"messages": [HumanMessage(content=message)]},
+    config=config
+)
+
+# 流式调用
+for chunk in self.agent.stream(
+    {"messages": [HumanMessage(content=message)]},
+    config=config,
+    stream_mode="messages"
+):
+    # 处理 chunk
+    pass
+```
 
 ### 前端规范
 
@@ -298,8 +389,10 @@ data: [DONE]
 
 ## 技术文档
 
-详细的技术文档位于 `backend/docs/FastAPI与SQLAlchemy知识点复习.md`，包含：
+详细的技术文档位于 `backend/docs/` 目录：
 
+### FastAPI 与 SQLAlchemy
+`backend/docs/FastAPI与SQLAlchemy知识点复习.md`，包含：
 1. CRUD 操作最佳实践
 2. 同步 vs 异步架构对比
 3. FastAPI 依赖注入机制
@@ -307,11 +400,71 @@ data: [DONE]
 5. 字段名匹配机制
 6. SQLAlchemy 关系与懒加载
 7. N+1 查询问题与优化方案
-8. **ORM 与 Pydantic 对象转换**（新增）
+8. **ORM 与 Pydantic 对象转换**
+
+### PostgresSaver 集成
+`backend/docs/PostgresSaver集成重构总结.md`，包含：
+1. 需求背景和重构目标
+2. 技术方案设计（混合模式架构）
+3. 实现细节和文件变更清单
+4. 关键技术要点（ConnectionPool、config、SummarizationMiddleware）
+5. 遇到的问题和解决方案
+6. 数据库变更和验证步骤
+7. 性能和成本优化分析
+
+### 连接池与上下文管理器
+`backend/docs/连接池与上下文管理器详解.md`，包含：
+1. 上下文管理器定义和工作原理
+2. 连接池概念和优势
+3. PostgresSaver 集成问题与解决
+4. 最佳实践和常见问题
 
 ## 关键技术点
 
-### 1. 流式输出实现
+### 1. PostgresSaver 状态管理
+
+**核心概念**：PostgresSaver 自动管理 Agent 的对话状态，无需手动加载历史
+
+```python
+# 初始化（使用 ConnectionPool，而非 from_conn_string）
+from psycopg_pool import ConnectionPool
+from langgraph.checkpoint.postgres import PostgresSaver
+
+self.conn_pool = ConnectionPool(conninfo=settings.database_url)
+self.checkpointer = PostgresSaver(self.conn_pool)
+
+# 使用时传递 config
+config = {"configurable": {"thread_id": str(session_id)}}
+result = agent.invoke({"messages": [...]}, config=config)
+```
+
+**关键要点**：
+- `from_conn_string()` 返回上下文管理器，不能直接赋值给类变量
+- 必须使用 `ConnectionPool` 创建连接池，传递给 `PostgresSaver` 构造函数
+- 所有 Agent 调用必须传递 `config` 参数
+- `thread_id` 对应系统的 `session_id`
+
+### 2. SummarizationMiddleware 自动摘要
+
+**触发条件**：当对话历史 token 数超过 4000 时自动触发
+
+```python
+from langchain.agents.middleware import SummarizationMiddleware
+
+summarization_middleware = SummarizationMiddleware(
+    model=llm,                    # 用于生成摘要的模型
+    trigger=("tokens", 4000),     # token 数超过 4000 时触发
+    keep=("messages", 20)         # 保留最近 20 条消息
+)
+```
+
+**工作原理**：
+1. 监控对话历史的 token 数量
+2. 超过阈值时使用 LLM 生成旧消息的摘要
+3. 将旧消息替换为摘要消息
+4. 保留最近 20 条原始消息确保上下文连贯
+
+### 3. 流式输出实现
 
 **后端**：使用 `StreamingResponse` + SSE
 
@@ -382,6 +535,37 @@ A: 检查 tool_calls 是否有效（有 name 和 id），对话历史不应恢�
 
 A: 确保 `onComplete` 回调中调用 `clearStreamingMessage()`
 
+### Q: PostgresSaver 报错 `'_GeneratorContextManager' object has no attribute`？
+
+A: `PostgresSaver.from_conn_string()` 返回上下文管理器，不能直接赋值。正确方式：
+```python
+# ❌ 错误
+self.checkpointer = PostgresSaver.from_conn_string(DB_URL)
+
+# ✅ 正确
+from psycopg_pool import ConnectionPool
+self.conn_pool = ConnectionPool(conninfo=DB_URL)
+self.checkpointer = PostgresSaver(self.conn_pool)
+```
+
+### Q: Agent 不记得之前的对话？
+
+A: 检查是否传递了 `config` 参数：
+```python
+config = {"configurable": {"thread_id": str(session_id)}}
+result = agent.invoke({"messages": [...]}, config=config)
+```
+
+### Q: 首次启动 `checkpointer.setup()` 报错？
+
+A: 表已存在时会报错，使用 try-except 处理：
+```python
+try:
+    self.checkpointer.setup()
+except Exception as e:
+    logger.info(f"检查点表已存在: {e}")
+```
+
 ## 开发工作流
 
 1. 修改 models.py → 重启后端（自动创建表）
@@ -389,15 +573,35 @@ A: 确保 `onComplete` 回调中调用 `clearStreamingMessage()`
 3. 修改 api.py → 热重载生效
 4. 修改 services.py → 重启后端（Agent 重新初始化）
 5. 修改前端 → Vite 热更新
+6. **PostgresSaver 相关**：
+   - 首次启动：检查点表自动创建
+   - 查看表：`\dt checkpoints*`（在 psql 中）
+   - 重置检查点：删除会话后重新创建
 
 ## 依赖版本
 
-| 包           | 版本 |
-| ------------ | ---- |
-| FastAPI      | 最新 |
-| SQLAlchemy   | 最新 |
-| Pydantic     | v2   |
-| Vue          | 3.4+ |
-| Pinia        | 2.1+ |
-| TypeScript   | 5.3+ |
-| Tailwind CSS | 3.4+ |
+| 包                              | 版本   | 说明                           |
+| ------------------------------- | ------ | ------------------------------ |
+| FastAPI                         | 最新   | 后端框架                       |
+| SQLAlchemy                      | 最新   | ORM                            |
+| Pydantic                        | v2     | 数据验证                       |
+| Vue                             | 3.4+   | 前端框架                       |
+| Pinia                           | 2.1+   | 状态管理                       |
+| TypeScript                      | 5.3+   | 类型系统                       |
+| Tailwind CSS                    | 3.4+   | CSS 框架                       |
+| langgraph-checkpoint-postgres   | 3.0.2  | PostgreSQL 检查点存储          |
+| psycopg[binary,pool]            | 最新   | PostgreSQL 连接池              |
+| langchain                       | 最新   | LangChain 核心                 |
+| langchain-deepseek              | 最新   | DeepSeek 集成                  |
+
+## 安装依赖
+
+```bash
+# 后端依赖
+cd backend
+pip install langgraph-checkpoint-postgres==3.0.2
+pip install "psycopg[binary,pool]"
+
+# 或使用 requirements.txt（如果包含所有依赖）
+pip install -r requirements.txt
+```
