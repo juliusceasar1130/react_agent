@@ -41,7 +41,7 @@ class ChatMessage(Base):
     role = Column(
         String(50), nullable=False
     )  # e.g., 'user' or 'assistant' 'system' ''tool'
-    content = Column(String, nullable=False)
+    content = Column(Text, nullable=False)
     tool_calls = Column(Text, nullable=True)  # 改为Text类型
     tool_results = Column(Text, nullable=True)  # 改为Text类型
     created_at = Column(DateTime, nullable=False, default=func.now())

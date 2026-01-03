@@ -2,10 +2,10 @@ from sqlalchemy import create_engine
 
 from sqlalchemy.orm import sessionmaker
 from .models import Base
+from .config import settings
 
 engine = create_engine(
-    "sqlite:///./research_agent.db",
-    connect_args={"check_same_thread": False},
+    settings.database_url,
 )
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
