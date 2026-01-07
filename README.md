@@ -266,6 +266,36 @@ npm run dev
 
 ## 常见问题
 
+### 代理连接错误 (Connection error)
+
+**错误现象**：
+```
+httpcore.ConnectError: [WinError 10061] 由于目标计算机积极拒绝，无法连接。
+connect_tcp.started host='127.0.0.1' port=7890
+```
+
+**原因**：OpenAI 客户端（langchain-deepseek 底层使用）自动检测 Windows 系统代理设置，尝试通过 `127.0.0.1:7890` 连接，但代理服务未运行。
+
+**解决方案**：在 `backend/app/services.py` 中创建禁用代理的 HTTP 客户端：
+
+```python
+import httpx
+
+# 创建不使用代理的 HTTP 客户端
+_no_proxy_client = httpx.Client(
+    proxy=None,  # 明确禁用代理
+    timeout=60.0
+)
+
+# 传递给 ChatDeepSeek
+llm = ChatDeepSeek(
+    ...,
+    http_client=_no_proxy_client,  # 禁用代理
+)
+```
+
+**修改时间**：2025-01-07
+
 ### PostgresSaver 报错
 
 确保使用 `ConnectionPool` 初始化：

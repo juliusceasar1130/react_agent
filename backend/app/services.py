@@ -9,6 +9,15 @@ from langgraph.checkpoint.postgres import PostgresSaver
 from .config import settings
 import logging
 import json
+import httpx
+
+# 创建不使用代理的 HTTP 客户端
+# 修改时间: 2025-01-07
+# 修改内容: 禁用系统代理，避免连接 127.0.0.1:7890 失败
+_no_proxy_client = httpx.Client(
+    proxy=None,  # 明确禁用代理
+    timeout=60.0
+)
 
 logger = logging.getLogger(__name__)
 
@@ -32,6 +41,7 @@ class ResearchAgentService:
                 max_retries=2,
                 api_key=settings.deepseek_api_key,
                 base_url=settings.deepseek_base_url,
+                http_client=_no_proxy_client,  # 禁用代理 (2025-01-07)
             )
 
             # 2. 加载工具（保持原样）
