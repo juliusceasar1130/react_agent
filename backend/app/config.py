@@ -15,6 +15,10 @@ class Settings(BaseSettings):
     # 数据库配置
     database_url: str = os.getenv("DATABASE_URL", "sqlite:///./research_agent.db")
 
+    # MySQL 生产数据库配置（SQL Agent 使用）
+    mysql_database_url: str = os.getenv("MYSQL_DATABASE_URL", "mysql+pymysql://root:root@localhost:3306/mds?charset=utf8mb4")
+    sql_agent_top_k: int = int(os.getenv("SQL_AGENT_TOP_K", "10"))
+
     # 服务器配置
     host: str = os.getenv("HOST", "0.0.0.0")
     port: int = int(os.getenv("PORT", "8000"))

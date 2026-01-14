@@ -10,7 +10,10 @@
       "mcp__chrome-devtools__list_network_requests",
       "mcp__chrome-devtools__take_snapshot",
       "mcp__chrome-devtools__evaluate_script",
-      "Bash(npm create:*)"
+      "Bash(npm create:*)",
+      "mcp__mysql__list_tables",
+      "Bash(openspec validate add-sql-agent --strict)",
+      "Bash(python:*)"
     ]
   }
 }
