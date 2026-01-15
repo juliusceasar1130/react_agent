@@ -21,7 +21,8 @@
 | SQLAlchemy     | Python ORM                         |
 | PostgreSQL     | 关系型数据库                       |
 | LangChain      | LLM 应用开发框架                   |
-| DeepSeek       | 大语言模型                         |
+| Ollama         | 本地大模型推理服务                 |
+| Qwen3:30b      | 阿里通义千问大语言模型             |
 | PostgresSaver  | Agent 状态持久化                   |
 | psycopg_pool   | PostgreSQL 连接池                  |
 
@@ -58,10 +59,19 @@ cd rearch_agent
 ```bash
 # .env
 DATABASE_URL='postgresql://用户名:密码@localhost:5432/rearch_agent'
-DEEPSEEK_API_KEY='your-deepseek-api-key'
-DEEPSEEK_BASE_URL='https://api.deepseek.com'
-DEEPSEEK_MODEL='deepseek-chat'
-AGENT_TEMPERATURE=0.7
+
+# Ollama 配置 (本地推理，RTX 5090 优化)
+OLLAMA_BASE_URL='http://localhost:11434'
+OLLAMA_MODEL='qwen3:30b'
+OLLAMA_NUM_CTX=32768
+OLLAMA_KEEP_ALIVE=-1
+
+# (可选) DeepSeek 配置，如需切换回 DeepSeek 可使用
+# DEEPSEEK_API_KEY='your-deepseek-api-key'
+# DEEPSEEK_BASE_URL='https://api.deepseek.com'
+# DEEPSEEK_MODEL='deepseek-chat'
+
+AGENT_TEMPERATURE=0.1
 AGENT_MAX_TOKENS=2000
 ```
 

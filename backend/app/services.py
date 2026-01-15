@@ -1,6 +1,6 @@
 # backend/app/services.py
 from typing import List, Dict, Any, AsyncIterator
-from langchain_deepseek import ChatDeepSeek
+from langchain_ollama import ChatOllama
 from langchain.agents import create_agent
 from langchain.agents.middleware import SummarizationMiddleware
 from langchain_community.agent_toolkits import SQLDatabaseToolkit
@@ -10,13 +10,6 @@ from langgraph.checkpoint.postgres import PostgresSaver
 from .config import settings
 import logging
 import json
-import httpx
-
-# 创建不使用代理的 HTTP 客户端
-_no_proxy_client = httpx.Client(
-    proxy=None,  # 明确禁用代理
-    timeout=60.0
-)
 
 logger = logging.getLogger(__name__)
 
@@ -31,16 +24,13 @@ class SQLAgentService:
     def _initialize_agent(self):
         """初始化 Agent"""
         try:
-            # 1. 初始化 DeepSeek 模型
-            llm = ChatDeepSeek(
-                model=settings.deepseek_model,
+            # 1. 初始化 Ollama 模型 (Qwen3:30b)
+            llm = ChatOllama(
+                model=settings.ollama_model,
                 temperature=settings.agent_temperature,
-                max_tokens=settings.agent_max_tokens,
-                timeout=None,
-                max_retries=2,
-                api_key=settings.deepseek_api_key,
-                base_url=settings.deepseek_base_url,
-                http_client=_no_proxy_client,
+                base_url=settings.ollama_base_url,
+                num_ctx=settings.ollama_num_ctx,
+                keep_alive=settings.ollama_keep_alive,
             )
 
             # 2. 连接 MySQL 数据库

@@ -28,6 +28,13 @@ class Settings(BaseSettings):
     agent_temperature: float = float(os.getenv("AGENT_TEMPERATURE", "0.1"))
     agent_max_tokens: int = int(os.getenv("AGENT_MAX_TOKENS", "2000"))
 
+    # Ollama 配置 (RTX 5090 优化)
+    ollama_base_url: str = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
+    ollama_model: str = os.getenv("OLLAMA_MODEL", "qwen3:30b")
+    ollama_num_ctx: int = int(os.getenv("OLLAMA_NUM_CTX", "32768"))
+    ollama_keep_alive: str = os.getenv("OLLAMA_KEEP_ALIVE", "-1")
+
+
     class Config:
         env_file = ".env"
 
