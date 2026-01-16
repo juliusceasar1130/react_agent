@@ -1,5 +1,20 @@
 # Changelog
 
+## 2026-01-15: 修复 Ollama 持续时间格式与远程连接配置
+
+### 概述
+修复了 Ollama 在接收 `keep_alive` 参数时的 400 格式错误，并配置后端连接到远程服务器，同时切换为支持工具调用的模型。
+
+### 变更内容
+- **backend/app/config.py**: 将 `ollama_keep_alive` 强制转为 `int`，解决 `time: missing unit in duration` 报错。
+- **.env**:
+  - 更新 `OLLAMA_BASE_URL='http://172.22.44.99:11434'` 指向远程 5090 服务器。
+  - 更新 `OLLAMA_MODEL='qwen3:30b'` 以支持 SQL Agent 所需的工具调用功能。
+  - 更新 `OLLAMA_KEEP_ALIVE=-1` 为整数形式。
+
+---
+
+
 ## 2026-01-14: 切换到 Ollama + Qwen3:30b
 
 ### 概述

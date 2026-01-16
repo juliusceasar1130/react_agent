@@ -1,5 +1,15 @@
 # backend/app/services.py
+import os
+
+# 清除代理环境变量，让请求直接发送到 Ollama
+for var in ["HTTP_PROXY", "HTTPS_PROXY", "http_proxy", "https_proxy"]:
+    os.environ.pop(var, None)
+os.environ["NO_PROXY"] = "192.22.44.99,localhost,127.0.0.1"
+
+import logging
+import json
 from typing import List, Dict, Any, AsyncIterator
+
 from langchain_ollama import ChatOllama
 from langchain.agents import create_agent
 from langchain.agents.middleware import SummarizationMiddleware
@@ -8,8 +18,6 @@ from langchain_community.utilities import SQLDatabase
 from langchain_core.messages import HumanMessage, AIMessage, ToolMessage, AIMessageChunk
 from langgraph.checkpoint.postgres import PostgresSaver
 from .config import settings
-import logging
-import json
 
 logger = logging.getLogger(__name__)
 
@@ -62,6 +70,9 @@ To start you should ALWAYS look at the tables in the database to see what you
 can query. Do NOT skip this step.
 
 Then you should query the schema of the most relevant tables.
+
+注意：使用中文进行回复
+     <DATE_EVT>是字符串格式，在编写sql时应该使用STR_TO_DATE(DATE_EVT, '%d/%m/%Y %H:%i:%s.%f')进行转换
 """
 
             # 5. 初始化 PostgresSaver（保留状态管理）
@@ -95,7 +106,9 @@ Then you should query the schema of the most relevant tables.
                 middleware=[summarization_middleware],
             )
 
-            logger.info("SQL Agent 初始化成功（PostgresSaver 和 SummarizationMiddleware 已启用）")
+            logger.info(
+                "SQL Agent 初始化成功（PostgresSaver 和 SummarizationMiddleware 已启用）"
+            )
 
         except Exception as e:
             logger.error(f"SQL Agent 初始化失败: {e}")
