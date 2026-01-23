@@ -7,27 +7,30 @@ export default {
   ],
   theme: {
     extend: {
+      // Neural Tones + AI Purple System
       colors: {
-        warm: {
-          50: '#fafafa',
-          100: '#f5f4f3',
-          200: '#eae8e6',
-          300: '#dddad7',
-          400: '#c8c4c0',
-          500: '#a8a4a0',
-          600: '#8a8680',
-          700: '#6c6862',
-          800: '#4a4642',
-          900: '#2d2a27',
+        // Neural Tones + AI Purple System
+        primary: {
+          DEFAULT: '#7C3AED', // Violet 600
+          hover: '#6D28D9',
+          light: '#A78BFA', // Violet 400
         },
-        indigo: {
-          50: '#eef2ff',
-          100: '#e0e7ff',
-          400: '#818cf8',
-          500: '#6366f1',
-          550: '#5558e3',
-          600: '#4f46e5',
-          700: '#4338ca',
+        secondary: '#A78BFA',
+        accent: '#06B6D4', // Cyan 500
+        background: '#FAF5FF', // Purple 50 (Light Neural)
+        surface: '#FFFFFF',
+        text: '#1E1B4B', // Indigo 950
+        neutral: {
+          50: '#F8FAFC',
+          100: '#F1F5F9',
+          200: '#E2E8F0',
+          300: '#CBD5E1',
+          400: '#94A3B8',
+          500: '#64748B',
+          600: '#475569',
+          700: '#334155',
+          800: '#1E293B',
+          900: '#0F172A',
         },
       },
       boxShadow: {

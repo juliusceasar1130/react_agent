@@ -1,6 +1,5 @@
-<!-- 2025-01-07 - 根布局美化：温润背景色 -->
 <template>
-  <div id="app" class="h-screen w-screen bg-warm-50 flex">
+  <div id="app" class="h-screen w-screen bg-background text-text flex overflow-hidden">
     <ChatView />
   </div>
 </template>

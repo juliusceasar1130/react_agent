@@ -35,7 +35,10 @@ from .schemas import (
     MessageResponse,
 )
 from app import crud
+#-------------------------------------------------------------------
 from .services import agent_service
+# 使用graph_agent_service
+# from .services_graph import agent_service
 
 router = APIRouter(prefix="/api/chat", tags=["chat"])
 

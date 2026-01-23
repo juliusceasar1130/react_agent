@@ -4,11 +4,13 @@
 
 ## 特性
 
+- **LangGraph 1.0+** - 使用最新的 `StateGraph` 构建复杂的工具调用工作流
 - **多会话管理** - 创建、删除、切换聊天会话
 - **流式/非流式输出** - 支持 SSE 实时流式响应
-- **LangChain Agent** - 集成 arXiv 论文搜索工具
+- **SQL Agent** - 官方推荐的多步骤工作流（表探测、Schema 解析、查询生成、SQL 校验、执行）
+- **日期标准化** - 针对数据库日期字段（如 `DD/MM/YYYY`）的自动 ISO 8601 转换清洗
 - **状态持久化** - PostgresSaver 自动管理 Agent 状态
-- **自动摘要** - SummarizationMiddleware 压缩长对话
+- **现代 UI/UX** - 基于 Neural Tones + AI Purple 设计系统，支持毛玻璃效果与流畅动画
 - **前后端分离** - FastAPI + Vue 3 + TypeScript
 
 ## 技术栈
@@ -20,9 +22,9 @@
 | FastAPI        | 高性能异步 Web 框架                |
 | SQLAlchemy     | Python ORM                         |
 | PostgreSQL     | 关系型数据库                       |
-| LangChain      | LLM 应用开发框架                   |
-| Ollama         | 本地大模型推理服务                 |
-| Qwen3:30b      | 阿里通义千问大语言模型             |
+| LangGraph      | LLM 应用开发框架 (1.0+ 版本)       |
+| DeepSeek       | 联网大语言模型 (API)               |
+| Ollama         | 本地大模型推理服务 (可选)           |
 | PostgresSaver  | Agent 状态持久化                   |
 | psycopg_pool   | PostgreSQL 连接池                  |
 
@@ -34,7 +36,7 @@
 | TypeScript    | 类型安全              |
 | Vite          | 前端构建工具          |
 | Pinia         | 状态管理              |
-| Tailwind CSS  | CSS 框架              |
+| Tailwind CSS  | CSS 框架 (支持 Neural Tones + AI Purple) |
 | Axios         | HTTP 客户端           |
 
 ## 快速开始
@@ -60,19 +62,21 @@ cd rearch_agent
 # .env
 DATABASE_URL='postgresql://用户名:密码@localhost:5432/rearch_agent'
 
-# Ollama 配置 (本地推理，RTX 5090 优化)
+# DeepSeek 配置 (推荐，响应快，SQL 能力强)
+DEEPSEEK_API_KEY='your-deepseek-api-key'
+DEEPSEEK_BASE_URL='https://api.deepseek.com/v1'
+DEEPSEEK_MODEL='deepseek-chat'
+
+# (可选) Ollama 配置 (本地推理)
 OLLAMA_BASE_URL='http://localhost:11434'
 OLLAMA_MODEL='qwen3:30b'
 OLLAMA_NUM_CTX=32768
 OLLAMA_KEEP_ALIVE=-1
 
-# (可选) DeepSeek 配置，如需切换回 DeepSeek 可使用
-# DEEPSEEK_API_KEY='your-deepseek-api-key'
-# DEEPSEEK_BASE_URL='https://api.deepseek.com'
-# DEEPSEEK_MODEL='deepseek-chat'
-
 AGENT_TEMPERATURE=0.1
 AGENT_MAX_TOKENS=2000
+MYSQL_DATABASE_URL='mysql+pymysql://...'
+SQL_AGENT_TOP_K=1000
 ```
 
 ### 3. 安装依赖
@@ -86,7 +90,7 @@ pip install -r requirements.txt
 或手动安装核心依赖：
 ```bash
 pip install fastapi uvicorn sqlalchemy psycopg[binary,pool]
-pip install langchain langchain-deepseek langgraph-checkpoint-postgres
+pip install langchain langchain-deepseek langgraph-checkpoint-postgres cryptography
 ```
 
 **前端依赖**：
@@ -132,7 +136,8 @@ rearch_agent/
 │   │   ├── schemas.py      # Pydantic Schema
 │   │   ├── database.py     # 数据库连接
 │   │   ├── config.py       # 配置管理
-│   │   └── services.py     # LangChain Agent 服务
+│   │   ├── services.py     # 基础版 Agent 服务 (支持 DeepSeek & 日期清洗)
+│   │   └── services_graph.py # 增强版 LangGraph 1.0+ SQL Agent 服务 (推荐)
 │   ├── docs/               # 技术文档
 │   └── requirements.txt    # Python 依赖
 │
@@ -223,18 +228,26 @@ config = {"configurable": {"thread_id": str(session_id)}}
 result = agent.invoke({"messages": [...]}, config=config)
 ```
 
-### SummarizationMiddleware 自动摘要
+### LangGraph 1.0+ SQL Agent 工作流
 
-当对话历史超过 4000 tokens 时，自动生成摘要：
+该系统目前使用官方推荐的 **Multi-Step SQL Agent** 模式构建：
+
+1. **list_tables**: 动态发现数据库表。
+2. **get_schema**: 提取相关表的结构和示例行。
+3. **generate_query**: 生成初步 SQL 查询。
+4. **check_query**: **SQL 校验节点**，专门运行一个“SQL 专家”提示词来检查查询中的语法错误、Join 逻辑、NULL 处理等。
+5. **run_query**: 执行查询并应用日期标准化清洗。
+
+### 日期标准化清洗 (Strategy A)
+
+为了解决 `DD/MM/YYYY` 等碎片化日期格式导致 LLM 比较失败的问题，系统在 `run_query` 节点后会无条件对输出结果进行 ISO 8601 (`YYYY-MM-DD`) 转换清洗。
 
 ```python
-from langchain.agents.middleware import SummarizationMiddleware
-
-middleware = SummarizationMiddleware(
-    model=llm,
-    trigger=("tokens", 4000),
-    keep=("messages", 20)
-)
+# 清洗逻辑示例
+def normalize_dates_in_text(text: str):
+    # 将 DD/MM/YYYY 转换为 YYYY-MM-DD
+    # 确保 LLM 可以通过字符串比较正确理解日期逻辑
+    ...
 ```
 
 ### 数据库表结构

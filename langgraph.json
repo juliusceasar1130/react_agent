@@ -1,0 +1,9 @@
+{
+  "dependencies": [
+    "."
+  ],
+  "graphs": {
+    "agent": "backend/app/test_agent.py:agent_service"
+  },
+  "env": ".env"
+}

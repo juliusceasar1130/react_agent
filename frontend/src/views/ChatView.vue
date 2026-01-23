@@ -2,15 +2,15 @@
 <template>
   <div class="flex w-full h-full">
     <!-- 左侧：会话列表 -->
-    <aside class="w-80 bg-white border-r border-warm-200 flex flex-col shadow-soft">
-      <header class="p-5 border-b border-warm-200 flex justify-between items-center bg-gradient-to-r from-warm-50 to-white">
+    <aside class="w-80 bg-surface border-r border-neutral-200 flex flex-col shadow-soft">
+      <header class="p-5 border-b border-neutral-200 flex justify-between items-center bg-gradient-to-r from-bg to-surface">
         <div class="flex items-center gap-2.5">
-          <div class="w-8 h-8 rounded-lg bg-gradient-to-br from-indigo-500 to-purple-500 flex items-center justify-center shadow-glow">
+          <div class="w-8 h-8 rounded-lg bg-gradient-to-br from-primary to-primary-hover flex items-center justify-center shadow-glow">
             <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
             </svg>
           </div>
-          <h2 class="text-lg font-semibold text-warm-800">对话</h2>
+          <h2 class="text-lg font-semibold text-text">对话</h2>
         </div>
         <button
           @click="handleCreateSession"
@@ -26,13 +26,13 @@
     </aside>
 
     <!-- 右侧：消息展示区 -->
-    <main class="flex-1 flex flex-col bg-gradient-to-br from-warm-50 via-white to-indigo-50/30">
-      <header v-if="currentSession" class="px-6 py-4 bg-white/80 backdrop-blur-sm border-b border-warm-200 shadow-sm animate-fade-in">
-        <h3 class="text-xl font-semibold text-warm-800">{{ currentSession.title }}</h3>
-        <p class="text-sm text-warm-500 mt-0.5">AI 智能助手</p>
+    <main class="flex-1 flex flex-col bg-gradient-to-br from-bg via-surface to-primary/5">
+      <header v-if="currentSession" class="px-6 py-4 bg-surface/80 backdrop-blur-sm border-b border-neutral-200 shadow-sm animate-fade-in">
+        <h3 class="text-xl font-semibold text-text">{{ currentSession.title }}</h3>
+        <p class="text-sm text-neutral-500 mt-0.5">AI 智能助手</p>
       </header>
-      <div v-else class="px-6 py-4 bg-white/80 backdrop-blur-sm border-b border-warm-200">
-        <p class="text-warm-400">选择或创建一个会话开始对话</p>
+      <div v-else class="px-6 py-4 bg-surface/80 backdrop-blur-sm border-b border-neutral-200">
+        <p class="text-neutral-500">选择或创建一个会话开始对话</p>
       </div>
 
       <!-- 消息列表 -->
@@ -40,7 +40,7 @@
       <EmptyState v-else />
 
       <!-- 消息输入区 -->
-      <div v-if="currentSession" class="p-4 bg-white/80 backdrop-blur-sm border-t border-warm-200">
+      <div v-if="currentSession" class="p-4 bg-surface/80 backdrop-blur-sm border-t border-neutral-200">
         <!-- 流式模式开关 - 2025-01-07 使用 ToggleSwitch 组件 -->
         <div class="flex items-center justify-between mb-3">
           <ToggleSwitch
@@ -51,7 +51,7 @@
             off-label="等待完整回复"
           />
           <span v-if="isSending" class="text-xs flex items-center gap-1.5 animate-pulse px-2.5 py-1 rounded-full"
-            :class="streamMode ? 'bg-indigo-50 text-indigo-600' : 'bg-warm-100 text-warm-600'"
+            :class="streamMode ? 'bg-primary/10 text-primary' : 'bg-neutral-100 text-neutral-500'"
           >
             <svg class="w-3 h-3 animate-spin" fill="none" viewBox="0 0 24 24">
               <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
@@ -74,7 +74,7 @@
             />
               <div
                 v-if="inputText.length > 0"
-                class="absolute bottom-3 right-3 text-xs text-warm-400 transition-opacity duration-200"
+                class="absolute bottom-3 right-3 text-xs text-neutral-400 transition-opacity duration-200"
               >
                 {{ inputText.length }} 字符
               </div>

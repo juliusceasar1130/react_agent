@@ -11,8 +11,8 @@
 
     <!-- 开关轨道 -->
     <div
-      class="relative w-11 h-6 rounded-full transition-all duration-300 ease-out peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-indigo-500/50"
-      :class="modelValue ? 'bg-indigo-500 shadow-md shadow-indigo-500/30' : 'bg-warm-300'"
+      class="relative w-11 h-6 rounded-full transition-all duration-300 ease-out peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-primary/50"
+      :class="modelValue ? 'bg-primary shadow-md shadow-primary/30' : 'bg-neutral-300'"
     >
       <!-- 开关滑块 -->
       <div
@@ -20,11 +20,11 @@
         :class="modelValue ? 'translate-x-5' : 'translate-x-0'"
       >
         <!-- 开启状态图标 -->
-        <svg v-if="modelValue" class="w-3 h-3 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <svg v-if="modelValue" class="w-3 h-3 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/>
         </svg>
         <!-- 关闭状态图标 -->
-        <svg v-else class="w-3 h-3 text-warm-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <svg v-else class="w-3 h-3 text-neutral-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
         </svg>
       </div>
@@ -34,7 +34,7 @@
     <span
       v-if="label"
       class="text-sm font-medium transition-colors duration-200 select-none"
-      :class="modelValue ? 'text-indigo-600' : 'text-warm-600 group-hover:text-warm-800'"
+      :class="modelValue ? 'text-primary' : 'text-neutral-500 group-hover:text-text'"
     >
       {{ label }}
     </span>
@@ -43,7 +43,7 @@
     <span
       v-if="showStatus"
       class="text-xs transition-colors duration-200 select-none"
-      :class="modelValue ? 'text-indigo-400' : 'text-warm-400'"
+      :class="modelValue ? 'text-primary/80' : 'text-neutral-400'"
     >
       {{ modelValue ? onLabel : offLabel }}
     </span>

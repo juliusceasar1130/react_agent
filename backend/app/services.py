@@ -8,8 +8,11 @@ os.environ["NO_PROXY"] = "192.22.44.99,localhost,127.0.0.1"
 
 import logging
 import json
+import re
 from typing import List, Dict, Any, AsyncIterator
 
+import dateutil.parser
+from langchain_openai import ChatOpenAI
 from langchain_ollama import ChatOllama
 from langchain.agents import create_agent
 from langchain.agents.middleware import SummarizationMiddleware
@@ -18,8 +21,41 @@ from langchain_community.utilities import SQLDatabase
 from langchain_core.messages import HumanMessage, AIMessage, ToolMessage, AIMessageChunk
 from langgraph.checkpoint.postgres import PostgresSaver
 from .config import settings
+from langchain_core.tools import tool as langchain_tool
 
 logger = logging.getLogger(__name__)
+
+
+def normalize_dates_in_text(text: str) -> str:
+    """
+    检测并转换文本中的非 ISO 日期格式为 ISO 8601 格式。
+    策略 A: 无条件运行，对所有结果进行清洗。
+    """
+    # 匹配 DD/MM/YYYY 或 DD-MM-YYYY 格式的日期
+    date_pattern = r'\b(\d{1,2})[/\-](\d{1,2})[/\-](\d{4})\b'
+    
+    def replace_date(match):
+        try:
+            original = match.group(0)
+            dt_obj = dateutil.parser.parse(original, dayfirst=True)
+            return dt_obj.strftime("%Y-%m-%d")
+        except Exception:
+            return match.group(0)
+    
+    # 匹配 DD/MM/YYYY HH:MM:SS 格式
+    datetime_pattern = r'\b(\d{1,2})[/\-](\d{1,2})[/\-](\d{4})\s+(\d{1,2}):(\d{2}):(\d{2})(?:\.(\d+))?\b'
+    
+    def replace_datetime(match):
+        try:
+            original = match.group(0)
+            dt_obj = dateutil.parser.parse(original, dayfirst=True)
+            return dt_obj.strftime("%Y-%m-%d %H:%M:%S")
+        except Exception:
+            return match.group(0)
+    
+    result = re.sub(datetime_pattern, replace_datetime, text)
+    result = re.sub(date_pattern, replace_date, result)
+    return result
 
 
 class SQLAgentService:
@@ -32,25 +68,61 @@ class SQLAgentService:
     def _initialize_agent(self):
         """初始化 Agent"""
         try:
-            # 1. 初始化 Ollama 模型 (Qwen3:30b)
+            
+            # 1. 初始化 DeepSeek 模型 (联网大模型)
+            # llm = ChatOpenAI(
+            #     model=settings.deepseek_model,
+            #     temperature=settings.agent_temperature,
+            #     openai_api_key=settings.deepseek_api_key,
+            #     openai_api_base=settings.deepseek_base_url,
+            #     max_tokens=settings.agent_max_tokens,
+            # )
+
+            # 1. 初始化 Ollama 模型
             llm = ChatOllama(
                 model=settings.ollama_model,
-                temperature=settings.agent_temperature,
                 base_url=settings.ollama_base_url,
+                temperature=settings.agent_temperature,
                 num_ctx=settings.ollama_num_ctx,
                 keep_alive=settings.ollama_keep_alive,
             )
 
-            # 2. 连接 MySQL 数据库
-            db = SQLDatabase.from_uri(settings.mysql_database_url)
-            logger.info(f"SQL Agent 连接到 MySQL 数据库: {settings.mysql_database_url}")
+            # 2. 连接 rollerbed_database_url 数据库
+            db = SQLDatabase.from_uri(settings.rollerbed_database_url)
+            logger.info(f"SQL Agent 连接到 rollerbed_database_url 数据库: {settings.rollerbed_database_url}")
 
             # 3. 创建 SQL 工具包
             toolkit = SQLDatabaseToolkit(db=db, llm=llm)
-            tools = toolkit.get_tools()
+            raw_tools = toolkit.get_tools()
+
+            # 3.1 深度工具包装：对 sql_db_query 进行日期清洗包装
+            # 这样模型在中间推理步骤中看到的就是 ISO 8601 格式的日期            
+            
+            original_query_tool = next(
+                (t for t in raw_tools if t.name == "sql_db_query"), None
+            )
+            
+            if original_query_tool:
+                @langchain_tool
+                def sql_db_query(query: str) -> str:
+                    """Execute a SQL query against the database and return results.
+                    Input should be a valid SQL query.
+                    The results will have dates normalized to ISO 8601 format (YYYY-MM-DD).
+                    """
+                    raw_result = original_query_tool.invoke({"query": query})
+                    cleaned_result = normalize_dates_in_text(str(raw_result))
+                    logger.debug(f"SQL 查询结果已清洗日期格式")
+                    return cleaned_result
+                
+                # 用包装后的工具替换原始工具
+                tools = [sql_db_query if t.name == "sql_db_query" else t for t in raw_tools]
+                logger.info("SQL 查询工具已包装日期清洗逻辑")
+            else:
+                tools = raw_tools
+                logger.warning("未找到 sql_db_query 工具，跳过包装")
 
             # 4. 定义 SQL Agent 系统提示词
-            system_prompt = f"""You are an agent designed to interact with a SQL database.
+            system_prompt = f"""You are an 120JPH paint shop agent designed to interact with a SQL database.
 Given an input question, create a syntactically correct {db.dialect} query to run,
 then look at the results of the query and return the answer. Unless the user
 specifies a specific number of examples they wish to obtain, always limit your
@@ -71,8 +143,9 @@ can query. Do NOT skip this step.
 
 Then you should query the schema of the most relevant tables.
 
-注意：使用中文进行回复
-     <DATE_EVT>是字符串格式，在编写sql时应该使用STR_TO_DATE(DATE_EVT, '%d/%m/%Y %H:%i:%s.%f')进行转换
+注意：- 使用中文进行回复
+     - <DATE_EVT>是字符串格式，在编写sql时应该使用STR_TO_DATE(DATE_EVT, '%d/%m/%Y %H:%i:%s.%f')进行转换
+     - 如果用户问你 <你是谁><你好>等问题，你应该简单描述你的擅长的功能并给出示例，不需要进行任何数据库操作。
 """
 
             # 5. 初始化 PostgresSaver（保留状态管理）

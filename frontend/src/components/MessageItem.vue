@@ -57,12 +57,12 @@ const content = computed(() =>
 
 const messageWrapperClass = computed(() => {
   if (isUser.value) {
-    return 'bg-gradient-to-br from-indigo-500 to-purple-500'
+    return 'bg-gradient-to-br from-primary to-primary-hover'
   }
   if (isStreaming.value) {
-    return 'bg-gradient-to-br from-indigo-50 to-purple-50 border border-indigo-200'
+    return 'bg-gradient-to-br from-primary/5 to-secondary/5 border border-primary/20'
   }
-  return 'bg-white border border-warm-200'
+  return 'bg-surface border border-neutral-200'
 })
 
 const textClass = computed(() => {
@@ -70,16 +70,16 @@ const textClass = computed(() => {
     return 'text-white font-medium'
   }
   if (isStreaming.value) {
-    return 'text-indigo-800'
+    return 'text-primary'
   }
-  return 'text-warm-800'
+  return 'text-text'
 })
 
 const timeClass = computed(() => {
   if (isUser.value) {
     return 'text-white/60'
   }
-  return 'text-warm-400'
+  return 'text-neutral-400'
 })
 
 const formattedTime = computed(() => {

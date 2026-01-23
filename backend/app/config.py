@@ -1,6 +1,6 @@
 import os
 from typing import Optional
-from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings, SettingsConfigDict
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -16,6 +16,17 @@ class Settings(BaseSettings):
     database_url: str = os.getenv(
         "DATABASE_URL", "postgresql://root:root@localhost:5432/rearch_agent"
     )
+
+    # PostgreSQL 数据库配置（用于 rollerbed tracking system）
+    rollerbed_database_url: str = os.getenv(
+        "ROLLERBED_DATABASE_URL",
+        "postgresql://root:root@localhost:5432/rollerbed_tracking_db",
+    )
+    rollerbed_postgres_user: str = os.getenv("ROLLERBED_POSTGRES_USER", "root")
+    rollerbed_postgres_password: str = os.getenv("ROLLERBED_POSTGRES_PASSWORD", "root")
+    rollerbed_postgres_db: str = os.getenv("ROLLERBED_POSTGRES_DB", "rollerbed_tracking_db")
+    rollerbed_postgres_host: str = os.getenv("ROLLERBED_POSTGRES_HOST", "localhost")
+    rollerbed_postgres_port: int = int(os.getenv("ROLLERBED_POSTGRES_PORT", "5432"))
 
     # MySQL 生产数据库配置（SQL Agent 使用）
     mysql_database_url: str = os.getenv(
@@ -39,8 +50,19 @@ class Settings(BaseSettings):
     ollama_num_ctx: int = int(os.getenv("OLLAMA_NUM_CTX", "32768"))
     ollama_keep_alive: int = int(os.getenv("OLLAMA_KEEP_ALIVE", "-1"))
 
-    class Config:
-        env_file = ".env"
+    # Graph & LangSmith 配置
+    langsmith_tracing: bool = os.getenv("LANGSMITH_TRACING", "false").lower() == "true"
+    langsmith_api_key: str = os.getenv("LANGSMITH_API_KEY", "")
+
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        extra="ignore"
+    )
 
 
 settings = Settings()
+
+if __name__ == "__main__":
+    print("Settings loaded successfully!")
+    print(f"Database URL: {settings.database_url}")
+    print(f"LangSmith Tracing: {settings.langsmith_tracing}")
