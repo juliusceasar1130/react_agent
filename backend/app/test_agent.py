@@ -7,9 +7,20 @@ for var in ["HTTP_PROXY", "HTTPS_PROXY", "http_proxy", "https_proxy"]:
 os.environ["NO_PROXY"] = "192.22.44.99,localhost,127.0.0.1"
 
 import logging
+import sys
 import json
 import re
 from typing import List, Dict, Any, AsyncIterator
+
+# 配置日志 - 确保 langgraph dev 模式下能看到日志
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    handlers=[
+        logging.StreamHandler(sys.stdout),
+        logging.FileHandler("langgraph_dev.log", encoding="utf-8")
+    ]
+)
 
 import dateutil.parser
 from sqlalchemy import create_engine, inspect, text
@@ -26,6 +37,96 @@ from backend.app.config import settings
 from langchain_core.tools import tool as langchain_tool
 
 logger = logging.getLogger(__name__)
+from langchain.tools import tool
+
+
+
+
+
+
+
+
+
+from backend.app.skills import SKILLS
+@langchain_tool
+def load_skill(skill_name: str) -> str:
+    """Load the full content of a skill into the agent's context.
+
+    Use this when you need detailed information about how to handle a specific
+    type of request. This will provide you with comprehensive instructions,
+    policies, and guidelines for the skill area.
+
+    Args:
+        skill_name: The name of the skill to load (e.g., "expense_reporting", "travel_booking")
+    """
+    # Find and return the requested skill
+    for skill in SKILLS:
+        if skill["name"] == skill_name:
+            return f"Loaded skill: {skill_name}\n\n{skill['content']}"
+
+    # Skill not found
+    available = ", ".join(s["name"] for s in SKILLS)
+    return f"Skill '{skill_name}' not found. Available skills: {available}"
+
+
+from langchain.agents.middleware import ModelRequest, ModelResponse, AgentMiddleware
+from langchain.messages import SystemMessage
+from typing import Callable
+
+class SkillMiddleware(AgentMiddleware):  
+    """Middleware that injects skill descriptions into the system prompt."""
+
+    # Register the load_skill tool as a class variable
+    tools = [load_skill]  
+
+    def __init__(self):
+        """Initialize and generate the skills prompt from SKILLS."""
+        # Build skills prompt from the SKILLS list
+        skills_list = []
+        for skill in SKILLS:
+            skills_list.append(
+                f"- **{skill['name']}**: {skill['description']}"
+            )
+        self.skills_prompt = "\n".join(skills_list)
+
+    def _modify_request(self, request: ModelRequest) -> ModelRequest:
+        """提取公共逻辑：将技能描述注入到系统提示词中"""
+        skills_addendum = ( 
+            f"\n\n## Available Skills\n\n{self.skills_prompt}\n\n"
+            "Use the load_skill tool when you need detailed information "
+            "about handling a specific type of request."
+        )
+        # 追加系统提示词
+        new_content = list(request.system_message.content_blocks) + [
+            {"type": "text", "text": skills_addendum}
+        ]
+        new_system_message = SystemMessage(content=new_content)
+        logger.info("SkillMiddleware: Injected skill descriptions into system prompt")
+        logger.info(f"Modified system message: {new_system_message}")
+        return request.override(system_message=new_system_message)
+
+    def wrap_model_call(
+        self,
+        request: ModelRequest,
+        handler: Callable[[ModelRequest], ModelResponse],
+    ) -> ModelResponse:
+        """Sync: Inject skill descriptions into system prompt."""
+        modified_request = self._modify_request(request)
+        return handler(modified_request)
+
+    async def awrap_model_call(
+        self,
+        request: ModelRequest,
+        handler: Callable[[ModelRequest], ModelResponse],
+    ) -> ModelResponse:
+        """Async: Inject skill descriptions into system prompt."""
+        modified_request = self._modify_request(request)
+        return await handler(modified_request)
+
+
+
+
+
 
 
 def normalize_dates_in_text(text: str) -> str:
@@ -256,6 +357,7 @@ class SQLAgentService:
                     The results will have dates normalized to ISO 8601 format (YYYY-MM-DD).
                     """
                     raw_result = original_query_tool.invoke({"query": query})
+                    # 对查询的结果的日期进行格式转换
                     cleaned_result = normalize_dates_in_text(str(raw_result))
                     logger.debug(f"SQL 查询结果已清洗日期格式")
                     return cleaned_result
@@ -325,7 +427,7 @@ Then you should query the schema of the most relevant tables.
                 tools=tools,
                 system_prompt=system_prompt,
                 # checkpointer=self.checkpointer, # 移除自定义 checkpointer，由 LangGraph API 接管
-                middleware=[summarization_middleware],
+                middleware=[summarization_middleware,SkillMiddleware()],
             )
 
             logger.info(

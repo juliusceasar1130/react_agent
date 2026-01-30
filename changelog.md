@@ -1,5 +1,152 @@
 # Changelog
 
+## 2026-01-27 16:37 - 修复流式聊天 API 路径配置
+
+### 问题
+- `frontend/src/api/chat.ts` 中的流式请求硬编码了 `http://localhost:8000/api/chat`
+- 导致在生产环境通过 Nginx 代理时无法正常访问后端
+- 其他 API（sessions、messages）使用相对路径 `/rearch` 正常工作，但流式聊天请求失败
+
+### 解决方案
+- 修改 `API_BASE` 从 `'http://localhost:8000/api/chat'` 改为 `'/rearch/api/chat'`
+- 统一所有 API 请求都通过 Nginx 代理访问后端
+- 确保开发和生产环境的一致性
+
+### 技术细节
+```typescript
+// 修改前
+const API_BASE = 'http://localhost:8000/api/chat'
+
+// 修改后
+const API_BASE = '/rearch/api/chat'  // 使用相对路径，适配 Nginx 代理
+```
+
+---
+
+## 2026-01-27 13:55 - Docker 容器化部署方案
+
+### 概述
+为后端FastAPI应用创建完整的Docker容器化部署方案，支持一键部署到生产服务器。
+
+### 变更内容
+
+#### 核心配置文件
+- **backend/Dockerfile**: 创建后端镜像配置
+  - 基于 `python:3.12-slim` 官方镜像
+  - 安装系统依赖（gcc, postgresql-client）
+  - 复制依赖并安装Python包
+  - 暴露8000端口，使用uvicorn启动
+  
+- **backend/.dockerignore**: 排除文件列表
+  - 排除Python缓存、虚拟环境、测试文件等
+  - 减小Docker镜像体积
+
+- **docker-compose.yml**: 容器编排配置（更新）
+  - 新增 `backend` 服务：FastAPI应用容器
+  - 保留 `postgres` 服务：PostgreSQL 17-alpine
+  - 配置服务依赖：backend依赖postgres健康检查
+  - 使用 `.env` 文件管理所有环境变量
+  - 数据持久化卷 `pgdata`
+
+- **.env.production**: 生产环境配置模板
+  - 数据库配置（PostgreSQL）
+  - LLM配置（DeepSeek/Ollama）
+  - Agent配置（温度、Token限制）
+  - LangSmith配置（可选）
+  - 详细的注释说明
+
+#### 部署文档
+- **deploy/README.md**: 完整部署指南
+  - 快速部署步骤（服务器准备、上传文件、配置、启动）
+  - 常用管理命令（启停、日志、调试）
+  - Nginx反向代理配置示例
+  - 故障排查指南
+  - 安全建议和数据备份方法
+
+### 部署流程
+
+```bash
+# 1. 上传项目到服务器
+scp -r rearch_agent/ user@server:/opt/
+
+# 2. 配置环境变量
+cd /opt/rearch_agent
+cp .env.production .env
+nano .env
+
+# 3. 一键启动
+docker-compose up -d --build
+
+# 4. 验证
+curl http://localhost:8000/
+```
+
+### 技术特点
+- ✅ 简洁：最小化配置，只包含必要组件
+- ✅ 完整：包含数据库、后端服务和详细文档
+- ✅ 灵活：通过环境变量轻松切换配置
+- ✅ 可靠：健康检查、自动重启、数据持久化
+- ✅ 易维护：详细的操作文档和故障排查指南
+
+---
+
+## 2026-01-26 17:45 - 修复 PostgreSQL Checkpointer 初始化错误
+
+### 问题
+- LangGraph 的 `PostgresSaver.setup()` 使用 `CREATE INDEX CONCURRENTLY` 创建索引
+- 该命令不能在事务块中运行，导致初始化失败
+- 错误信息: `ActiveSqlTransaction: CREATE INDEX CONCURRENTLY cannot run inside a transaction block`
+
+### 解决方案
+- **backend/app/services.py**: 修改 checkpointer 初始化逻辑
+  - 使用独立的 `psycopg.connect()` 连接并开启 `autocommit=True` 模式执行 `setup()`
+  - setup 完成后再创建 `ConnectionPool` 用于正常操作
+  - 添加详细的日志输出，便于诊断数据库连接问题
+
+### 技术细节
+```python
+# 使用 autocommit 模式创建表结构
+with psycopg.connect(settings.database_url, autocommit=True) as setup_conn:
+    temp_checkpointer = PostgresSaver(setup_conn)
+    temp_checkpointer.setup()
+
+# 然后创建连接池用于正常操作
+self.conn_pool = ConnectionPool(conninfo=settings.database_url, ...)
+self.checkpointer = PostgresSaver(self.conn_pool)
+```
+
+---
+
+## 2026-01-26 - 配置本地 llama.cpp 服务器
+- **Backend 配置**: 将 LLM 从 DeepSeek API 切换到本地 llama.cpp 服务器。
+  - 服务器地址: `http://172.22.44.99:8089/v1`
+  - 模型: GLM-4.7-Flash-Q6_K.gguf
+  - 使用 `ChatOpenAI` 客户端，兼容 OpenAI API 格式
+
+
+## 2026-01-24: Agent V2 重构与架构升级
+
+### 概述
+基于 CR 反馈完成了 Agent V2 的重构工作，通过高度模块化的设计提升了代码的可维护性、可扩展性和可测试性。引入了基于技能（Skills）的动态上下文管理机制，并强化了 SQL 执行的安全性和准确性。
+
+### 变更内容
+- **模块化架构 (`backend/app/agent/`)**: 将原有的单文件服务拆分为功能独立的模块：
+  - `service.py`: 核心服务编排
+  - `middleware/`: 包含 `SkillMiddleware` 等中间件
+  - `tools/`: 包含 `WrappedQueryTool` 等增强工具
+  - `constants.py` & `utils`: 常量与通用工具函数
+- **技能系统 (Skills System)**:
+  - 引入 `SkillMiddleware`，支持按需加载业务领域的知识（Skills）到系统提示词。
+  - 新增 `load_skill` 工具，允许 Agent 在运行时动态获取特定领域的详细文档和规则。
+- **增强型 SQL 执行**:
+  - **前置检查**: 集成了 SQL 语法验证器。
+  - **后置处理**: 统一对查询结果进行 ISO 8601 日期格式化清洗，彻底解决时间格式不一致导致的大模型推理错误。
+- **配置与日志优化**: 
+  - 优化了代理（Proxy）环境变量的自动清理逻辑。
+  - 统一了日志格式，支持开发模式下的详细日志输出。
+
+---
+
 ## 2026-01-21: PostgreSQL 数据库配置扩展
 
 ### 概述

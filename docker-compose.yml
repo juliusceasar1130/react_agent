@@ -1,26 +1,27 @@
 services:
-  postgres:
-    image: postgres:17-alpine
-    container_name: rearch-agent-postgres
-    environment:
-      POSTGRES_USER: ${POSTGRES_USER}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-      POSTGRES_DB: ${POSTGRES_DB:-rearch_agent}
+  # FastAPI 后端服务
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    container_name: rearch-agent-backend
+    env_file: .env
     ports:
-      - "${POSTGRES_PORT:-5432}:5432"
-    volumes:
-      - pgdata:/var/lib/postgresql/data
-    healthcheck:
-      test:
-        [
-          "CMD-SHELL",
-          "pg_isready -U ${POSTGRES_USER:-rearch_user} -d ${POSTGRES_DB:-rearch_agent}",
-        ]
-      interval: 10s
-      timeout: 5s
-      retries: 5
+      - "${BACKEND_PORT:-8000}:8000"
+    # 加入已存在的network，与postgres容器通信
+    networks:
+      - app-network
     restart: unless-stopped
+    # 修改点：删除错误的 extra_hosts
+    # 如果你在 Linux 上可能需要 host-gateway，但在 Windows Docker Desktop 上通常不需要。
+    # 为了兼容性，可以加上下面这行（将宿主机映射为 host.docker.internal）：
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
 
-volumes:
-  pgdata:
-    driver: local
+# 使用外部已存在的network（由postgres的docker-compose创建）
+networks:
+  app-network:
+    external: true
+    # 确保这个名字和 postgres docker-compose 里创建的网络名字完全一致
+    # 可以通过 docker network ls 查看
+    name: savedatabase_app_network

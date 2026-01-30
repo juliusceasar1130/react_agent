@@ -22,11 +22,6 @@ class Settings(BaseSettings):
         "ROLLERBED_DATABASE_URL",
         "postgresql://root:root@localhost:5432/rollerbed_tracking_db",
     )
-    rollerbed_postgres_user: str = os.getenv("ROLLERBED_POSTGRES_USER", "root")
-    rollerbed_postgres_password: str = os.getenv("ROLLERBED_POSTGRES_PASSWORD", "root")
-    rollerbed_postgres_db: str = os.getenv("ROLLERBED_POSTGRES_DB", "rollerbed_tracking_db")
-    rollerbed_postgres_host: str = os.getenv("ROLLERBED_POSTGRES_HOST", "localhost")
-    rollerbed_postgres_port: int = int(os.getenv("ROLLERBED_POSTGRES_PORT", "5432"))
 
     # MySQL 生产数据库配置（SQL Agent 使用）
     mysql_database_url: str = os.getenv(

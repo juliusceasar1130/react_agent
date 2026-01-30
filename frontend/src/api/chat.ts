@@ -4,7 +4,7 @@
 import axios from 'axios'
 import type { ChatRequest, ChatResponse, StreamChunk } from '@/types'
 
-const API_BASE = 'http://localhost:8000/api/chat'
+const API_BASE = '/rearch/api/chat'  // 使用相对路径，适配 Nginx 代理
 
 /**
  * 非流式消息发送

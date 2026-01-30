@@ -4,6 +4,7 @@
 
 ## 特性
 
+- **Docker 容器化部署** - 一键部署到生产服务器，支持 Docker Compose 编排
 - **LangGraph 1.0+** - 使用最新的 `StateGraph` 构建复杂的工具调用工作流
 - **多会话管理** - 创建、删除、切换聊天会话
 - **流式/非流式输出** - 支持 SSE 实时流式响应
@@ -12,6 +13,8 @@
 - **状态持久化** - PostgresSaver 自动管理 Agent 状态
 - **现代 UI/UX** - 基于 Neural Tones + AI Purple 设计系统，支持毛玻璃效果与流畅动画
 - **前后端分离** - FastAPI + Vue 3 + TypeScript
+- **技能系统 (Skills)** - 动态加载业务领域知识，支持大规模上下文管理 (Agent V2)
+
 
 ## 技术栈
 
@@ -38,6 +41,31 @@
 | Pinia         | 状态管理              |
 | Tailwind CSS  | CSS 框架 (支持 Neural Tones + AI Purple) |
 | Axios         | HTTP 客户端           |
+
+
+## Docker 快速部署（推荐）
+
+最简单的部署方式是使用 Docker Compose：
+
+```bash
+# 1. 克隆项目
+git clone <repository-url>
+cd rearch_agent
+
+# 2. 配置环境变量
+cp .env.production .env
+nano .env  # 修改数据库密码和LLM配置
+
+# 3. 启动所有服务
+docker-compose up -d --build
+
+# 4. 验证
+curl http://localhost:8000/
+```
+
+详细部署文档：[deploy/README.md](./deploy/README.md)
+
+---
 
 ## 快速开始
 
@@ -137,7 +165,14 @@ rearch_agent/
 │   │   ├── database.py     # 数据库连接
 │   │   ├── config.py       # 配置管理
 │   │   ├── services.py     # 基础版 Agent 服务 (支持 DeepSeek & 日期清洗)
-│   │   └── services_graph.py # 增强版 LangGraph 1.0+ SQL Agent 服务 (推荐)
+│   │   ├── services_graph.py # 增强版 LangGraph 1.0+ SQL Agent 服务
+│   │   └── agent/          # [NEW] Agent V2 模块化架构
+│   │       ├── service.py      # 核心服务编排
+│   │       ├── middleware/     # 中间件 (Skills, Summarization)
+│   │       ├── tools/          # 工具集
+│   │       └── utils/          # 通用工具
+│   ├── Dockerfile          # Docker 镜像配置
+│   ├── .dockerignore       # Docker 排除文件
 │   ├── docs/               # 技术文档
 │   └── requirements.txt    # Python 依赖
 │
@@ -151,7 +186,12 @@ rearch_agent/
 │   ├── package.json
 │   └── vite.config.ts
 │
+├── deploy/                 # 部署相关
+│   └── README.md           # 部署文档
+│
+├── docker-compose.yml      # Docker Compose 配置
 ├── .env                    # 环境变量
+├── .env.production         # 生产环境配置模板
 ├── .env.example            # 环境变量示例
 ├── CLAUDE.md               # Claude Code 开发指南
 └── README.md               # 本文件

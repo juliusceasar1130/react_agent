@@ -78,14 +78,23 @@ class SQLAgentService:
             #     max_tokens=settings.agent_max_tokens,
             # )
 
-            # 1. 初始化 Ollama 模型
-            llm = ChatOllama(
-                model=settings.ollama_model,
-                base_url=settings.ollama_base_url,
+            # 1. 初始化 DeepSeek 模型 (本地llama.cpp模型)
+            llm = ChatOpenAI(
+                model=settings.deepseek_model,
                 temperature=settings.agent_temperature,
-                num_ctx=settings.ollama_num_ctx,
-                keep_alive=settings.ollama_keep_alive,
+                openai_api_key=settings.deepseek_api_key,
+                openai_api_base=settings.deepseek_base_url,
+                max_tokens=settings.agent_max_tokens,
             )
+
+            # 1. 初始化 Ollama 模型
+            # llm = ChatOllama(
+            #     model=settings.ollama_model,
+            #     base_url=settings.ollama_base_url,
+            #     temperature=settings.agent_temperature,
+            #     num_ctx=settings.ollama_num_ctx,
+            #     keep_alive=settings.ollama_keep_alive,
+            # )
 
             # 2. 连接 rollerbed_database_url 数据库
             db = SQLDatabase.from_uri(settings.rollerbed_database_url)
@@ -150,18 +159,29 @@ Then you should query the schema of the most relevant tables.
 
             # 5. 初始化 PostgresSaver（保留状态管理）
             from psycopg_pool import ConnectionPool
+            import psycopg
 
+            logger.info(f"正在连接 PostgreSQL 数据库用于 checkpointer...")
+            
+            # 首先使用 autocommit 模式创建表结构
+            # CREATE INDEX CONCURRENTLY 不能在事务块中运行
+            try:
+                logger.info("正在初始化 checkpoints 表（使用 autocommit 模式）...")
+                with psycopg.connect(settings.database_url, autocommit=True) as setup_conn:
+                    temp_checkpointer = PostgresSaver(setup_conn)
+                    temp_checkpointer.setup()
+                logger.info("✅ PostgresSaver 检查点表初始化成功")
+            except Exception as setup_error:
+                logger.error(f"❌ 初始化检查点表失败: {setup_error}", exc_info=True)
+                logger.error(f"请检查数据库连接和权限: {settings.database_url}")
+                raise RuntimeError(f"无法初始化 checkpoints 表: {setup_error}") from setup_error
+            
+            # 然后创建连接池用于正常操作
             self.conn_pool = ConnectionPool(
                 conninfo=settings.database_url, min_size=1, max_size=10, timeout=30
             )
 
             self.checkpointer = PostgresSaver(self.conn_pool)
-
-            try:
-                self.checkpointer.setup()
-                logger.info("PostgresSaver 检查点表初始化成功")
-            except Exception as setup_error:
-                logger.info(f"检查点表已存在或创建跳过: {setup_error}")
 
             # 6. 配置 SummarizationMiddleware
             summarization_middleware = SummarizationMiddleware(

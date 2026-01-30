@@ -1,7 +1,7 @@
 import axios from 'axios'
 
 const api = axios.create({
-  baseURL: 'http://localhost:8000',
+  baseURL: '/rearch',  // 使用相对路径，适配 Nginx 路径前缀 baseURL: 'http://localhost:8000',
   timeout: 10000,
   headers: {
     'Content-Type': 'application/json',
