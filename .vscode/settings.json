@@ -1,0 +1,21 @@
+{
+    "editor.showUnused": true,
+    "editor.semanticHighlighting.enabled": true,
+    "python.analysis.diagnosticSeverityOverrides": {
+        "unusedImport": "information"
+    },
+    "editor.tokenColorCustomizations": {
+        "textMateRules": [
+            {
+                "scope": [
+                    "unused.alpha",
+                    "unused"
+                ],
+                "settings": {
+                    "foreground": "#80808080",
+                    "fontStyle": "italic"
+                }
+            }
+        ]
+    }
+}
