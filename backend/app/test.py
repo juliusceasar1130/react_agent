@@ -1,6 +1,6 @@
 from langchain_deepseek import ChatDeepSeek
 from langchain.agents import create_agent
-from config import settings
+from backend.app.config import settings
 
 llm = ChatDeepSeek(
     model=settings.deepseek_model,
@@ -16,6 +16,6 @@ agent = create_agent(
     model=llm,
     tools=[],
 )
-result = agent.invoke({"messages": {"role": "user", "content": "上海有什么好玩的"}})
-print(result)
+# result = agent.invoke({"messages": {"role": "user", "content": "上海有什么好玩的"}})
+# print(result)
 # print(result["messages"][-1].pretty_print())
