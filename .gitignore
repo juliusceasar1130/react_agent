@@ -2,3 +2,6 @@ __pycache__/
 output/
 .langgraph_api/
 frontend/dist/
+
+# Node modules
+node_modules/
