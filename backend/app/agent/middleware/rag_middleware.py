@@ -3,12 +3,14 @@
 业务知识 RAG 中间件
 
 在用户消息时自动检索业务知识，并将检索结果作为系统消息注入到 messages 中。
+支持可选的 Rerank 精排层（NVIDIA NIM）。
 """
 
 from typing import Any, List, Optional, TYPE_CHECKING
 
 if TYPE_CHECKING:
     from backend.app.agent.utils.pgvector_wrapper import PgVectorStoreWrapper
+    from backend.app.agent.utils.rerank_service import NvidiaRerankService
 import logging
 
 from langchain.agents.middleware import AgentMiddleware
@@ -35,6 +37,7 @@ class BusinessRagMiddleware(AgentMiddleware[CustomState]):
         vector_store: "PgVectorStoreWrapper",
         doc_k: int = 5,
         score_threshold: Optional[float] = None,
+        rerank_service: Optional["NvidiaRerankService"] = None,
     ) -> None:
         """
         Args:
@@ -42,10 +45,13 @@ class BusinessRagMiddleware(AgentMiddleware[CustomState]):
             doc_k: Documentation 类型文档检索数量，默认 5
             score_threshold: 相似度分数阈值，只返回分数 >= threshold 的文档。
                             None 表示不过滤。注意：分数越高表示越相似
+            rerank_service: 可选的 Rerank 服务实例。如果提供，将在向量检索后
+                          进行精排。API 失败时自动降级为纯向量排序。
         """
         self.vector_store = vector_store
         self.doc_k = doc_k
         self.score_threshold = score_threshold
+        self.rerank_service = rerank_service
         # 用于标记业务知识系统消息的标识
         self._rag_system_message_id = "__business_rag_context__"
 
@@ -171,6 +177,20 @@ class BusinessRagMiddleware(AgentMiddleware[CustomState]):
                     f"BusinessRagMiddleware: 未检索到符合条件的 Documentation 类型业务文档 "
                     f"(阈值: {self.score_threshold if self.score_threshold is not None else '无'})"
                 )
+
+            # ---- Rerank 精排（如果启用） ----
+            if self.rerank_service and retrieved_docs:
+                try:
+                    reranked = self.rerank_service.rerank(user_query, retrieved_docs)
+                    retrieved_docs = [doc for doc, score in reranked]
+                    logger.info(
+                        f"BusinessRagMiddleware: Rerank 完成，精排后保留 {len(retrieved_docs)} 条文档"
+                    )
+                except Exception as e:
+                    logger.warning(
+                        f"BusinessRagMiddleware: Rerank 失败，降级使用原始向量检索结果: {e}"
+                    )
+
         except Exception as e:
             logger.error(f"BusinessRagMiddleware: 向量检索失败: {e}", exc_info=True)
             return None

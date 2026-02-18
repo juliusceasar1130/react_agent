@@ -1,5 +1,52 @@
 # Changelog
 
+## 2026-02-18 17:45 - 集成 NVIDIA Rerank 精排层
+
+### 概述
+在现有 RAG 管道（向量检索 → score_threshold 过滤 → 注入系统消息）中插入 Rerank 精排层，使用 NVIDIA NIM 的 `rerank-qa-mistral-4b` 模型对候选文档进行二次排序，提升检索精度。
+
+### 变更内容
+
+#### 新增文件
+- **backend/app/agent/utils/rerank_service.py**: NVIDIA NIM Rerank 服务封装
+  - `NvidiaRerankService` 类，调用 NVIDIA Rerank API
+  - 支持 `top_n` 截断和 `score_threshold` 阈值过滤
+  - 异常时自动降级为原始排序（不影响现有功能）
+- **backend/app/test_rerank.py**: Rerank 测试脚本（降级测试 + API 连通性测试）
+
+#### 修改文件
+- **backend/app/config.py**: 新增 Rerank 配置项
+  - `rerank_enabled`（开关，默认 false）
+  - `rerank_model`（模型，默认 `nvidia/rerank-qa-mistral-4b`）
+  - `rerank_top_n`（保留数，默认 3）
+  - `rerank_score_threshold`（可选阈值）
+- **backend/app/agent/middleware/rag_middleware.py**: `BusinessRagMiddleware.__init__` 新增 `rerank_service` 参数；`before_model` 在向量检索后、格式化前插入 Rerank 调用
+- **backend/app/agent/service.py**: 初始化 `NvidiaRerankService` 并传入 `BusinessRagMiddleware`，启用时 `doc_k` 从 5 提升到 10
+- **.env**: 新增 `RERANK_ENABLED`、`RERANK_MODEL`、`RERANK_TOP_N` 等环境变量
+
+### 架构变化
+```
+改动前：向量检索(k=5) → score_threshold 过滤 → 注入系统消息
+改动后：向量检索(k=10) → score_threshold 粗筛 → Rerank 精排(Top-3) → 注入系统消息
+```
+
+### 测试结果
+- 降级测试通过：无效 API Key 时正确回退
+- API 连通性测试通过：L3F13 相关查询中，Rerank 正确将 L3F13 文档排到第一（score=3.0371）
+
+### 推荐配置
+
+为获得最佳效果，建议在 `.env` 中使用以下配置：
+
+```bash
+RERANK_ENABLED="true"
+RERANK_MODEL="nvidia/rerank-qa-mistral-4b"
+RERANK_TOP_N="3"
+RERANK_SCORE_THRESHOLD="0.0" # 过滤掉负分结果（不相关文档）
+```
+
+---
+
 ## 2026-01-27 16:37 - 修复流式聊天 API 路径配置
 
 ### 问题

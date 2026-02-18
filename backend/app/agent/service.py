@@ -21,6 +21,7 @@ from backend.app.agent.middleware import SkillMiddleware, BusinessRagMiddleware
 from backend.app.agent.tools import create_wrapped_query_tool
 from backend.app.agent.utils import fetch_table_definitions_with_comments
 from backend.app.agent.utils.vector_store import create_business_vector_store
+from backend.app.agent.utils.rerank_service import NvidiaRerankService
 from backend.app.config import settings
 
 # 配置日志
@@ -224,15 +225,31 @@ class SQLAgentService:
             try:
                 vector_store = create_business_vector_store(collection_name="rag_store", embedding_model="baai/bge-m3", pg_connection_string=settings.database_url)
                 logger.info(f"向量库创建成功，正在初始化 BusinessRagMiddleware...")
+
+                # 5.5. 创建 Rerank 服务（可选）
+                rerank_service = None
+                if settings.rerank_enabled:
+                    try:
+                        rerank_service = NvidiaRerankService(
+                            api_key=settings.nvidia_api_key,
+                            model=settings.rerank_model,
+                            top_n=settings.rerank_top_n,
+                            score_threshold=settings.rerank_score_threshold,
+                        )
+                        logger.info(f"Rerank 服务已启用: model={settings.rerank_model}")
+                    except Exception as e:
+                        logger.warning(f"Rerank 服务初始化失败，将使用纯向量检索: {e}")
                 
                 # 只使用 Documentation 类型作为业务知识注入系统提示词
                 # DDL 和 SQL Example 类型预留，后续开发
                 rag_middleware = BusinessRagMiddleware(
                     vector_store=vector_store,
-                    doc_k=5,  # Documentation 类型检索数量
-                    score_threshold=settings.rag_similarity_threshold,  # 使用配置文件中的相似度阈值
+                    doc_k=10 if rerank_service else 5,  # 启用 Rerank 时扩大召回范围
+                    score_threshold=settings.rag_similarity_threshold,
+                    rerank_service=rerank_service,
                 )
-                logger.info("业务知识 RAG 中间件已启用（仅使用 Documentation 类型）")
+                rerank_status = "Rerank 已启用" if rerank_service else "仅向量检索"
+                logger.info(f"业务知识 RAG 中间件已启用（{rerank_status}）")
             except ValueError as e:
                 # NVIDIA_API_KEY 未设置等配置错误
                 logger.warning(f"业务知识向量库初始化失败，RAG 功能将不可用: {e}")               

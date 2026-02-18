@@ -304,3 +304,60 @@
 2026-02-16 23:15:46,598 - backend.app.agent.service - INFO - 向量库创建成功，正在初始化 BusinessRagMiddleware...
 2026-02-16 23:15:46,598 - backend.app.agent.service - INFO - 业务知识 RAG 中间件已启用（仅使用 Documentation 类型）
 2026-02-16 23:15:46,614 - backend.app.agent.service - INFO - SQL Agent 初始化成功（SummarizationMiddleware、SkillMiddleware 和 BusinessRagMiddleware 已启用）
+2026-02-18 18:17:49,067 - backend.app.agent.service - INFO - 开始提取数据库表结构和注释信息...
+2026-02-18 18:17:49,119 - backend.app.agent.utils.db_utils - INFO - 检测到数据库类型: postgresql
+2026-02-18 18:17:49,131 - backend.app.agent.utils.db_utils - INFO - 找到 4 个表
+2026-02-18 18:17:49,292 - backend.app.agent.utils.db_utils - INFO - 成功提取 4 个表的定义和注释
+2026-02-18 18:17:49,390 - backend.app.agent.service - INFO - SQL Agent 连接到数据库: postgresql://root:root@localhost:5432/rollerbed_tracking_db
+2026-02-18 18:17:49,391 - backend.app.agent.service - INFO - 成功注入 4 个表的注释信息到 SQLDatabase
+2026-02-18 18:17:49,426 - backend.app.agent.service - INFO - SQL 查询工具已包装：技能检查 + 语法检查 + 日期清洗
+2026-02-18 18:17:49,426 - backend.app.agent.service - INFO - 已移除 sql_db_list_tables 和 sql_db_schema，强制通过 skills 获取表信息
+2026-02-18 18:17:49,426 - backend.app.agent.service - INFO - 开始初始化业务知识 RAG 向量库...
+2026-02-18 18:17:49,426 - backend.app.agent.utils.vector_store - INFO - 已获取 NVIDIA API Key，正在初始化 Embedding 模型: baai/bge-m3...
+2026-02-18 18:17:49,427 - backend.app.agent.utils.vector_store - INFO - Embedding 模型初始化成功
+2026-02-18 18:17:49,427 - backend.app.agent.utils.vector_store - INFO - 正在创建 PgVectorStoreWrapper，collection_name=rag_store...
+2026-02-18 18:17:49,427 - backend.app.agent.utils.pgvector_wrapper - INFO - 正在初始化 PGVector，collection_name=rag_store...
+2026-02-18 18:17:49,491 - backend.app.agent.utils.pgvector_wrapper - INFO - PgVectorStoreWrapper 初始化成功: collection=rag_store
+2026-02-18 18:17:49,491 - backend.app.agent.utils.vector_store - INFO - 业务知识向量库已创建 (PGVector + NVIDIA Embeddings): collection=rag_store, model=baai/bge-m3
+2026-02-18 18:17:49,491 - backend.app.agent.service - INFO - 向量库创建成功，正在初始化 BusinessRagMiddleware...
+2026-02-18 18:17:49,491 - backend.app.agent.utils.rerank_service - INFO - NvidiaRerankService 初始化: model=nvidia/rerank-qa-mistral-4b, top_n=3, score_threshold=None
+2026-02-18 18:17:49,491 - backend.app.agent.service - INFO - Rerank 服务已启用: model=nvidia/rerank-qa-mistral-4b
+2026-02-18 18:17:49,491 - backend.app.agent.service - INFO - 业务知识 RAG 中间件已启用（Rerank 已启用）
+2026-02-18 18:17:49,504 - backend.app.agent.service - INFO - SQL Agent 初始化成功（SummarizationMiddleware、SkillMiddleware 和 BusinessRagMiddleware 已启用）
+2026-02-18 18:17:49,504 - backend.app.agent.utils.rerank_service - INFO - NvidiaRerankService 初始化: model=nvidia/rerank-qa-mistral-4b, top_n=3, score_threshold=None
+2026-02-18 18:17:49,504 - backend.app.agent.utils.rerank_service - INFO - Rerank 请求: query='L3F13有哪些奥迪车型？...', 文档数=5
+2026-02-18 18:18:01,197 - backend.app.agent.utils.rerank_service - WARNING - Rerank API 请求失败，降级使用原始排序: 401 Client Error: Unauthorized for url: https://ai.api.nvidia.com/v1/retrieval/nvidia/reranking
+2026-02-18 18:19:10,567 - backend.app.agent.service - INFO - 开始提取数据库表结构和注释信息...
+2026-02-18 18:19:10,606 - backend.app.agent.utils.db_utils - INFO - 检测到数据库类型: postgresql
+2026-02-18 18:19:10,616 - backend.app.agent.utils.db_utils - INFO - 找到 4 个表
+2026-02-18 18:19:10,770 - backend.app.agent.utils.db_utils - INFO - 成功提取 4 个表的定义和注释
+2026-02-18 18:19:10,869 - backend.app.agent.service - INFO - SQL Agent 连接到数据库: postgresql://root:root@localhost:5432/rollerbed_tracking_db
+2026-02-18 18:19:10,869 - backend.app.agent.service - INFO - 成功注入 4 个表的注释信息到 SQLDatabase
+2026-02-18 18:19:10,902 - backend.app.agent.service - INFO - SQL 查询工具已包装：技能检查 + 语法检查 + 日期清洗
+2026-02-18 18:19:10,902 - backend.app.agent.service - INFO - 已移除 sql_db_list_tables 和 sql_db_schema，强制通过 skills 获取表信息
+2026-02-18 18:19:10,902 - backend.app.agent.service - INFO - 开始初始化业务知识 RAG 向量库...
+2026-02-18 18:19:10,902 - backend.app.agent.utils.vector_store - INFO - 已获取 NVIDIA API Key，正在初始化 Embedding 模型: baai/bge-m3...
+2026-02-18 18:19:10,902 - backend.app.agent.utils.vector_store - INFO - Embedding 模型初始化成功
+2026-02-18 18:19:10,902 - backend.app.agent.utils.vector_store - INFO - 正在创建 PgVectorStoreWrapper，collection_name=rag_store...
+2026-02-18 18:19:10,902 - backend.app.agent.utils.pgvector_wrapper - INFO - 正在初始化 PGVector，collection_name=rag_store...
+2026-02-18 18:19:10,960 - backend.app.agent.utils.pgvector_wrapper - INFO - PgVectorStoreWrapper 初始化成功: collection=rag_store
+2026-02-18 18:19:10,960 - backend.app.agent.utils.vector_store - INFO - 业务知识向量库已创建 (PGVector + NVIDIA Embeddings): collection=rag_store, model=baai/bge-m3
+2026-02-18 18:19:10,960 - backend.app.agent.service - INFO - 向量库创建成功，正在初始化 BusinessRagMiddleware...
+2026-02-18 18:19:10,960 - backend.app.agent.utils.rerank_service - INFO - NvidiaRerankService 初始化: model=nvidia/rerank-qa-mistral-4b, top_n=3, score_threshold=None
+2026-02-18 18:19:10,960 - backend.app.agent.service - INFO - Rerank 服务已启用: model=nvidia/rerank-qa-mistral-4b
+2026-02-18 18:19:10,960 - backend.app.agent.service - INFO - 业务知识 RAG 中间件已启用（Rerank 已启用）
+2026-02-18 18:19:10,971 - backend.app.agent.service - INFO - SQL Agent 初始化成功（SummarizationMiddleware、SkillMiddleware 和 BusinessRagMiddleware 已启用）
+2026-02-18 18:19:10,972 - backend.app.agent.utils.rerank_service - INFO - NvidiaRerankService 初始化: model=nvidia/rerank-qa-mistral-4b, top_n=3, score_threshold=None
+2026-02-18 18:19:10,972 - backend.app.agent.utils.rerank_service - INFO - Rerank 请求: query='L3F13有哪些奥迪车型？...', 文档数=5
+2026-02-18 18:19:11,614 - backend.app.agent.utils.rerank_service - WARNING - Rerank API 请求失败，降级使用原始排序: 401 Client Error: Unauthorized for url: https://ai.api.nvidia.com/v1/retrieval/nvidia/reranking
+2026-02-18 18:19:11,617 - backend.app.agent.utils.rerank_service - INFO - NvidiaRerankService 初始化: model=nvidia/rerank-qa-mistral-4b, top_n=3, score_threshold=None
+2026-02-18 18:19:11,617 - backend.app.agent.utils.rerank_service - WARNING - Rerank: 查询为空，跳过重排序
+2026-02-18 18:19:11,617 - backend.app.agent.utils.rerank_service - INFO - NvidiaRerankService 初始化: model=nvidia/rerank-qa-mistral-4b, top_n=3, score_threshold=None
+2026-02-18 18:19:11,617 - backend.app.agent.utils.rerank_service - INFO - Rerank 请求: query='L3F13有哪些奥迪车型？...', 文档数=5
+2026-02-18 18:19:12,370 - backend.app.agent.utils.rerank_service - INFO -   Rerank #1: score=3.0371, term='L3F13'
+2026-02-18 18:19:12,370 - backend.app.agent.utils.rerank_service - INFO -   Rerank #2: score=-15.0000, term='VIN'
+2026-02-18 18:19:12,370 - backend.app.agent.utils.rerank_service - INFO -   Rerank #3: score=-17.6719, term='Rollerbed'
+2026-02-18 18:19:12,371 - backend.app.agent.utils.rerank_service - INFO -   Rerank #4: score=-17.6875, term='ESTA'
+2026-02-18 18:19:12,371 - backend.app.agent.utils.rerank_service - INFO -   Rerank #5: score=-19.2031, term='PVC'
+2026-02-18 18:19:12,371 - backend.app.agent.utils.rerank_service - INFO - Rerank Top-N 截断: 保留前 3 条
+2026-02-18 18:19:12,371 - backend.app.agent.utils.rerank_service - INFO - Rerank 完成: 最终保留 3 条文档

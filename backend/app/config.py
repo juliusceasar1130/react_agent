@@ -46,6 +46,16 @@ class Settings(BaseSettings):
         else None
     )
 
+    # Rerank 配置
+    rerank_enabled: bool = os.getenv("RERANK_ENABLED", "false").lower() == "true"
+    rerank_model: str = os.getenv("RERANK_MODEL", "nvidia/rerank-qa-mistral-4b")
+    rerank_top_n: int = int(os.getenv("RERANK_TOP_N", "3"))
+    rerank_score_threshold: Optional[float] = (
+        float(os.getenv("RERANK_SCORE_THRESHOLD"))
+        if os.getenv("RERANK_SCORE_THRESHOLD")
+        else None
+    )
+
     # Ollama 配置 (RTX 5090 优化)
     ollama_base_url: str = os.getenv("OLLAMA_BASE_URL", "http://192.22.44.99:11434")
     ollama_model: str = os.getenv("OLLAMA_MODEL", "qwen3:30b")

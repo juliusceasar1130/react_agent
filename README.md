@@ -14,6 +14,7 @@
 - **现代 UI/UX** - 基于 Neural Tones + AI Purple 设计系统，支持毛玻璃效果与流畅动画
 - **前后端分离** - FastAPI + Vue 3 + TypeScript
 - **技能系统 (Skills)** - 动态加载业务领域知识，支持大规模上下文管理 (Agent V2)
+- **RAG 知识增强** - 支持 PGVector 向量检索 + NVIDIA Rerank 精排，智能注入业务知识
 
 
 ## 技术栈
@@ -105,6 +106,13 @@ AGENT_TEMPERATURE=0.1
 AGENT_MAX_TOKENS=2000
 MYSQL_DATABASE_URL='mysql+pymysql://...'
 SQL_AGENT_TOP_K=1000
+
+# RAG & Rerank 配置
+RAG_EMBEDDING_MODEL='baai/bge-m3'
+NVIDIA_API_KEY='your-nvidia-api-key'
+RERANK_ENABLED=true
+RERANK_MODEL='nvidia/rerank-qa-mistral-4b'
+RERANK_TOP_N=3
 ```
 
 ### 3. 安装依赖
@@ -164,36 +172,36 @@ rearch_agent/
 │   │   ├── schemas.py      # Pydantic Schema
 │   │   ├── database.py     # 数据库连接
 │   │   ├── config.py       # 配置管理
-│   │   ├── services.py     # 基础版 Agent 服务 (支持 DeepSeek & 日期清洗)
-│   │   ├── services_graph.py # 增强版 LangGraph 1.0+ SQL Agent 服务
-│   │   └── agent/          # [NEW] Agent V2 模块化架构
-│   │       ├── service.py      # 核心服务编排
-│   │       ├── middleware/     # 中间件 (Skills, Summarization)
-│   │       ├── tools/          # 工具集
-│   │       └── utils/          # 通用工具
+│   │   ├── services.py     # 基础版 Agent 服务
+│   │   ├── services_graph.py # 增强版 LangGraph SQL Agent 服务
+│   │   └── agent/          # Agent V2 模块化架构
+│   │       ├── service.py      # 核心服务编排 (Skill + RAG + Summarization)
+│   │       ├── state.py        # Graph 状态定义
+│   │       ├── constants.py    # 常量定义
+│   │       ├── middleware/     # 中间件（SkillMiddleware, RagMiddleware）
+│   │       ├── tools/          # 专用工具集（SQLQuery, SkillSearch 等）
+│   │       ├── utils/          # 底层工具库
+│   │       │   ├── pgvector_wrapper.py # PGVector 检索封装
+│   │       │   ├── rerank_service.py   # NVIDIA Rerank 精排服务
+│   │       │   ├── db_utils.py         # 数据库元数据提取工具
+│   │       │   └── date_utils.py       # 日期标准化清洗工具
+│   │       └── vector_init/    # 向量库初始化与数据加载逻辑
 │   ├── Dockerfile          # Docker 镜像配置
-│   ├── .dockerignore       # Docker 排除文件
-│   ├── docs/               # 技术文档
-│   └── requirements.txt    # Python 依赖
+│   ├── requirements.txt    # Python 依赖
+│   └── .env                # 本地环境变量
 │
 ├── frontend/               # 前端应用
 │   ├── src/
 │   │   ├── api/            # API 请求封装
-│   │   ├── components/     # Vue 组件
-│   │   ├── views/          # 页面组件
+│   │   ├── components/     # Vue 公用组件
+│   │   ├── views/          # 页面视图 (ChatView, Settings 等)
 │   │   ├── stores/         # Pinia 状态管理
-│   │   └── types/          # TypeScript 类型
-│   ├── package.json
-│   └── vite.config.ts
+│   │   └── types/          # TypeScript 类型定义
+│   ├── vite.config.ts      # Vite 配置
+│   └── package.json        # 前端依赖
 │
-├── deploy/                 # 部署相关
-│   └── README.md           # 部署文档
-│
-├── docker-compose.yml      # Docker Compose 配置
-├── .env                    # 环境变量
+├── docker-compose.yml      # Docker 编排配置
 ├── .env.production         # 生产环境配置模板
-├── .env.example            # 环境变量示例
-├── CLAUDE.md               # Claude Code 开发指南
 └── README.md               # 本文件
 ```
 
@@ -300,6 +308,25 @@ def normalize_dates_in_text(text: str):
 - `checkpoints` - Agent 状态存储
 - `checkpoint_blobs` - 大型二进制数据
 - `checkpoint_writes` - 写入记录
+
+### RAG 知识检索增强
+
+系统采用 "Retrieve-then-Rerank" 的两阶段检索架构，确保业务知识的准确注入：
+
+1. **向量粗排 (Retrieval)**: 使用 `bge-m3` 模型检索 Top-10 相关文档。
+2. **Rerank 精排 (Reranking)**: 使用 NVIDIA `rerank-qa-mistral-4b` 对候选文档进行二次打分。
+3. **阈值过滤**: 过滤掉低分文档（可配置 score_threshold）。
+4. **上下文注入**: 将最终的 Top-3 文档注入到 LLM 上下文中。
+
+架构图：
+```mermaid
+graph LR
+    A[用户提问] --> B(向量检索 Top-10)
+    B --> C{Rerank 精排}
+    C -->|Score < Threshold| D[丢弃]
+    C -->|Score >= Threshold| E[保留 Top-3]
+    E --> F[注入 LLM Context]
+```
 
 ## 开发指南
 
