@@ -14,7 +14,7 @@ class Settings(BaseSettings):
 
     # 数据库配置
     database_url: str = os.getenv(
-        "DATABASE_URL", "postgresql://root:root@localhost:5432/rearch_agent"
+        "DATABASE_URL", "postgresql://root:root@localhost:5432/agent_memory"
     )
 
     # PostgreSQL 数据库配置（用于 rollerbed tracking system）
@@ -38,6 +38,13 @@ class Settings(BaseSettings):
     # Agent配置
     agent_temperature: float = float(os.getenv("AGENT_TEMPERATURE", "0.1"))
     agent_max_tokens: int = int(os.getenv("AGENT_MAX_TOKENS", "2000"))
+    
+    # RAG配置
+    rag_similarity_threshold: Optional[float] = (
+        float(os.getenv("RAG_SIMILARITY_THRESHOLD"))
+        if os.getenv("RAG_SIMILARITY_THRESHOLD")
+        else None
+    )
 
     # Ollama 配置 (RTX 5090 优化)
     ollama_base_url: str = os.getenv("OLLAMA_BASE_URL", "http://192.22.44.99:11434")
@@ -48,6 +55,9 @@ class Settings(BaseSettings):
     # Graph & LangSmith 配置
     langsmith_tracing: bool = os.getenv("LANGSMITH_TRACING", "false").lower() == "true"
     langsmith_api_key: str = os.getenv("LANGSMITH_API_KEY", "")
+
+    # NVIDIA AI 配置（用于向量库 Embeddings）
+    nvidia_api_key: str = os.getenv("NVIDIA_API_KEY", "")
 
     model_config = SettingsConfigDict(
         env_file=".env",

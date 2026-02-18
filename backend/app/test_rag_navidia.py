@@ -12,14 +12,16 @@ llm = init_chat_model(
 )
 
 # enbedding模型
-from langchain_community.embeddings import DashScopeEmbeddings
+from langchain_nvidia_ai_endpoints import NVIDIAEmbeddings
 
 # 设置 API Key
-os.environ["DASHSCOPE_API_KEY"] = "sk-a94d0433886148c886b28c99c5fc90e7"
 
 # 初始化模型
-# 常用模型名：text-embedding-v1, text-embedding-v2, text-embedding-v3
-embeddings = DashScopeEmbeddings(model="text-embedding-v3")
+# 常用模型名：
+embeddings = NVIDIAEmbeddings(
+    model="baai/bge-m3",
+    api_key=os.environ["NAVIDIA_API_KEY"]  # 免费层有调用限制
+)
 
 # 使用Chromasa进行向量存储
 from langchain_chroma import Chroma

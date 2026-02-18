@@ -17,9 +17,10 @@ from langchain_community.utilities import SQLDatabase
 from langchain_openai import ChatOpenAI
 
 from backend.app.agent.constants import EXCLUDED_TOOLS, ToolNames
-from backend.app.agent.middleware import SkillMiddleware
+from backend.app.agent.middleware import SkillMiddleware, BusinessRagMiddleware
 from backend.app.agent.tools import create_wrapped_query_tool
 from backend.app.agent.utils import fetch_table_definitions_with_comments
+from backend.app.agent.utils.vector_store import create_business_vector_store
 from backend.app.config import settings
 
 # 配置日志
@@ -218,23 +219,54 @@ class SQLAgentService:
             # 4. 构建系统提示词
             system_prompt = _build_system_prompt(db)
 
-            # 5. 配置 SummarizationMiddleware
+            # 5. 创建业务知识向量库（仅使用 Documentation 类型）
+            logger.info("开始初始化业务知识 RAG 向量库...")
+            try:
+                vector_store = create_business_vector_store(collection_name="rag_store", embedding_model="baai/bge-m3", pg_connection_string=settings.database_url)
+                logger.info(f"向量库创建成功，正在初始化 BusinessRagMiddleware...")
+                
+                # 只使用 Documentation 类型作为业务知识注入系统提示词
+                # DDL 和 SQL Example 类型预留，后续开发
+                rag_middleware = BusinessRagMiddleware(
+                    vector_store=vector_store,
+                    doc_k=5,  # Documentation 类型检索数量
+                    score_threshold=settings.rag_similarity_threshold,  # 使用配置文件中的相似度阈值
+                )
+                logger.info("业务知识 RAG 中间件已启用（仅使用 Documentation 类型）")
+            except ValueError as e:
+                # NVIDIA_API_KEY 未设置等配置错误
+                logger.warning(f"业务知识向量库初始化失败，RAG 功能将不可用: {e}")               
+                rag_middleware = None
+            except Exception as e:
+                # 其他错误（数据库连接、网络等）
+                logger.warning(f"业务知识向量库初始化失败，RAG 功能将不可用: {e}")
+                rag_middleware = None
+
+            # 6. 配置 SummarizationMiddleware
             summarization_middleware = SummarizationMiddleware(
                 model=llm,
                 trigger=("tokens", 4000),
                 keep=("messages", 5),
             )
 
-            # 6. 创建 Agent
+            # 7. 构建中间件列表
+            middleware_list = [
+                summarization_middleware,
+                SkillMiddleware(),
+            ]
+            if rag_middleware:
+                middleware_list.insert(0, rag_middleware)  # RAG 中间件放在最前面
+
+            # 8. 创建 Agent
             self.agent = create_agent(
                 model=llm,
                 tools=tools,
                 system_prompt=system_prompt,
-                middleware=[summarization_middleware, SkillMiddleware()],
+                middleware=middleware_list,
             )
 
             logger.info(
-                "SQL Agent 初始化成功（SummarizationMiddleware 和 SkillMiddleware 已启用）"
+                "SQL Agent 初始化成功（SummarizationMiddleware、SkillMiddleware 和 BusinessRagMiddleware 已启用）"
             )
 
         except Exception as e:

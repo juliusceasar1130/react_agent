@@ -1,0 +1,52 @@
+[
+  {
+    "document": "问题：计算每个大区的季度毛利环比增长率\n\nSQL: \nSELECT \n    region,\n    quarter,\n    gross_profit,\n    LAG(gross_profit) OVER (PARTITION BY region ORDER BY quarter) AS prev_quarter_profit,\n    (gross_profit - LAG(gross_profit) OVER (PARTITION BY region ORDER BY quarter)) \n        / NULLIF(LAG(gross_profit) OVER (PARTITION BY region ORDER BY quarter), 0) * 100 AS growth_rate\nFROM quarterly_region_profit\nORDER BY region, quarter;",
+    "metadata": {
+      "type": "sql_example",
+      "sql": "SELECT region, quarter, gross_profit, LAG(gross_profit) OVER (PARTITION BY region ORDER BY quarter) AS prev_quarter_profit, (gross_profit - LAG(gross_profit) OVER (PARTITION BY region ORDER BY quarter)) / NULLIF(LAG(gross_profit) OVER (PARTITION BY region ORDER BY quarter), 0) * 100 AS growth_rate FROM quarterly_region_profit ORDER BY region, quarter;",
+      "complexity": "high",
+      "domain": "sales",
+      "description": "计算每个大区的季度毛利环比增长率"
+    }
+  },
+  {
+    "document": "问题：查询最近30天每个客户的订单总金额和订单数量\n\nSQL查询：\nSELECT \n    customer_id,\n    COUNT(*) AS order_count,\n    SUM(order_amount) AS total_amount\nFROM orders\nWHERE created_at >= CURRENT_DATE - INTERVAL '30 days'\nGROUP BY customer_id\nORDER BY total_amount DESC;",
+    "metadata": {
+      "type": "sql_example",
+      "sql": "SELECT customer_id, COUNT(*) AS order_count, SUM(order_amount) AS total_amount FROM orders WHERE created_at >= CURRENT_DATE - INTERVAL '30 days' GROUP BY customer_id ORDER BY total_amount DESC;",
+      "complexity": "medium",
+      "domain": "sales",
+      "description": "查询最近30天每个客户的订单总金额和订单数量"
+    }
+  },
+  {
+    "document": "问题：找出销售额排名前10的商品及其分类信息\n\nSQL查询：\nSELECT \n    p.id AS product_id,\n    p.product_name,\n    c.category_name,\n    SUM(oi.quantity * oi.price) AS total_sales\nFROM products p\nJOIN order_items oi ON p.id = oi.product_id\nJOIN categories c ON p.category_id = c.id\nGROUP BY p.id, p.product_name, c.category_name\nORDER BY total_sales DESC\nLIMIT 10;",
+    "metadata": {
+      "type": "sql_example",
+      "sql": "SELECT p.id AS product_id, p.product_name, c.category_name, SUM(oi.quantity * oi.price) AS total_sales FROM products p JOIN order_items oi ON p.id = oi.product_id JOIN categories c ON p.category_id = c.id GROUP BY p.id, p.product_name, c.category_name ORDER BY total_sales DESC LIMIT 10;",
+      "complexity": "medium",
+      "domain": "sales",
+      "description": "找出销售额排名前10的商品及其分类信息"
+    }
+  },
+  {
+    "document": "问题：计算每个月的客户留存率（当月有订单的客户中，上个月也有订单的比例）\n\nSQL查询：\nWITH monthly_customers AS (\n    SELECT \n        DATE_TRUNC('month', created_at) AS month,\n        customer_id\n    FROM orders\n    GROUP BY DATE_TRUNC('month', created_at), customer_id\n),\nretention AS (\n    SELECT \n        mc1.month,\n        COUNT(DISTINCT mc1.customer_id) AS current_month_customers,\n        COUNT(DISTINCT mc2.customer_id) AS retained_customers\n    FROM monthly_customers mc1\n    LEFT JOIN monthly_customers mc2 \n        ON mc1.customer_id = mc2.customer_id \n        AND mc2.month = mc1.month - INTERVAL '1 month'\n    GROUP BY mc1.month\n)\nSELECT \n    month,\n    current_month_customers,\n    retained_customers,\n    ROUND(retained_customers::NUMERIC / NULLIF(current_month_customers, 0) * 100, 2) AS retention_rate\nFROM retention\nORDER BY month DESC;",
+    "metadata": {
+      "type": "sql_example",
+      "sql": "WITH monthly_customers AS (SELECT DATE_TRUNC('month', created_at) AS month, customer_id FROM orders GROUP BY DATE_TRUNC('month', created_at), customer_id), retention AS (SELECT mc1.month, COUNT(DISTINCT mc1.customer_id) AS current_month_customers, COUNT(DISTINCT mc2.customer_id) AS retained_customers FROM monthly_customers mc1 LEFT JOIN monthly_customers mc2 ON mc1.customer_id = mc2.customer_id AND mc2.month = mc1.month - INTERVAL '1 month' GROUP BY mc1.month) SELECT month, current_month_customers, retained_customers, ROUND(retained_customers::NUMERIC / NULLIF(current_month_customers, 0) * 100, 2) AS retention_rate FROM retention ORDER BY month DESC;",
+      "complexity": "high",
+      "domain": "sales",
+      "description": "计算每个月的客户留存率"
+    }
+  },
+  {
+    "document": "问题：查询每个商品分类的平均订单金额和订单数量\n\nSQL查询：\nSELECT \n    c.category_name,\n    COUNT(DISTINCT o.id) AS order_count,\n    AVG(o.order_amount) AS avg_order_amount\nFROM categories c\nJOIN products p ON c.id = p.category_id\nJOIN order_items oi ON p.id = oi.product_id\nJOIN orders o ON oi.order_id = o.id\nGROUP BY c.id, c.category_name\nORDER BY avg_order_amount DESC;",
+    "metadata": {
+      "type": "sql_example",
+      "sql": "SELECT c.category_name, COUNT(DISTINCT o.id) AS order_count, AVG(o.order_amount) AS avg_order_amount FROM categories c JOIN products p ON c.id = p.category_id JOIN order_items oi ON p.id = oi.product_id JOIN orders o ON oi.order_id = o.id GROUP BY c.id, c.category_name ORDER BY avg_order_amount DESC;",
+      "complexity": "medium",
+      "domain": "sales",
+      "description": "查询每个商品分类的平均订单金额和订单数量"
+    }
+  }
+]

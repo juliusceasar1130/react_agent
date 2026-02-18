@@ -1,0 +1,29 @@
+[
+  {
+    "document": "RB代表滚床，<1B095RB>代表1B这个区域，095代表编号滚床编号为095",
+    "metadata": {
+      "type": "documentation",
+      "domain": "paint_shop_vehicle_tracking",
+      "term": "物流追踪",
+      "aliases": []
+    }
+  },
+  {
+    "document": "RB代表滚床，<1B095RB>代表1B这个区域，095代表编号滚床编号为095",
+    "metadata": {
+      "type": "documentation",
+      "domain": "paint_shop_vehicle_tracking",
+      "term": "物流追踪",
+      "aliases": []
+    }
+  },
+  {
+    "document": "区域指的是生产工艺段，油漆车间分为4大工艺段，预处理电泳、PVC、面漆、注蜡，每个工艺段有3条生产线，如一线、二线、三线，每个区域都有相应的主线和存储线，存储线也叫buffer",
+    "metadata": {
+      "type": "documentation",
+      "domain": "paint_shop_vehicle_tracking",
+      "term": "物流追踪",
+      "aliases": []
+    }
+  }
+]

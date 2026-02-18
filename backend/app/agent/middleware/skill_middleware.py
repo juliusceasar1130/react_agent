@@ -54,9 +54,6 @@ class SkillMiddleware(AgentMiddleware[CustomState]):
         ]
         new_system_message = SystemMessage(content=new_content)
 
-        logger.info("SkillMiddleware: Injected skill descriptions into system prompt")
-        logger.debug(f"Modified system message: {new_system_message}")
-
         return request.override(system_message=new_system_message)
 
     def wrap_model_call(
@@ -66,6 +63,18 @@ class SkillMiddleware(AgentMiddleware[CustomState]):
     ) -> ModelResponse:
         """同步模式：注入技能描述到系统提示词"""
         modified_request = self._modify_request(request)
+        
+        # 记录系统提示词
+        logger.info("📋 1.系统提示词 (ModelRequest.system_message):")
+        logger.info(str(modified_request.system_message.content))
+        
+        # 记录消息历史中的系统消息
+        system_msgs = [msg for msg in modified_request.messages if isinstance(msg, SystemMessage)]
+        if system_msgs:
+            logger.info(f"📋 2.消息历史中的系统消息 (共 {len(system_msgs)} 条):")
+            for i, msg in enumerate(system_msgs, 1):
+                logger.info(f"  [{i}] {str(msg.content)}")
+        
         return handler(modified_request)
 
     async def awrap_model_call(
@@ -75,4 +84,16 @@ class SkillMiddleware(AgentMiddleware[CustomState]):
     ) -> ModelResponse:
         """异步模式：注入技能描述到系统提示词"""
         modified_request = self._modify_request(request)
+        
+        # 记录系统提示词
+        logger.info("📋 系统提示词 (ModelRequest.system_message):")
+        logger.info(str(modified_request.system_message.content))
+        
+        # 记录消息历史中的系统消息
+        system_msgs = [msg for msg in modified_request.messages if isinstance(msg, SystemMessage)]
+        if system_msgs:
+            logger.info(f"📋 消息历史中的系统消息 (共 {len(system_msgs)} 条):")
+            for i, msg in enumerate(system_msgs, 1):
+                logger.info(f"  [{i}] {str(msg.content)}")
+        
         return await handler(modified_request)
