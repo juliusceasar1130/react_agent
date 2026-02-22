@@ -1,4 +1,4 @@
-# backend/app/agent/vector_init/data_importer.py
+# backend/app/agent/vector/pgvector_init/data_importer.py
 """
 数据导入核心逻辑
 

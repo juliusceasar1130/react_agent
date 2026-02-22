@@ -45,26 +45,26 @@ vector_init/
 
 ```bash
 # 基本用法（默认内容字段为 document）
-python -m backend.app.agent.vector_init.import_data data.json
+python -m backend.app.agent.vector.pgvector_init.import_data data.json
 
 # 指定集合名称
-python -m backend.app.agent.vector_init.import_data data.json --collection-name my_collection
+python -m backend.app.agent.vector.pgvector_init.import_data data.json --collection-name my_collection
 
 # 覆盖模式（清空现有数据后重新导入）
-python -m backend.app.agent.vector_init.import_data data.json --overwrite
+python -m backend.app.agent.vector.pgvector_init.import_data data.json --overwrite
 
 # 指定内容字段（如果使用 content 而不是 document）
-python -m backend.app.agent.vector_init.import_data data.json --content-field content
+python -m backend.app.agent.vector.pgvector_init.import_data data.json --content-field content
 
 # 指定元数据字段
-python -m backend.app.agent.vector_init.import_data data.json \
+python -m backend.app.agent.vector.pgvector_init.import_data data.json \
     --metadata-fields type domain category
 
 # 指定批量大小
-python -m backend.app.agent.vector_init.import_data data.json --batch-size 50
+python -m backend.app.agent.vector.pgvector_init.import_data data.json --batch-size 50
 
 # 完整示例
-python -m backend.app.agent.vector_init.import_data data.json \
+python -m backend.app.agent.vector.pgvector_init.import_data data.json \
     --collection-name my_collection \
     --overwrite \
     --batch-size 50
@@ -73,7 +73,7 @@ python -m backend.app.agent.vector_init.import_data data.json \
 ### 2. 编程方式使用
 
 ```python
-from backend.app.agent.vector_init import load_json_data, import_data_to_vector_store
+from backend.app.agent.vector.pgvector_init import load_json_data, import_data_to_vector_store
 
 # 加载 JSON 数据
 data = load_json_data("data.json")
@@ -148,7 +148,7 @@ JSON 文件必须是一个对象数组，每个对象至少包含一个内容字
 对应的导入命令：
 
 ```bash
-python -m backend.app.agent.vector_init.import_data data.json --content-field content
+python -m backend.app.agent.vector.pgvector_init.import_data data.json --content-field content
 ```
 
 ## 参数说明
@@ -237,7 +237,7 @@ NVIDIA_API_KEY=your_api_key_here
 ```
 
 ```bash
-python -m backend.app.agent.vector_init.import_data articles.json \
+python -m backend.app.agent.vector.pgvector_init.import_data articles.json \
     --metadata-fields title category tags
 ```
 
@@ -245,8 +245,8 @@ python -m backend.app.agent.vector_init.import_data articles.json \
 
 ```bash
 # 使用提供的示例文件
-python -m backend.app.agent.vector_init.import_data \
-    .tree/features/agent/backend/app/agent/vector_init/examples/example_sql_example.json \
+python -m backend.app.agent.vector.pgvector_init.import_data \
+    .tree/features/agent/backend/app/agent/vector/pgvector_init/examples/example_sql_example.json \
     --collection-name business_knowledge
 ```
 
@@ -254,8 +254,8 @@ python -m backend.app.agent.vector_init.import_data \
 
 ```bash
 # 覆盖模式导入 DDL 数据
-python -m backend.app.agent.vector_init.import_data \
-    .tree/features/agent/backend/app/agent/vector_init/examples/example_ddl.json \
+python -m backend.app.agent.vector.pgvector_init.import_data \
+    .tree/features/agent/backend/app/agent/vector/pgvector_init/examples/example_ddl.json \
     --collection-name business_knowledge \
     --overwrite
 ```

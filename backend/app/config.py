@@ -1,4 +1,5 @@
 import os
+from pathlib import Path
 from typing import Optional
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from dotenv import load_dotenv
@@ -39,12 +40,25 @@ class Settings(BaseSettings):
     agent_temperature: float = float(os.getenv("AGENT_TEMPERATURE", "0.1"))
     agent_max_tokens: int = int(os.getenv("AGENT_MAX_TOKENS", "2000"))
     
-    # RAG配置
+    # RAG 配置
+    rag_backend: str = os.getenv("RAG_BACKEND", "milvus_hybrid")  # pgvector | milvus_hybrid
     rag_similarity_threshold: Optional[float] = (
         float(os.getenv("RAG_SIMILARITY_THRESHOLD"))
         if os.getenv("RAG_SIMILARITY_THRESHOLD")
         else None
     )
+
+    # Milvus 混合检索配置（RAG_BACKEND=milvus_hybrid 时生效）
+    milvus_uri: str = os.getenv("MILVUS_URI", "http://localhost:19530")
+    milvus_collection_name: str = os.getenv("MILVUS_COLLECTION_NAME", "rag_store")
+    milvus_embed_dim: int = int(os.getenv("MILVUS_EMBED_DIM", "1024"))
+    milvus_rrf_k: int = int(os.getenv("MILVUS_RRF_K", "60"))
+    milvus_chunk_size: int = int(os.getenv("MILVUS_CHUNK_SIZE", "512"))
+    milvus_chunk_overlap: int = int(os.getenv("MILVUS_CHUNK_OVERLAP", "50"))
+    # Milvus 初始化配置（数据导入使用）
+    _default_data_dir = str(Path(__file__).resolve().parent / "agent" / "vector" / "milvus_init" / "data" / "examples")
+    milvus_data_dir: str = os.getenv("MILVUS_DATA_DIR", _default_data_dir)
+    milvus_overwrite: bool = os.getenv("MILVUS_OVERWRITE", "true").lower() == "true"
 
     # Rerank 配置
     rerank_enabled: bool = os.getenv("RERANK_ENABLED", "false").lower() == "true"

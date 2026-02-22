@@ -1,4 +1,4 @@
-# backend/app/agent/vector_init/json_loader.py
+# backend/app/agent/vector/pgvector_init/json_loader.py
 """
 JSON 文件加载模块
 

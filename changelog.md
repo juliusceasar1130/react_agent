@@ -1,5 +1,54 @@
 # Changelog
 
+## 2026-02-22 14:35 - 完善 Milvus 混合检索环境变量配置
+
+### 概述
+在 `.env` 文件中补齐了 Milvus 混合检索后端所需的全部环境变量，包括连接地址、Collection 命名、向量维度、RRF 融合系数以及数据导入路径等，并将 `RAG_BACKEND` 默认指定为 `milvus_hybrid`。
+
+### 变更内容
+#### 修改文件
+- **.env**: 
+  - 新增 `RAG_BACKEND='milvus_hybrid'`。
+  - 新增 `MILVUS_URI`, `MILVUS_COLLECTION_NAME` 等系列配置。
+  - 新增 `MILVUS_DATA_DIR` 指向默认示例数据路径。
+  - 新增 `MILVUS_OVERWRITE='true'` 默认覆盖策略。
+
+---
+
+## 2026-02-21 15:30 - 扩展混合检索后端（LlamaIndex + Milvus）
+
+### 概述
+在现有「可插拔 RAG 架构」基础上新增了 **Milvus 混合检索**（稠密向量 + BM25 稀疏向量 + RRF 融合）后端。通过切换配置即可在 `pgvector` 和 `milvus_hybrid` 之间无感切换，同时新增了配套的数据初始化与导入模块。
+
+### 变更内容
+
+#### 新增检索模块
+- **backend/app/agent/vector/milvus_hybrid/**: LlamaIndex + Milvus 检索实现
+  - `milvus_store.py`: 封装 MilvusVectorStore 的创建、加载与 BM25 索引配置。
+  - `milvus_retriever.py`: 实现 `MilvusHybridRetriever`，适配 `BaseRetriever` 接口。
+- **backend/app/test_rag_milvus_hybrid.py**: 冒烟测试脚本。
+
+#### 新增初始化模块
+- **backend/app/agent/milvus_init/**: Milvus 专用数据导入脚本包（与 `vector_init` 风格一致）
+  - `milvus_data_importer.py`: 支持数据转换、语义切片、Collection 初始化及批量入库逻辑。
+  - `milvus_import_data.py`: CLI 入口脚本，支持 `--overwrite` 重建索引和追加导入。
+
+#### 配置与工厂更新
+- **backend/app/config.py**: 新增 `RAG_BACKEND` (默认 `pgvector`) 及 `MILVUS_*` 系列配置项。
+- **backend/app/agent/vector/factory.py**: 重构工厂函数实现多后端分发逻辑。
+
+### 初始化用法示例
+
+```bash
+conda activate py312_agent
+# 首次初始化或重建索引（使用 examples 数据）
+python -m backend.app.agent.milvus_init.milvus_import_data example_documentation.json --overwrite
+# 追加数据
+python -m backend.app.agent.milvus_init.milvus_import_data example_ddl.json
+```
+
+---
+
 ## 2026-02-18 17:45 - 集成 NVIDIA Rerank 精排层
 
 ### 概述

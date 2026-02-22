@@ -7,10 +7,12 @@ NVIDIA NIM Rerank 服务封装
 """
 
 import logging
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional
 
 import requests
 from langchain_core.documents import Document
+
+from backend.app.agent.vector.base import BaseReranker, ScoredDocument
 
 logger = logging.getLogger(__name__)
 
@@ -18,7 +20,7 @@ logger = logging.getLogger(__name__)
 NVIDIA_RERANK_ENDPOINT = "https://ai.api.nvidia.com/v1/retrieval/nvidia/reranking"
 
 
-class NvidiaRerankService:
+class NvidiaRerankService(BaseReranker):
     """
     NVIDIA NIM Rerank 服务
 
@@ -76,7 +78,7 @@ class NvidiaRerankService:
         self,
         query: str,
         documents: List[Document],
-    ) -> List[Tuple[Document, float]]:
+    ) -> List[ScoredDocument]:
         """
         调用 NVIDIA Rerank API 对文档列表重排序
 
@@ -93,7 +95,7 @@ class NvidiaRerankService:
 
         if not query or not query.strip():
             logger.warning("Rerank: 查询为空，跳过重排序")
-            return [(doc, 0.0) for doc in documents]
+            return [ScoredDocument(document=doc, score=0.0) for doc in documents]
 
         # 提取文本内容
         passages = [self._extract_text(doc) for doc in documents]
@@ -102,7 +104,7 @@ class NvidiaRerankService:
         valid_indices = [i for i, p in enumerate(passages) if p.strip()]
         if not valid_indices:
             logger.warning("Rerank: 所有文档文本为空，跳过重排序")
-            return [(doc, 0.0) for doc in documents]
+            return [ScoredDocument(document=doc, score=0.0) for doc in documents]
 
         valid_passages = [passages[i] for i in valid_indices]
         valid_documents = [documents[i] for i in valid_indices]
@@ -131,54 +133,62 @@ class NvidiaRerankService:
 
         except requests.exceptions.Timeout:
             logger.warning(
-                f"Rerank API 超时 ({self.timeout}s)，降级使用原始排序"
+                "Rerank API 超时 (%ss)，降级使用原始排序", self.timeout
             )
-            return [(doc, 0.0) for doc in documents]
+            return [ScoredDocument(document=doc, score=0.0) for doc in documents]
         except requests.exceptions.RequestException as e:
-            logger.warning(f"Rerank API 请求失败，降级使用原始排序: {e}")
-            return [(doc, 0.0) for doc in documents]
+            logger.warning("Rerank API 请求失败，降级使用原始排序: %s", e)
+            return [ScoredDocument(document=doc, score=0.0) for doc in documents]
         except Exception as e:
-            logger.error(f"Rerank 解析响应失败，降级使用原始排序: {e}")
-            return [(doc, 0.0) for doc in documents]
+            logger.error("Rerank 解析响应失败，降级使用原始排序: %s", e)
+            return [ScoredDocument(document=doc, score=0.0) for doc in documents]
 
         # 解析响应并排序
         rankings = result.get("rankings", [])
         if not rankings:
             logger.warning("Rerank API 返回空 rankings，降级使用原始排序")
-            return [(doc, 0.0) for doc in documents]
+            return [ScoredDocument(document=doc, score=0.0) for doc in documents]
 
         # 按 logit 分数降序排列
-        ranked_results: List[Tuple[Document, float]] = []
+        ranked_results: List[ScoredDocument] = []
         for item in sorted(rankings, key=lambda x: x.get("logit", 0.0), reverse=True):
             idx = item.get("index", -1)
-            score = item.get("logit", 0.0)
+            score_raw = item.get("logit", 0.0)
+            try:
+                score = float(score_raw)
+            except (TypeError, ValueError):
+                score = 0.0
 
             if 0 <= idx < len(valid_documents):
-                ranked_results.append((valid_documents[idx], score))
+                ranked_results.append(
+                    ScoredDocument(document=valid_documents[idx], score=score)
+                )
 
         # 记录重排序结果
-        for i, (doc, score) in enumerate(ranked_results):
+        for i, item in enumerate(ranked_results):
+            doc = item.document
+            score = item.score
             meta = getattr(doc, "metadata", {}) or {}
             term = meta.get("term", meta.get("title", f"doc#{i}"))
-            logger.info(f"  Rerank #{i+1}: score={score:.4f}, term='{term}'")
+            logger.info("  Rerank #%d: score=%.4f, term='%s'", i + 1, score, term)
 
         # 阈值过滤
         if self.score_threshold is not None:
             before_count = len(ranked_results)
             ranked_results = [
-                (doc, score)
-                for doc, score in ranked_results
-                if score >= self.score_threshold
+                item for item in ranked_results if item.score >= self.score_threshold
             ]
             logger.info(
-                f"Rerank 阈值过滤: threshold={self.score_threshold}, "
-                f"过滤前={before_count}, 过滤后={len(ranked_results)}"
+                "Rerank 阈值过滤: threshold=%s, 过滤前=%d, 过滤后=%d",
+                self.score_threshold,
+                before_count,
+                len(ranked_results),
             )
 
         # Top-N 截断
-        if len(ranked_results) > self.top_n:
+        if self.top_n is not None and len(ranked_results) > self.top_n:
             ranked_results = ranked_results[: self.top_n]
-            logger.info(f"Rerank Top-N 截断: 保留前 {self.top_n} 条")
+            logger.info("Rerank Top-N 截断: 保留前 %d 条", self.top_n)
 
-        logger.info(f"Rerank 完成: 最终保留 {len(ranked_results)} 条文档")
+        logger.info("Rerank 完成: 最终保留 %d 条文档", len(ranked_results))
         return ranked_results

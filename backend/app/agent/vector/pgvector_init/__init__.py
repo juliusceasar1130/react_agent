@@ -1,4 +1,4 @@
-# backend/app/agent/vector_init/__init__.py
+# backend/app/agent/vector/pgvector_init/__init__.py
 """
 向量库数据导入模块
 

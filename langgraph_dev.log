@@ -361,3 +361,197 @@
 2026-02-18 18:19:12,371 - backend.app.agent.utils.rerank_service - INFO -   Rerank #5: score=-19.2031, term='PVC'
 2026-02-18 18:19:12,371 - backend.app.agent.utils.rerank_service - INFO - Rerank Top-N 截断: 保留前 3 条
 2026-02-18 18:19:12,371 - backend.app.agent.utils.rerank_service - INFO - Rerank 完成: 最终保留 3 条文档
+2026-02-21 15:12:24,566 - backend.app.agent.service - INFO - 开始提取数据库表结构和注释信息...
+2026-02-21 15:12:24,698 - backend.app.agent.utils.db_utils - INFO - 检测到数据库类型: postgresql
+2026-02-21 15:12:24,710 - backend.app.agent.utils.db_utils - INFO - 找到 4 个表
+2026-02-21 15:12:24,875 - backend.app.agent.utils.db_utils - INFO - 成功提取 4 个表的定义和注释
+2026-02-21 15:12:24,974 - backend.app.agent.service - INFO - SQL Agent 连接到数据库: postgresql://root:root@localhost:5432/rollerbed_tracking_db
+2026-02-21 15:12:24,975 - backend.app.agent.service - INFO - 成功注入 4 个表的注释信息到 SQLDatabase
+2026-02-21 15:12:25,094 - backend.app.agent.service - INFO - SQL 查询工具已包装：技能检查 + 语法检查 + 日期清洗
+2026-02-21 15:12:25,094 - backend.app.agent.service - INFO - 已移除 sql_db_list_tables 和 sql_db_schema，强制通过 skills 获取表信息
+2026-02-21 15:12:25,095 - backend.app.agent.service - INFO - 开始初始化业务知识 RAG 组件...
+2026-02-21 15:12:26,025 - backend.app.agent.vector.pgvector.async_utils - INFO - 已设置 WindowsSelectorEventLoopPolicy 以支持 psycopg3
+2026-02-21 15:12:26,025 - backend.app.agent.vector.factory - INFO - 正在创建 PgVector 业务向量检索器 (rag_backend=pgvector)...
+2026-02-21 15:12:26,026 - backend.app.agent.vector.pgvector.pgvector_wrapper - INFO - 正在初始化 PGVector，collection_name=rag_store...
+2026-02-21 15:12:26,146 - backend.app.agent.vector.pgvector.pgvector_wrapper - INFO - PgVectorStoreWrapper 初始化成功: collection=rag_store
+2026-02-21 15:12:26,146 - backend.app.agent.vector.pgvector.vector_store - INFO - 业务向量库已创建: collection=rag_store, model=baai/bge-m3
+2026-02-21 15:12:26,146 - backend.app.agent.vector.factory - INFO - PgVectorDocumentationRetriever 初始化完成
+2026-02-21 15:12:26,148 - backend.app.agent.vector.rerank.nvidia_reranker - INFO - NvidiaReranker 初始化: model=nvidia/rerank-qa-mistral-4b, top_n=3, score_threshold=-0.6
+2026-02-21 15:12:26,148 - backend.app.agent.vector.factory - INFO - NvidiaReranker 已启用: model=nvidia/rerank-qa-mistral-4b, top_n=3, score_threshold=-0.6
+2026-02-21 15:12:26,148 - backend.app.agent.service - INFO - 业务知识 RAG 中间件已启用（Rerank 已启用）
+2026-02-21 15:12:26,161 - backend.app.agent.service - INFO - SQL Agent 初始化成功
+2026-02-21 15:36:38,461 - backend.app.agent.service - INFO - 开始提取数据库表结构和注释信息...
+2026-02-21 15:36:38,524 - backend.app.agent.utils.db_utils - INFO - 检测到数据库类型: postgresql
+2026-02-21 15:36:38,533 - backend.app.agent.utils.db_utils - INFO - 找到 4 个表
+2026-02-21 15:36:38,677 - backend.app.agent.utils.db_utils - INFO - 成功提取 4 个表的定义和注释
+2026-02-21 15:36:38,838 - backend.app.agent.service - INFO - SQL Agent 连接到数据库: postgresql://root:root@localhost:5432/rollerbed_tracking_db
+2026-02-21 15:36:38,838 - backend.app.agent.service - INFO - 成功注入 4 个表的注释信息到 SQLDatabase
+2026-02-21 15:36:38,865 - backend.app.agent.service - INFO - SQL 查询工具已包装：技能检查 + 语法检查 + 日期清洗
+2026-02-21 15:36:38,866 - backend.app.agent.service - INFO - 已移除 sql_db_list_tables 和 sql_db_schema，强制通过 skills 获取表信息
+2026-02-21 15:36:38,866 - backend.app.agent.service - INFO - 开始初始化业务知识 RAG 组件...
+2026-02-21 15:36:39,514 - backend.app.agent.vector.pgvector.async_utils - INFO - 已设置 WindowsSelectorEventLoopPolicy 以支持 psycopg3
+2026-02-21 15:36:39,514 - backend.app.agent.vector.factory - INFO - 正在创建 PgVector 业务向量检索器 (rag_backend=pgvector)...
+2026-02-21 15:36:39,515 - backend.app.agent.vector.pgvector.pgvector_wrapper - INFO - 正在初始化 PGVector，collection_name=rag_store...
+2026-02-21 15:36:39,567 - backend.app.agent.vector.pgvector.pgvector_wrapper - INFO - PgVectorStoreWrapper 初始化成功: collection=rag_store
+2026-02-21 15:36:39,567 - backend.app.agent.vector.pgvector.vector_store - INFO - 业务向量库已创建: collection=rag_store, model=baai/bge-m3
+2026-02-21 15:36:39,569 - backend.app.agent.vector.factory - INFO - PgVectorDocumentationRetriever 初始化完成
+2026-02-21 15:36:39,570 - backend.app.agent.vector.rerank.nvidia_reranker - INFO - NvidiaReranker 初始化: model=nvidia/rerank-qa-mistral-4b, top_n=3, score_threshold=-0.6
+2026-02-21 15:36:39,570 - backend.app.agent.vector.factory - INFO - NvidiaReranker 已启用: model=nvidia/rerank-qa-mistral-4b, top_n=3, score_threshold=-0.6
+2026-02-21 15:36:39,571 - backend.app.agent.service - INFO - 业务知识 RAG 中间件已启用（Rerank 已启用）
+2026-02-21 15:36:39,582 - backend.app.agent.service - INFO - SQL Agent 初始化成功
+2026-02-21 15:47:09,125 - backend.app.agent.service - INFO - 开始提取数据库表结构和注释信息...
+2026-02-21 15:47:09,186 - backend.app.agent.utils.db_utils - INFO - 检测到数据库类型: postgresql
+2026-02-21 15:47:09,195 - backend.app.agent.utils.db_utils - INFO - 找到 4 个表
+2026-02-21 15:47:09,326 - backend.app.agent.utils.db_utils - INFO - 成功提取 4 个表的定义和注释
+2026-02-21 15:47:09,505 - backend.app.agent.service - INFO - SQL Agent 连接到数据库: postgresql://root:root@localhost:5432/rollerbed_tracking_db
+2026-02-21 15:47:09,505 - backend.app.agent.service - INFO - 成功注入 4 个表的注释信息到 SQLDatabase
+2026-02-21 15:47:09,537 - backend.app.agent.service - INFO - SQL 查询工具已包装：技能检查 + 语法检查 + 日期清洗
+2026-02-21 15:47:09,537 - backend.app.agent.service - INFO - 已移除 sql_db_list_tables 和 sql_db_schema，强制通过 skills 获取表信息
+2026-02-21 15:47:09,537 - backend.app.agent.service - INFO - 开始初始化业务知识 RAG 组件...
+2026-02-21 15:47:10,186 - backend.app.agent.vector.pgvector.async_utils - INFO - 已设置 WindowsSelectorEventLoopPolicy 以支持 psycopg3
+2026-02-21 15:47:10,187 - backend.app.agent.vector.factory - INFO - 正在创建 PgVector 业务向量检索器 (rag_backend=pgvector)...
+2026-02-21 15:47:10,188 - backend.app.agent.vector.pgvector.pgvector_wrapper - INFO - 正在初始化 PGVector，collection_name=rag_store...
+2026-02-21 15:47:10,246 - backend.app.agent.vector.pgvector.pgvector_wrapper - INFO - PgVectorStoreWrapper 初始化成功: collection=rag_store
+2026-02-21 15:47:10,246 - backend.app.agent.vector.pgvector.vector_store - INFO - 业务向量库已创建: collection=rag_store, model=baai/bge-m3
+2026-02-21 15:47:10,246 - backend.app.agent.vector.factory - INFO - PgVectorDocumentationRetriever 初始化完成
+2026-02-21 15:47:10,248 - backend.app.agent.vector.rerank.nvidia_reranker - INFO - NvidiaReranker 初始化: model=nvidia/rerank-qa-mistral-4b, top_n=3, score_threshold=-0.6
+2026-02-21 15:47:10,248 - backend.app.agent.vector.factory - INFO - NvidiaReranker 已启用: model=nvidia/rerank-qa-mistral-4b, top_n=3, score_threshold=-0.6
+2026-02-21 15:47:10,248 - backend.app.agent.service - INFO - 业务知识 RAG 中间件已启用（Rerank 已启用）
+2026-02-21 15:47:10,259 - backend.app.agent.service - INFO - SQL Agent 初始化成功
+2026-02-21 16:01:46,788 - backend.app.agent.service - INFO - 开始提取数据库表结构和注释信息...
+2026-02-21 16:01:46,853 - backend.app.agent.utils.db_utils - INFO - 检测到数据库类型: postgresql
+2026-02-21 16:01:46,861 - backend.app.agent.utils.db_utils - INFO - 找到 4 个表
+2026-02-21 16:01:47,018 - backend.app.agent.utils.db_utils - INFO - 成功提取 4 个表的定义和注释
+2026-02-21 16:01:47,203 - backend.app.agent.service - INFO - SQL Agent 连接到数据库: postgresql://root:root@localhost:5432/rollerbed_tracking_db
+2026-02-21 16:01:47,204 - backend.app.agent.service - INFO - 成功注入 4 个表的注释信息到 SQLDatabase
+2026-02-21 16:01:47,240 - backend.app.agent.service - INFO - SQL 查询工具已包装：技能检查 + 语法检查 + 日期清洗
+2026-02-21 16:01:47,240 - backend.app.agent.service - INFO - 已移除 sql_db_list_tables 和 sql_db_schema，强制通过 skills 获取表信息
+2026-02-21 16:01:47,240 - backend.app.agent.service - INFO - 开始初始化业务知识 RAG 组件...
+2026-02-21 16:01:47,984 - backend.app.agent.vector.pgvector.async_utils - INFO - 已设置 WindowsSelectorEventLoopPolicy 以支持 psycopg3
+2026-02-21 16:01:47,984 - backend.app.agent.vector.factory - INFO - 正在创建 PgVector 业务向量检索器 (rag_backend=pgvector)...
+2026-02-21 16:01:47,984 - backend.app.agent.vector.pgvector.pgvector_wrapper - INFO - 正在初始化 PGVector，collection_name=rag_store...
+2026-02-21 16:01:48,045 - backend.app.agent.vector.pgvector.pgvector_wrapper - INFO - PgVectorStoreWrapper 初始化成功: collection=rag_store
+2026-02-21 16:01:48,046 - backend.app.agent.vector.pgvector.vector_store - INFO - 业务向量库已创建: collection=rag_store, model=baai/bge-m3
+2026-02-21 16:01:48,046 - backend.app.agent.vector.factory - INFO - PgVectorDocumentationRetriever 初始化完成
+2026-02-21 16:01:48,047 - backend.app.agent.vector.rerank.nvidia_reranker - INFO - NvidiaReranker 初始化: model=nvidia/rerank-qa-mistral-4b, top_n=3, score_threshold=-0.6
+2026-02-21 16:01:48,048 - backend.app.agent.vector.factory - INFO - NvidiaReranker 已启用: model=nvidia/rerank-qa-mistral-4b, top_n=3, score_threshold=-0.6
+2026-02-21 16:01:48,048 - backend.app.agent.service - INFO - 业务知识 RAG 中间件已启用（Rerank 已启用）
+2026-02-21 16:01:48,058 - backend.app.agent.service - INFO - SQL Agent 初始化成功
+2026-02-21 16:55:09,358 - backend.app.agent.service - INFO - 开始提取数据库表结构和注释信息...
+2026-02-21 16:55:09,426 - backend.app.agent.utils.db_utils - INFO - 检测到数据库类型: postgresql
+2026-02-21 16:55:09,435 - backend.app.agent.utils.db_utils - INFO - 找到 4 个表
+2026-02-21 16:55:09,583 - backend.app.agent.utils.db_utils - INFO - 成功提取 4 个表的定义和注释
+2026-02-21 16:55:09,755 - backend.app.agent.service - INFO - SQL Agent 连接到数据库: postgresql://root:root@localhost:5432/rollerbed_tracking_db
+2026-02-21 16:55:09,755 - backend.app.agent.service - INFO - 成功注入 4 个表的注释信息到 SQLDatabase
+2026-02-21 16:55:09,784 - backend.app.agent.service - INFO - SQL 查询工具已包装：技能检查 + 语法检查 + 日期清洗
+2026-02-21 16:55:09,784 - backend.app.agent.service - INFO - 已移除 sql_db_list_tables 和 sql_db_schema，强制通过 skills 获取表信息
+2026-02-21 16:55:09,784 - backend.app.agent.service - INFO - 开始初始化业务知识 RAG 组件...
+2026-02-21 16:55:10,479 - backend.app.agent.vector.pgvector.async_utils - INFO - 已设置 WindowsSelectorEventLoopPolicy 以支持 psycopg3
+2026-02-21 16:55:10,479 - backend.app.agent.vector.factory - INFO - 正在创建 PgVector 业务向量检索器 (rag_backend=pgvector)...
+2026-02-21 16:55:10,479 - backend.app.agent.vector.pgvector.pgvector_wrapper - INFO - 正在初始化 PGVector，collection_name=rag_store...
+2026-02-21 16:55:10,542 - backend.app.agent.vector.pgvector.pgvector_wrapper - INFO - PgVectorStoreWrapper 初始化成功: collection=rag_store
+2026-02-21 16:55:10,543 - backend.app.agent.vector.pgvector.vector_store - INFO - 业务向量库已创建: collection=rag_store, model=baai/bge-m3
+2026-02-21 16:55:10,543 - backend.app.agent.vector.factory - INFO - PgVectorDocumentationRetriever 初始化完成
+2026-02-21 16:55:10,544 - backend.app.agent.vector.rerank.nvidia_reranker - INFO - NvidiaReranker 初始化: model=nvidia/rerank-qa-mistral-4b, top_n=3, score_threshold=-0.6
+2026-02-21 16:55:10,545 - backend.app.agent.vector.factory - INFO - NvidiaReranker 已启用: model=nvidia/rerank-qa-mistral-4b, top_n=3, score_threshold=-0.6
+2026-02-21 16:55:10,545 - backend.app.agent.service - INFO - 业务知识 RAG 中间件已启用（Rerank 已启用）
+2026-02-21 16:55:10,556 - backend.app.agent.service - INFO - SQL Agent 初始化成功
+2026-02-21 17:00:28,936 - backend.app.agent.service - INFO - 开始提取数据库表结构和注释信息...
+2026-02-21 17:00:29,011 - backend.app.agent.utils.db_utils - INFO - 检测到数据库类型: postgresql
+2026-02-21 17:00:29,021 - backend.app.agent.utils.db_utils - INFO - 找到 4 个表
+2026-02-21 17:00:29,170 - backend.app.agent.utils.db_utils - INFO - 成功提取 4 个表的定义和注释
+2026-02-21 17:00:29,388 - backend.app.agent.service - INFO - SQL Agent 连接到数据库: postgresql://root:root@localhost:5432/rollerbed_tracking_db
+2026-02-21 17:00:29,388 - backend.app.agent.service - INFO - 成功注入 4 个表的注释信息到 SQLDatabase
+2026-02-21 17:00:29,445 - backend.app.agent.service - INFO - SQL 查询工具已包装：技能检查 + 语法检查 + 日期清洗
+2026-02-21 17:00:29,446 - backend.app.agent.service - INFO - 已移除 sql_db_list_tables 和 sql_db_schema，强制通过 skills 获取表信息
+2026-02-21 17:00:29,446 - backend.app.agent.service - INFO - 开始初始化业务知识 RAG 组件...
+2026-02-21 17:00:30,188 - backend.app.agent.vector.pgvector.async_utils - INFO - 已设置 WindowsSelectorEventLoopPolicy 以支持 psycopg3
+2026-02-21 17:00:30,188 - backend.app.agent.vector.factory - INFO - 正在创建 PgVector 业务向量检索器 (rag_backend=pgvector)...
+2026-02-21 17:00:30,188 - backend.app.agent.vector.pgvector.pgvector_wrapper - INFO - 正在初始化 PGVector，collection_name=rag_store...
+2026-02-21 17:00:30,247 - backend.app.agent.vector.pgvector.pgvector_wrapper - INFO - PgVectorStoreWrapper 初始化成功: collection=rag_store
+2026-02-21 17:00:30,247 - backend.app.agent.vector.pgvector.vector_store - INFO - 业务向量库已创建: collection=rag_store, model=baai/bge-m3
+2026-02-21 17:00:30,247 - backend.app.agent.vector.factory - INFO - PgVectorDocumentationRetriever 初始化完成
+2026-02-21 17:00:30,249 - backend.app.agent.vector.rerank.nvidia_reranker - INFO - NvidiaReranker 初始化: model=nvidia/rerank-qa-mistral-4b, top_n=3, score_threshold=-0.6
+2026-02-21 17:00:30,249 - backend.app.agent.vector.factory - INFO - NvidiaReranker 已启用: model=nvidia/rerank-qa-mistral-4b, top_n=3, score_threshold=-0.6
+2026-02-21 17:00:30,249 - backend.app.agent.service - INFO - 业务知识 RAG 中间件已启用（Rerank 已启用）
+2026-02-21 17:00:30,260 - backend.app.agent.service - INFO - SQL Agent 初始化成功
+2026-02-21 17:01:10,385 - backend.app.agent.service - INFO - 开始提取数据库表结构和注释信息...
+2026-02-21 17:01:10,476 - backend.app.agent.utils.db_utils - INFO - 检测到数据库类型: postgresql
+2026-02-21 17:01:10,485 - backend.app.agent.utils.db_utils - INFO - 找到 4 个表
+2026-02-21 17:01:10,642 - backend.app.agent.utils.db_utils - INFO - 成功提取 4 个表的定义和注释
+2026-02-21 17:01:10,804 - backend.app.agent.service - INFO - SQL Agent 连接到数据库: postgresql://root:root@localhost:5432/rollerbed_tracking_db
+2026-02-21 17:01:10,805 - backend.app.agent.service - INFO - 成功注入 4 个表的注释信息到 SQLDatabase
+2026-02-21 17:01:10,838 - backend.app.agent.service - INFO - SQL 查询工具已包装：技能检查 + 语法检查 + 日期清洗
+2026-02-21 17:01:10,838 - backend.app.agent.service - INFO - 已移除 sql_db_list_tables 和 sql_db_schema，强制通过 skills 获取表信息
+2026-02-21 17:01:10,838 - backend.app.agent.service - INFO - 开始初始化业务知识 RAG 组件...
+2026-02-21 17:01:11,505 - backend.app.agent.vector.pgvector.async_utils - INFO - 已设置 WindowsSelectorEventLoopPolicy 以支持 psycopg3
+2026-02-21 17:01:11,505 - backend.app.agent.vector.factory - INFO - 正在创建 PgVector 业务向量检索器 (rag_backend=pgvector)...
+2026-02-21 17:01:11,506 - backend.app.agent.vector.pgvector.pgvector_wrapper - INFO - 正在初始化 PGVector，collection_name=rag_store...
+2026-02-21 17:01:11,564 - backend.app.agent.vector.pgvector.pgvector_wrapper - INFO - PgVectorStoreWrapper 初始化成功: collection=rag_store
+2026-02-21 17:01:11,564 - backend.app.agent.vector.pgvector.vector_store - INFO - 业务向量库已创建: collection=rag_store, model=baai/bge-m3
+2026-02-21 17:01:11,564 - backend.app.agent.vector.factory - INFO - PgVectorDocumentationRetriever 初始化完成
+2026-02-21 17:01:11,566 - backend.app.agent.vector.rerank.nvidia_reranker - INFO - NvidiaReranker 初始化: model=nvidia/rerank-qa-mistral-4b, top_n=3, score_threshold=-0.6
+2026-02-21 17:01:11,566 - backend.app.agent.vector.factory - INFO - NvidiaReranker 已启用: model=nvidia/rerank-qa-mistral-4b, top_n=3, score_threshold=-0.6
+2026-02-21 17:01:11,566 - backend.app.agent.service - INFO - 业务知识 RAG 中间件已启用（Rerank 已启用）
+2026-02-21 17:01:11,577 - backend.app.agent.service - INFO - SQL Agent 初始化成功
+2026-02-21 17:02:04,395 - backend.app.agent.service - INFO - 开始提取数据库表结构和注释信息...
+2026-02-21 17:02:04,474 - backend.app.agent.utils.db_utils - INFO - 检测到数据库类型: postgresql
+2026-02-21 17:02:04,484 - backend.app.agent.utils.db_utils - INFO - 找到 4 个表
+2026-02-21 17:02:04,648 - backend.app.agent.utils.db_utils - INFO - 成功提取 4 个表的定义和注释
+2026-02-21 17:02:04,852 - backend.app.agent.service - INFO - SQL Agent 连接到数据库: postgresql://root:root@localhost:5432/rollerbed_tracking_db
+2026-02-21 17:02:04,852 - backend.app.agent.service - INFO - 成功注入 4 个表的注释信息到 SQLDatabase
+2026-02-21 17:02:04,906 - backend.app.agent.service - INFO - SQL 查询工具已包装：技能检查 + 语法检查 + 日期清洗
+2026-02-21 17:02:04,906 - backend.app.agent.service - INFO - 已移除 sql_db_list_tables 和 sql_db_schema，强制通过 skills 获取表信息
+2026-02-21 17:02:04,908 - backend.app.agent.service - INFO - 开始初始化业务知识 RAG 组件...
+2026-02-21 17:02:05,798 - backend.app.agent.vector.pgvector.async_utils - INFO - 已设置 WindowsSelectorEventLoopPolicy 以支持 psycopg3
+2026-02-21 17:02:05,799 - backend.app.agent.vector.factory - INFO - 正在创建 PgVector 业务向量检索器 (rag_backend=pgvector)...
+2026-02-21 17:02:05,800 - backend.app.agent.vector.pgvector.pgvector_wrapper - INFO - 正在初始化 PGVector，collection_name=rag_store...
+2026-02-21 17:02:05,875 - backend.app.agent.vector.pgvector.pgvector_wrapper - INFO - PgVectorStoreWrapper 初始化成功: collection=rag_store
+2026-02-21 17:02:05,875 - backend.app.agent.vector.pgvector.vector_store - INFO - 业务向量库已创建: collection=rag_store, model=baai/bge-m3
+2026-02-21 17:02:05,875 - backend.app.agent.vector.factory - INFO - PgVectorDocumentationRetriever 初始化完成
+2026-02-21 17:02:05,878 - backend.app.agent.vector.rerank.nvidia_reranker - INFO - NvidiaReranker 初始化: model=nvidia/rerank-qa-mistral-4b, top_n=3, score_threshold=-0.6
+2026-02-21 17:02:05,878 - backend.app.agent.vector.factory - INFO - NvidiaReranker 已启用: model=nvidia/rerank-qa-mistral-4b, top_n=3, score_threshold=-0.6
+2026-02-21 17:02:05,878 - backend.app.agent.service - INFO - 业务知识 RAG 中间件已启用（Rerank 已启用）
+2026-02-21 17:02:05,890 - backend.app.agent.service - INFO - SQL Agent 初始化成功
+2026-02-21 17:04:03,100 - backend.app.agent.service - INFO - 开始提取数据库表结构和注释信息...
+2026-02-21 17:04:03,171 - backend.app.agent.utils.db_utils - INFO - 检测到数据库类型: postgresql
+2026-02-21 17:04:03,180 - backend.app.agent.utils.db_utils - INFO - 找到 4 个表
+2026-02-21 17:04:03,347 - backend.app.agent.utils.db_utils - INFO - 成功提取 4 个表的定义和注释
+2026-02-21 17:04:03,554 - backend.app.agent.service - INFO - SQL Agent 连接到数据库: postgresql://root:root@localhost:5432/rollerbed_tracking_db
+2026-02-21 17:04:03,554 - backend.app.agent.service - INFO - 成功注入 4 个表的注释信息到 SQLDatabase
+2026-02-21 17:04:03,595 - backend.app.agent.service - INFO - SQL 查询工具已包装：技能检查 + 语法检查 + 日期清洗
+2026-02-21 17:04:03,595 - backend.app.agent.service - INFO - 已移除 sql_db_list_tables 和 sql_db_schema，强制通过 skills 获取表信息
+2026-02-21 17:04:03,595 - backend.app.agent.service - INFO - 开始初始化业务知识 RAG 组件...
+2026-02-21 17:04:04,410 - backend.app.agent.vector.pgvector.async_utils - INFO - 已设置 WindowsSelectorEventLoopPolicy 以支持 psycopg3
+2026-02-21 17:04:04,412 - backend.app.agent.vector.factory - INFO - 正在创建 PgVector 业务向量检索器 (rag_backend=pgvector)...
+2026-02-21 17:04:04,412 - backend.app.agent.vector.pgvector.pgvector_wrapper - INFO - 正在初始化 PGVector，collection_name=rag_store...
+2026-02-21 17:04:04,473 - backend.app.agent.vector.pgvector.pgvector_wrapper - INFO - PgVectorStoreWrapper 初始化成功: collection=rag_store
+2026-02-21 17:04:04,473 - backend.app.agent.vector.pgvector.vector_store - INFO - 业务向量库已创建: collection=rag_store, model=baai/bge-m3
+2026-02-21 17:04:04,473 - backend.app.agent.vector.factory - INFO - PgVectorDocumentationRetriever 初始化完成
+2026-02-21 17:04:04,475 - backend.app.agent.vector.rerank.nvidia_reranker - INFO - NvidiaReranker 初始化: model=nvidia/rerank-qa-mistral-4b, top_n=3, score_threshold=-0.6
+2026-02-21 17:04:04,475 - backend.app.agent.vector.factory - INFO - NvidiaReranker 已启用: model=nvidia/rerank-qa-mistral-4b, top_n=3, score_threshold=-0.6
+2026-02-21 17:04:04,475 - backend.app.agent.service - INFO - 业务知识 RAG 中间件已启用（Rerank 已启用）
+2026-02-21 17:04:04,488 - backend.app.agent.service - INFO - SQL Agent 初始化成功
+2026-02-21 17:04:22,368 - httpx - INFO - HTTP Request: POST https://integrate.api.nvidia.com/v1/embeddings "HTTP/1.1 200 OK"
+2026-02-21 17:04:23,987 - httpx - INFO - HTTP Request: POST https://integrate.api.nvidia.com/v1/embeddings "HTTP/1.1 200 OK"
+2026-02-21 17:22:37,416 - backend.app.agent.service - INFO - 开始提取数据库表结构和注释信息...
+2026-02-21 17:22:37,487 - backend.app.agent.utils.db_utils - INFO - 检测到数据库类型: postgresql
+2026-02-21 17:22:37,498 - backend.app.agent.utils.db_utils - INFO - 找到 4 个表
+2026-02-21 17:22:37,646 - backend.app.agent.utils.db_utils - INFO - 成功提取 4 个表的定义和注释
+2026-02-21 17:22:37,841 - backend.app.agent.service - INFO - SQL Agent 连接到数据库: postgresql://root:root@localhost:5432/rollerbed_tracking_db
+2026-02-21 17:22:37,841 - backend.app.agent.service - INFO - 成功注入 4 个表的注释信息到 SQLDatabase
+2026-02-21 17:22:37,886 - backend.app.agent.service - INFO - SQL 查询工具已包装：技能检查 + 语法检查 + 日期清洗
+2026-02-21 17:22:37,887 - backend.app.agent.service - INFO - 已移除 sql_db_list_tables 和 sql_db_schema，强制通过 skills 获取表信息
+2026-02-21 17:22:37,887 - backend.app.agent.service - INFO - 开始初始化业务知识 RAG 组件...
+2026-02-21 17:22:38,666 - backend.app.agent.vector.pgvector.async_utils - INFO - 已设置 WindowsSelectorEventLoopPolicy 以支持 psycopg3
+2026-02-21 17:22:38,667 - backend.app.agent.vector.factory - INFO - 正在创建 PgVector 业务向量检索器 (rag_backend=pgvector)...
+2026-02-21 17:22:38,668 - backend.app.agent.vector.pgvector.pgvector_wrapper - INFO - 正在初始化 PGVector，collection_name=rag_store...
+2026-02-21 17:22:38,732 - backend.app.agent.vector.pgvector.pgvector_wrapper - INFO - PgVectorStoreWrapper 初始化成功: collection=rag_store
+2026-02-21 17:22:38,732 - backend.app.agent.vector.pgvector.vector_store - INFO - 业务向量库已创建: collection=rag_store, model=baai/bge-m3
+2026-02-21 17:22:38,732 - backend.app.agent.vector.factory - INFO - PgVectorDocumentationRetriever 初始化完成
+2026-02-21 17:22:38,734 - backend.app.agent.vector.rerank.nvidia_reranker - INFO - NvidiaReranker 初始化: model=nvidia/rerank-qa-mistral-4b, top_n=3, score_threshold=-0.6
+2026-02-21 17:22:38,734 - backend.app.agent.vector.factory - INFO - NvidiaReranker 已启用: model=nvidia/rerank-qa-mistral-4b, top_n=3, score_threshold=-0.6
+2026-02-21 17:22:38,735 - backend.app.agent.service - INFO - 业务知识 RAG 中间件已启用（Rerank 已启用）
+2026-02-21 17:22:38,746 - backend.app.agent.service - INFO - SQL Agent 初始化成功
+2026-02-21 17:22:55,897 - httpx - INFO - HTTP Request: POST https://integrate.api.nvidia.com/v1/embeddings "HTTP/1.1 200 OK"
+2026-02-21 17:22:57,468 - httpx - INFO - HTTP Request: POST https://integrate.api.nvidia.com/v1/embeddings "HTTP/1.1 200 OK"

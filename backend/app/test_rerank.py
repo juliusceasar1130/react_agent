@@ -20,7 +20,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 from langchain_core.documents import Document
-from backend.app.agent.utils.rerank_service import NvidiaRerankService
+from backend.app.agent.vector.rerank.nvidia_reranker import NvidiaReranker
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
@@ -58,7 +58,7 @@ def test_graceful_degradation():
     print("测试 1: 降级测试 (无效 API Key)")
     print("=" * 60)
 
-    service = NvidiaRerankService(
+    service = NvidiaReranker(
         api_key="invalid-key-for-testing",
         model="nvidia/rerank-qa-mistral-4b",
         top_n=3,
@@ -80,7 +80,7 @@ def test_empty_input():
     print("测试 2: 空输入测试")
     print("=" * 60)
 
-    service = NvidiaRerankService(
+    service = NvidiaReranker(
         api_key="test-key",
         model="nvidia/rerank-qa-mistral-4b",
         top_n=3,
@@ -108,7 +108,7 @@ def test_api_connectivity():
         print("[SKIP] 未设置 NVIDIA_API_KEY，跳过连通性测试")
         return
 
-    service = NvidiaRerankService(
+    service = NvidiaReranker(
         api_key=api_key,
         model="nvidia/rerank-qa-mistral-4b",
         top_n=3,

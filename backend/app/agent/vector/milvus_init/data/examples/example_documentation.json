@@ -1,0 +1,56 @@
+[
+  {
+    "document": "预处理电泳主要分为主线和存储线两个部分，主线主要负责生产，存储线主要负责存储，存储线也叫buffer。主线和存储线各有2条线，如1线，2线，或者称为L1薄膜线，L2磷化线",
+    "metadata": {
+      "type": "documentation",
+      "domain": "paint_shop_vehicle_tracking",
+      "term": "物流追踪",
+      "aliases": []
+    }
+  },
+  {
+    "document": "PVC主要分为主线和存储线两个部分，主线主要负责生产，存储线主要负责存储，存储线也叫buffer。主线和存储线各有3条线，如1线，2线，3线，或者称为L1，L2，L3",
+    "metadata": {
+      "type": "documentation",
+      "domain": "paint_shop_vehicle_tracking",
+      "term": "物流追踪",
+      "aliases": []
+    }
+  },
+  {
+    "document": "面漆主要分为主线和存储线两个部分，主线主要负责生产，存储线主要负责存储，存储线也叫buffer。主线和存储线各有3条线，如1线，2线，3线，或者称为L1，L2，L3",
+    "metadata": {
+      "type": "documentation",
+      "domain": "paint_shop_vehicle_tracking",
+      "term": "物流追踪",
+      "aliases": []
+    }
+  },
+  {
+    "document": "注蜡主要分为主线和存储线两个部分，主线主要负责生产，存储线主要负责存储，存储线也叫buffer。主线和存储线各有3条线，如1线，2线，3线，或者称为L1，L2，L3",
+    "metadata": {
+      "type": "documentation",
+      "domain": "paint_shop_vehicle_tracking",
+      "term": "物流追踪",
+      "aliases": []
+    }
+  },
+  {
+    "document": "RB代表滚床，<1B095RB>代表1B这个区域，095代表编号滚床编号为095",
+    "metadata": {
+      "type": "documentation",
+      "domain": "paint_shop_vehicle_tracking",
+      "term": "物流追踪",
+      "aliases": []
+    }
+  },
+  {
+    "document": "区域指的是生产工艺段，油漆车间分为4大工艺段，预处理电泳、PVC、面漆、注蜡",
+    "metadata": {
+      "type": "documentation",
+      "domain": "paint_shop_vehicle_tracking",
+      "term": "物流追踪",
+      "aliases": []
+    }
+  }
+]

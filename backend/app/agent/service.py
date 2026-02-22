@@ -20,8 +20,7 @@ from backend.app.agent.constants import EXCLUDED_TOOLS, ToolNames
 from backend.app.agent.middleware import SkillMiddleware, BusinessRagMiddleware
 from backend.app.agent.tools import create_wrapped_query_tool
 from backend.app.agent.utils import fetch_table_definitions_with_comments
-from backend.app.agent.utils.vector_store import create_business_vector_store
-from backend.app.agent.utils.rerank_service import NvidiaRerankService
+from backend.app.agent.vector.factory import create_business_retriever_and_reranker
 from backend.app.config import settings
 
 # 配置日志
@@ -220,43 +219,28 @@ class SQLAgentService:
             # 4. 构建系统提示词
             system_prompt = _build_system_prompt(db)
 
-            # 5. 创建业务知识向量库（仅使用 Documentation 类型）
-            logger.info("开始初始化业务知识 RAG 向量库...")
+            # 5. 创建业务知识检索器与精排器，并初始化 RAG 中间件
+            logger.info("开始初始化业务知识 RAG 组件...")
+            rag_middleware = None
             try:
-                vector_store = create_business_vector_store(collection_name="rag_store", embedding_model="baai/bge-m3", pg_connection_string=settings.database_url)
-                logger.info(f"向量库创建成功，正在初始化 BusinessRagMiddleware...")
-
-                # 5.5. 创建 Rerank 服务（可选）
-                rerank_service = None
-                if settings.rerank_enabled:
-                    try:
-                        rerank_service = NvidiaRerankService(
-                            api_key=settings.nvidia_api_key,
-                            model=settings.rerank_model,
-                            top_n=settings.rerank_top_n,
-                            score_threshold=settings.rerank_score_threshold,
-                        )
-                        logger.info(f"Rerank 服务已启用: model={settings.rerank_model}")
-                    except Exception as e:
-                        logger.warning(f"Rerank 服务初始化失败，将使用纯向量检索: {e}")
-                
-                # 只使用 Documentation 类型作为业务知识注入系统提示词
-                # DDL 和 SQL Example 类型预留，后续开发
-                rag_middleware = BusinessRagMiddleware(
-                    vector_store=vector_store,
-                    doc_k=10 if rerank_service else 5,  # 启用 Rerank 时扩大召回范围
-                    score_threshold=settings.rag_similarity_threshold,
-                    rerank_service=rerank_service,
-                )
-                rerank_status = "Rerank 已启用" if rerank_service else "仅向量检索"
-                logger.info(f"业务知识 RAG 中间件已启用（{rerank_status}）")
-            except ValueError as e:
-                # NVIDIA_API_KEY 未设置等配置错误
-                logger.warning(f"业务知识向量库初始化失败，RAG 功能将不可用: {e}")               
-                rag_middleware = None
+                retriever, reranker = create_business_retriever_and_reranker()
+                if retriever is not None:
+                    # 启用 Rerank 时适当放大召回范围
+                    doc_k = 10 if reranker is not None else 3
+                    rag_middleware = BusinessRagMiddleware(
+                        retriever=retriever,
+                        reranker=reranker,
+                        doc_k=doc_k,
+                        score_threshold=getattr(
+                            settings, "rag_similarity_threshold", None
+                        ),
+                    )
+                    rerank_status = "Rerank 已启用" if reranker else "仅向量检索"
+                    logger.info("业务知识 RAG 中间件已启用（%s）", rerank_status)
+                else:
+                    logger.warning("未获取到业务检索器实例，RAG 功能将不可用")
             except Exception as e:
-                # 其他错误（数据库连接、网络等）
-                logger.warning(f"业务知识向量库初始化失败，RAG 功能将不可用: {e}")
+                logger.warning("业务知识 RAG 组件初始化失败，RAG 功能将不可用: %s", e)
                 rag_middleware = None
 
             # 6. 配置 SummarizationMiddleware
@@ -267,12 +251,10 @@ class SQLAgentService:
             )
 
             # 7. 构建中间件列表
-            middleware_list = [
-                summarization_middleware,
-                SkillMiddleware(),
-            ]
+            middleware_list = [summarization_middleware, SkillMiddleware()]
             if rag_middleware:
-                middleware_list.insert(0, rag_middleware)  # RAG 中间件放在最前面
+                # RAG 中间件放在最前面，优先注入业务知识
+                middleware_list.insert(0, rag_middleware)
 
             # 8. 创建 Agent
             self.agent = create_agent(
@@ -282,9 +264,7 @@ class SQLAgentService:
                 middleware=middleware_list,
             )
 
-            logger.info(
-                "SQL Agent 初始化成功（SummarizationMiddleware、SkillMiddleware 和 BusinessRagMiddleware 已启用）"
-            )
+            logger.info("SQL Agent 初始化成功")
 
         except Exception as e:
             logger.error(f"SQL Agent 初始化失败: {e}")

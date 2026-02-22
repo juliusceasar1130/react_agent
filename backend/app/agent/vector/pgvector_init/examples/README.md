@@ -52,8 +52,8 @@
 
 **导入命令**:
 ```bash
-python -m backend.app.agent.vector_init.import_data \
-    .tree/features/agent/backend/app/agent/vector_init/examples/example_documentation.json
+python -m backend.app.agent.vector.pgvector_init.import_data \
+    .tree/features/agent/backend/app/agent/vector/pgvector_init/examples/example_documentation.json
 ```
 
 ### 2. `example_sql_example.json` - SQL示例类型
@@ -77,8 +77,8 @@ python -m backend.app.agent.vector_init.import_data \
 
 **导入命令**:
 ```bash
-python -m backend.app.agent.vector_init.import_data \
-    .tree/features/agent/backend/app/agent/vector_init/examples/example_sql_example.json
+python -m backend.app.agent.vector.pgvector_init.import_data \
+    .tree/features/agent/backend/app/agent/vector/pgvector_init/examples/example_sql_example.json
 ```
 
 ### 3. `example_ddl.json` - DDL类型示例
@@ -103,8 +103,8 @@ python -m backend.app.agent.vector_init.import_data \
 
 **导入命令**:
 ```bash
-python -m backend.app.agent.vector_init.import_data \
-    .tree/features/agent/backend/app/agent/vector_init/examples/example_ddl.json
+python -m backend.app.agent.vector.pgvector_init.import_data \
+    .tree/features/agent/backend/app/agent/vector/pgvector_init/examples/example_ddl.json
 ```
 
 ## 使用示例
@@ -113,16 +113,16 @@ python -m backend.app.agent.vector_init.import_data \
 
 ```bash
 # 从项目根目录运行
-python -m backend.app.agent.vector_init.import_data \
-    .tree/features/agent/backend/app/agent/vector_init/examples/example_documentation.json
+python -m backend.app.agent.vector.pgvector_init.import_data \
+    .tree/features/agent/backend/app/agent/vector/pgvector_init/examples/example_documentation.json
 ```
 
 ### 示例 2: 指定集合名称和覆盖模式
 
 ```bash
 # 使用 --collection-name 指定集合名称，--overwrite 清空集合后重新导入
-python -m backend.app.agent.vector_init.import_data \
-    .tree/features/agent/backend/app/agent/vector_init/examples/example_sql_example.json \
+python -m backend.app.agent.vector.pgvector_init.import_data \
+    .tree/features/agent/backend/app/agent/vector/pgvector_init/examples/example_sql_example.json \
     --collection-name business_knowledge \
     --overwrite
 ```
@@ -130,8 +130,8 @@ python -m backend.app.agent.vector_init.import_data \
 ### 示例 3: 导入DDL数据
 
 ```bash
-python -m backend.app.agent.vector_init.import_data \
-    .tree/features/agent/backend/app/agent/vector_init/examples/example_ddl.json
+python -m backend.app.agent.vector.pgvector_init.import_data \
+    .tree/features/agent/backend/app/agent/vector/pgvector_init/examples/example_ddl.json
 ```
 
 ### 示例 4: 使用不同的内容字段名
@@ -139,7 +139,7 @@ python -m backend.app.agent.vector_init.import_data \
 如果 JSON 文件使用其他字段名称（如 `content` 而不是 `document`）：
 
 ```bash
-python -m backend.app.agent.vector_init.import_data \
+python -m backend.app.agent.vector.pgvector_init.import_data \
     data.json \
     --content-field content
 ```

@@ -6,11 +6,7 @@
 支持可选的 Rerank 精排层（NVIDIA NIM）。
 """
 
-from typing import Any, List, Optional, TYPE_CHECKING
-
-if TYPE_CHECKING:
-    from backend.app.agent.utils.pgvector_wrapper import PgVectorStoreWrapper
-    from backend.app.agent.utils.rerank_service import NvidiaRerankService
+from typing import Any, List, Optional
 import logging
 
 from langchain.agents.middleware import AgentMiddleware
@@ -19,6 +15,7 @@ from langchain_core.documents import Document
 from langgraph.runtime import Runtime
 
 from backend.app.agent.state import CustomState
+from backend.app.agent.vector.base import BaseRetriever, BaseReranker, ScoredDocument
 
 logger = logging.getLogger(__name__)
 
@@ -34,24 +31,24 @@ class BusinessRagMiddleware(AgentMiddleware[CustomState]):
 
     def __init__(
         self,
-        vector_store: "PgVectorStoreWrapper",
+        retriever: BaseRetriever,
         doc_k: int = 5,
         score_threshold: Optional[float] = None,
-        rerank_service: Optional["NvidiaRerankService"] = None,
+        reranker: Optional[BaseReranker] = None,
     ) -> None:
         """
         Args:
-            vector_store: PgVectorStoreWrapper 实例（基于官方 PGVector 的轻量包装）
+            retriever: 业务知识检索器，实现 BaseRetriever 接口
             doc_k: Documentation 类型文档检索数量，默认 5
             score_threshold: 相似度分数阈值，只返回分数 >= threshold 的文档。
                             None 表示不过滤。注意：分数越高表示越相似
-            rerank_service: 可选的 Rerank 服务实例。如果提供，将在向量检索后
-                          进行精排。API 失败时自动降级为纯向量排序。
+            reranker: 可选的精排服务实例，实现 BaseReranker 接口。
+                      如果提供，将在向量检索后进行精排。API 失败时自动降级为纯向量排序。
         """
-        self.vector_store = vector_store
+        self.retriever = retriever
         self.doc_k = doc_k
         self.score_threshold = score_threshold
-        self.rerank_service = rerank_service
+        self.reranker = reranker
         # 用于标记业务知识系统消息的标识
         self._rag_system_message_id = "__business_rag_context__"
 
@@ -153,42 +150,49 @@ class BusinessRagMiddleware(AgentMiddleware[CustomState]):
         retrieved_docs: List[Document] = []
 
         try:
-            # 使用带分数的检索方法，并根据阈值过滤
-            results_with_scores = self.vector_store.similarity_search_by_type_with_score(
+            # 使用统一检索接口，根据阈值过滤
+            scored_results: List[ScoredDocument] = self.retriever.retrieve(
                 query=user_query,
-                doc_type="documentation",
                 k=self.doc_k,
                 score_threshold=self.score_threshold,
+                doc_type="documentation",
             )
-            
+
             # 提取文档列表
-            retrieved_docs = [doc for doc, score in results_with_scores]
-            
+            retrieved_docs = [item.document for item in scored_results]
+
             # 记录检索结果和分数信息
-            if results_with_scores:
-                scores = [score for _, score in results_with_scores]
+            if scored_results:
+                scores = [item.score for item in scored_results]
                 logger.info(
-                    f"BusinessRagMiddleware: 检索到 {len(retrieved_docs)} 条 Documentation 类型业务文档 "
-                    f"(分数范围: {min(scores):.4f} - {max(scores):.4f}, "
-                    f"阈值: {self.score_threshold if self.score_threshold is not None else '无'})"
+                    "BusinessRagMiddleware: 检索到 %d 条 Documentation 类型业务文档 "
+                    "(分数范围: %.4f - %.4f, 阈值: %s)",
+                    len(retrieved_docs),
+                    min(scores),
+                    max(scores),
+                    self.score_threshold if self.score_threshold is not None else "无",
                 )
             else:
                 logger.info(
-                    f"BusinessRagMiddleware: 未检索到符合条件的 Documentation 类型业务文档 "
-                    f"(阈值: {self.score_threshold if self.score_threshold is not None else '无'})"
+                    "BusinessRagMiddleware: 未检索到符合条件的 Documentation 类型业务文档 (阈值: %s)",
+                    self.score_threshold if self.score_threshold is not None else "无",
                 )
 
             # ---- Rerank 精排（如果启用） ----
-            if self.rerank_service and retrieved_docs:
+            if self.reranker and retrieved_docs:
                 try:
-                    reranked = self.rerank_service.rerank(user_query, retrieved_docs)
-                    retrieved_docs = [doc for doc, score in reranked]
+                    reranked_results: List[ScoredDocument] = self.reranker.rerank(
+                        user_query, retrieved_docs
+                    )
+                    retrieved_docs = [item.document for item in reranked_results]
                     logger.info(
-                        f"BusinessRagMiddleware: Rerank 完成，精排后保留 {len(retrieved_docs)} 条文档"
+                        "BusinessRagMiddleware: Rerank 完成，精排后保留 %d 条文档",
+                        len(retrieved_docs),
                     )
                 except Exception as e:
                     logger.warning(
-                        f"BusinessRagMiddleware: Rerank 失败，降级使用原始向量检索结果: {e}"
+                        "BusinessRagMiddleware: Rerank 失败，降级使用原始向量检索结果: %s",
+                        e,
                     )
 
         except Exception as e:

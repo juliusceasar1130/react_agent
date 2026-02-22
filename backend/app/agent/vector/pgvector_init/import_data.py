@@ -1,22 +1,22 @@
 #!/usr/bin/env python3
-# backend/app/agent/vector_init/import_data.py
+# backend/app/agent/vector/pgvector_init/import_data.py
 """
 向量库数据导入主入口脚本
 
 使用 langchain-postgres 的 PGVector 类实现批量导入功能。
 
 用法:
-    python -m backend.app.agent.vector_init.import_data <json_file_path> [options]
+    python -m backend.app.agent.vector.pgvector_init.import_data <json_file_path> [options]
 
 示例:
     # 基本用法（追加导入）
-    python -m backend.app.agent.vector_init.import_data data.json
+    python -m backend.app.agent.vector.pgvector_init.import_data data.json
 
     # 覆盖导入（清空现有数据）
-    python -m backend.app.agent.vector_init.import_data data.json --overwrite
+    python -m backend.app.agent.vector.pgvector_init.import_data data.json --overwrite
 
     # 指定集合名称
-    python -m backend.app.agent.vector_init.import_data data.json --collection-name my_collection
+    python -m backend.app.agent.vector.pgvector_init.import_data data.json --collection-name my_collection
 """
 
 import argparse
@@ -28,8 +28,8 @@ from pathlib import Path
 project_root = Path(__file__).parent.parent.parent.parent.parent.parent
 sys.path.insert(0, str(project_root))
 
-from backend.app.agent.vector_init.json_loader import load_json_data
-from backend.app.agent.vector_init.data_importer import import_data_to_vector_store
+from backend.app.agent.vector.pgvector_init.json_loader import load_json_data
+from backend.app.agent.vector.pgvector_init.data_importer import import_data_to_vector_store
 
 # 配置日志
 logging.basicConfig(
@@ -54,16 +54,16 @@ def main():
         epilog="""
 示例:
   # 基本用法（追加导入）
-  python -m backend.app.agent.vector_init.import_data data.json
+  python -m backend.app.agent.vector.pgvector_init.import_data data.json
 
   # 覆盖导入（清空现有数据后重新导入）
-  python -m backend.app.agent.vector_init.import_data data.json --overwrite
+  python -m backend.app.agent.vector.pgvector_init.import_data data.json --overwrite
 
   # 指定集合名称和批量大小
-  python -m backend.app.agent.vector_init.import_data data.json --collection-name my_collection --batch-size 50
+  python -m backend.app.agent.vector.pgvector_init.import_data data.json --collection-name my_collection --batch-size 50
 
   # 指定内容字段和元数据字段
-  python -m backend.app.agent.vector_init.import_data data.json --content-field text --metadata-fields type domain
+  python -m backend.app.agent.vector.pgvector_init.import_data data.json --content-field text --metadata-fields type domain
 
 环境变量要求:
   DATABASE_URL     - PostgreSQL 数据库连接字符串（格式: postgresql+psycopg://user:password@host:port/database）
