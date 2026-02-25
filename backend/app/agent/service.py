@@ -18,8 +18,12 @@ from langchain_openai import ChatOpenAI
 
 from backend.app.agent.constants import EXCLUDED_TOOLS, ToolNames
 from backend.app.agent.middleware import SkillMiddleware, BusinessRagMiddleware
-from backend.app.agent.tools import create_wrapped_query_tool
+from backend.app.agent.tools import (
+    create_sql_example_search_tool,
+    create_wrapped_query_tool,
+)
 from backend.app.agent.utils import fetch_table_definitions_with_comments
+from backend.app.agent.vector.base import BaseRetriever
 from backend.app.agent.vector.factory import create_business_retriever_and_reranker
 from backend.app.config import settings
 
@@ -106,7 +110,11 @@ def _create_database_connection() -> tuple[SQLDatabase, dict]:
     return db, custom_table_info
 
 
-def _prepare_tools(db: SQLDatabase, llm: Any) -> list:
+def _prepare_tools(
+    db: SQLDatabase,
+    llm: Any,
+    retriever: Optional[BaseRetriever] = None,
+) -> list:
     """
     准备 Agent 工具列表
 
@@ -149,6 +157,20 @@ def _prepare_tools(db: SQLDatabase, llm: Any) -> list:
         tools = raw_tools
         logger.warning("未找到 sql_db_query 工具，跳过包装")
 
+    # 如果提供了业务检索器，则注入 SQL 示例检索工具
+    if retriever is not None:
+        try:
+            sql_example_tool = create_sql_example_search_tool(retriever)
+            tools.append(sql_example_tool)
+            logger.info(
+                "已注入 SQL 示例检索工具：search_saved_correct_tool_uses（基于业务向量检索器）"
+            )
+        except Exception as exc:
+            logger.warning(
+                "注入 SQL 示例检索工具失败，将继续使用现有工具集合: %s",
+                exc,
+            )
+
     return tools
 
 
@@ -157,10 +179,11 @@ def _build_system_prompt(db: SQLDatabase) -> str:
     return f"""You are an 120JPH paint shop agent designed to interact with a SQL database.
 
 工作流程：
-1. 在查询数据前，你必须先使用 load_skill 工具加载相关业务领域的技能
+1. 使用 load_skill 工具加载相关业务领域的技能
 2. 从技能内容中了解可用的表结构、字段含义和业务规则
-3. 根据技能提供的信息编写 SQL 查询
-4. 使用 sql_db_query 工具执行查询（会自动进行语法检查）
+3. 在查询数据前，你应优先使用 search_saved_correct_tool_uses 工具，检索与当前问题相似的历史 SQL 示例
+4. 结合历史 SQL 示例与技能信息，编写新的 SQL 查询（可以在示例基础上改写和优化）
+5. 使用 sql_db_query 工具执行查询（会自动进行语法检查）
 
 SQL 查询规则：
 - 创建语法正确的 {db.dialect} 查询
@@ -168,11 +191,12 @@ SQL 查询规则：
 - 可以使用 ORDER BY 返回最相关的结果
 - 只查询必要的列，不要使用 SELECT *
 - 如果查询出错，分析错误信息后重写查询
-- 严禁执行 DML 语句（INSERT, UPDATE, DELETE, DROP 等）
+- 严禁执行 DML 语句(INSERT, UPDATE, DELETE, DROP 等）
 
 注意事项：
 - 使用中文进行回复
 - <DATE_EVT> 是字符串格式，在编写 SQL 时应使用 STR_TO_DATE(DATE_EVT, '%d/%m/%Y %H:%i:%s.%f') 进行转换
+- 在生成 SQL 时，应尽量复用和改写 search_saved_correct_tool_uses 返回的高相似度 SQL 示例，而不是完全从零开始
 - 如果用户问"你是谁"、"你好"等问题，简单描述你的功能并给出示例，不需要进行数据库操作
 - 如果用户提到问题你不理解，或者边界模糊，请直接向用户提问，让用户补充信息，不要盲目猜测和猜想
 - 回答用户问题时，应该简明扼要，不要啰嗦
@@ -213,15 +237,11 @@ class SQLAgentService:
             # 2. 连接数据库
             db, _ = _create_database_connection()
 
-            # 3. 准备工具
-            tools = _prepare_tools(db, llm)
-
-            # 4. 构建系统提示词
-            system_prompt = _build_system_prompt(db)
-
-            # 5. 创建业务知识检索器与精排器，并初始化 RAG 中间件
-            logger.info("开始初始化业务知识 RAG 组件...")
+            # 3. 创建业务知识检索器与精排器，用于 RAG 中间件和 SQL 示例检索工具
+            logger.info("开始初始化业务知识 RAG 组件及 SQL 示例检索能力...")
             rag_middleware = None
+            retriever: Optional[BaseRetriever] = None
+            reranker = None
             try:
                 retriever, reranker = create_business_retriever_and_reranker()
                 if retriever is not None:
@@ -238,10 +258,20 @@ class SQLAgentService:
                     rerank_status = "Rerank 已启用" if reranker else "仅向量检索"
                     logger.info("业务知识 RAG 中间件已启用（%s）", rerank_status)
                 else:
-                    logger.warning("未获取到业务检索器实例，RAG 功能将不可用")
+                    logger.warning("未获取到业务检索器实例，RAG 功能将不可用，同时无法提供 SQL 示例检索工具")
             except Exception as e:
-                logger.warning("业务知识 RAG 组件初始化失败，RAG 功能将不可用: %s", e)
+                logger.warning(
+                    "业务知识 RAG 组件初始化失败，RAG 功能和 SQL 示例检索工具将不可用: %s",
+                    e,
+                )
                 rag_middleware = None
+                retriever = None
+
+            # 4. 准备工具（包含包装后的 sql_db_query 以及基于业务检索器的 SQL 示例检索工具）
+            tools = _prepare_tools(db, llm, retriever=retriever)
+
+            # 5. 构建系统提示词
+            system_prompt = _build_system_prompt(db)
 
             # 6. 配置 SummarizationMiddleware
             summarization_middleware = SummarizationMiddleware(

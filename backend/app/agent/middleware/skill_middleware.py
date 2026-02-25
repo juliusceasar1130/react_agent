@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 
 
 def _build_skills_prompt(skills: List[dict]) -> str:
-    """从技能列表构建技能描述文本"""
+    """从技能列表构建技能描述（description）文本"""
     skills_list = [f"- **{skill['name']}**: {skill['description']}" for skill in skills]
     return "\n".join(skills_list)
 
@@ -41,7 +41,7 @@ class SkillMiddleware(AgentMiddleware[CustomState]):
         self.skills_prompt = _build_skills_prompt(SKILLS)
 
     def _modify_request(self, request: ModelRequest) -> ModelRequest:
-        """将技能描述注入到系统提示词"""
+        """将技能描述（description）注入到系统提示词"""
         skills_addendum = (
             f"\n\n## Available Skills\n\n{self.skills_prompt}\n\n"
             "Use the load_skill tool when you need detailed information "

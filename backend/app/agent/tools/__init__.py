@@ -2,6 +2,6 @@
 """工具定义模块"""
 
 from .skill_tools import load_skill
-from .sql_tools import create_wrapped_query_tool
+from .sql_tools import create_wrapped_query_tool, create_sql_example_search_tool
 
-__all__ = ["load_skill", "create_wrapped_query_tool"]
+__all__ = ["load_skill", "create_wrapped_query_tool", "create_sql_example_search_tool"]

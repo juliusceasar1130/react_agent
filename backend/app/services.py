@@ -155,6 +155,14 @@ Then you should query the schema of the most relevant tables.
 注意：- 使用中文进行回复
      - <DATE_EVT>是字符串格式，在编写sql时应该使用STR_TO_DATE(DATE_EVT, '%d/%m/%Y %H:%i:%s.%f')进行转换
      - 如果用户问你 <你是谁><你好>等问题，你应该简单描述你的擅长的功能并给出示例，不需要进行任何数据库操作。
+     - 回答问题应该简明扼要，不要啰嗦
+       示例
+       ```
+       用户：<xxx>车身在哪个位置？
+       回答：<xxx>车身在<xxx>位置
+       用户：存储线有几台车？
+       回答：存储线有<xxx>台车
+       ```
 """
 
             # 5. 初始化 PostgresSaver（保留状态管理）
