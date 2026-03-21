@@ -1,5 +1,46 @@
 # Changelog
 
+## 2026-03-21 21:01 - SQL Agent 安全审计与拦截增强 (对策 3)
+
+### 概述
+针对 SQL Agent 存在的潜在 SQL 注入及破坏性操作风险（如 `DROP`, `DELETE` 等），实施了基于正则表达式的黑名单拦截机制（代码层硬校验），确保 Agent 仅能执行只读查询。
+
+### 变更内容
+
+#### `backend/app/agent/tools/sql_tools.py`
+- **新增 `FORBIDDEN_SQL_PATTERN`**：定义了包含 `INSERT`, `UPDATE`, `DELETE`, `DROP`, `ALTER`, `TRUNCATE` 等危险关键字的正则表达式。
+- **`sql_db_query`**：在执行逻辑最前端注入安全性拦截。任何匹配非法关键字的查询将被直接终止，并向 LLM 返回严重安全警告。
+
+### 防御效果
+- **防止提示词注入**：即使 LLM 被诱导产生破坏性 SQL，也会在执行前被逻辑层拦截。
+- **操作审计**：拦截行为会记录到日志，方便安全审计。
+
+---
+
+## 2026-03-21 20:43 - SQL 工具技能精确校验优化
+
+### 概述
+参考 LangChain 官方 `skills-sql-assistant` 方案，修复了在 **Checkpointer 多轮对话**场景下，LLM 因 `skills_loaded` 状态已存在而跳过 `load_skill` 调用，直接执行跨业务域 SQL 查询的潜在问题。
+
+### 变更内容
+
+#### `backend/app/agent/tools/sql_tools.py`
+- **`sql_db_query`**：新增 `required_skill: str` 参数，将技能校验从 `if not skills_loaded` 升级为 `if required_skill not in skills_loaded`（精确校验特定技能是否已加载，而非仅判断列表是否为空）
+- **`search_saved_correct_tool_uses`**：同步新增 `required_skill: str` 参数，做相同精确校验，两个工具行为一致
+- 返回值类型从 `List[dict]` 更新为 `Union[str, List[dict]]`，修复 Lint 错误
+
+#### `backend/app/agent/service.py`
+- 系统提示词的 **SQL查询规则** 章节新增说明：调用 `sql_db_query` 和 `search_saved_correct_tool_uses` 时，必须通过 `required_skill` 参数声明所依赖业务技能，切换业务域时必须重新调用 `load_skill()`
+
+### 问题场景与修复效果
+
+| 场景 | 修复前 | 修复后 |
+|------|--------|--------|
+| 第1轮：涂装问题 | `skills_loaded=["paint_shop"]`，正常执行 | 同左 |
+| 第2轮：焊装问题 | 由于列表非空，直接调 SQL（**幻觉风险**）| 工具返回 Error，强制 LLM 先 `load_skill("weld_shop")` |
+
+---
+
 ## 2026-02-22 14:35 - 完善 Milvus 混合检索环境变量配置
 
 ### 概述

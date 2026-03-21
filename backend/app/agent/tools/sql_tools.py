@@ -9,7 +9,8 @@ SQL 查询工具工厂
 """
 
 import logging
-from typing import Any, List, Optional
+import re
+from typing import Any, List, Optional, Union
 
 from langchain.tools import ToolRuntime, tool as langchain_tool
 
@@ -18,6 +19,12 @@ from backend.app.agent.utils.date_utils import normalize_dates_in_text
 from backend.app.agent.vector.base import BaseRetriever
 
 logger = logging.getLogger(__name__)
+
+# 禁止的 SQL 关键字正则模式 (DML/DDL)，用于保护数据库安全
+FORBIDDEN_SQL_PATTERN = re.compile(
+    r"\b(INSERT|UPDATE|DELETE|DROP|ALTER|TRUNCATE|GRANT|REVOKE|REPLACE|MERGE|EXEC|EXECUTE)\b",
+    re.IGNORECASE
+)
 
 
 def create_wrapped_query_tool(
@@ -41,21 +48,37 @@ def create_wrapped_query_tool(
     """
 
     @langchain_tool
-    def sql_db_query(query: str, runtime: ToolRuntime) -> str:
+    def sql_db_query(query: str, required_skill: str, runtime: ToolRuntime) -> str:
         """
         Execute a SQL query against the database and return results.
 
-        This tool requires a skill to be loaded first using load_skill().
+        IMPORTANT: You must specify the 'required_skill' parameter with the exact skill name
+        that this query depends on (e.g., 'paint_shop_vehicle_tracking'). The skill must have been loaded
+        via load_skill() first. If you are switching to a different business domain,
+        call load_skill() for the new domain BEFORE calling this tool.
+
         The query will be automatically validated before execution.
         Results will have dates normalized to ISO 8601 format (YYYY-MM-DD).
 
-        Input should be a valid SQL query.
+        Args:
+            query: A valid SQL query string.
+            required_skill: The name of the skill/domain this query belongs to.
         """
-        # 1. 技能加载检查
-        skills_loaded = runtime.state.get("skills_loaded", [])
-        if not skills_loaded:
+        # 0. 安全性拦截：检查是否包含非法的 DML/DDL 关键字
+        if FORBIDDEN_SQL_PATTERN.search(query):
+            logger.warning(f"安全审计拦截：检测到危险 SQL 关键字。Query: {query}")
             return (
-                "Error: 请先使用 load_skill() 加载相关业务技能后再执行查询。\n"
+                "Error: 严重安全警告 - 该操作已被系统拦截。\n"
+                "SQL Agent 仅允许执行只读查询 (SELECT)，禁止执行任何涉及修改数据 (INSERT, UPDATE, DELETE) "
+                "或修改结构 (DROP, ALTER, TRUNCATE) 的指令。"
+            )
+
+        # 1. 精确技能加载校验：确认当前查询所需的特定技能已被加载
+        skills_loaded = runtime.state.get("skills_loaded", [])
+        if required_skill not in skills_loaded:
+            return (
+                f"Error: 请先使用 load_skill('{required_skill}') 加载该业务技能后再执行查询。\n"
+                f"当前已加载的技能: {skills_loaded or '无'}。\n"
                 "可用技能请查看系统提示中的 Available Skills 部分。"
             )
 
@@ -105,20 +128,26 @@ def create_sql_example_search_tool(
     """
 
     @langchain_tool
-    def search_saved_correct_tool_uses(question: str, runtime: ToolRuntime) -> List[dict]:
+    def search_saved_correct_tool_uses(question: str, required_skill: str, runtime: ToolRuntime) -> Union[str, List[dict]]:
         """
         根据当前用户问题检索历史 SQL 示例。
 
         使用向量检索（doc_type='sql_example'）从业务知识库中召回
         与当前问题语义接近、且已验证成功的 SQL 示例。
-        同时会检查是否已加载业务技能（与 sql_db_query 保持一致）。
-        如果未加载技能，会返回错误提示信息字符串。
+
+        IMPORTANT: 必须通过 required_skill 参数声明本次检索依赖的技能名称（与 sql_db_query 保持一致）。
+        该技能必须已通过 load_skill() 预先加载，否则返回错误提示。
+
+        Args:
+            question: 当前用户问题的自然语言描述。
+            required_skill: 本次检索依赖的技能/业务域名称，必须与 sql_db_query 的 required_skill 保持一致。
         """
-        # 0. 技能加载检查（与 sql_db_query 保持一致）
+        # 0. 精确技能加载校验（与 sql_db_query 保持一致）
         skills_loaded = runtime.state.get("skills_loaded", [])
-        if not skills_loaded:
+        if required_skill not in skills_loaded:
             return (
-                "Error: 请先使用 load_skill() 加载相关业务技能后再检索 SQL 示例。\n"
+                f"Error: 请先使用 load_skill('{required_skill}') 加载该业务技能后再检索 SQL 示例。\n"
+                f"当前已加载的技能: {skills_loaded or '无'}。\n"
                 "可用技能请查看系统提示中的 Available Skills 部分。"
             )
 

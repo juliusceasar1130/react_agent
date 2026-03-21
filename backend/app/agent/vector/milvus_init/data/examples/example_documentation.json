@@ -9,7 +9,7 @@
     }
   },
   {
-    "document": "PVC主要分为主线和存储线两个部分，主线主要负责生产，存储线主要负责存储，存储线也叫buffer。主线和存储线各有3条线，如1线，2线，3线，或者称为L1，L2，L3",
+    "document": "PVC主要分为主线和存储线/储存线两个部分，主线主要负责生产，存储线/储存线主要负责存储，存储线/储存线也叫buffer。主线和存储线各有3条线，如1线，2线，3线，或者称为L1，L2，L3",
     "metadata": {
       "type": "documentation",
       "domain": "paint_shop_vehicle_tracking",
@@ -36,7 +36,7 @@
     }
   },
   {
-    "document": "RB代表滚床，<1B095RB>代表1B这个区域，095代表编号滚床编号为095",
+    "document": "RB/rb代表滚床，<1B095RB>代表1B这个一个组，095代表编号滚床编号为095。一个plc下属多个滚床，不同PLC下的滚床编号可能相同，结合plc编号，才是真正的完整的滚床编号。",
     "metadata": {
       "type": "documentation",
       "domain": "paint_shop_vehicle_tracking",
@@ -46,6 +46,15 @@
   },
   {
     "document": "区域指的是生产工艺段，油漆车间分为4大工艺段，预处理电泳、PVC、面漆、注蜡",
+    "metadata": {
+      "type": "documentation",
+      "domain": "paint_shop_vehicle_tracking",
+      "term": "物流追踪",
+      "aliases": []
+    }
+  },
+  {
+    "document": "雪橇、吊架指的是一种装载车身的载具，用于装载代加工车身在各个工艺区域进行生产。",
     "metadata": {
       "type": "documentation",
       "domain": "paint_shop_vehicle_tracking",
