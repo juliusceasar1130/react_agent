@@ -1,5 +1,42 @@
 # Changelog
 
+## 2026-03-22 21:35 - 新增 RAG 架构与技术栈剖析文档
+
+### 概述
+根据现有代码库实现，整理并输出了完整的 Retrieval-Augmented Generation (RAG) 架构设计文档，详细剖析了系统目前的双引擎检索架构、核心组件与模型选型以及工作流执行逻辑。
+
+### 变更内容
+- **新增文档**: `backend/docs/RAG架构与技术总结.md`
+  - 阐述了 Milvus Hybrid 和 PGVector 双引擎的实现与切换机制。
+  - 整理了 Embedding 模型（NVIDIA V5、BAAI BGE-M3）及 Reranker（Mistral-4B）选型细节。
+  - 总结了完整的 RAG 数据检索与合成流向。
+
+---
+## 2026-03-22 18:00 - SQL 查询结果智能限流与安全防护优化
+
+### 概述
+针对大模型处理大量 SQL 查询结果时面临的上下文溢出、推理降智、Token 成本激增等问题，实施了一套弹性限流方案。小结果集（如维度表）全量返回，大结果集自动截断并注入预警，同时新增 CSV 导出工具实现数据与 LLM 的安全隔离。
+
+### 变更内容
+
+#### `backend/app/config.py` + `.env`
+- **新增 `sql_result_hard_limit`**：后端强制截断行数上限（默认 1000），保护内存和 LLM 上下文
+- **新增 `sql_result_preview_rows`**：超限时给 LLM 展示的预览行数（默认 5）
+
+#### `backend/app/agent/tools/sql_tools.py`
+- **新增 `_estimate_row_count()`**：估算 LangChain 返回结果字符串中的行数
+- **新增 `_extract_preview_rows()`**：从结果字符串中提取前 N 行作为预览
+- **`sql_db_query` 增强**：新增第 5 步"智能结果限流"——判断结果行数是否超过 `hard_limit`，超限时只返回预览 + 系统截断警告（引导 LLM 建议聚合 SQL 或 CSV 导出）
+
+#### `backend/app/agent/tools/csv_export_tool.py` [NEW]
+- **新增 `export_to_csv` 工具**：使用 SQLAlchemy + CSV 模块直接从数据库导出完整数据到文件，全程不经过 LLM 上下文。包含与 `sql_db_query` 一致的安全拦截和技能校验
+
+#### `backend/app/agent/service.py`
+- **工具注册**：在 `_prepare_tools` 中注入 CSV 导出工具
+- **System Prompt 优化**：新增两条规则——强制使用聚合函数进行统计分析；超限时禁止基于截断数据汇总
+
+---
+
 ## 2026-03-21 21:01 - SQL Agent 安全审计与拦截增强 (对策 3)
 
 ### 概述

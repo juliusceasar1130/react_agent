@@ -1,6 +1,15 @@
 [
   {
-    "document": "预处理电泳主要分为主线和存储线两个部分，主线主要负责生产，存储线主要负责存储，存储线也叫buffer。主线和存储线各有2条线，如1线，2线，或者称为L1薄膜线，L2磷化线",
+    "document": "<存储线>和<储存线>意思相同，指的都是缓冲区(buffer)区域",
+    "metadata": {
+      "type": "documentation",
+      "domain": "paint_shop_vehicle_tracking",
+      "term": "物流追踪",
+      "aliases": []
+    }
+  },
+  {
+    "document": "预处理电泳主要分为主线和存储线两个部分，主线主要负责生产，存储线主要负责存储，存储线也叫buffer。预处理电泳主线和存储线各有2条线，如1线，2线，或者称为L1薄膜线，L2磷化线",
     "metadata": {
       "type": "documentation",
       "domain": "paint_shop_vehicle_tracking",

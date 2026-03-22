@@ -5,3 +5,37 @@ frontend/dist/
 
 # Node modules
 node_modules/
+
+# Environment variables and secrets
+.env
+.env.*
+!.env.example
+.env.local
+.env.production
+.env.development
+.env.test
+
+# Python
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db

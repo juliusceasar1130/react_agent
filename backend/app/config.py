@@ -29,7 +29,14 @@ class Settings(BaseSettings):
         "MYSQL_DATABASE_URL",
         "mysql+pymysql://root:root@localhost:3306/mds?charset=utf8mb4",
     )
-    sql_agent_top_k: int = int(os.getenv("SQL_AGENT_TOP_K", "10"))
+    # SQL Agent 软限制：用于 System Prompt 引导 LLM 生成 SQL 时自带 LIMIT 子句的数量，默认为 2000
+    sql_agent_top_k: int = int(os.getenv("SQL_AGENT_TOP_K", "1000"))
+
+    # SQL 结果硬限制：代码层面对查询结果集的强制截断上限，防止大量数据加载到 LLM 上下文中造成溢出或性能崩溃
+    sql_result_hard_limit: int = int(os.getenv("SQL_RESULT_HARD_LIMIT", "500"))
+    
+    # SQL 结果预览行数：当查询结果触发硬限制被截断时，实际回吐给 LLM 观察的前 N 条数据行数
+    sql_result_preview_rows: int = int(os.getenv("SQL_RESULT_PREVIEW_ROWS", "5"))
 
     # 服务器配置
     host: str = os.getenv("HOST", "0.0.0.0")

@@ -19,6 +19,7 @@ from langchain_openai import ChatOpenAI
 from backend.app.agent.constants import EXCLUDED_TOOLS, ToolNames
 from backend.app.agent.middleware import SkillMiddleware, BusinessRagMiddleware
 from backend.app.agent.tools import (
+    create_csv_export_tool,
     create_sql_example_search_tool,
     create_wrapped_query_tool,
 )
@@ -149,7 +150,7 @@ def _prepare_tools(
             if t.name not in EXCLUDED_TOOLS
         ]
 
-        logger.info("SQL 查询工具已包装：技能检查 + 语法检查 + 日期清洗")
+        logger.info("SQL 查询工具已包装：技能检查 + 语法检查 + 日期清洗 + 智能限流")
         logger.info(
             "已移除 sql_db_list_tables 和 sql_db_schema，强制通过 skills 获取表信息"
         )
@@ -170,6 +171,14 @@ def _prepare_tools(
                 "注入 SQL 示例检索工具失败，将继续使用现有工具集合: %s",
                 exc,
             )
+
+    # 注入 CSV 导出工具
+    try:
+        csv_export_tool = create_csv_export_tool(settings.rollerbed_database_url)
+        tools.append(csv_export_tool)
+        logger.info("已注入 CSV 导出工具：export_to_csv")
+    except Exception as exc:
+        logger.warning("注入 CSV 导出工具失败: %s", exc)
 
     return tools
 
@@ -225,6 +234,8 @@ def _build_system_prompt(db: SQLDatabase) -> str:
 - 如果查询出错，分析错误信息后重写查询
 - 严禁执行 DML 语句(INSERT, UPDATE, DELETE, DROP 等）
 - **关键：** 调用 sql_db_query 和 search_saved_correct_tool_uses 时，必须通过 `required_skill` 参数声明本次操作所依赖的技能名称（如 'paint_shop'）。如果切换了业务领域，必须先调用 load_skill() 加载新技能再操作
+- 当需要进行统计分析（如计数、求和、趋势分析）时，**必须**使用 GROUP BY / COUNT / SUM 等聚合函数让数据库完成计算，**严禁**拉取大量原始明细数据后自行汇总
+- 当查询结果被系统截断时（出现 SYSTEM WARNING），不要基于截断后的数据进行汇总分析。应主动告知用户数据不完整，并建议：(1) 使用聚合 SQL 重新查询，或 (2) 使用 export_to_csv 工具导出完整数据供用户下载
 
 ##注意事项：
 - 使用中文进行回复

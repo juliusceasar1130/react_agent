@@ -14,7 +14,8 @@
       "mcp__mysql__list_tables",
       "Bash(openspec validate add-sql-agent --strict)",
       "Bash(python:*)",
-      "WebFetch(domain:docs.anthropic.com)"
+      "WebFetch(domain:docs.anthropic.com)",
+      "Bash(git add:*)"
     ]
   }
 }

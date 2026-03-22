@@ -11,6 +11,8 @@
 - **SQL Agent** - 官方推荐的多步骤工作流（表探测、Schema 解析、查询生成、SQL 校验、执行）
 - **SQL 安全拦截** - 基于正则黑名单的代码层硬校验，严格禁止 `DROP`, `DELETE`, `UPDATE` 等破坏性操作
 - **日期标准化** - 针对数据库日期字段（如 `DD/MM/YYYY`）的自动 ISO 8601 转换清洗
+- **SQL 弹性限流** - 智能判断查询行数，超限时自动截断并返回预览预览及系统警告，防止上下文溢出
+- **CSV 数据导出** - 支持将大量 SQL 结果直接导出为 CSV 文件供用户下载，全程不占 LLM 上下文
 - **状态持久化** - PostgresSaver 自动管理 Agent 状态
 - **现代 UI/UX** - 基于 Neural Tones + AI Purple 设计系统，支持毛玻璃效果与流畅动画
 - **前后端分离** - FastAPI + Vue 3 + TypeScript
@@ -106,7 +108,11 @@ OLLAMA_KEEP_ALIVE=-1
 AGENT_TEMPERATURE=0.1
 AGENT_MAX_TOKENS=2000
 MYSQL_DATABASE_URL='mysql+pymysql://...'
-SQL_AGENT_TOP_K=1000
+
+# SQL Agent 限流配置
+SQL_AGENT_TOP_K=2000         # 软限制：指导 LLM 生成 SQL 时的 LIMIT
+SQL_RESULT_HARD_LIMIT=1000   # 硬限制：后端强制截断行数，防内存溢出
+SQL_RESULT_PREVIEW_ROWS=5    # 截断时给 LLM 展示的预览行数
 
 # RAG & Rerank 配置
 RAG_EMBEDDING_MODEL='baai/bge-m3'
@@ -180,7 +186,11 @@ rearch_agent/
 │   │       ├── state.py        # Graph 状态定义
 │   │       ├── constants.py    # 常量定义
 │   │       ├── middleware/     # 中间件（SkillMiddleware, RagMiddleware）
-│   │       ├── tools/          # 专用工具集（SQLQuery, SkillSearch 等）
+│   │       ├── tools/          # 专用工具集（SQLQuery, SkillSearch, CSVExport 等）
+│   │       │   ├── __init__.py
+│   │       │   ├── skill_tools.py
+│   │       │   ├── sql_tools.py
+│   │       │   └── csv_export_tool.py  # CSV 导出工具
 │   │       ├── utils/          # 底层工具库
 │   │       │   ├── pgvector_wrapper.py # PGVector 检索封装
 │   │       │   ├── rerank_service.py   # NVIDIA Rerank 精排服务
@@ -351,6 +361,7 @@ npm run dev
 
 ### 技术文档
 
+- [RAG 架构与技术总结](./backend/docs/RAG架构与技术总结.md)
 - [FastAPI 与 SQLAlchemy 知识点](./backend/docs/FastAPI与SQLAlchemy知识点复习.md)
 - [PostgresSaver 集成重构总结](./backend/docs/PostgresSaver集成重构总结.md)
 - [连接池与上下文管理器详解](./backend/docs/连接池与上下文管理器详解.md)

@@ -6,6 +6,7 @@ SQL 查询工具工厂
 1. 技能加载检查
 2. 自动 SQL 语法检查
 3. 日期格式标准化
+4. 智能结果限流与超限预警
 """
 
 import logging
@@ -17,6 +18,7 @@ from langchain.tools import ToolRuntime, tool as langchain_tool
 from backend.app.agent.constants import SQL_ERROR_KEYWORDS
 from backend.app.agent.utils.date_utils import normalize_dates_in_text
 from backend.app.agent.vector.base import BaseRetriever
+from backend.app.config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -25,6 +27,53 @@ FORBIDDEN_SQL_PATTERN = re.compile(
     r"\b(INSERT|UPDATE|DELETE|DROP|ALTER|TRUNCATE|GRANT|REVOKE|REPLACE|MERGE|EXEC|EXECUTE)\b",
     re.IGNORECASE
 )
+
+
+def _estimate_row_count(result_text: str) -> int:
+    """
+    估算 LangChain sql_db_query 工具返回的结果字符串中的行数。
+
+    LangChain 的 sql_db_query 工具返回的是一个 Python 元组列表的文本表示，
+    例如: "[('val1', 'val2'), ('val3', 'val4')]"
+    我们通过统计顶层元组的数量来估算行数。
+    """
+    # 优化策略：LangChain 的结果通常是以 "), (" 分隔的元组列表字符串。
+    # 相比于使用 ast.literal_eval() 完整解析大字符串（内存开销极大），
+    # 我们通过统计分隔符出现的次数来快速估算行数，牺牲极小的准确性换取极高的执行速度。
+    count = result_text.count("), (") + result_text.count("),\n(")
+    
+    # 特殊情况处理：
+    # 1. 只有一行数据时，可能不包含分隔符
+    if count == 0 and result_text.strip().startswith("[") and "(" in result_text:
+        return 1
+    # 2. 空结果集
+    return count + 1 if count > 0 else 0
+
+
+def _extract_preview_rows(result_text: str, n: int) -> str:
+    """
+    从结果字符串中提取前 n 行作为预览。
+
+    通过查找第 n 个元组结束标记来截取前 n 行。
+    """
+    # 实现原理：利用正则表达式匹配元组之间的分隔符 "), ("。
+    # re.split 会根据分隔符将整个结果集拆分为多个子字符串。
+    # 这种方式比完全加载为 Python 对象更节省内存。
+    parts = re.split(r"\),\s*\(", result_text)
+    if len(parts) <= n:
+        return result_text
+
+    # 截取前 n 个元组并重新使用分隔符拼接
+    preview_parts = parts[:n]
+    preview = "), (".join(preview_parts)
+    
+    # 指后处理：re.split 会丢掉分隔符中匹配的部分，
+    # 且两端可能缺少方括号或括号，需要手动补齐以保持合法的 Python 语法表示。
+    if not preview.rstrip().endswith(")"):
+        preview += ")"
+    if not preview.rstrip().endswith("]"):
+        preview += "]"
+    return preview
 
 
 def create_wrapped_query_tool(
@@ -96,11 +145,37 @@ def create_wrapped_query_tool(
 
         # 3. 执行查询
         raw_result = original_query_tool.invoke({"query": query})
+        result_str = str(raw_result)
 
         # 4. 对查询结果的日期进行格式转换
-        cleaned_result = normalize_dates_in_text(str(raw_result))
+        cleaned_result = normalize_dates_in_text(result_str)
         logger.debug("SQL 查询结果已清洗日期格式")
 
+        # 5. 智能结果限流：防止数据库返回结果过大撑爆 LLM 上下文
+        hard_limit = settings.sql_result_hard_limit       # 获取系统硬限制（如 1000 行），若超过则截断
+        preview_rows = settings.sql_result_preview_rows   # 获取超限时返还给大模型的预览数据行数（如 5 行）
+        estimated_rows = _estimate_row_count(cleaned_result) # 通过字符串特征估算查询结果的总行数
+
+        if estimated_rows >= hard_limit:
+            # 执行截断逻辑：只返回前 N 行预览数据 + 系统防御说明
+            preview_data = _extract_preview_rows(cleaned_result, preview_rows)
+            logger.warning(
+                "SQL 查询结果超限截断: 估算行数=%d, 硬限制=%d, 预览行数=%d",
+                estimated_rows, hard_limit, preview_rows,
+            )
+            # 这里的返回内容会被 Agent 直接作为观察内容 (Observation)，
+            # 注入 SYSTEM WARNING 的目的是通过 Prompt 强力引导模型不要产生错误的汇总逻辑。
+            return (
+                f"⚠️ SYSTEM WARNING: 查询结果已达到系统硬限制 ({hard_limit} 行) 并被强制截断。\n"
+                f"以下仅展示前 {preview_rows} 行数据预览，基于此数据进行的汇总分析可能不完整或不准确。\n\n"
+                f"建议操作：\n"
+                f"1. 如果用户需要完整原始数据，请建议使用 export_to_csv 工具导出为 CSV 文件下载。\n"
+                f"2. 如果需要统计分析，请改写 SQL 使用 GROUP BY / COUNT / SUM 等聚合函数，让数据库完成计算。\n\n"
+                f"数据预览 (前 {preview_rows} 行):\n{preview_data}"
+            )
+
+        # 情况 A: 未超限 - 说明结果集规模可控，全量返回（适合维度表查询或已聚合后的结果）
+        logger.debug("SQL 查询结果未超限 (估算行数=%d), 全量返回", estimated_rows)
         return cleaned_result
 
     return sql_db_query
