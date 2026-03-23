@@ -42,7 +42,7 @@ def _create_milvus_hybrid_retriever() -> BaseRetriever:
       - milvus_collection_name: Collection 名称
       - milvus_embed_dim     : 向量维度
       - milvus_rrf_k         : RRF 融合参数
-    同时需要 NVIDIA Embedding（nvidia_api_key + NVIDIA embedding 环境变量）。
+    同时需要通过 settings 读取 ollama_embed_model 提供本地 embedding。
 
     注意：
         使用延迟初始化模式，避免在模块导入时创建 Milvus 连接。
@@ -88,23 +88,21 @@ def _create_milvus_hybrid_retriever() -> BaseRetriever:
 def _configure_llama_index_settings() -> None:
     """配置 LlamaIndex 全局 Settings（Embedding 模型）。
 
-    使用 NVIDIA NV-EmbedQA-E5-V5（dim=1024），与 pgvector 后端的 embedding 模型一致。
+    使用 Ollama 部署的本地 Embedding 模型（默认 qwen3-embedding:0.6b），维度与其他后端兼容。
     此函数幂等，多次调用无副作用。
     """
     try:
         from llama_index.core import Settings as LISettings
-        from llama_index.embeddings.nvidia import NVIDIAEmbedding
+        from llama_index.embeddings.ollama import OllamaEmbedding
 
-        api_key = getattr(settings, "nvidia_api_key", "") or ""
-        if not api_key:
-            import os
-            api_key = os.getenv("NVIDIA_API_KEY", "")
+        model_name = getattr(settings, "ollama_embed_model", "qwen3-embedding:0.6b")
+        base_url = getattr(settings, "ollama_base_url", "http://localhost:11434")
 
-        LISettings.embed_model = NVIDIAEmbedding(
-            model="nvidia/nv-embedqa-e5-v5",
-            api_key=api_key,
+        LISettings.embed_model = OllamaEmbedding(
+            model_name=model_name,
+            base_url=base_url,
         )
-        logger.info("LlamaIndex Embedding 已配置: nvidia/nv-embedqa-e5-v5")
+        logger.info("LlamaIndex Embedding 已配置: %s (Ollama)", model_name)
     except Exception as exc:
         logger.warning("配置 LlamaIndex Embedding 时出现问题: %s", exc)
 

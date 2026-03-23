@@ -19,7 +19,7 @@ from dotenv import load_dotenv
 
 from llama_index.core import Settings
 from llama_index.llms.deepseek import DeepSeek
-from llama_index.embeddings.nvidia import NVIDIAEmbedding
+from llama_index.embeddings.ollama import OllamaEmbedding
 
 # ──────────────────────────────────────────────
 # 1. 加载 .env（override=True 确保本地 .env 优先）
@@ -31,7 +31,6 @@ load_dotenv(override=True)
 # ──────────────────────────────────────────────
 _REQUIRED_KEYS = {
     "DEEPSEEK_API_KEY": "DeepSeek LLM",
-    "NVIDIA_API_KEY": "NVIDIA Embedding",
 }
 _missing = [f"{k} ({desc})" for k, desc in _REQUIRED_KEYS.items() if not os.getenv(k)]
 if _missing:
@@ -50,14 +49,14 @@ Settings.llm = DeepSeek(
 )
 print("✅ [config] LLM 配置完成：deepseek-chat")
 
-Settings.embed_model = NVIDIAEmbedding(
-    model="nvidia/nv-embedqa-e5-v5",
-    api_key=os.getenv("NVIDIA_API_KEY"),
+Settings.embed_model = OllamaEmbedding(
+    model_name=os.getenv("OLLAMA_EMBED_MODEL", "qwen3-embedding:0.6b"),
+    base_url=os.getenv("OLLAMA_BASE_URL", "http://localhost:11434"),
 )
-print("✅ [config] Embedding 配置完成：nvidia/nv-embedqa-e5-v5")
+print(f"✅ [config] Embedding 配置完成：{Settings.embed_model.model_name}")
 
 # ──────────────────────────────────────────────
 # 4. 导出常量
 # ──────────────────────────────────────────────
 EMBED_DIM: int = 1024
-"""nvidia/nv-embedqa-e5-v5 的向量维度，创建 Milvus Collection 时需要指定。"""
+"""Ollama qwen3-embedding:0.6b 的向量维度，创建 Milvus Collection 时需要指定。"""

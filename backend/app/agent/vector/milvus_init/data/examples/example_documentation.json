@@ -1,74 +1,126 @@
 [
   {
-    "document": "<存储线>和<储存线>意思相同，指的都是缓冲区(buffer)区域",
+    "document": "存储线与储存线含义相同，均指缓冲区（buffer）区域。",
     "metadata": {
       "type": "documentation",
       "domain": "paint_shop_vehicle_tracking",
-      "term": "物流追踪",
+      "process": "common",
+      "term": "存储线",
+      "aliases": [
+        "储存线",
+        "buffer"
+      ]
+    }
+  },
+  {
+    "document": "预处理电泳分为主线与存储线。主线负责生产，存储线负责缓存。预处理电泳主线与存储线各有2条，可称为1线、2线，或L1薄膜线、L2磷化线。",
+    "metadata": {
+      "type": "documentation",
+      "domain": "paint_shop_vehicle_tracking",
+      "process": "预处理电泳",
+      "term": "产线结构",
       "aliases": []
     }
   },
   {
-    "document": "预处理电泳主要分为主线和存储线两个部分，主线主要负责生产，存储线主要负责存储，存储线也叫buffer。预处理电泳主线和存储线各有2条线，如1线，2线，或者称为L1薄膜线，L2磷化线",
+    "document": "PVC分为主线与存储线（储存线/buffer）。主线负责生产，存储线负责缓存。PVC主线与存储线各有3条，可称为1线、2线、3线，或L1、L2、L3。",
     "metadata": {
       "type": "documentation",
       "domain": "paint_shop_vehicle_tracking",
-      "term": "物流追踪",
+      "process": "PVC",
+      "term": "产线结构",
       "aliases": []
     }
   },
   {
-    "document": "PVC主要分为主线和存储线/储存线两个部分，主线主要负责生产，存储线/储存线主要负责存储，存储线/储存线也叫buffer。主线和存储线各有3条线，如1线，2线，3线，或者称为L1，L2，L3",
+    "document": "面漆分为主线与存储线（buffer）。主线负责生产，存储线负责缓存。面漆主线与存储线各有3条，可称为1线、2线、3线，或L1、L2、L3。",
     "metadata": {
       "type": "documentation",
       "domain": "paint_shop_vehicle_tracking",
-      "term": "物流追踪",
+      "process": "面漆",
+      "term": "产线结构",
       "aliases": []
     }
   },
   {
-    "document": "面漆主要分为主线和存储线两个部分，主线主要负责生产，存储线主要负责存储，存储线也叫buffer。主线和存储线各有3条线，如1线，2线，3线，或者称为L1，L2，L3",
+    "document": "注蜡分为主线与存储线（buffer）。主线负责生产，存储线负责缓存。注蜡主线与存储线各有3条，可称为1线、2线、3线，或L1、L2、L3。",
     "metadata": {
       "type": "documentation",
       "domain": "paint_shop_vehicle_tracking",
-      "term": "物流追踪",
+      "process": "注蜡",
+      "term": "产线结构",
       "aliases": []
     }
   },
   {
-    "document": "注蜡主要分为主线和存储线两个部分，主线主要负责生产，存储线主要负责存储，存储线也叫buffer。主线和存储线各有3条线，如1线，2线，3线，或者称为L1，L2，L3",
+    "document": "【滚床类型标识】RB/rb = 滚床（Roller Bed），大小写不敏感，统一按大写RB入库。",
     "metadata": {
       "type": "documentation",
       "domain": "paint_shop_vehicle_tracking",
-      "term": "物流追踪",
+      "process": "common",
+      "term": "滚床类型标识",
+      "aliases": [
+        "RB",
+        "rb",
+        "Roller Bed"
+      ]
+    }
+  },
+  {
+    "document": "【完整滚床编号规则】完整编号 = 数据库字段`plc` + `rb_index`；物理滚床唯一映射格式示例：L3F13-1B025RB。",
+    "metadata": {
+      "type": "documentation",
+      "domain": "paint_shop_vehicle_tracking",
+      "process": "common",
+      "term": "滚床编号规则",
+      "aliases": [
+        "plc",
+        "rb_index",
+        "滚床唯一标识"
+      ]
+    }
+  },
+  {
+    "document": "滚床编号补充规则：示例1B095RB中，1B为组，095为组内滚床编号；单个PLC下管理多个滚床，不同PLC下滚床编号可能重复，需结合PLC编号形成完整唯一编号。",
+    "metadata": {
+      "type": "documentation",
+      "domain": "paint_shop_vehicle_tracking",
+      "process": "common",
+      "term": "滚床编号补充规则",
       "aliases": []
     }
   },
   {
-    "document": "RB/rb代表滚床，<1B095RB>代表1B这个一个组，095代表编号滚床编号为095。一个plc下属多个滚床，不同PLC下的滚床编号可能相同，结合plc编号，才是真正的完整的滚床编号。",
+    "document": "滚床上通过雪橇",
     "metadata": {
       "type": "documentation",
       "domain": "paint_shop_vehicle_tracking",
-      "term": "物流追踪",
+      "process": "common",
+      "term": "滚床作用",
       "aliases": []
     }
   },
   {
-    "document": "区域指的是生产工艺段，油漆车间分为4大工艺段，预处理电泳、PVC、面漆、注蜡",
+    "document": "区域指生产工艺段。油漆车间分为4大工艺段：预处理电泳、PVC、面漆、注蜡。",
     "metadata": {
       "type": "documentation",
       "domain": "paint_shop_vehicle_tracking",
-      "term": "物流追踪",
+      "process": "common",
+      "term": "工艺区域",
       "aliases": []
     }
   },
   {
-    "document": "雪橇、吊架指的是一种装载车身的载具，用于装载代加工车身在各个工艺区域进行生产。",
+    "document": "雪橇、吊架是装载车身的载具，用于承载待加工车身在各工艺区域流转生产。",
     "metadata": {
       "type": "documentation",
       "domain": "paint_shop_vehicle_tracking",
-      "term": "物流追踪",
-      "aliases": []
+      "process": "common",
+      "term": "载具",
+      "aliases": [
+        "雪橇",
+        "吊架"
+      ]
     }
   }
 ]

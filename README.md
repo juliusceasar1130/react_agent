@@ -75,7 +75,7 @@ curl http://localhost:8000/
 
 ### 前置要求
 
-- Python 3.14+
+- Python 3.12+
 - Node.js 18+
 - PostgreSQL 14+
 
@@ -110,16 +110,18 @@ AGENT_MAX_TOKENS=2000
 MYSQL_DATABASE_URL='mysql+pymysql://...'
 
 # SQL Agent 限流配置
-SQL_AGENT_TOP_K=2000         # 软限制：指导 LLM 生成 SQL 时的 LIMIT
-SQL_RESULT_HARD_LIMIT=1000   # 硬限制：后端强制截断行数，防内存溢出
+SQL_AGENT_TOP_K=1000         # 软限制：指导 LLM 生成 SQL 时的 LIMIT
+SQL_RESULT_HARD_LIMIT=500    # 硬限制：后端强制截断行数，防内存溢出
 SQL_RESULT_PREVIEW_ROWS=5    # 截断时给 LLM 展示的预览行数
 
 # RAG & Rerank 配置
-RAG_EMBEDDING_MODEL='baai/bge-m3'
-NVIDIA_API_KEY='your-nvidia-api-key'
-RERANK_ENABLED=true
+RAG_BACKEND='milvus_hybrid'      # 检索后端：pgvector | milvus_hybrid
+RAG_SIMILARITY_THRESHOLD=0.01   # 初筛分值阈值（针对 RRF 分数进行过滤，建议 0.01-0.05）
+NVIDIA_API_KEY='your-key'       # NVIDIA NIM API Key
+RERANK_ENABLED=true             # 是否启用精排
 RERANK_MODEL='nvidia/rerank-qa-mistral-4b'
-RERANK_TOP_N=3
+RERANK_TOP_N=3                  # 精排后最终保留并注入 LLM 上下文的文档数量
+RERANK_SCORE_THRESHOLD=0.0      # 精排评分阈值
 ```
 
 ### 3. 安装依赖
@@ -181,22 +183,22 @@ rearch_agent/
 │   │   ├── config.py       # 配置管理
 │   │   ├── services.py     # 基础版 Agent 服务
 │   │   ├── services_graph.py # 增强版 LangGraph SQL Agent 服务
-│   │   └── agent/          # Agent V2 模块化架构
+│   │   └── agent/          # Agent 模块化架构核心
 │   │       ├── service.py      # 核心服务编排 (Skill + RAG + Summarization)
 │   │       ├── state.py        # Graph 状态定义
 │   │       ├── constants.py    # 常量定义
-│   │       ├── middleware/     # 中间件（SkillMiddleware, RagMiddleware）
-│   │       ├── tools/          # 专用工具集（SQLQuery, SkillSearch, CSVExport 等）
-│   │       │   ├── __init__.py
-│   │       │   ├── skill_tools.py
-│   │       │   ├── sql_tools.py
-│   │       │   └── csv_export_tool.py  # CSV 导出工具
-│   │       ├── utils/          # 底层工具库
-│   │       │   ├── pgvector_wrapper.py # PGVector 检索封装
-│   │       │   ├── rerank_service.py   # NVIDIA Rerank 精排服务
-│   │       │   ├── db_utils.py         # 数据库元数据提取工具
-│   │       │   └── date_utils.py       # 日期标准化清洗工具
-│   │       └── vector_init/    # 向量库初始化与数据加载逻辑
+│   │       ├── middleware/     # 中间件 (SkillMiddleware, BusinessRagMiddleware等)
+│   │       ├── tools/          # 专用工具集 (sql_tools.py, skill_tools.py, csv_export_tool.py等)
+│   │       ├── utils/          # 底层工具库 (db_utils.py, date_utils.py等)
+│   │       ├── development/    # 测试与实验性功能模块
+│   │       └── vector/         # RAG 向量检索与精排引擎
+│   │           ├── base.py                 # 检索器与精排器抽象基类
+│   │           ├── factory.py              # 检索引擎简单工厂
+│   │           ├── milvus_hybrid/          # Milvus 混合检索实现
+│   │           ├── milvus_init/            # Milvus 数据导入工具集
+│   │           ├── pgvector/               # PGVector 纯向量检索实现
+│   │           ├── pgvector_init/          # PGVector 数据导入工具集
+│   │           └── rerank/                 # NVIDIA Rerank 精排器封装
 │   ├── Dockerfile          # Docker 镜像配置
 │   ├── requirements.txt    # Python 依赖
 │   └── .env                # 本地环境变量
@@ -287,15 +289,15 @@ config = {"configurable": {"thread_id": str(session_id)}}
 result = agent.invoke({"messages": [...]}, config=config)
 ```
 
-### LangGraph 1.0+ SQL Agent 工作流
+### Agent 模块化架构 (Agent V2)
 
-该系统目前使用官方推荐的 **Multi-Step SQL Agent** 模式构建：
+该系统已升级为高度模块化的 Agent V2 架构，替代了传统的 Multi-Step 模式，核心流程如下：
 
-1. **list_tables**: 动态发现数据库表。
-2. **get_schema**: 提取相关表的结构和示例行。
-3. **generate_query**: 生成初步 SQL 查询。
-4. **check_query**: **SQL 校验节点**，专门运行一个“SQL 专家”提示词来检查查询中的语法错误、Join 逻辑、NULL 处理等。
-5. **run_query**: 执行查询并应用日期标准化清洗。
+1. **预加载 Schema**: 移除了原生的 `sql_db_list_tables` 和 `sql_db_schema` 工具，在服务启动时全量解析表结构与中文注释，提升响应速度和准确度。
+2. **技能路由增强 (SkillMiddleware)**: 在核心 Agent 前置中间件拦截请求，动态加载特定业务领域（如订单、物流）的 Schema 上下文，防止全局全量 Schema 注入导致 LLM 上下文溢出 (Token Limit)。
+3. **知识与示例检索 (BusinessRagMiddleware)**: 基于 PGVector 或 Milvus 的混合检索，智能匹配相关的业务术语解释或历史相似的优质 SQL 示例。
+4. **安全与弹性 SQL 执行 (Wrapped Query Tool)**: 深度封装了执行节点，强制进行基于正则黑名单的语法与安全检查（拦截 `DROP` 等命令），并带有智能行数截断限流机制，大结果自动总结为预览。
+5. **异步/大文件导出**: 针对巨量查询结果请求，系统提供单独的 `export_to_csv` 工具让 Agent 可以选择生成下载链接而非污染对话历史。
 
 ### 日期标准化清洗 (Strategy A)
 
@@ -322,12 +324,27 @@ def normalize_dates_in_text(text: str):
 
 ### RAG 知识检索增强
 
-系统采用 "Retrieve-then-Rerank" 的两阶段检索架构，确保业务知识的准确注入：
+系统采用 "Retrieve-then-Rerank" 的两阶段检索架构，确保业务知识的准确注入。
 
-1. **向量粗排 (Retrieval)**: 使用 `bge-m3` 模型检索 Top-10 相关文档。
-2. **Rerank 精排 (Reranking)**: 使用 NVIDIA `rerank-qa-mistral-4b` 对候选文档进行二次打分。
-3. **阈值过滤**: 过滤掉低分文档（可配置 score_threshold）。
-4. **上下文注入**: 将最终的 Top-3 文档注入到 LLM 上下文中。
+#### 召回数量规则汇总 (Recall Rules)
+
+| 组合模式 | 第一阶段 (初筛召回 - `doc_k`) | 第二阶段 (精排保留 - `top_n`) | 最终注入数量 |
+| :--- | :--- | :--- | :--- |
+| **仅混合检索** | **5 条** (硬编码在 `service.py`) | 无 | **5 条** |
+| **混合检索 + Rerank** | **10 条** (算法自动放大) | **3 条** (由 `RERANK_TOP_N` 控制) | **3 条** |
+
+#### 相关配置参数 (Configuration Parameters)
+
+| 环境变量 | 默认值 | 说明 |
+| :--- | :--- | :--- |
+| `RAG_BACKEND` | `milvus_hybrid` | 检索后端：`pgvector` (纯向量) 或 `milvus_hybrid` (混合) |
+| `RAG_SIMILARITY_THRESHOLD` | `None` | 初筛阈值。针对 RRF 分数过滤，推荐值 **0.01 ~ 0.05** |
+| `RERANK_ENABLED` | `false` | 是否开启 NVIDIA NIM 精排层 |
+| `RERANK_TOP_N` | `3` | 精排后最终保留并注入 LLM 上下文的文档数量 |
+| `RERANK_SCORE_THRESHOLD` | `0.0` | 精排评分阈值 |
+
+> [!TIP]
+> **RRF 分数说明**：混合检索使用的是 RRF 融合机制，其分数通常在 0 到 0.1 之间，远小于传统的余弦相似度。调整 `RAG_SIMILARITY_THRESHOLD` 时请从较小的值开始尝试。
 
 架构图：
 ```mermaid
@@ -335,7 +352,7 @@ graph LR
     A[用户提问] --> B(向量检索 Top-10)
     B --> C{Rerank 精排}
     C -->|Score < Threshold| D[丢弃]
-    C -->|Score >= Threshold| E[保留 Top-3]
+    C -->|Score >= Threshold| E[保留 Top-N]
     E --> F[注入 LLM Context]
 ```
 
@@ -378,7 +395,7 @@ connect_tcp.started host='127.0.0.1' port=7890
 
 **原因**：OpenAI 客户端（langchain-deepseek 底层使用）自动检测 Windows 系统代理设置，尝试通过 `127.0.0.1:7890` 连接，但代理服务未运行。
 
-**解决方案**：在 `backend/app/services.py` 中创建禁用代理的 HTTP 客户端：
+**解决方案**：在 `backend/app/agent/service.py` 中创建禁用代理的 HTTP 客户端：
 
 ```python
 import httpx

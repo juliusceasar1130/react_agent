@@ -290,7 +290,7 @@ class SQLAgentService:
                 retriever, reranker = create_business_retriever_and_reranker()
                 if retriever is not None:
                     # 启用 Rerank 时适当放大召回范围
-                    doc_k = 10 if reranker is not None else 3
+                    doc_k = 10 if reranker is not None else 5
                     rag_middleware = BusinessRagMiddleware(
                         retriever=retriever,
                         reranker=reranker,

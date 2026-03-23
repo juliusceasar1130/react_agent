@@ -6,6 +6,12 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+# 防止本地/VPN 系统代理（如 Clash/V2Ray）拦截 localhost 请求导致 502 Bad Gateway 错误
+if "NO_PROXY" not in os.environ:
+    os.environ["NO_PROXY"] = "localhost,127.0.0.1,172.22.44.99,192.22.44.99"
+elif "localhost" not in os.environ["NO_PROXY"]:
+    os.environ["NO_PROXY"] += ",localhost,127.0.0.1"
+
 
 class Settings(BaseSettings):
     # DeepSeek配置
@@ -78,10 +84,13 @@ class Settings(BaseSettings):
     )
 
     # Ollama 配置 (RTX 5090 优化)
-    ollama_base_url: str = os.getenv("OLLAMA_BASE_URL", "http://192.22.44.99:11434")
+    ollama_base_url: str = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
     ollama_model: str = os.getenv("OLLAMA_MODEL", "qwen3:30b")
     ollama_num_ctx: int = int(os.getenv("OLLAMA_NUM_CTX", "32768"))
     ollama_keep_alive: int = int(os.getenv("OLLAMA_KEEP_ALIVE", "-1"))
+    
+    # Ollama Embedding 配置 (用于本地化 RAG 嵌入)
+    ollama_embed_model: str = os.getenv("OLLAMA_EMBED_MODEL", "qwen3-embedding:0.6b")
 
     # Graph & LangSmith 配置
     langsmith_tracing: bool = os.getenv("LANGSMITH_TRACING", "false").lower() == "true"

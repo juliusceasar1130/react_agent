@@ -27,23 +27,21 @@ def _configure_llama_index_settings() -> None:
     """
     配置 LlamaIndex 全局 Settings（Embedding 模型）。
     
-    使用 NVIDIA NV-EmbedQA-E5-V5（dim=1024），与 Milvus 配置保持一致。
+    使用 Ollama 部署的本地 Embedding 模型（默认 qwen3-embedding:0.6b），与 Milvus 配置保持一致。
     此函数幂等，多次调用无副作用。
     """
     from llama_index.core import Settings as LISettings
-    from llama_index.embeddings.nvidia import NVIDIAEmbedding
+    from llama_index.embeddings.ollama import OllamaEmbedding
     from backend.app.config import settings
-    import os
 
-    api_key = getattr(settings, "nvidia_api_key", "") or os.getenv("NVIDIA_API_KEY", "")
-    if not api_key:
-        raise ValueError("缺少 NVIDIA_API_KEY，请检查 .env 文件或环境变量")
+    model_name = getattr(settings, "ollama_embed_model", "qwen3-embedding:0.6b")
+    base_url = getattr(settings, "ollama_base_url", "http://localhost:11434")
 
-    LISettings.embed_model = NVIDIAEmbedding(
-        model="nvidia/nv-embedqa-e5-v5",
-        api_key=api_key,
+    LISettings.embed_model = OllamaEmbedding(
+        model_name=model_name,
+        base_url=base_url,
     )
-    print("  ✅ [init_store] LlamaIndex Embedding 已配置: nvidia/nv-embedqa-e5-v5")
+    print(f"  ✅ [init_store] LlamaIndex Embedding 已配置: {model_name} (Ollama)")
 
 
 def init_hybrid_store(
