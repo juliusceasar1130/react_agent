@@ -1,5 +1,12 @@
 # RAG 架构与技术栈总结
 
+更新时间：2026-03-24 15:10 Asia/Shanghai
+
+主要修改内容：
+- 对齐当前代码实现，补充 Milvus embedding provider 可在 `ollama` 与 `llama.cpp` 间切换
+- 修正文档中遗留的 `NVIDIA V5` / “仅 Ollama” 等过时描述
+- 补充 `llama.cpp + Qwen3 Embedding` 的 query instruction 与归一化策略
+
 本文档基于现有代码库中的配置和实现（特别是 `factory.py`、`query_engine.py` 和 `config.py` 等模块），对项目当前的检索增强生成 (RAG) 架构和技术选型进行梳理和总结。
 
 ## 1. 核心检索架构 (RAG Backend)
@@ -28,14 +35,21 @@
 在不同的处理环节，架构引入了不同职责的模型来保障生成质量：
 
 ### 2.1 嵌入模型 (Embedding Model)
-视 RAG Backend 不同，采用了不同的 Embedding 模型配置机制以确保检索能力：
+视 RAG Backend 不同，系统采用不同的 Embedding 模型配置机制以确保检索能力：
 - **Milvus 模式下 (默认)**：
-  - **模型名称**：`Qwen3-Embedding-0.6B` (本地部署)
-  - **向量维度**：1024 维（通过配置映射维持兼容性）
-  - **调用方式**：通过 **Ollama** 本地接口进行推理（由 `LlamaIndex` 引擎管理），实现了检索链路的完全私有化，替代了原有的英伟达云端 API。
+  - **模型族**：本地私有化 `Qwen3-Embedding-0.6B`
+  - **向量维度**：1024 维（由 `MILVUS_EMBED_DIM` 显式配置）
+  - **Provider 切换方式**：由 `EMBEDDING_PROVIDER` 控制，可选：
+    - `ollama`：使用 `OLLAMA_EMBED_MODEL=qwen3-embedding:0.6b`
+    - `llama_cpp`：使用 `LLAMA_CPP_EMBED_MODEL=Qwen/Qwen3-Embedding-0.6B-GGUF:q8_0`
+  - **统一接入方式**：两种 provider 都通过共享的 `embedding_provider.py` 入口挂载到 `LlamaIndex Settings.embed_model`，确保建库与查询使用同一套 embedding 配置。
+  - **llama.cpp 路径的检索增强**：
+    - 默认调用 `POST /embedding`
+    - query 侧启用 Qwen 官方建议的 `instruction-aware embedding`
+    - 返回向量在进入 Milvus 前会做 L2 normalize，以配合 `IP`（内积）相似度计算
 - **PGVector 模式下**：
   - **模型名称**：智源研究院 `baai/bge-m3`
-  - **调用方式**：在执行业务工厂（`create_business_vector_store`）初始化时单独挂载，保持了对多语言及混合检索支路的兼容性。
+  - **调用方式**：在执行业务工厂 `create_business_vector_store()` 初始化时单独挂载，和 Milvus 路径互不影响。
 
 ### 2.2 重排序精排模型 (Reranker) - [可选链路]
 系统前瞻性地设计并植入了可选的“二次精排”层，用来进一步矫正检索结果的优先级和准确度。
@@ -52,8 +66,10 @@
 
 ## 3. 工作流执行流向解析
 标准的 RAG 查询执行链路上，目前引擎将表现出如下生命周期（以开发模块 `development/hybrid/query_engine.py` 为例）：
-1. **系统加载与延迟连接**：为防止不必要的长连接，系统实现了向量存储的**延迟初始化**。只有在首次调用 `retrieve()` 时才会同后端服务器（如 Milvus / Postgres）建立连接池并加载配置。
+1. **系统加载与延迟连接**：为防止不必要的长连接，Milvus 路径实现了向量存储的**延迟初始化**。只有在首次调用 `retrieve()` 时才会真正连接后端服务并加载 `VectorStoreIndex`。
 2. **文本向量化**：获取 User Query 后，通过选定的 Embedding 模型进行在线向量化。
+   - `ollama` 路径：直接调用本地 Ollama embedding 模型
+   - `llama.cpp` 路径：通过 `/embedding` 接口向本地 `llama-server` 发送请求；对 query 自动拼接 `Instruct: ...\nQuery: ...`，对文档入库文本保持原文
 3. **节点召回与重排序**：
    - 如果启用混合模式，则自动切分 User Query 执行 BM25 相关性查库操作，并与向量化查库操作合并。
    - 使用 RRF 公式重打分聚合。
@@ -62,4 +78,4 @@
 5. **记录观测**：支持接入完整的 `LangSmith` 监控追踪链路（如果 `LANGSMITH_TRACING=true`）。
 
 ## 总结
-整套 RAG 系统立足于业务扩展性与高性能设计。支持低成本（PGVector）与高性能并行（Milvus+Nvidia V5+RRF混合搜索+Rerank精排）双轨架构，配合业界高水准开源生成模型（DeepSeek / Qwen），展现出了生产级别的稳健表现与设计模式。
+整套 RAG 系统立足于业务扩展性与高性能设计。当前支持低成本降级路径（PGVector）与高性能主路径（Milvus Hybrid + RRF 混合搜索 + 可选 Rerank 精排）双轨架构；其中 Milvus 的稠密向量已经统一迁移到本地私有化 `Qwen3-Embedding-0.6B` 方案，并支持在 `Ollama` 与 `llama.cpp` 之间切换，兼顾部署灵活性、离线能力与检索效果。

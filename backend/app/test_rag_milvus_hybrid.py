@@ -6,7 +6,6 @@
 3. 检索出的 ScoredDocument 格式符合预期
 """
 
-import os
 import logging
 from unittest.mock import patch, MagicMock
 
@@ -22,24 +21,29 @@ def test_milvus_factory_dispatch():
     logger.info("测试工厂分发逻辑（延迟初始化模式）...")
     
     with patch("backend.app.agent.vector.factory.settings") as mock_settings:
-        mock_settings.rag_backend = "milvus_hybrid"
-        mock_settings.milvus_uri = "http://localhost:19530"
-        mock_settings.milvus_collection_name = "test_collection"
-        mock_settings.milvus_embed_dim = 1024
-        mock_settings.milvus_rrf_k = 60
-        mock_settings.rerank_enabled = False
-        
-        # 延迟初始化模式：工厂不会立即创建 store，只保存参数
-        # 因此不需要 mock create_milvus_hybrid_index（它会在首次 retrieve 时调用）
-        retriever, reranker = create_business_retriever_and_reranker()
-        
-        assert isinstance(retriever, MilvusHybridRetriever)
-        assert reranker is None
-        # 验证延迟初始化：store 和 index 应该为 None（未初始化）
-        assert retriever._store is None
-        assert retriever._index is None
-        assert retriever._store_params is not None
-        logger.info("✓ 工厂成功创建 MilvusHybridRetriever（延迟初始化模式）")
+        with patch("backend.app.agent.vector.factory.configure_llama_index_settings") as mock_configure:
+            mock_configure.return_value = MagicMock(model_name="Qwen/Qwen3-Embedding-0.6B-GGUF:q8_0")
+            mock_settings.rag_backend = "milvus_hybrid"
+            mock_settings.milvus_uri = "http://localhost:19530"
+            mock_settings.milvus_collection_name = "test_collection"
+            mock_settings.milvus_embed_dim = 1024
+            mock_settings.milvus_rrf_k = 60
+            mock_settings.embedding_provider = "llama_cpp"
+            mock_settings.rerank_enabled = False
+            
+            # 延迟初始化模式：工厂不会立即创建 store，只保存参数
+            # 因此不需要 mock create_milvus_hybrid_index（它会在首次 retrieve 时调用）
+            retriever, reranker = create_business_retriever_and_reranker()
+            
+            assert isinstance(retriever, MilvusHybridRetriever)
+            assert reranker is None
+            # 验证延迟初始化：store 和 index 应该为 None（未初始化）
+            assert retriever._store is None
+            assert retriever._index is None
+            assert retriever._store_params is not None
+            assert retriever._store_params["embed_dim"] == 1024
+            mock_configure.assert_called_once()
+            logger.info("✓ 工厂成功创建 MilvusHybridRetriever（延迟初始化模式）")
 
 def test_retriever_output_format():
     """测试检索器输出格式是否符合 ScoredDocument 规范（立即初始化模式）。"""
@@ -54,29 +58,28 @@ def test_retriever_output_format():
     mock_node_ws.node = mock_node
     mock_node_ws.score = 0.85
     
-    # 模拟内部 retrieve 返回 mock 数据
-    with patch("llama_index.core.indices.vector_store.retrievers.retriever.VectorIndexRetriever.retrieve") as mock_retrieve:
-        mock_retrieve.return_value = [mock_node_ws]
+    # 立即初始化模式：传入 store 参数
+    with patch("backend.app.agent.vector.milvus_hybrid.milvus_retriever.create_milvus_hybrid_index") as mock_create_idx:
+        mock_store = MagicMock()
+        mock_index = MagicMock()
+        mock_retriever = MagicMock()
+        mock_retriever.retrieve.return_value = [mock_node_ws]
+        mock_index.as_retriever.return_value = mock_retriever
+        mock_create_idx.return_value = mock_index
         
-        # 立即初始化模式：传入 store 参数
-        with patch("backend.app.agent.vector.milvus_hybrid.milvus_retriever.create_milvus_hybrid_index") as mock_create_idx:
-            mock_store = MagicMock()
-            mock_index = MagicMock()
-            mock_create_idx.return_value = mock_index
-            
-            retriever = MilvusHybridRetriever(store=mock_store)
-            # 验证立即初始化
-            assert retriever._store is not None
-            assert retriever._index is not None
-            
-            results = retriever.retrieve("什么是测试？")
-            
-            assert len(results) == 1
-            assert isinstance(results[0], ScoredDocument)
-            assert results[0].score == 0.85
-            assert results[0].document.page_content == "测试文档内容"
-            assert results[0].document.metadata["term"] == "测试术语"
-            logger.info("✓ 检索结果格式适配正确 (LlamaIndex -> LangChain)")
+        retriever = MilvusHybridRetriever(store=mock_store)
+        # 验证立即初始化
+        assert retriever._store is not None
+        assert retriever._index is not None
+        
+        results = retriever.retrieve("什么是测试？")
+        
+        assert len(results) == 1
+        assert isinstance(results[0], ScoredDocument)
+        assert results[0].score == 0.85
+        assert results[0].document.page_content == "测试文档内容"
+        assert results[0].document.metadata["term"] == "测试术语"
+        logger.info("✓ 检索结果格式适配正确 (LlamaIndex -> LangChain)")
 
 def test_lazy_initialization():
     """测试延迟初始化模式：首次 retrieve 时自动初始化。"""
@@ -91,42 +94,47 @@ def test_lazy_initialization():
     mock_node_ws.node = mock_node
     mock_node_ws.score = 0.9
     
-    with patch("backend.app.agent.vector.factory.settings") as mock_settings:
-        mock_settings.milvus_uri = "http://localhost:19530"
-        mock_settings.milvus_collection_name = "test_collection"
-        mock_settings.milvus_embed_dim = 1024
-        mock_settings.milvus_rrf_k = 60
-        
-        # 创建延迟初始化的 retriever
-        retriever = MilvusHybridRetriever()
-        
-        # 验证未初始化状态
-        assert retriever._store is None
-        assert retriever._index is None
-        assert retriever._store_params is not None
-        
-        # Mock 初始化过程
-        mock_store = MagicMock()
-        mock_index = MagicMock()
-        
+    retriever = MilvusHybridRetriever(
+        store_params={
+            "uri": "http://localhost:19530",
+            "collection_name": "test_collection",
+            "embed_dim": 1024,
+            "rrf_k": 60,
+            "overwrite": False,
+        }
+    )
+
+    # 验证未初始化状态
+    assert retriever._store is None
+    assert retriever._index is None
+    assert retriever._store_params is not None
+
+    # Mock 初始化过程
+    mock_store = MagicMock()
+    mock_index = MagicMock()
+
+    with patch("backend.app.agent.vector.milvus_hybrid.milvus_retriever.create_milvus_hybrid_store") as mock_create_store:
+        mock_create_store.return_value = mock_store
+
         with patch("backend.app.agent.vector.milvus_hybrid.milvus_retriever.create_milvus_hybrid_index") as mock_create_idx:
+            mock_retriever = MagicMock()
+            mock_retriever.retrieve.return_value = [mock_node_ws]
+            mock_index.as_retriever.return_value = mock_retriever
             mock_create_idx.return_value = mock_index
             
-            with patch("llama_index.core.indices.vector_store.retrievers.retriever.VectorIndexRetriever.retrieve") as mock_retrieve:
-                mock_retrieve.return_value = [mock_node_ws]
-                
-                # 首次调用 retrieve，应该触发初始化
-                results = retriever.retrieve("测试查询")
-                
-                # 验证初始化已执行
-                assert retriever._store is not None
-                assert retriever._index is not None
-                mock_create_idx.assert_called_once()
-                
-                # 验证检索结果
-                assert len(results) == 1
-                assert isinstance(results[0], ScoredDocument)
-                logger.info("✓ 延迟初始化模式工作正常")
+            # 首次调用 retrieve，应该触发初始化
+            results = retriever.retrieve("测试查询")
+            
+            # 验证初始化已执行
+            assert retriever._store is not None
+            assert retriever._index is not None
+            mock_create_store.assert_called_once()
+            mock_create_idx.assert_called_once()
+            
+            # 验证检索结果
+            assert len(results) == 1
+            assert isinstance(results[0], ScoredDocument)
+            logger.info("✓ 延迟初始化模式工作正常")
 
 if __name__ == "__main__":
     try:
@@ -134,9 +142,9 @@ if __name__ == "__main__":
         test_retriever_output_format()
         test_lazy_initialization()
         print("\n" + "="*40)
-        print("✓ Milvus 混合检索模块冒烟测试通过！")
+        print("Milvus hybrid tests passed")
         print("="*40)
     except Exception as e:
-        print(f"\n❌ 测试失败: {e}")
+        print(f"\nTest failed: {e}")
         import traceback
         traceback.print_exc()

@@ -1,5 +1,7 @@
 ## 1. Implementation
-- [x] 1.1 在 `backend/app/config.py` 和 `.env`（可选）中添加 `ollama_embed_model` 相关设定。
-- [x] 1.2 在 `backend/app/agent/development/config.py` 中，使用 `OllamaEmbedding` 替换 `NVIDIAEmbedding` 的注册，同时去除 `NVIDIA_API_KEY` 的依赖项。
-- [x] 1.3 在 `backend/app/agent/vector/factory.py` 的重配置逻辑流中，实例化 `OllamaEmbedding` 处理 LlamaIndex 全局挂载。
-- [x] 1.4 在集成终端运行相关检索程序的调用脚本并验证可用性。
+- [x] 1.1 在 `backend/app/config.py` 和 `.env` 中添加 `EMBEDDING_PROVIDER`、`LLAMA_CPP_EMBED_*`、`QWEN_QUERY_INSTRUCTION_*` 设定。
+- [x] 1.2 新增共享 embedding provider 模块，支持 `ollama` 与 `llama.cpp` 两种本地 provider。
+- [x] 1.3 在 `backend/app/agent/vector/factory.py` 中统一通过共享 provider 配置 LlamaIndex 全局 embedding。
+- [x] 1.4 在 `backend/app/agent/vector/milvus_init/init_store.py` 中复用同一 provider，保证建库与查询一致。
+- [x] 1.5 补充测试脚本，验证 provider 分发、`llama.cpp` 解析归一化以及 Milvus 延迟初始化路径。
+- [x] 1.6 更新 README、changelog 与 `llama.cpp` 部署文档，说明切换配置和重建索引要求。

@@ -73,6 +73,25 @@ class Settings(BaseSettings):
     milvus_data_dir: str = os.getenv("MILVUS_DATA_DIR", _default_data_dir)
     milvus_overwrite: bool = os.getenv("MILVUS_OVERWRITE", "true").lower() == "true"
 
+    # Embedding Provider 配置（Milvus 混合检索共用）
+    embedding_provider: str = os.getenv("EMBEDDING_PROVIDER", "ollama")
+    llama_cpp_embed_base_url: str = os.getenv(
+        "LLAMA_CPP_EMBED_BASE_URL", "http://127.0.0.1:8081"
+    )
+    llama_cpp_embed_model: str = os.getenv(
+        "LLAMA_CPP_EMBED_MODEL", "Qwen/Qwen3-Embedding-0.6B-GGUF:q8_0"
+    )
+    llama_cpp_embed_timeout: float = float(
+        os.getenv("LLAMA_CPP_EMBED_TIMEOUT", "30")
+    )
+    qwen_query_instruction_enabled: bool = (
+        os.getenv("QWEN_QUERY_INSTRUCTION_ENABLED", "true").lower() == "true"
+    )
+    qwen_query_instruction: str = os.getenv(
+        "QWEN_QUERY_INSTRUCTION",
+        "Given a web search query, retrieve relevant passages that answer the query",
+    )
+
     # Rerank 配置
     rerank_enabled: bool = os.getenv("RERANK_ENABLED", "false").lower() == "true"
     rerank_model: str = os.getenv("RERANK_MODEL", "nvidia/rerank-qa-mistral-4b")

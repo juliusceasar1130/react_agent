@@ -1,5 +1,67 @@
 # Changelog
 
+## 2026-03-24 16:05 - llama.cpp + Qwen3 Embedding 实践文档重构与沉淀
+
+### 概述
+将 `backend/docs/llamacpp-qwen3-embedding-local-deployment.md` 从“本地部署操作说明”升级为“完整改造与复用实践文档”，系统整理本次 `llama.cpp + Qwen3 Embedding` 接入 Milvus Hybrid RAG 的架构、流程、接口协议、部署方式、排障经验与后续复用建议。
+
+### 变更内容
+- **文档重构**:
+  - 重新组织为“背景目标、相关目录、总体架构、配置设计、建库流程、查询流程、API 格式、部署步骤、排障、最佳实践、开发心智”分层结构
+  - 补充项目内关键代码落点与目录索引，方便后续快速定位
+  - 明确 `query instruction`、`L2 normalize`、`provider 切换后需重建索引` 等关键约束
+- **README 入口同步**:
+  - 在技术文档列表中新增 `llama.cpp + Qwen3 Embedding 接入与复用最佳实践` 链接
+  - 方便后续从项目首页直接跳转到该专题文档
+
+## 2026-03-24 15:35 - README 项目结构树同步更新
+
+### 概述
+对照当前仓库实际目录结构，更新 `README.md` 中的“项目结构”章节，修正已过时的路径描述，并补充当前已经落地的 RAG / llama.cpp 相关目录入口。
+
+### 变更内容
+- 将 `requirements.txt` 与 `.env` 的位置修正为仓库根目录
+- 补充 `backend/docs/`、`backend/llamaCpp/`、`backend/app/test_*.py` 等实际存在的目录 / 文件入口
+- 在 `backend/app/agent/vector/` 结构中补充 `embedding_provider.py`
+- 保持目录树为“精简但准确”的项目入口视图，避免 README 演变成全量文件清单
+
+## 2026-03-24 15:20 - README 与文档入口同步修正
+
+### 概述
+对照当前仓库结构与最新 RAG / llama.cpp 接入实现，修正了 `README.md` 中已过时的环境与依赖说明，避免按旧说明执行时找不到 `.env.example` 或 `backend/requirements.txt`。
+
+### 变更内容
+- **README 修正**:
+  - 将“复制 `.env.example`”改为“直接使用 / 新建根目录 `.env`”
+  - 将后端依赖安装入口统一为根目录 `requirements.txt`
+  - 将后端启动命令统一为从仓库根目录执行 `uvicorn backend.app.main:app`
+- **文档一致性检查**:
+  - 复核 `README.md` 与当前 `llama.cpp + Qwen3 Embedding` / `Milvus Hybrid` 实现是否一致
+  - 保持既有历史 changelog 记录不变，仅在最新条目中补充当前有效的使用说明
+
+## 2026-03-24 14:30 - Milvus 混合检索支持 llama.cpp + Qwen3 Embedding 切换
+
+### 概述
+在保留原有 `Ollama qwen3-embedding:0.6b` 能力的基础上，为 Milvus Hybrid RAG 新增 `llama.cpp + Qwen/Qwen3-Embedding-0.6B-GGUF:q8_0` 的可切换嵌入方案。初始化入库与运行期检索统一复用同一个 LlamaIndex embedding provider 入口，并在 `llama.cpp` 路径下对 query 侧启用 Qwen 官方推荐的 instruction-aware embedding 格式。
+
+### 变更内容
+- **共享 Embedding Provider**:
+  - 新增 `backend/app/agent/vector/embedding_provider.py`
+  - 统一封装 `OllamaEmbedding` 与自定义 `LlamaCppEmbedding`
+  - 新增 `QwenInstructionAwareEmbedding`，只对 query 侧拼接 `Instruct: ...\nQuery: ...`
+- **Milvus 接入改造**:
+  - `backend/app/agent/vector/factory.py` 改为通过共享 provider 配置 `LlamaIndex Settings.embed_model`
+  - `backend/app/agent/vector/milvus_init/init_store.py` 改为复用同一 provider，保证建库与查询一致
+- **配置增强**:
+  - `backend/app/config.py` 新增 `EMBEDDING_PROVIDER`、`LLAMA_CPP_EMBED_*`、`QWEN_QUERY_INSTRUCTION_*` 配置项
+  - `.env` 补充 `llama.cpp` embedding 的默认配置示例
+- **测试补充**:
+  - 新增 `backend/app/test_embedding_provider.py`
+  - 修正 `backend/app/test_rag_milvus_hybrid.py` 中的延迟初始化与 mock 覆盖方式
+- **文档同步**:
+  - `README.md` 增补 Milvus embedding provider 切换说明与重建索引提示
+
+
 ## 2026-03-22 22:50 - Milvus 嵌入模型迁移至本地 Ollama (Qwen3)
 
 ### 概述

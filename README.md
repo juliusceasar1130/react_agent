@@ -17,7 +17,7 @@
 - **现代 UI/UX** - 基于 Neural Tones + AI Purple 设计系统，支持毛玻璃效果与流畅动画
 - **前后端分离** - FastAPI + Vue 3 + TypeScript
 - **技能系统 (Skills)** - 动态加载业务领域知识，支持大规模上下文管理 (Agent V2)
-- **RAG 知识增强** - 支持 PGVector 向量检索 + NVIDIA Rerank 精排，智能注入业务知识
+- **RAG 知识增强** - 支持 PGVector / Milvus Hybrid 检索，Milvus 可在 `Ollama` 与 `llama.cpp + Qwen3 Embedding` 之间切换，并可选接入 NVIDIA Rerank 精排
 
 
 ## 技术栈
@@ -88,7 +88,7 @@ cd rearch_agent
 
 ### 2. 配置环境变量
 
-复制 `.env.example` 为 `.env` 并配置：
+项目当前直接使用根目录 `.env` 文件。若不存在，可在根目录新建 `.env` 并参考下列配置：
 
 ```bash
 # .env
@@ -122,13 +122,21 @@ RERANK_ENABLED=true             # 是否启用精排
 RERANK_MODEL='nvidia/rerank-qa-mistral-4b'
 RERANK_TOP_N=3                  # 精排后最终保留并注入 LLM 上下文的文档数量
 RERANK_SCORE_THRESHOLD=0.0      # 精排评分阈值
+
+# Milvus Embedding Provider 配置
+EMBEDDING_PROVIDER='ollama'     # ollama | llama_cpp
+OLLAMA_EMBED_MODEL='qwen3-embedding:0.6b'
+LLAMA_CPP_EMBED_BASE_URL='http://127.0.0.1:8081'
+LLAMA_CPP_EMBED_MODEL='Qwen/Qwen3-Embedding-0.6B-GGUF:q8_0'
+LLAMA_CPP_EMBED_TIMEOUT=30
+QWEN_QUERY_INSTRUCTION_ENABLED=true
+QWEN_QUERY_INSTRUCTION='Given a web search query, retrieve relevant passages that answer the query'
 ```
 
 ### 3. 安装依赖
 
 **后端依赖**：
 ```bash
-cd backend
 pip install -r requirements.txt
 ```
 
@@ -151,8 +159,7 @@ npm install
 createdb rearch_agent
 
 # 启动后端服务（会自动创建表）
-cd backend
-uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+uvicorn backend.app.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
 ### 5. 启动前端
@@ -172,50 +179,55 @@ npm run dev
 
 ```
 rearch_agent/
-├── backend/                 # 后端应用
+├── backend/                        # 后端应用与相关文档
 │   ├── app/
-│   │   ├── main.py         # FastAPI 应用入口
-│   │   ├── api.py          # RESTful API 路由
-│   │   ├── crud.py         # 数据库 CRUD 操作
-│   │   ├── models.py       # SQLAlchemy ORM 模型
-│   │   ├── schemas.py      # Pydantic Schema
-│   │   ├── database.py     # 数据库连接
-│   │   ├── config.py       # 配置管理
-│   │   ├── services.py     # 基础版 Agent 服务
-│   │   ├── services_graph.py # 增强版 LangGraph SQL Agent 服务
-│   │   └── agent/          # Agent 模块化架构核心
-│   │       ├── service.py      # 核心服务编排 (Skill + RAG + Summarization)
-│   │       ├── state.py        # Graph 状态定义
-│   │       ├── constants.py    # 常量定义
-│   │       ├── middleware/     # 中间件 (SkillMiddleware, BusinessRagMiddleware等)
-│   │       ├── tools/          # 专用工具集 (sql_tools.py, skill_tools.py, csv_export_tool.py等)
-│   │       ├── utils/          # 底层工具库 (db_utils.py, date_utils.py等)
-│   │       ├── development/    # 测试与实验性功能模块
-│   │       └── vector/         # RAG 向量检索与精排引擎
-│   │           ├── base.py                 # 检索器与精排器抽象基类
-│   │           ├── factory.py              # 检索引擎简单工厂
-│   │           ├── milvus_hybrid/          # Milvus 混合检索实现
-│   │           ├── milvus_init/            # Milvus 数据导入工具集
-│   │           ├── pgvector/               # PGVector 纯向量检索实现
-│   │           ├── pgvector_init/          # PGVector 数据导入工具集
-│   │           └── rerank/                 # NVIDIA Rerank 精排器封装
-│   ├── Dockerfile          # Docker 镜像配置
-│   ├── requirements.txt    # Python 依赖
-│   └── .env                # 本地环境变量
-│
-├── frontend/               # 前端应用
+│   │   ├── main.py                # FastAPI 应用入口
+│   │   ├── api.py                 # RESTful API 路由
+│   │   ├── crud.py                # 数据库 CRUD 操作
+│   │   ├── models.py              # SQLAlchemy ORM 模型
+│   │   ├── schemas.py             # Pydantic Schema
+│   │   ├── database.py            # 数据库连接
+│   │   ├── config.py              # 配置管理
+│   │   ├── services.py            # 基础版服务
+│   │   ├── services_graph.py      # LangGraph SQL Agent 服务
+│   │   ├── test_*.py              # 后端冒烟 / 功能测试脚本
+│   │   └── agent/                 # Agent 模块化架构核心
+│   │       ├── service.py             # 核心服务编排
+│   │       ├── service_llama.cpp.py   # 本地 llama.cpp 适配服务实验入口
+│   │       ├── state.py               # Graph 状态定义
+│   │       ├── constants.py           # 常量定义
+│   │       ├── middleware/            # 中间件
+│   │       ├── tools/                 # 专用工具集
+│   │       ├── utils/                 # 底层工具库
+│   │       ├── development/           # 实验与开发模块
+│   │       └── vector/                # RAG 向量检索与精排引擎
+│   │           ├── base.py                # 检索器与精排器抽象基类
+│   │           ├── embedding_provider.py  # Milvus Embedding Provider 统一入口
+│   │           ├── factory.py             # 检索 / 精排工厂
+│   │           ├── milvus_hybrid/         # Milvus 混合检索实现
+│   │           ├── milvus_init/           # Milvus 数据导入工具集
+│   │           ├── pgvector/              # PGVector 纯向量检索实现
+│   │           ├── pgvector_init/         # PGVector 数据导入工具集
+│   │           └── rerank/                # NVIDIA Rerank 精排器封装
+│   ├── docs/                    # 后端技术文档
+│   ├── llamaCpp/                # llama.cpp 本地部署脚本
+│   └── Dockerfile               # 后端 Docker 镜像配置
+├── frontend/                    # 前端应用
 │   ├── src/
-│   │   ├── api/            # API 请求封装
-│   │   ├── components/     # Vue 公用组件
-│   │   ├── views/          # 页面视图 (ChatView, Settings 等)
-│   │   ├── stores/         # Pinia 状态管理
-│   │   └── types/          # TypeScript 类型定义
-│   ├── vite.config.ts      # Vite 配置
-│   └── package.json        # 前端依赖
-│
-├── docker-compose.yml      # Docker 编排配置
-├── .env.production         # 生产环境配置模板
-└── README.md               # 本文件
+│   │   ├── api/                 # API 请求封装
+│   │   ├── components/          # Vue 公用组件
+│   │   ├── views/               # 页面视图
+│   │   ├── stores/              # Pinia 状态管理
+│   │   └── types/               # TypeScript 类型定义
+│   ├── vite.config.ts           # Vite 配置
+│   └── package.json             # 前端依赖
+├── deploy/                      # 部署文档与辅助配置
+├── openspec/                    # 规格与变更提案
+├── .env                         # 当前本地环境变量
+├── changelog.md                 # 项目变更记录
+├── memory.md                    # 项目长期记忆
+├── requirements.txt             # Python 依赖
+└── README.md                    # 本文件
 ```
 
 ## API 端点
@@ -342,9 +354,15 @@ def normalize_dates_in_text(text: str):
 | `RERANK_ENABLED` | `false` | 是否开启 NVIDIA NIM 精排层 |
 | `RERANK_TOP_N` | `3` | 精排后最终保留并注入 LLM 上下文的文档数量 |
 | `RERANK_SCORE_THRESHOLD` | `0.0` | 精排评分阈值 |
+| `EMBEDDING_PROVIDER` | `ollama` | Milvus 稠密向量 provider：`ollama` 或 `llama_cpp` |
+| `LLAMA_CPP_EMBED_BASE_URL` | `http://127.0.0.1:8081` | `llama.cpp` embedding 服务地址 |
+| `LLAMA_CPP_EMBED_MODEL` | `Qwen/Qwen3-Embedding-0.6B-GGUF:q8_0` | `llama.cpp` 使用的 Qwen3 Embedding 模型标识 |
 
 > [!TIP]
 > **RRF 分数说明**：混合检索使用的是 RRF 融合机制，其分数通常在 0 到 0.1 之间，远小于传统的余弦相似度。调整 `RAG_SIMILARITY_THRESHOLD` 时请从较小的值开始尝试。
+
+> [!IMPORTANT]
+> 当 `EMBEDDING_PROVIDER` 从 `ollama` 切换到 `llama_cpp`（或反向切换）后，需要重新执行 `python -m backend.app.agent.vector.milvus_init.init_milvus` 重建 Milvus Collection，确保入库向量与查询向量来自同一套 embedding 配置。
 
 架构图：
 ```mermaid
@@ -361,8 +379,7 @@ graph LR
 ### 后端开发
 
 ```bash
-cd backend
-uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+uvicorn backend.app.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
 ### 前端开发
@@ -378,6 +395,7 @@ npm run dev
 
 ### 技术文档
 
+- [llama.cpp + Qwen3 Embedding 接入与复用最佳实践](./backend/docs/llamacpp-qwen3-embedding-local-deployment.md)
 - [RAG 架构与技术总结](./backend/docs/RAG架构与技术总结.md)
 - [FastAPI 与 SQLAlchemy 知识点](./backend/docs/FastAPI与SQLAlchemy知识点复习.md)
 - [PostgresSaver 集成重构总结](./backend/docs/PostgresSaver集成重构总结.md)
