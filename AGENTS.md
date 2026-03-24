@@ -1,5 +1,5 @@
 <!-- OPENSPEC:START -->
-# OpenSpec Instructions
+<!-- # OpenSpec Instructions
 
 These instructions are for AI assistants working in this project.
 
@@ -13,6 +13,47 @@ Use `@/openspec/AGENTS.md` to learn:
 - Spec format and conventions
 - Project structure and guidelines
 
-Keep this managed block so 'openspec update' can refresh the instructions.
+Keep this managed block so 'openspec update' can refresh the instructions. -->
 
 <!-- OPENSPEC:END -->
+
+## 项目规则补充（2026-03-23 00:00 Asia/Shanghai）
+
+主要修改内容：
+
+- 追加项目级协作规则补充
+- 明确文件修改时间与主要修改内容的记录要求
+- 增加对 `memory.md` 的使用约定
+
+### 协作偏好
+
+- 默认使用中文回复；必要时对关键术语补充英文
+- 进行代码修改时，优先保持最小改动原则（minimal change）
+- 不确定项目约定时，先查阅现有文档与代码，再实施修改
+- 如遇潜在破坏性操作，应先说明风险
+
+### 文件修改记录要求
+
+- 修改文件时，尽量在对应文件或相关说明中注明修改时间
+- 修改完成后，应说明主要修改内容
+- 若文件本身不适合写入修改记录，则在回复中明确列出修改时间与主要变更
+
+### 项目上下文维护
+
+- 项目长期约定、术语、背景信息优先维护在 `memory.md`
+- 处理涉及项目背景、团队偏好、固定流程的问题时，应同时参考 `AGENTS.md` 与 `memory.md`
+- 新增约定时，采用追加方式，不删除既有内容
+
+## 用户新增规则整合（2026-03-23 00:00 Asia/Shanghai）
+
+主要修改内容：
+
+- 将用户新增的协作与文档记录规则集中整合到 `AGENTS.md`
+
+执行规则：
+
+- 尽量使用中文进行交互，除了必要的关键英文术语。
+- 本项目的环境是 `conda activate py312_agent`。
+- 对于新特性和重要优化，记录到 `changelog.md` 文件；如果该文件不存在，则在项目根目录新建。
+- 对于各种修改和优化，`README.md` 记录主要的项目特性和目录变更，其余内容放置到 `changelog.md` 文件。
+- 对于每个优化，其记录头部应注明优化时间和简要概括。

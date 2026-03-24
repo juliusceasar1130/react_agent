@@ -122,5 +122,18 @@
         "吊架"
       ]
     }
+  },
+    {
+    "document": "车身号，也称fis号码，是每一台产品车身的唯一id,带有id的车身绝大多数是正式的产品车，也有可能是调试车或者项目车",
+    "metadata": {
+      "type": "documentation",
+      "domain": "paint_shop_vehicle_tracking",
+      "process": "common",
+      "term": "车身号",
+      "aliases": [
+        "fis",
+        "车身号"
+      ]
+    }
   }
 ]
