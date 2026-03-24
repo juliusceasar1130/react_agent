@@ -75,6 +75,8 @@ def _create_llm(use_ollama: bool = False) -> Any:
         openai_api_key=settings.deepseek_api_key,
         openai_api_base=settings.deepseek_base_url,
         max_tokens=settings.agent_max_tokens,
+        request_timeout=settings.llm_timeout,
+        max_retries=settings.llm_max_retries,
     )
 
 

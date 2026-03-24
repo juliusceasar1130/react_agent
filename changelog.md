@@ -1,5 +1,18 @@
 # Changelog
 
+## 2026-03-24 16:35 - LangGraph 调试链路补充显式 LLM 超时与重试配置
+
+### 概述
+针对 `langgraph.json -> backend/app/agent/service.py` 这条开发调试链路，补充显式的网络 LLM 超时与重试配置，避免完全依赖底层 SDK 默认值，提升 OpenAI-compatible 远程模型调用时的可控性。
+
+### 变更内容
+- **配置增强**:
+  - 在 `backend/app/config.py` 新增 `LLM_TIMEOUT` 与 `LLM_MAX_RETRIES`
+  - 在根目录 `.env` 增加对应默认配置项
+- **Agent 服务增强**:
+  - 在 `backend/app/agent/service.py` 的 `ChatOpenAI` 初始化中显式传入 `request_timeout` 与 `max_retries`
+  - 使 `langgraph.json` 调试入口下的远程模型调用具备项目级可调的超时与重试策略
+
 ## 2026-03-24 16:05 - llama.cpp + Qwen3 Embedding 实践文档重构与沉淀
 
 ### 概述

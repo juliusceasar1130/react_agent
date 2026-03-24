@@ -52,6 +52,8 @@ class Settings(BaseSettings):
     # Agent配置
     agent_temperature: float = float(os.getenv("AGENT_TEMPERATURE", "0.1"))
     agent_max_tokens: int = int(os.getenv("AGENT_MAX_TOKENS", "2000"))
+    llm_timeout: float = float(os.getenv("LLM_TIMEOUT", "120"))
+    llm_max_retries: int = int(os.getenv("LLM_MAX_RETRIES", "2"))
     
     # RAG 配置
     rag_backend: str = os.getenv("RAG_BACKEND", "milvus_hybrid")  # pgvector | milvus_hybrid
