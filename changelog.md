@@ -1,5 +1,21 @@
 # Changelog
 
+## 2026-03-27 13:10 - 新增代码阅读与解释子智能体
+
+### 概述
+为项目补充一个专门用于“读代码、讲架构、梳流程、看调用链”的子智能体 `code-explainer`，同时提供项目级 `skill` 版本，方便在不同 Agent / CLI 场景下复用，帮助更快理解仓库结构与实现机制。
+
+### 变更内容
+- **新增子智能体定义**:
+  - 新增 `.claude/agents/code-explainer.md`
+  - 约束其聚焦代码阅读、架构讲解、流程拆解与调用链分析
+- **新增项目级 Skill**:
+  - 新增 `.agents/skills/code-explainer/SKILL.md`
+  - 统一沉淀代码解释类任务的工作流、输出结构与边界
+- **README 同步**:
+  - 补充“代码阅读讲解子智能体”能力说明
+  - 在项目结构中新增 `.claude/agents/` 与 `.agents/skills/code-explainer/` 入口
+
 ## 2026-03-24 16:35 - LangGraph 调试链路补充显式 LLM 超时与重试配置
 
 ### 概述
@@ -558,3 +574,6 @@ ollama pull qwen3:30b
 ### 备注
 - 原有 DeepSeek 配置保留在 `config.py` 中，可随时切换回去
 - 如需使用 DeepSeek，只需将 `services.py` 中的导入和初始化改回即可
+
+
+

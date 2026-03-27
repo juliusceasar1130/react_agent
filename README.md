@@ -17,6 +17,7 @@
 - **现代 UI/UX** - 基于 Neural Tones + AI Purple 设计系统，支持毛玻璃效果与流畅动画
 - **前后端分离** - FastAPI + Vue 3 + TypeScript
 - **技能系统 (Skills)** - 动态加载业务领域知识，支持大规模上下文管理 (Agent V2)
+- **代码阅读讲解子智能体** - 新增 code-explainer，用于解释代码架构、技术栈、流程与调用链，帮助快速上手仓库
 - **RAG 知识增强** - 支持 PGVector / Milvus Hybrid 检索，Milvus 可在 `Ollama` 与 `llama.cpp + Qwen3 Embedding` 之间切换，并可选接入 NVIDIA Rerank 精排
 
 
@@ -177,8 +178,17 @@ npm run dev
 
 ## 项目结构
 
-```
+``` 
 rearch_agent/
+├── .claude/                      # Claude Code 本地配置
+│   ├── agents/                   # 项目级子智能体定义
+│   │   └── code-explainer.md     # 代码阅读与解释子智能体
+│   ├── commands/                 # Claude 自定义命令
+│   └── skills/                   # Claude 本地技能
+├── .agents/                      # Codex / Agent 侧扩展能力
+│   └── skills/
+│       └── code-explainer/       # 代码阅读与解释 skill
+│           └── SKILL.md
 ├── backend/                        # 后端应用与相关文档
 │   ├── app/
 │   │   ├── main.py                # FastAPI 应用入口
@@ -464,3 +474,6 @@ MIT License
 ## 贡献
 
 欢迎提交 Issue 和 Pull Request！
+
+
+
