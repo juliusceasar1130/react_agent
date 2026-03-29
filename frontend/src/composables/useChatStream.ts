@@ -1,11 +1,16 @@
 // 流式聊天逻辑封装
 // 创建日期: 2025-01-01
+// 修改时间: 2026-03-27 17:42 Asia/Shanghai
+// 主要修改内容:
+// - 改为结构化 StreamEvent 驱动
+// - 实现本地完成落定 + 后台静默同步
+// - 2026-03-27 22:12 Asia/Shanghai: 错误场景直接落定为最终消息，避免残留过程态
 
 import { ref } from 'vue'
 import { sendChatStream, sendChatMessage } from '@/api/chat'
 import { useMessagesStore } from '@/stores/messages'
 import { useSessionsStore } from '@/stores/sessions'
-import type { Message } from '@/types'  // 新增 - 2025-01-01
+import type { Message, StreamEvent, StreamToolCall } from '@/types'
 
 /**
  * 流式聊天 Composable
@@ -67,39 +72,84 @@ export function useChatStream() {
    * 处理流式消息
    */
   const handleStreamMessage = async (sessionId: string, content: string) => {
+    let hasTerminalEvent = false
+
     // 开始流式消息（创建临时消息对象）
     messagesStore.startStreamingMessage(sessionId)
 
-    // 调用流式 API
+    const handleEvent = (event: StreamEvent) => {
+      switch (event.type) {
+        case 'token':
+          if (event.text) {
+            messagesStore.appendStreamingContent(event.text)
+          }
+          return
+
+        case 'status':
+          messagesStore.updateStreamingStatus(event.stage, event.text)
+          return
+
+        case 'tool_call':
+          messagesStore.upsertStreamingToolCall({
+            id: event.id,
+            name: event.name,
+            args_text: event.args_text,
+            status: event.status,
+          } satisfies StreamToolCall)
+          return
+
+        case 'tool_result':
+          messagesStore.setStreamingToolResult(event.id, event.content)
+          return
+
+        case 'final':
+          hasTerminalEvent = true
+          messagesStore.completeStreamingMessage({
+            id: event.message_id,
+            created_at: event.created_at,
+            content: event.content,
+            tool_calls: event.tool_calls ? JSON.stringify(event.tool_calls) : null,
+            tool_results: event.tool_results ? JSON.stringify(event.tool_results) : null,
+          })
+          sessionsStore.incrementMessageCount(sessionId, 2)
+          void messagesStore.fetchMessages(sessionId).catch((error) => {
+            console.error('静默同步消息失败:', error)
+          })
+          return
+
+        case 'error':
+          hasTerminalEvent = true
+          messagesStore.finalizeStreamingError({
+            id: event.message_id,
+            created_at: event.created_at,
+            content: event.message,
+          })
+          sessionsStore.incrementMessageCount(sessionId, 2)
+          void messagesStore.fetchMessages(sessionId).catch((error) => {
+            console.error('错误后的消息同步失败:', error)
+          })
+          return
+
+        default:
+          return
+      }
+    }
+
     await sendChatStream(
       { message: content, session_id: sessionId, stream: true },
-      // onChunk - 逐字追加内容
-      (chunk) => {
-        if (!chunk.is_final && chunk.content) {
-          messagesStore.appendStreamingContent(chunk.content)
-        }
-      },
-      // onError
-      (error) => {
-        console.error('流式错误:', error)
-        messagesStore.clearStreamingMessage()
-        throw error
-      },
-      // onComplete - 流式结束后清除临时状态并重新加载消息列表 - 2025-01-01
-      async () => {
-        messagesStore.clearStreamingMessage()
-        await messagesStore.fetchMessages(sessionId)
-        // 更新消息数量（user + assistant = 2条）- 2025-01-01
-        sessionsStore.incrementMessageCount(sessionId, 2)
-      }
+      handleEvent
     )
+
+    if (!hasTerminalEvent) {
+      throw new Error('流式响应未正常结束')
+    }
   }
 
   /**
    * 处理非流式消息
    */
   const handleNormalMessage = async (sessionId: string, content: string) => {
-    const response = await sendChatMessage({
+    await sendChatMessage({
       message: content,
       session_id: sessionId,
       stream: false

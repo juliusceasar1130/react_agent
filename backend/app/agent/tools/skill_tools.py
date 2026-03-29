@@ -10,6 +10,7 @@ from langchain.tools import ToolRuntime, tool
 from langgraph.types import Command
 
 from backend.app.skills import SKILLS
+from backend.app.agent.utils import emit_stream_status
 
 
 @tool
@@ -27,6 +28,12 @@ def load_skill(skill_name: str, runtime: ToolRuntime) -> Command:
     Returns:
         Command: Updates the agent state with skill content and tracks loaded skills
     """
+    emit_stream_status(
+        f"正在加载业务技能：{skill_name}",
+        stage="retrieving",
+        source="load_skill",
+    )
+
     # 查找请求的技能
     for skill in SKILLS:
         if skill["name"] == skill_name:

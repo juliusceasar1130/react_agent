@@ -8,45 +8,44 @@
 - **LangGraph 1.0+** - 使用最新的 `StateGraph` 构建复杂的工具调用工作流
 - **多会话管理** - 创建、删除、切换聊天会话
 - **流式/非流式输出** - 支持 SSE 实时流式响应
+- **结构化流式事件** - 流式聊天升级为 `token/status/tool_call/tool_result/final/error` 事件协议，默认界面仅展示最终结论，过程细节仅用于轻量状态提示或内部调试
 - **SQL Agent** - 官方推荐的多步骤工作流（表探测、Schema 解析、查询生成、SQL 校验、执行）
 - **SQL 安全拦截** - 基于正则黑名单的代码层硬校验，严格禁止 `DROP`, `DELETE`, `UPDATE` 等破坏性操作
 - **日期标准化** - 针对数据库日期字段（如 `DD/MM/YYYY`）的自动 ISO 8601 转换清洗
 - **SQL 弹性限流** - 智能判断查询行数，超限时自动截断并返回预览预览及系统警告，防止上下文溢出
 - **CSV 数据导出** - 支持将大量 SQL 结果直接导出为 CSV 文件供用户下载，全程不占 LLM 上下文
-- **状态持久化** - PostgresSaver 自动管理 Agent 状态
+- **状态持久化** - FastAPI 本地模式使用 `AsyncPostgresSaver`，托管模式由 LangGraph 自动管理 Agent 状态
 - **现代 UI/UX** - 基于 Neural Tones + AI Purple 设计系统，支持毛玻璃效果与流畅动画
 - **前后端分离** - FastAPI + Vue 3 + TypeScript
 - **技能系统 (Skills)** - 动态加载业务领域知识，支持大规模上下文管理 (Agent V2)
 - **代码阅读讲解子智能体** - 新增 code-explainer，用于解释代码架构、技术栈、流程与调用链，帮助快速上手仓库
 - **RAG 知识增强** - 支持 PGVector / Milvus Hybrid 检索，Milvus 可在 `Ollama` 与 `llama.cpp + Qwen3 Embedding` 之间切换，并可选接入 NVIDIA Rerank 精排
 
-
 ## 技术栈
 
 ### 后端
 
-| 技术           | 说明                              |
-| -------------- | --------------------------------- |
-| FastAPI        | 高性能异步 Web 框架                |
-| SQLAlchemy     | Python ORM                         |
-| PostgreSQL     | 关系型数据库                       |
-| LangGraph      | LLM 应用开发框架 (1.0+ 版本)       |
-| DeepSeek       | 联网大语言模型 (API)               |
-| Ollama         | 本地大模型推理服务 (可选)           |
-| PostgresSaver  | Agent 状态持久化                   |
-| psycopg_pool   | PostgreSQL 连接池                  |
+| 技术          | 说明                         |
+| ------------- | ---------------------------- |
+| FastAPI       | 高性能异步 Web 框架          |
+| SQLAlchemy    | Python ORM                   |
+| PostgreSQL    | 关系型数据库                 |
+| LangGraph     | LLM 应用开发框架 (1.0+ 版本) |
+| DeepSeek      | 联网大语言模型 (API)         |
+| Ollama        | 本地大模型推理服务 (可选)    |
+| AsyncPostgresSaver / PostgresSaver | Agent 状态持久化 |
+| psycopg_pool  | PostgreSQL 连接池            |
 
 ### 前端
 
-| 技术          | 说明                  |
-| ------------- | --------------------- |
-| Vue 3         | 渐进式 JavaScript 框架 |
-| TypeScript    | 类型安全              |
-| Vite          | 前端构建工具          |
-| Pinia         | 状态管理              |
-| Tailwind CSS  | CSS 框架 (支持 Neural Tones + AI Purple) |
-| Axios         | HTTP 客户端           |
-
+| 技术         | 说明                                     |
+| ------------ | ---------------------------------------- |
+| Vue 3        | 渐进式 JavaScript 框架                   |
+| TypeScript   | 类型安全                                 |
+| Vite         | 前端构建工具                             |
+| Pinia        | 状态管理                                 |
+| Tailwind CSS | CSS 框架 (支持 Neural Tones + AI Purple) |
+| Axios        | HTTP 客户端                              |
 
 ## Docker 快速部署（推荐）
 
@@ -134,20 +133,31 @@ QWEN_QUERY_INSTRUCTION_ENABLED=true
 QWEN_QUERY_INSTRUCTION='Given a web search query, retrieve relevant passages that answer the query'
 ```
 
+前端如需临时查看流式过程细节，可在 `frontend/.env.local` 中增加：
+
+```bash
+VITE_CHAT_DEBUG_STREAM=true
+```
+
+默认不配置或配置为 `false` 时，聊天界面仅展示最终结论，过程状态仅保留为轻量提示。
+
 ### 3. 安装依赖
 
 **后端依赖**：
+
 ```bash
 pip install -r requirements.txt
 ```
 
 或手动安装核心依赖：
+
 ```bash
 pip install fastapi uvicorn sqlalchemy psycopg[binary,pool]
 pip install langchain langchain-deepseek langgraph-checkpoint-postgres cryptography
 ```
 
 **前端依赖**：
+
 ```bash
 cd frontend
 npm install
@@ -157,7 +167,7 @@ npm install
 
 ```bash
 # 创建数据库
-createdb rearch_agent
+createdb agent_memory
 
 # 启动后端服务（会自动创建表）
 uvicorn backend.app.main:app --reload --host 0.0.0.0 --port 8000
@@ -170,7 +180,22 @@ cd frontend
 npm run dev
 ```
 
-### 6. 访问应用
+### 6. 启动 LangGraph Dev 调试入口
+
+项目约定的 Python 环境为 `py312_agent`。运行 `langgraph dev --allow-blocking` 前，请先切换到对应 conda 环境：
+
+```bash
+conda activate py312_agent
+langgraph dev --allow-blocking
+```
+
+Windows CMD 下也可以直接使用根目录脚本：
+
+```bat
+start_langgraph_dev.bat
+```
+
+### 7. 访问应用
 
 - 前端界面：http://localhost:5173
 - 后端 API 文档：http://localhost:8000/docs
@@ -178,7 +203,7 @@ npm run dev
 
 ## 项目结构
 
-``` 
+```
 rearch_agent/
 ├── .claude/                      # Claude Code 本地配置
 │   ├── agents/                   # 项目级子智能体定义
@@ -198,11 +223,11 @@ rearch_agent/
 │   │   ├── schemas.py             # Pydantic Schema
 │   │   ├── database.py            # 数据库连接
 │   │   ├── config.py              # 配置管理
-│   │   ├── services.py            # 基础版服务
+│   │   ├── services.py            # FastAPI Agent 兼容适配层
 │   │   ├── services_graph.py      # LangGraph SQL Agent 服务
 │   │   ├── test_*.py              # 后端冒烟 / 功能测试脚本
 │   │   └── agent/                 # Agent 模块化架构核心
-│   │       ├── service.py             # 核心服务编排
+│   │       ├── service.py             # Agent V2 核心运行时（兼容 LangGraph CLI）
 │   │       ├── service_llama.cpp.py   # 本地 llama.cpp 适配服务实验入口
 │   │       ├── state.py               # Graph 状态定义
 │   │       ├── constants.py           # 常量定义
@@ -244,33 +269,34 @@ rearch_agent/
 
 ### 会话管理
 
-| 方法   | 路径                     | 功能               |
-| ------ | ------------------------ | ------------------ |
-| POST   | `/api/chat/sessions`     | 创建会话           |
-| GET    | `/api/chat/sessions`     | 获取所有会话       |
-| GET    | `/api/chat/sessions/{id}` | 获取单个会话       |
-| PUT    | `/api/chat/sessions/{id}` | 更新会话           |
-| DELETE | `/api/chat/sessions/{id}` | 删除会话           |
+| 方法   | 路径                      | 功能         |
+| ------ | ------------------------- | ------------ |
+| POST   | `/api/chat/sessions`      | 创建会话     |
+| GET    | `/api/chat/sessions`      | 获取所有会话 |
+| GET    | `/api/chat/sessions/{id}` | 获取单个会话 |
+| PUT    | `/api/chat/sessions/{id}` | 更新会话     |
+| DELETE | `/api/chat/sessions/{id}` | 删除会话     |
 
 ### 消息管理
 
-| 方法   | 路径                                | 功能                 |
-| ------ | ----------------------------------- | -------------------- |
-| POST   | `/api/chat/messages`                | 创建消息             |
-| GET    | `/api/chat/messages/{id}`           | 获取单条消息         |
-| GET    | `/api/chat/sessions/{id}/messages`  | 获取会话的所有消息   |
-| DELETE | `/api/chat/messages/{id}`           | 删除消息             |
+| 方法   | 路径                               | 功能               |
+| ------ | ---------------------------------- | ------------------ |
+| POST   | `/api/chat/messages`               | 创建消息           |
+| GET    | `/api/chat/messages/{id}`          | 获取单条消息       |
+| GET    | `/api/chat/sessions/{id}/messages` | 获取会话的所有消息 |
+| DELETE | `/api/chat/messages/{id}`          | 删除消息           |
 
 ### Agent 聊天
 
 | 方法 | 路径                | 功能               |
 | ---- | ------------------- | ------------------ |
 | POST | `/api/chat/message` | 发送消息（非流式） |
-| POST | `/api/chat/stream`  | 发送消息（流式）   |
+| POST | `/api/chat/stream`  | 发送消息（流式，结构化 SSE 事件） |
 
 #### 示例请求
 
 **非流式**：
+
 ```bash
 curl -X POST http://localhost:8000/api/chat/message \
   -H "Content-Type: application/json" \
@@ -282,6 +308,7 @@ curl -X POST http://localhost:8000/api/chat/message \
 ```
 
 **流式**：
+
 ```bash
 curl -X POST http://localhost:8000/api/chat/stream \
   -H "Content-Type: application/json" \
@@ -292,23 +319,39 @@ curl -X POST http://localhost:8000/api/chat/stream \
   }'
 ```
 
+流式接口返回结构化 SSE 事件，核心事件类型包括：
+
+- `token`：文本增量
+- `status`：阶段状态（如检索中、查询中、整理答案中）
+- `tool_call`：工具调用开始或参数流
+- `tool_result`：工具结果
+- `final`：最终答案与聚合后的工具信息
+- `error`：错误事件
+
 ## 核心功能
 
 ### PostgresSaver 状态管理
 
-Agent 的对话状态由 PostgresSaver 自动管理，无需手动加载历史：
+Agent 的对话状态由 checkpointer 自动管理，无需手动加载历史。当前项目约定：
+
+- FastAPI 本地模式：`AsyncConnectionPool + AsyncPostgresSaver`
+- LangGraph 托管模式：由平台自动注入 `checkpointer/store`
+
+本地模式示例：
 
 ```python
 # 初始化
-from psycopg_pool import ConnectionPool
-from langgraph.checkpoint.postgres import PostgresSaver
+from psycopg_pool import AsyncConnectionPool
+from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
 
-self.conn_pool = ConnectionPool(conninfo=settings.database_url)
-self.checkpointer = PostgresSaver(self.conn_pool)
+self.conn_pool = AsyncConnectionPool(conninfo=settings.database_url, open=False)
+await self.conn_pool.open(wait=True)
+self.checkpointer = AsyncPostgresSaver(self.conn_pool)
+await self.checkpointer.setup()
 
 # 使用
 config = {"configurable": {"thread_id": str(session_id)}}
-result = agent.invoke({"messages": [...]}, config=config)
+result = await agent.ainvoke({"messages": [...]}, config=config)
 ```
 
 ### Agent 模块化架构 (Agent V2)
@@ -336,10 +379,12 @@ def normalize_dates_in_text(text: str):
 ### 数据库表结构
 
 **业务表**（用于前端展示）：
+
 - `chat_sessions` - 会话信息
 - `chat_messages` - 聊天消息
 
 **检查点表**（PostgresSaver 自动创建）：
+
 - `checkpoints` - Agent 状态存储
 - `checkpoint_blobs` - 大型二进制数据
 - `checkpoint_writes` - 写入记录
@@ -350,23 +395,23 @@ def normalize_dates_in_text(text: str):
 
 #### 召回数量规则汇总 (Recall Rules)
 
-| 组合模式 | 第一阶段 (初筛召回 - `doc_k`) | 第二阶段 (精排保留 - `top_n`) | 最终注入数量 |
-| :--- | :--- | :--- | :--- |
-| **仅混合检索** | **5 条** (硬编码在 `service.py`) | 无 | **5 条** |
-| **混合检索 + Rerank** | **10 条** (算法自动放大) | **3 条** (由 `RERANK_TOP_N` 控制) | **3 条** |
+| 组合模式              | 第一阶段 (初筛召回 - `doc_k`)    | 第二阶段 (精排保留 - `top_n`)     | 最终注入数量 |
+| :-------------------- | :------------------------------- | :-------------------------------- | :----------- |
+| **仅混合检索**        | **5 条** (硬编码在 `service.py`) | 无                                | **5 条**     |
+| **混合检索 + Rerank** | **10 条** (算法自动放大)         | **3 条** (由 `RERANK_TOP_N` 控制) | **3 条**     |
 
 #### 相关配置参数 (Configuration Parameters)
 
-| 环境变量 | 默认值 | 说明 |
-| :--- | :--- | :--- |
-| `RAG_BACKEND` | `milvus_hybrid` | 检索后端：`pgvector` (纯向量) 或 `milvus_hybrid` (混合) |
-| `RAG_SIMILARITY_THRESHOLD` | `None` | 初筛阈值。针对 RRF 分数过滤，推荐值 **0.01 ~ 0.05** |
-| `RERANK_ENABLED` | `false` | 是否开启 NVIDIA NIM 精排层 |
-| `RERANK_TOP_N` | `3` | 精排后最终保留并注入 LLM 上下文的文档数量 |
-| `RERANK_SCORE_THRESHOLD` | `0.0` | 精排评分阈值 |
-| `EMBEDDING_PROVIDER` | `ollama` | Milvus 稠密向量 provider：`ollama` 或 `llama_cpp` |
-| `LLAMA_CPP_EMBED_BASE_URL` | `http://127.0.0.1:8081` | `llama.cpp` embedding 服务地址 |
-| `LLAMA_CPP_EMBED_MODEL` | `Qwen/Qwen3-Embedding-0.6B-GGUF:q8_0` | `llama.cpp` 使用的 Qwen3 Embedding 模型标识 |
+| 环境变量                   | 默认值                                | 说明                                                    |
+| :------------------------- | :------------------------------------ | :------------------------------------------------------ |
+| `RAG_BACKEND`              | `milvus_hybrid`                       | 检索后端：`pgvector` (纯向量) 或 `milvus_hybrid` (混合) |
+| `RAG_SIMILARITY_THRESHOLD` | `None`                                | 初筛阈值。针对 RRF 分数过滤，推荐值 **0.01 ~ 0.05**     |
+| `RERANK_ENABLED`           | `false`                               | 是否开启 NVIDIA NIM 精排层                              |
+| `RERANK_TOP_N`             | `3`                                   | 精排后最终保留并注入 LLM 上下文的文档数量               |
+| `RERANK_SCORE_THRESHOLD`   | `0.0`                                 | 精排评分阈值                                            |
+| `EMBEDDING_PROVIDER`       | `ollama`                              | Milvus 稠密向量 provider：`ollama` 或 `llama_cpp`       |
+| `LLAMA_CPP_EMBED_BASE_URL` | `http://127.0.0.1:8081`               | `llama.cpp` embedding 服务地址                          |
+| `LLAMA_CPP_EMBED_MODEL`    | `Qwen/Qwen3-Embedding-0.6B-GGUF:q8_0` | `llama.cpp` 使用的 Qwen3 Embedding 模型标识             |
 
 > [!TIP]
 > **RRF 分数说明**：混合检索使用的是 RRF 融合机制，其分数通常在 0 到 0.1 之间，远小于传统的余弦相似度。调整 `RAG_SIMILARITY_THRESHOLD` 时请从较小的值开始尝试。
@@ -375,6 +420,7 @@ def normalize_dates_in_text(text: str):
 > 当 `EMBEDDING_PROVIDER` 从 `ollama` 切换到 `llama_cpp`（或反向切换）后，需要重新执行 `python -m backend.app.agent.vector.milvus_init.init_milvus` 重建 Milvus Collection，确保入库向量与查询向量来自同一套 embedding 配置。
 
 架构图：
+
 ```mermaid
 graph LR
     A[用户提问] --> B(向量检索 Top-10)
@@ -405,6 +451,9 @@ npm run dev
 
 ### 技术文档
 
+- [聊天流式输出结构化事件开发指南](./backend/docs/聊天流式输出结构化事件开发指南.md)
+- [Milvus RAG 异步化故障排查指南](./backend/docs/Milvus-RAG-异步化故障排查指南.md)
+- [Milvus 延迟初始化工作流程详解](./backend/docs/延迟初始化工作流程详解.md)
 - [llama.cpp + Qwen3 Embedding 接入与复用最佳实践](./backend/docs/llamacpp-qwen3-embedding-local-deployment.md)
 - [RAG 架构与技术总结](./backend/docs/RAG架构与技术总结.md)
 - [FastAPI 与 SQLAlchemy 知识点](./backend/docs/FastAPI与SQLAlchemy知识点复习.md)
@@ -416,6 +465,7 @@ npm run dev
 ### 代理连接错误 (Connection error)
 
 **错误现象**：
+
 ```
 httpcore.ConnectError: [WinError 10061] 由于目标计算机积极拒绝，无法连接。
 connect_tcp.started host='127.0.0.1' port=7890
@@ -445,15 +495,21 @@ llm = ChatDeepSeek(
 
 ### PostgresSaver 报错
 
-确保使用 `ConnectionPool` 初始化：
+FastAPI 本地模式下，确保“同步/异步接口成对使用”：
 
 ```python
-# ✅ 正确
+# ✅ 正确：异步 saver 搭配异步调用
+self.conn_pool = AsyncConnectionPool(conninfo=DB_URL, open=False)
+await self.conn_pool.open(wait=True)
+self.checkpointer = AsyncPostgresSaver(self.conn_pool)
+await self.checkpointer.setup()
+result = await agent.ainvoke({...}, config=config)
+
+# ❌ 错误：异步 graph 搭配同步 saver
 self.conn_pool = ConnectionPool(conninfo=DB_URL)
 self.checkpointer = PostgresSaver(self.conn_pool)
-
-# ❌ 错误
-self.checkpointer = PostgresSaver.from_conn_string(DB_URL)
+async for chunk in agent.astream(...):
+    ...
 ```
 
 ### Agent 不记得对话
@@ -465,6 +521,11 @@ config = {"configurable": {"thread_id": str(session_id)}}
 result = agent.invoke({...}, config=config)
 ```
 
+从 `2026-03-27 20:40` 起，项目采用双模式持久化策略：
+
+- FastAPI 本地模式通过 `backend/app/services.py` 适配层在 startup 中创建 `AsyncPostgresSaver`
+- `langgraph dev` 调试入口通过 `langgraph.json -> backend/app/agent/service.py:build_agent_graph` 加载工厂函数，托管环境下由 LangGraph 自动注入 `checkpointer/store`
+
 更多问题请参考 [CLAUDE.md](./CLAUDE.md)。
 
 ## 许可证
@@ -474,6 +535,3 @@ MIT License
 ## 贡献
 
 欢迎提交 Issue 和 Pull Request！
-
-
-

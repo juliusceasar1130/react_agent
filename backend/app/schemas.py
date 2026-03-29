@@ -66,8 +66,22 @@ class ChatResponse(BaseModel):
     is_complete: bool = True
 
 
-# 流式响应块
-class ChatStreamChunk(BaseModel):
-    content: str
-    is_final: bool = False
+# 流式响应事件
+class ChatStreamEvent(BaseModel):
+    type: str
+    text: Optional[str] = None
+    node: Optional[str] = None
+    stage: Optional[str] = None
+    message: Optional[str] = None
+    retryable: Optional[bool] = None
+    content: Optional[str] = None
+    source: Optional[str] = None
+    id: Optional[str] = None
+    name: Optional[str] = None
+    args_text: Optional[str] = None
+    status: Optional[str] = None
+    detail: Optional[Dict[str, Any]] = None
     tool_calls: Optional[List[Dict[str, Any]]] = None
+    tool_results: Optional[Dict[str, Any]] = None
+    message_id: Optional[str] = None
+    created_at: Optional[datetime] = None

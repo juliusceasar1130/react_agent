@@ -23,19 +23,84 @@ export interface Message {
   content: string
   session_id: string
   created_at: string
+  tool_calls?: string | null
+  tool_results?: string | null
 }
 
 export interface MessageCreate {
   role: Message['role']
   content: string
   session_id: string
+  tool_calls?: string | null
+  tool_results?: string | null
 }
 
-// 流式响应块类型 - 2025-01-01
-export interface StreamChunk {
+export type StreamStage = 'thinking' | 'retrieving' | 'querying' | 'writing'
+
+export interface StreamToolCall {
+  id: string
+  name: string
+  args?: Record<string, unknown> | unknown[] | string
+  args_text?: string
+  status?: 'started' | 'streaming' | 'completed'
+}
+
+export interface StreamToolResult {
+  id: string
   content: string
-  is_final: boolean
-  tool_calls: any[] | null
+}
+
+export type StreamEvent =
+  | {
+      type: 'token'
+      text: string
+      node?: string
+    }
+  | {
+      type: 'status'
+      stage: StreamStage
+      text: string
+      source?: string
+      detail?: Record<string, unknown>
+    }
+  | {
+      type: 'tool_call'
+      id: string
+      name: string
+      args_text?: string
+      status: 'started' | 'streaming' | 'completed'
+    }
+  | {
+      type: 'tool_result'
+      id: string
+      content: string
+    }
+  | {
+      type: 'final'
+      content: string
+      tool_calls?: StreamToolCall[] | null
+      tool_results?: Record<string, string> | null
+      message_id?: string
+      created_at?: string
+    }
+  | {
+      type: 'error'
+      message: string
+      retryable?: boolean
+      message_id?: string
+      created_at?: string
+    }
+  | {
+      type: string
+      [key: string]: unknown
+    }
+
+export interface FinalizedStreamingMessage {
+  id?: string
+  created_at?: string
+  content?: string
+  tool_calls?: string | null
+  tool_results?: string | null
 }
 
 // 流式消息状态（临时显示）- 2025-01-01
@@ -44,8 +109,13 @@ export interface StreamingMessage {
   session_id: string
   role: 'assistant'
   content: string
-  isStreaming: true
-  timestamp: Date
+  created_at: string
+  isStreaming: boolean
+  statusText: string | null
+  stage: StreamStage | null
+  toolCalls: StreamToolCall[]
+  toolResults: Record<string, string>
+  error: string | null
 }
 
 // 聊天请求类型 - 2025-01-01

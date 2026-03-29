@@ -18,6 +18,7 @@ from langchain.tools import ToolRuntime, tool as langchain_tool
 from sqlalchemy import create_engine, text
 
 from backend.app.agent.tools.sql_tools import FORBIDDEN_SQL_PATTERN
+from backend.app.agent.utils import emit_stream_status
 from backend.app.config import settings
 
 logger = logging.getLogger(__name__)
@@ -71,6 +72,11 @@ def create_csv_export_tool(db_uri: str) -> Any:
 
         try:
             # 2. 准备导出环境：确保临时存储目录已创建
+            emit_stream_status(
+                "正在导出完整 CSV 文件",
+                stage="querying",
+                source="export_to_csv",
+            )
             os.makedirs(CSV_EXPORT_DIR, exist_ok=True)
 
             # 3. 构造唯一文件名：使用时间戳防止并发导出时的文件冲突
@@ -101,6 +107,11 @@ def create_csv_export_tool(db_uri: str) -> Any:
             logger.info(
                 "CSV 导出成功: %s (%d 行, %d 列, %.1f KB)",
                 filepath, row_count, col_count, file_size_kb,
+            )
+            emit_stream_status(
+                "CSV 导出完成",
+                stage="writing",
+                source="export_to_csv",
             )
 
             # 释放连接池资源

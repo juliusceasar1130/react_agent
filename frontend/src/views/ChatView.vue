@@ -29,7 +29,9 @@
     <main class="flex-1 flex flex-col bg-gradient-to-br from-bg via-surface to-primary/5">
       <header v-if="currentSession" class="px-6 py-4 bg-surface/80 backdrop-blur-sm border-b border-neutral-200 shadow-sm animate-fade-in">
         <h3 class="text-xl font-semibold text-text">{{ currentSession.title }}</h3>
-        <p class="text-sm text-neutral-500 mt-0.5">AI 智能助手</p>
+        <p class="text-sm mt-0.5" :class="streamHeaderClass">
+          {{ streamHeaderText }}
+        </p>
       </header>
       <div v-else class="px-6 py-4 bg-surface/80 backdrop-blur-sm border-b border-neutral-200">
         <p class="text-neutral-500">选择或创建一个会话开始对话</p>
@@ -98,6 +100,7 @@
 <script setup lang="ts">
 import { computed, ref, nextTick } from 'vue'
 import { useSessionsStore } from '@/stores/sessions'
+import { useMessagesStore } from '@/stores/messages'
 import { useChatStream } from '@/composables/useChatStream'
 import ToggleSwitch from '@/components/ToggleSwitch.vue'
 import SessionList from '@/components/SessionList.vue'
@@ -105,9 +108,29 @@ import MessageList from '@/components/MessageList.vue'
 import EmptyState from '@/components/EmptyState.vue'
 
 const sessionsStore = useSessionsStore()
+const messagesStore = useMessagesStore()
 const { isSending, streamMode, sendMessage } = useChatStream()
 
 const currentSession = computed(() => sessionsStore.currentSession)
+const currentStreamingMessage = computed(() => messagesStore.streamingMessage)
+const streamHeaderText = computed(() => {
+  if (currentStreamingMessage.value?.error) {
+    return currentStreamingMessage.value.error
+  }
+  if (streamMode.value && currentStreamingMessage.value?.statusText) {
+    return currentStreamingMessage.value.statusText
+  }
+  return 'AI 智能助手'
+})
+const streamHeaderClass = computed(() => {
+  if (currentStreamingMessage.value?.error) {
+    return 'text-sm text-red-500'
+  }
+  if (streamMode.value && currentStreamingMessage.value?.statusText) {
+    return 'text-sm text-primary'
+  }
+  return 'text-sm text-neutral-500'
+})
 const inputText = ref('')
 const messageListRef = ref<InstanceType<typeof MessageList> | null>(null)
 

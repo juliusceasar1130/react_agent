@@ -1,5 +1,175 @@
 # Changelog
 
+## 2026-03-27 22:12 - 聊天界面默认仅展示最终结论
+
+### 概述
+优化聊天前端展示策略，将“过程信息”和“最终答案”分层处理。普通用户在问答完成后只看到最终结论，生成过程中的状态与工具细节仅保留为轻量提示或内部调试信息，从而减少信息噪音，提升阅读效率。
+
+### 变更内容
+- **OpenSpec 提案补充**:
+  - 新增 `openspec/changes/update-chat-final-only-display/`
+  - 为“默认仅展示最终结论”补齐 proposal / tasks / spec delta
+- **前端展示收敛**:
+  - `frontend/src/components/MessageItem.vue` 默认不再展示状态文本、工具调用、工具结果和错误细节
+  - 新增 `frontend/src/config/chat.ts`，通过 `VITE_CHAT_DEBUG_STREAM=true` 恢复内部调试视图
+- **流式错误体验修复**:
+  - `frontend/src/stores/messages.ts` 新增错误落定逻辑，失败时直接收敛为最终 assistant 消息
+  - `frontend/src/composables/useChatStream.ts` 避免错误后残留半成品过程态消息
+- **README 同步**:
+  - 更新功能说明，强调默认用户界面仅展示最终结论
+
+## 2026-03-27 20:55 - 新增 Milvus RAG 异步化故障排查指南
+
+### 概述
+围绕本次 Milvus RAG 检索失败事件，系统整理从故障现象、排查路径、根因分析到最终 async 化修复方案的完整经验，帮助后续快速判断“空检索结果”到底是召回失败还是初始化上下文失败。
+
+### 变更内容
+- **新增文档**:
+  - 新增 `backend/docs/Milvus-RAG-异步化故障排查指南.md`
+- **文档内容覆盖**:
+  - 同步 `PostgresSaver`、`stream()/astream()`、Milvus lazy init 之间的因果关系
+  - `ThreadPoolExecutor` 工作线程缺少 event loop 的真实触发链
+  - 为什么表面上的“未检索到业务知识”其实是初始化失败后的降级结果
+  - 最终为什么选择“本地 FastAPI 全链路切回 async”而不是在线程池里补 event loop
+- **README 同步**:
+  - 在技术文档列表新增该指南入口
+
+## 2026-03-27 20:40 - 本地 FastAPI 切回 AsyncPostgresSaver 与异步流式执行
+
+### 概述
+将本地 FastAPI 运行链路从“同步 `PostgresSaver` + `stream()/invoke()`”切回“`AsyncPostgresSaver` + `astream()/ainvoke()`”，并增加显式 startup/shutdown 生命周期管理，解决同步 saver 限制和 Milvus 延迟初始化在线程池中缺少 event loop 的问题。
+
+### 变更内容
+- **本地异步持久化**:
+  - `backend/app/agent/service.py` 新增 `AsyncConnectionPool + AsyncPostgresSaver` 初始化工厂
+  - 新增 `create_local_async()` 与 `aclose()`，供 FastAPI 本地模式显式初始化和关闭
+- **FastAPI 生命周期改造**:
+  - `backend/app/services.py` 去掉模块级 eager `agent_service`
+  - 新增 `initialize_agent_service()` / `get_agent_service()` / `shutdown_agent_service()`
+  - `backend/app/main.py` 在 `lifespan` 中显式初始化与回收 Agent 资源
+- **请求执行链路恢复异步**:
+  - `backend/app/services.py` 的非流式和流式调用切回 `ainvoke()` / `astream()`
+  - 继续保留结构化 SSE 事件协议与前端兼容逻辑
+- **文档同步**:
+  - 更新 `backend/docs/聊天流式输出结构化事件开发指南.md`
+  - 更新 `backend/docs/延迟初始化工作流程详解.md`
+  - 更新 `README.md` 中本地持久化与运行模式说明
+
+## 2026-03-27 18:45 - 新增聊天流式输出结构化事件开发指南
+
+### 概述
+基于本次聊天流式协议升级、同步/异步 streaming 兼容处理、工具状态一致性修复和前端 SSE 重构实践，沉淀一份可复用的开发指南，方便后续在其他 Agent / Chat 场景中快速复用和学习。
+
+### 变更内容
+- **新增文档**:
+  - 新增 `backend/docs/聊天流式输出结构化事件开发指南.md`
+- **文档内容覆盖**:
+  - 结构化流式事件协议设计
+  - 后端 `messages / updates / custom` 分工建议
+  - 前端 SSE buffer 解析与 streaming state 建模
+  - `astream` / `stream` 与 `PostgresSaver` 兼容性踩坑
+  - 工具状态“执行中/已完成”一致性处理经验
+- **README 同步**:
+  - 在技术文档列表新增该指南入口
+
+## 2026-03-27 17:50 - 聊天流式协议升级为结构化事件流
+
+### 概述
+将原有“纯文本 chunk + 最终块补工具信息”的流式链路，升级为前后端协同的结构化 SSE 事件流。后端切换到 LangGraph v2 多模式 streaming，前端重写 SSE 解析与流式状态管理，使用户可以看到更稳定的实时文本、阶段状态、工具调用、工具结果和错误态。
+
+### 变更内容
+- **OpenSpec 提案补充**:
+  - 新增 `openspec/changes/update-chat-streaming-protocol/`
+  - 为流式协议升级补齐 proposal / tasks / spec delta
+- **后端流式协议升级**:
+  - `backend/app/services.py` 改为输出 `token/status/tool_call/tool_result/final/error` 结构化事件
+  - 使用 `agent.astream(..., stream_mode=[\"messages\", \"updates\", \"custom\"], version=\"v2\")`
+  - 新增 `backend/app/agent/utils/streaming.py`，为工具与中间件提供 custom status 事件写入 helper
+  - `backend/app/api.py` 在 `final/error` 路径统一处理 assistant 消息落库，并保留 `[DONE]` 作为传输层结束标记
+- **前端流式消费重构**:
+  - `frontend/src/api/chat.ts` 重写 SSE buffer 解析逻辑，兼容跨 chunk JSON
+  - `frontend/src/types/index.ts` 引入 `StreamEvent`、`StreamToolCall`、结构化 `StreamingMessage`
+  - `frontend/src/stores/messages.ts` / `frontend/src/composables/useChatStream.ts` 改为事件驱动，采用“本地完成落定 + 后台静默同步”
+  - `frontend/src/components/MessageItem.vue` / `frontend/src/views/ChatView.vue` 增强状态文案、工具执行区和错误态展示
+
+## 2026-03-27 16:10 - 前端开发环境代理到本地后端 8000
+
+### 概述
+针对当前后端服务运行在 `http://localhost:8000`、而前端仍使用 `/rearch/...` 相对路径请求的情况，在 Vite 开发环境中补充代理转发规则，避免逐个修改前端 API 文件，并保持开发环境与生产环境的路径风格一致。
+
+### 变更内容
+- **Vite 开发代理**:
+  - 在 `frontend/vite.config.ts` 的 `server.proxy` 中新增 `/rearch -> http://localhost:8000`
+  - 通过 `rewrite` 去掉请求前缀 `/rearch`，使后端实际接收到 `/api/chat/...`
+- **兼容性说明**:
+  - 保持 `frontend/src/api/index.ts` 与 `frontend/src/api/chat.ts` 现有相对路径写法不变
+  - 前端开发时浏览器仍访问 `/rearch/api/...`，由 Vite 代理转发到本地 FastAPI `8000`
+
+### 补充修正（2026-03-27 16:22）
+- 将 `frontend/vite.config.ts` 的代理匹配从 `/rearch` 收窄为 `/rearch/api`
+- 避免首页路由 `/rearch/` 被误代理到后端根路径 `/`，导致浏览器显示 FastAPI JSON 而不是前端页面
+
+## 2026-03-27 15:45 - 精简 service.py 运行模式识别并补充编排注释
+
+### 概述
+在保持 FastAPI / LangGraph CLI 双模式兼容的前提下，继续收敛 `backend/app/agent/service.py` 的实现复杂度，让运行模式识别、持久化注入和 Agent 编排主干更容易阅读和维护。
+
+### 变更内容
+- **运行模式识别简化**:
+  - 用更直观的 `LANGGRAPH_API_URL || PATH contains langgraph` 规则判断托管环境
+  - 保留日志输出，明确区分“LangGraph API 托管环境”和“本地独立运行模式”
+- **持久化注入简化**:
+  - 本地模式下通过 `agent_kwargs` 显式传入 `store/checkpointer`
+  - 托管模式下保持空注入，由 LangGraph 运行时自动接管
+- **可读性增强**:
+  - 为环境识别、持久化初始化、Agent 编排主干补充了精简注释
+  - `build_agent_graph` 增加了对 LangGraph factory 参数用途的说明
+
+## 2026-03-27 15:23 - SQL Agent 服务层整合并兼容 LangGraph CLI 双模式
+
+### 概述
+将 `backend/app/services.py` 从旧的一体化 SQL Agent 实现重构为 FastAPI 兼容适配层，底层统一复用 `backend/app/agent/service.py` 的 Agent V2 核心运行时。同时补齐 `langgraph dev` / LangGraph API 场景下的双模式兼容，支持“FastAPI 本地手动初始化 PostgresSaver”与“LangGraph 托管环境自动注入 checkpointer/store”两条运行链路。
+
+### 变更内容
+- **核心运行时重构**:
+  - `backend/app/agent/service.py` 新增运行模式识别
+  - `SQLAgentService` 支持注入 `checkpointer` / `store`
+  - 本地独立运行模式下自动回退创建 `ConnectionPool + PostgresSaver`
+  - 移除模块级 `logging.basicConfig(...)` 与导入即初始化的全局 `agent_service`
+- **LangGraph 入口调整**:
+  - `langgraph.json` 从模块级对象切换为工厂函数入口 `backend/app/agent/service.py:build_agent_graph`
+  - 兼容 LangGraph CLI 的 `config + runtime` 工厂调用约束
+- **FastAPI 兼容层重构**:
+  - `backend/app/services.py` 改为兼容适配层
+  - 保留 `process_message()` / `process_stream()` 与 `tool_calls/tool_results` 旧返回契约
+  - API 层无需调整请求/响应结构
+- **文档同步**:
+  - `README.md` 更新 `services.py` 与 `agent/service.py` 的职责说明
+  - 补充 FastAPI / LangGraph CLI 双模式持久化说明
+
+## 2026-03-27 13:55 - 修正 Codex 环境中的 LangGraph 启动命令
+
+### 概述
+修正 `.codex/environments/environment.toml` 中的 LangGraph 启动配置，避免因命令名写错且未先激活 `py312_agent` 环境而导致 PowerShell 报错找不到命令。
+
+### 变更内容
+- **环境配置修正**:
+  - 为 `.codex/environments/environment.toml` 补充 `setup.script = "conda activate py312_agent"`
+  - 将错误的 `Langgraph dev --allow-blocking` 修正为 `langgraph dev --allow-blocking`
+
+## 2026-03-27 13:35 - LangGraph Dev 启动补充 conda 环境切换
+
+### 概述
+为 `langgraph dev --allow-blocking` 这条本地调试命令补充明确的 conda 环境切换要求，避免未激活 `py312_agent` 时出现依赖或解释器不一致问题。
+
+### 变更内容
+- **新增启动脚本**:
+  - 新增根目录 `start_langgraph_dev.bat`
+  - 在执行 `langgraph dev --allow-blocking` 前自动执行 `conda activate py312_agent`
+- **README 同步**:
+  - 新增 LangGraph Dev 调试入口说明
+  - 明确先激活 `py312_agent`，并补充 Windows CMD 下的脚本启动方式
+
 ## 2026-03-27 13:10 - 新增代码阅读与解释子智能体
 
 ### 概述

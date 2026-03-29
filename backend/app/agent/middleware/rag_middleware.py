@@ -15,6 +15,7 @@ from langchain_core.documents import Document
 from langgraph.runtime import Runtime
 
 from backend.app.agent.state import CustomState
+from backend.app.agent.utils import emit_stream_status
 from backend.app.agent.vector.base import BaseRetriever, BaseReranker, ScoredDocument
 
 logger = logging.getLogger(__name__)
@@ -150,6 +151,11 @@ class BusinessRagMiddleware(AgentMiddleware[CustomState]):
         retrieved_docs: List[Document] = []
 
         try:
+            emit_stream_status(
+                "正在检索业务知识",
+                stage="retrieving",
+                source="business_rag",
+            )
             # 使用统一检索接口，根据阈值过滤
             scored_results: List[ScoredDocument] = self.retriever.retrieve(
                 query=user_query,
@@ -188,6 +194,11 @@ class BusinessRagMiddleware(AgentMiddleware[CustomState]):
                     logger.info(
                         "BusinessRagMiddleware: Rerank 完成，精排后保留 %d 条文档",
                         len(retrieved_docs),
+                    )
+                    emit_stream_status(
+                        f"业务知识检索完成，命中 {len(retrieved_docs)} 条候选",
+                        stage="retrieving",
+                        source="business_rag",
                     )
                 except Exception as e:
                     logger.warning(

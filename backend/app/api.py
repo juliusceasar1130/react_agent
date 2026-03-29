@@ -4,7 +4,7 @@ import logging
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
-from typing import List
+from typing import Any, List
 
 logger = logging.getLogger(__name__)
 
@@ -34,13 +34,16 @@ from .schemas import (
     MessageCreate,
     MessageResponse,
 )
-from app import crud
-#-------------------------------------------------------------------
-from .services import agent_service
-# 使用graph_agent_service
-# from .services_graph import agent_service
+from . import crud
+
+from .services import get_agent_service  # FastAPI 兼容层，内部复用 Agent V2 核心服务
 
 router = APIRouter(prefix="/api/chat", tags=["chat"])
+
+
+def _encode_sse(event: Any) -> str:
+    """编码 SSE data 行。"""
+    return f"data: {json.dumps(event, ensure_ascii=False)}\n\n"
 
 
 # ==================== Session API ====================
@@ -205,6 +208,7 @@ async def send_message(chat_request: ChatRequest, db: Session = Depends(get_db))
 
     # ✅ 构建 config（thread_id 对应 session_id）
     config = {"configurable": {"thread_id": str(session_id)}}
+    agent_service = get_agent_service()
 
     # 使用Agent处理消息
     logger.info("调用Agent处理消息（PostgresSaver 自动管理历史）")
@@ -236,8 +240,11 @@ async def send_message(chat_request: ChatRequest, db: Session = Depends(get_db))
 async def stream_message_post(chat_request: ChatRequest, db: Session = Depends(get_db)):
     """流式发送消息（POST方法）- 真正的流式处理
 
-    修改时间: 2025-01-03
-    修改内容: 使用 PostgresSaver 自动管理历史，删除手动历史加载逻辑
+    修改时间: 2026-03-27 17:30 Asia/Shanghai
+    修改内容:
+    - 升级为结构化流式事件透传协议
+    - 在 final/error 路径统一处理 assistant 消息落库
+    - 保留 [DONE] 作为传输层结束标记，但不再作为业务成功判断依据
     """
     logger.info("Received streaming chat request via POST")
     logger.info(f"ChatRequest: {chat_request}")
@@ -259,6 +266,7 @@ async def stream_message_post(chat_request: ChatRequest, db: Session = Depends(g
         db,
         MessageCreate(session_id=session_id, role="user", content=chat_request.message),
     )
+    agent_service = get_agent_service()
 
     # ✅ 删除手动历史加载逻辑（PostgresSaver 自动管理）
 
@@ -272,73 +280,122 @@ async def stream_message_post(chat_request: ChatRequest, db: Session = Depends(g
             config = {"configurable": {"thread_id": str(session_id)}}
 
             full_content = ""
-            tool_calls_data = None
-            tool_results_data = None  # 2025-01-02
+            tool_calls_map: dict[str, dict[str, Any]] = {}
+            tool_results_data: dict[str, Any] = {}
+            assistant_persisted = False
 
             logger.info("开始调用agent_service.process_stream...")
 
-            # ✅ 使用真正的流式处理（传递 config）
-            async for chunk in agent_service.process_stream(
+            async for event in agent_service.process_stream(
                 chat_request.message,
                 session_id,
                 config
             ):
-                if chunk["is_final"]:
-                    # 最终块，包含工具调用信息和工具结果 - 2025-01-02
-                    tool_calls_data = chunk.get("tool_calls")
-                    tool_results_data = chunk.get("tool_results")
-                    logger.info(f"收到最终块，工具调用: {tool_calls_data}, 工具结果: {len(tool_results_data) if tool_results_data else 0} 个")
+                event_type = event.get("type")
 
-                    # 保存完整的Assistant消息到数据库（包含 tool_results）
-                    if full_content:
+                if event_type == "token":
+                    token_text = event.get("text", "")
+                    if token_text:
+                        full_content += token_text
+
+                elif event_type == "tool_call":
+                    tool_id = event.get("id")
+                    if tool_id:
+                        tool_calls_map[tool_id] = {
+                            "id": tool_id,
+                            "name": event.get("name", ""),
+                            "args_text": event.get("args_text", ""),
+                            "status": event.get("status", "streaming"),
+                        }
+
+                elif event_type == "tool_result":
+                    tool_id = event.get("id")
+                    if tool_id and event.get("content") is not None:
+                        tool_results_data[tool_id] = event.get("content")
+
+                elif event_type == "final":
+                    final_content = event.get("content") or full_content
+                    if final_content:
+                        full_content = final_content
+
+                    final_tool_calls = event.get("tool_calls") or list(tool_calls_map.values()) or None
+                    final_tool_results = event.get("tool_results") or tool_results_data or None
+                    logger.info(
+                        "收到最终事件，tool_calls=%d, tool_results=%d",
+                        len(final_tool_calls or []),
+                        len(final_tool_results or {}),
+                    )
+
+                    assistant_message = crud.create_message(
+                        db,
+                        MessageCreate(
+                            session_id=session_id,
+                            role="assistant",
+                            content=full_content or "回答完成，但未生成可展示的文本内容。",
+                            tool_calls=(
+                                json.dumps(final_tool_calls, ensure_ascii=False)
+                                if final_tool_calls
+                                else None
+                            ),
+                            tool_results=(
+                                json.dumps(final_tool_results, ensure_ascii=False)
+                                if final_tool_results
+                                else None
+                            ),
+                        ),
+                    )
+                    assistant_persisted = True
+                    logger.info("Assistant消息保存成功，ID: %s", assistant_message.id)
+
+                    final_event = {
+                        **event,
+                        "content": assistant_message.content,
+                        "tool_calls": final_tool_calls,
+                        "tool_results": final_tool_results,
+                        "message_id": assistant_message.id,
+                        "created_at": assistant_message.created_at.isoformat(),
+                    }
+                    yield _encode_sse(final_event)
+                    continue
+
+                elif event_type == "error":
+                    error_message = event.get("message") or "流式处理失败"
+                    if not assistant_persisted:
                         assistant_message = crud.create_message(
                             db,
                             MessageCreate(
                                 session_id=session_id,
                                 role="assistant",
-                                content=full_content,
-                                tool_calls=(
-                                    json.dumps(tool_calls_data)
-                                    if tool_calls_data
-                                    else None
-                                ),
-                                tool_results=(  # 2025-01-02 添加 tool_results
-                                    json.dumps(tool_results_data)
-                                    if tool_results_data
-                                    else None
-                                ),
+                                content=error_message,
                             ),
                         )
-                        logger.info(
-                            f"Assistant消息保存成功，ID: {assistant_message.id}"
-                        )
+                        assistant_persisted = True
+                        event = {
+                            **event,
+                            "message_id": assistant_message.id,
+                            "created_at": assistant_message.created_at.isoformat(),
+                        }
 
-                    # 发送最终消息
-                    final_data = {
-                        "content": "",
-                        "is_final": True,
-                        "tool_calls": tool_calls_data,
-                        "tool_results": tool_results_data,  # 2025-01-02 添加
-                    }
-                    yield f"data: {json.dumps(final_data)}\n\n"
-                else:
-                    # 内容块
-                    content_chunk = chunk.get("content", "")
-                    if content_chunk:
-                        full_content += content_chunk
-
-                        # 发送内容块
-                        chunk_data = {"content": content_chunk, "is_final": False}
-                        yield f"data: {json.dumps(chunk_data)}\n\n"
+                yield _encode_sse(event)
 
         except Exception as e:
             logger.error(f"流式处理异常: {e}", exc_info=True)
+            assistant_message = crud.create_message(
+                db,
+                MessageCreate(
+                    session_id=session_id,
+                    role="assistant",
+                    content=f"错误: {str(e)}",
+                ),
+            )
             error_data = {
-                "content": f"错误: {str(e)}",
-                "is_final": True,
-                "tool_calls": None,
+                "type": "error",
+                "message": f"错误: {str(e)}",
+                "retryable": False,
+                "message_id": assistant_message.id,
+                "created_at": assistant_message.created_at.isoformat(),
             }
-            yield f"data: {json.dumps(error_data)}\n\n"
+            yield _encode_sse(error_data)
         finally:
             # 确保发送结束标记
             yield "data: [DONE]\n\n"
