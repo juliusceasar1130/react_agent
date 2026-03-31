@@ -82,14 +82,20 @@
               </div>
           </div>
           <button
-            @click="handleSendMessage"
-            :disabled="!inputText.trim() || isSending"
-            class="btn-primary self-end flex items-center gap-2 !px-5"
+            @click="isSending && streamMode ? handleStopStreaming() : handleSendMessage()"
+            :disabled="!isSending && !inputText.trim()"
+            class="self-end flex items-center gap-2 !px-5"
+            :class="isSending && streamMode
+              ? 'px-5 py-2.5 rounded-xl font-medium transition-all duration-200 ease-out bg-neutral-100 text-neutral-700 hover:bg-neutral-200 active:scale-[0.98]'
+              : 'btn-primary'"
           >
             <svg v-if="!isSending" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
             </svg>
-            {{ isSending ? '发送中' : '发送' }}
+            <svg v-else-if="streamMode" class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+              <path d="M7 7h10v10H7z" />
+            </svg>
+            {{ isSending ? (streamMode ? '停止生成' : '发送中') : '发送' }}
           </button>
         </div>
       </div>
@@ -109,7 +115,7 @@ import EmptyState from '@/components/EmptyState.vue'
 
 const sessionsStore = useSessionsStore()
 const messagesStore = useMessagesStore()
-const { isSending, streamMode, sendMessage } = useChatStream()
+const { isSending, streamMode, sendMessage, stopStreaming } = useChatStream()
 
 const currentSession = computed(() => sessionsStore.currentSession)
 const currentStreamingMessage = computed(() => messagesStore.streamingMessage)
@@ -151,5 +157,10 @@ const handleSendMessage = async () => {
     console.error('发送消息失败:', err)
     alert('发送消息失败，请重试')
   }
+}
+
+const handleStopStreaming = () => {
+  if (!isSending.value || !streamMode.value) return
+  stopStreaming()
 }
 </script>

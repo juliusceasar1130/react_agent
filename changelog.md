@@ -1,5 +1,177 @@
 # Changelog
 
+## 2026-03-31 22:08 - 新增聊天取消与中断机制开发指南
+
+### 概述
+围绕本次“前端停止生成 + 后端取消渗透”优化，新增一份专门的开发指南，统一说明取消链路的分层实现、机制原理、能力边界和后续扩展方向，方便团队后续继续复用和演进这套聊天中断能力。
+
+### 变更内容
+- **新增文档**:
+  - 新增 `backend/docs/聊天取消与中断机制开发指南.md`
+- **文档内容覆盖**:
+  - 前端 `AbortController` 的停止生成机制
+  - FastAPI SSE 断连感知与服务端停止转发逻辑
+  - `task.cancel()` / `CancelledError` 如何沿 LangChain / LangGraph 协程链传播
+  - 本地取消与远端 provider 取消的能力边界
+  - 当前产品策略与后续可选体验方案
+- **README 同步**:
+  - 在技术文档列表新增该指南入口
+
+## 2026-03-31 22:15 - 停止生成后保留已生成片段并明确标记中断
+
+### 概述
+继续细化“停止生成”的产品体验。用户主动中断流式回答后，前端不再直接清空过程态，而是保留已经生成的内容，并将其落定为一条本地 assistant 消息，同时明确标记“已停止生成”，让状态更可理解。
+
+### 变更内容
+- **中断消息落定**:
+  - `frontend/src/stores/messages.ts` 新增主动中断落定逻辑
+  - 停止生成后保留当前文本片段、工具调用和工具结果，并转为本地正式消息
+- **取消分支体验优化**:
+  - `frontend/src/composables/useChatStream.ts` 在 `AbortError` 分支改为保留片段而非直接清空
+  - 继续刷新会话列表，但不立即用服务端消息覆盖当前本地中断结果
+- **界面提示优化**:
+  - `frontend/src/components/MessageItem.vue` 为中断消息增加“已停止生成”提示和对应视觉样式
+- **文档同步**:
+  - 更新 `backend/docs/聊天取消与中断机制开发指南.md` 中的当前产品策略说明
+
+## 2026-03-31 21:31 - 收敛前后端 SSE 事件 schema
+
+### 概述
+继续收敛聊天流式协议边界，减少前后端对未知事件类型的宽松兜底。后端现在会在发送 SSE 前校验事件结构，前端则移除 `type: string` 回退分支并在解析层拒绝不符合协议的 payload，从而让流式协议真正收敛为有限事件集合。
+
+### 变更内容
+- **后端事件模型收敛**:
+  - `backend/app/schemas.py` 将流式事件拆分为 `token/status/tool_call/tool_result/final/error` 六类显式模型
+  - 新增统一序列化入口，SSE 发送前先校验并标准化事件 payload
+- **前端解析层收敛**:
+  - `frontend/src/types/index.ts` 移除宽松 `type: string` 兜底事件
+  - `frontend/src/api/chat.ts` 增加运行时事件校验，拒绝未知或不完整的流式事件
+- **消费侧类型收敛**:
+  - `frontend/src/composables/useChatStream.ts` 改为穷尽式 `switch` 处理，避免新事件类型被静默忽略
+- **文档同步**:
+  - 更新 `backend/docs/聊天流式输出结构化事件开发指南.md`，补充 schema 收敛原则
+
+## 2026-03-31 21:52 - 收敛取消信号到 Agent 执行任务
+
+### 概述
+继续优化聊天链路的取消能力，让“前端停止生成 / SSE 断连”不仅停止本地转发，也尽量中断服务层正在执行的 Agent 调用。这样做不能保证远端 LLM provider 一定马上停止推理，但可以更稳定地把取消信号继续传到 LangGraph 图执行与底层模型 SDK 的 await 链路。
+
+### 变更内容
+- **非流式取消收敛**:
+  - `backend/app/services.py` 将 `ainvoke()` 包装为可取消 task
+  - 上层取消时显式取消并等待任务结束，避免悬挂中的 Agent 调用继续运行
+- **流式取消收敛**:
+  - `backend/app/services.py` 将 `astream()` 消费改为独立 producer task + queue
+  - 当 SSE 消费端取消或断连时，会反向取消 producer task，并主动关闭底层 async iterator
+- **边界说明**:
+  - 当前优化能更早停止本地 FastAPI / LangGraph 消费链路
+  - 远端 provider 是否真正中断，仍取决于对应 SDK / 模型服务是否支持请求级取消
+
+## 2026-03-31 11:05 - 新增 LangSmith tracing 开发指南文档
+
+### 概述
+围绕本次 tracing metadata / tags 接入，新增一份面向后续开发的文档手册，统一说明其作用、当前实现、字段规范、查看方式和扩展建议，方便后续在新入口或新业务域下继续复用。
+
+### 变更内容
+- **新增文档**:
+  - 新增 `backend/docs/LangSmith Tracing Metadata 与 Tags 开发指南.md`
+- **文档内容覆盖**:
+  - tracing metadata / tags 的作用与典型使用场景
+  - 当前项目中的接入位置与字段清单
+  - 如何在调用时追加业务 metadata / tags
+  - 如何在 LangSmith 中查看和过滤 trace
+  - 后续扩展建议与开发检查清单
+- **README 同步**:
+  - 在技术文档列表新增该指南入口
+
+### 2026-03-31 11:15 Asia/Shanghai 更新补充
+- 澄清 `business_domain` 应来自确定性来源，不应由 LLM 在请求开始时自由推断后注入根 trace
+- 补充“运行过程中才能确定 domain 时”的三种推荐策略：首轮不注入、仅对子链路补充、持久化后下一轮再注入
+
+### 2026-03-31 11:30 Asia/Shanghai 更新补充
+- 修正 tracing 手册中的 `config` 示例，拆分为“默认安全示例”和“已确认 domain 才注入”的扩展示例
+
+## 2026-03-31 10:20 - 后端新增 SSE 客户端断连感知
+
+### 概述
+为聊天流式接口补充服务端侧断连感知能力。当浏览器主动停止生成、关闭页面或网络中断导致 SSE 连接断开时，后端会尽早停止等待新的流式事件并关闭流式迭代器，减少无效的本地继续执行。
+
+### 变更内容
+- **SSE 断连检测**:
+  - `backend/app/api.py` 的 `/stream` 路由新增 `Request` 注入
+  - 在事件循环中周期性检查 `request.is_disconnected()`
+- **尽早停止等待**:
+  - 将下一条流式事件读取包装为可取消的 `asyncio` task
+  - 检测到客户端断开后，立即取消等待中的任务并结束 SSE 生成
+- **资源清理与结束标记收敛**:
+  - 在 `finally` 中主动关闭流式迭代器
+  - 客户端已断开时不再尝试发送 `[DONE]`
+
+## 2026-03-31 10:45 - 新增 LangSmith tracing metadata 与 tags
+
+### 概述
+为 FastAPI 本地聊天链路补充 LangSmith trace 元数据与标签。后续可以在 LangSmith 中按会话、请求模式、RAG 后端、模型和运行环境过滤 trace，也为自托管或兼容 OpenAI 协议的模型提供更稳定的模型识别字段。
+
+### 变更内容
+- **trace metadata 补充**:
+  - `backend/app/services.py` 统一为 invoke/stream 两条链路补充 `session_id`、`thread_id`、`request_mode`、`rag_backend`、`app_component`、`runtime_mode`
+  - 同步补充 `ls_provider`、`ls_model_name`、`ls_temperature`、`ls_max_tokens`
+- **trace tags 补充**:
+  - 新增 `chat-api`、`sql-agent`、`mode:*`、`runtime:*`、`rag:*`、`provider:*`、`model:*`、`env:*` 等标签
+- **配置合并策略**:
+  - 保留外部传入的 `configurable / metadata / tags`
+  - 新增 trace 字段时默认合并，不破坏后续按业务域继续扩展
+
+## 2026-03-29 22:35 - 修复 P0 级流式结果聚合与非流式错误语义
+
+### 概述
+针对聊天链路中最关键的三类问题进行收敛：避免多节点流式 token 被误拼成最终回答、避免 `tool_call_chunk` 在前后 chunk 间被拆成多个工具调用、避免非流式 Agent 异常被伪装成正常 assistant 消息落库。
+
+### 变更内容
+- **流式最终内容聚合修复**:
+  - `backend/app/services.py` 不再使用全量流式 token 直接生成最终 `final.content`
+  - 改为优先使用最终 `AIMessage` 提取的完整内容，降低多节点 streaming 污染最终回答的风险
+- **工具调用 chunk 归并修复**:
+  - `backend/app/services.py` 将流式工具调用按 `chunk index` 归并，并通过原始 `tool_call_id` 回写结果映射
+  - 避免同一次工具调用被拆成多个前端工具卡片
+- **非流式错误语义修复**:
+  - `backend/app/services.py` 的 `process_message()` 改为向上抛出异常
+  - `backend/app/api.py` 在非流式路径返回标准错误响应，不再把失败文本保存为成功 assistant 消息
+- **前端失败后状态同步补强**:
+  - `frontend/src/composables/useChatStream.ts` 在发送失败后补一次消息同步，尽量与服务端持久化状态保持一致
+
+## 2026-03-29 22:55 - 收敛前端会话状态同步与消息请求竞态
+
+### 概述
+继续优化聊天前端状态管理，去掉本地手工维护的会话消息计数，统一以服务端会话数据为准；同时为消息拉取增加请求序列保护，避免快速切换会话时旧请求回包覆盖当前会话消息。
+
+### 变更内容
+- **会话状态权威源收敛**:
+  - `frontend/src/composables/useChatStream.ts` 不再手工累加 `message_count`
+  - 在消息发送完成、流式结束和失败恢复后统一刷新服务端会话列表
+- **消息同步范围收敛**:
+  - 仅当当前仍停留在对应会话时，才静默刷新该会话的消息列表
+  - 避免用户切换到其他会话后，旧会话的后台同步覆盖当前视图
+- **消息请求竞态保护**:
+  - `frontend/src/stores/messages.ts` 新增请求序号与目标会话标记
+  - 旧请求回包将被忽略，降低串会话和闪屏风险
+
+## 2026-03-29 23:10 - 新增流式取消能力与停止生成交互
+
+### 概述
+为聊天前端补充流式请求取消能力。用户在流式模式下发送问题后，可以主动停止当前生成过程；前端会中断 SSE 请求、清理过程态，并重新同步服务端消息与会话状态，避免把主动停止误判为系统错误。
+
+### 变更内容
+- **流式请求取消**:
+  - `frontend/src/api/chat.ts` 为 `sendChatStream()` 增加 `AbortSignal` 支持
+  - `frontend/src/composables/useChatStream.ts` 使用 `AbortController` 管理当前流式请求
+- **停止生成交互**:
+  - `frontend/src/views/ChatView.vue` 在流式发送中将发送按钮切换为“停止生成”
+  - 用户点击后会中断当前请求，而不是弹出失败提示
+- **中断后的状态收敛**:
+  - 主动中断时清理流式临时消息
+  - 随后重新同步当前会话消息与会话列表，尽量与服务端持久化结果保持一致
+
 ## 2026-03-27 22:12 - 聊天界面默认仅展示最终结论
 
 ### 概述

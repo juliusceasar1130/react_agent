@@ -25,6 +25,7 @@ export interface Message {
   created_at: string
   tool_calls?: string | null
   tool_results?: string | null
+  is_interrupted?: boolean
 }
 
 export interface MessageCreate {
@@ -42,13 +43,15 @@ export interface StreamToolCall {
   name: string
   args?: Record<string, unknown> | unknown[] | string
   args_text?: string
-  status?: 'started' | 'streaming' | 'completed'
+  status?: StreamToolCallStatus
 }
 
 export interface StreamToolResult {
   id: string
   content: string
 }
+
+export type StreamToolCallStatus = 'started' | 'streaming' | 'completed'
 
 export type StreamEvent =
   | {
@@ -68,7 +71,7 @@ export type StreamEvent =
       id: string
       name: string
       args_text?: string
-      status: 'started' | 'streaming' | 'completed'
+      status: StreamToolCallStatus
     }
   | {
       type: 'tool_result'
@@ -89,10 +92,6 @@ export type StreamEvent =
       retryable?: boolean
       message_id?: string
       created_at?: string
-    }
-  | {
-      type: string
-      [key: string]: unknown
     }
 
 export interface FinalizedStreamingMessage {
@@ -116,6 +115,7 @@ export interface StreamingMessage {
   toolCalls: StreamToolCall[]
   toolResults: Record<string, string>
   error: string | null
+  isInterrupted?: boolean
 }
 
 // 聊天请求类型 - 2025-01-01

@@ -1,7 +1,9 @@
 # backend/app/api.py
+import asyncio
 import json
 import logging
-from fastapi import APIRouter, Depends, HTTPException, status
+from contextlib import suppress
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 from typing import Any, List
@@ -27,6 +29,7 @@ from .schemas import (
     # Session Schemas
     ChatRequest,
     ChatResponse,
+    serialize_chat_stream_event,
     SessionCreate,
     SessionUpdate,
     SessionResponse,
@@ -43,7 +46,8 @@ router = APIRouter(prefix="/api/chat", tags=["chat"])
 
 def _encode_sse(event: Any) -> str:
     """编码 SSE data 行。"""
-    return f"data: {json.dumps(event, ensure_ascii=False)}\n\n"
+    serialized_event = serialize_chat_stream_event(event)
+    return f"data: {json.dumps(serialized_event, ensure_ascii=False)}\n\n"
 
 
 # ==================== Session API ====================
@@ -182,8 +186,9 @@ def delete_message_endpoint(message_id: str, db: Session = Depends(get_db)):
 async def send_message(chat_request: ChatRequest, db: Session = Depends(get_db)):
     """发送消息（非流式）
 
-    修改时间: 2025-01-03
+    修改时间: 2026-03-29 22:35 Asia/Shanghai
     修改内容: 使用 PostgresSaver 自动管理历史，删除手动历史加载逻辑
+    - Agent 执行失败时改为返回标准错误，不再伪装为成功 assistant 消息
     """
     logger.info("api.py - send_message - 用户发送非流式消息")
     logger.info(f"ChatRequest: {chat_request}")
@@ -212,11 +217,18 @@ async def send_message(chat_request: ChatRequest, db: Session = Depends(get_db))
 
     # 使用Agent处理消息
     logger.info("调用Agent处理消息（PostgresSaver 自动管理历史）")
-    agent_response = await agent_service.process_message(
-        chat_request.message,
-        session_id,
-        config
-    )
+    try:
+        agent_response = await agent_service.process_message(
+            chat_request.message,
+            session_id,
+            config
+        )
+    except Exception as exc:
+        logger.error("非流式 Agent 处理失败: %s", exc, exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail="Agent 处理失败，请稍后重试",
+        ) from exc
 
     # 保存Assistant消息
     logger.info("保存Assistant消息到数据库")
@@ -237,14 +249,20 @@ async def send_message(chat_request: ChatRequest, db: Session = Depends(get_db))
 
 
 @router.post("/stream")
-async def stream_message_post(chat_request: ChatRequest, db: Session = Depends(get_db)):
+async def stream_message_post(
+    chat_request: ChatRequest,
+    request: Request,
+    db: Session = Depends(get_db),
+):
     """流式发送消息（POST方法）- 真正的流式处理
 
-    修改时间: 2026-03-27 17:30 Asia/Shanghai
+    修改时间: 2026-03-31 10:20 Asia/Shanghai
     修改内容:
     - 升级为结构化流式事件透传协议
     - 在 final/error 路径统一处理 assistant 消息落库
     - 保留 [DONE] 作为传输层结束标记，但不再作为业务成功判断依据
+    - 新增客户端断开感知，尽量在 SSE 断连后停止继续生成
+    - 2026-03-31 21:31 Asia/Shanghai: 对外发送前增加事件 schema 校验，统一 SSE 协议边界
     """
     logger.info("Received streaming chat request via POST")
     logger.info(f"ChatRequest: {chat_request}")
@@ -275,6 +293,10 @@ async def stream_message_post(chat_request: ChatRequest, db: Session = Depends(g
         logger.info(f"消息: {chat_request.message}")
         logger.info(f"会话ID: {session_id}")
 
+        stream_iter = None
+        next_event_task: asyncio.Task | None = None
+        client_disconnected = False
+
         try:
             # ✅ 构建 config（thread_id 对应 session_id）
             config = {"configurable": {"thread_id": str(session_id)}}
@@ -286,11 +308,41 @@ async def stream_message_post(chat_request: ChatRequest, db: Session = Depends(g
 
             logger.info("开始调用agent_service.process_stream...")
 
-            async for event in agent_service.process_stream(
+            stream_iter = agent_service.process_stream(
                 chat_request.message,
                 session_id,
                 config
-            ):
+            )
+
+            next_event_task = asyncio.create_task(anext(stream_iter))
+
+            while True:
+                done, _ = await asyncio.wait(
+                    {next_event_task},
+                    timeout=0.25,
+                    return_when=asyncio.FIRST_COMPLETED,
+                )
+
+                if next_event_task in done:
+                    try:
+                        event = next_event_task.result()
+                    except StopAsyncIteration:
+                        next_event_task = None
+                        break
+
+                    next_event_task = asyncio.create_task(anext(stream_iter))
+                else:
+                    if await request.is_disconnected():
+                        client_disconnected = True
+                        logger.info("检测到客户端已断开，停止 SSE 生成: session_id=%s", session_id)
+                        if next_event_task is not None:
+                            next_event_task.cancel()
+                            with suppress(asyncio.CancelledError, StopAsyncIteration):
+                                await next_event_task
+                            next_event_task = None
+                        break
+                    continue
+
                 event_type = event.get("type")
 
                 if event_type == "token":
@@ -314,8 +366,8 @@ async def stream_message_post(chat_request: ChatRequest, db: Session = Depends(g
                         tool_results_data[tool_id] = event.get("content")
 
                 elif event_type == "final":
-                    final_content = event.get("content") or full_content
-                    if final_content:
+                    final_content = event.get("content")
+                    if final_content is not None:
                         full_content = final_content
 
                     final_tool_calls = event.get("tool_calls") or list(tool_calls_map.values()) or None
@@ -378,6 +430,9 @@ async def stream_message_post(chat_request: ChatRequest, db: Session = Depends(g
 
                 yield _encode_sse(event)
 
+        except asyncio.CancelledError:
+            logger.info("SSE 生成任务被取消: session_id=%s", session_id)
+            raise
         except Exception as e:
             logger.error(f"流式处理异常: {e}", exc_info=True)
             assistant_message = crud.create_message(
@@ -397,8 +452,18 @@ async def stream_message_post(chat_request: ChatRequest, db: Session = Depends(g
             }
             yield _encode_sse(error_data)
         finally:
-            # 确保发送结束标记
-            yield "data: [DONE]\n\n"
+            if next_event_task is not None:
+                next_event_task.cancel()
+                with suppress(asyncio.CancelledError, StopAsyncIteration):
+                    await next_event_task
+
+            if stream_iter is not None:
+                with suppress(Exception):
+                    await stream_iter.aclose()
+
+            # 仅在连接仍有效时发送结束标记
+            if not client_disconnected:
+                yield "data: [DONE]\n\n"
             logger.info("流式响应结束")
 
     return StreamingResponse(

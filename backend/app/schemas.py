@@ -1,6 +1,6 @@
 # backend/app/schemas.py
-from pydantic import BaseModel, ConfigDict
-from typing import Any, Dict, Optional, List
+from pydantic import BaseModel, ConfigDict, Field, TypeAdapter
+from typing import Annotated, Any, Dict, Literal, Optional, List, Union
 from datetime import datetime
 
 
@@ -66,22 +66,79 @@ class ChatResponse(BaseModel):
     is_complete: bool = True
 
 
-# 流式响应事件
-class ChatStreamEvent(BaseModel):
-    type: str
-    text: Optional[str] = None
+StreamStage = Literal["thinking", "retrieving", "querying", "writing"]
+StreamToolCallStatus = Literal["started", "streaming", "completed"]
+
+
+class StreamToolCallPayload(BaseModel):
+    id: str
+    name: str
+    args: Any = Field(default_factory=dict)
+    args_text: str = ""
+    status: StreamToolCallStatus
+
+
+class TokenStreamEvent(BaseModel):
+    type: Literal["token"]
+    text: str
     node: Optional[str] = None
-    stage: Optional[str] = None
-    message: Optional[str] = None
-    retryable: Optional[bool] = None
-    content: Optional[str] = None
+
+
+class StatusStreamEvent(BaseModel):
+    type: Literal["status"]
+    stage: StreamStage
+    text: str
     source: Optional[str] = None
-    id: Optional[str] = None
-    name: Optional[str] = None
-    args_text: Optional[str] = None
-    status: Optional[str] = None
     detail: Optional[Dict[str, Any]] = None
-    tool_calls: Optional[List[Dict[str, Any]]] = None
-    tool_results: Optional[Dict[str, Any]] = None
+
+
+class ToolCallStreamEvent(BaseModel):
+    type: Literal["tool_call"]
+    id: str
+    name: str
+    args_text: str = ""
+    status: StreamToolCallStatus
+
+
+class ToolResultStreamEvent(BaseModel):
+    type: Literal["tool_result"]
+    id: str
+    content: str
+
+
+class FinalStreamEvent(BaseModel):
+    type: Literal["final"]
+    content: str
+    tool_calls: Optional[List[StreamToolCallPayload]] = None
+    tool_results: Optional[Dict[str, str]] = None
     message_id: Optional[str] = None
     created_at: Optional[datetime] = None
+
+
+class ErrorStreamEvent(BaseModel):
+    type: Literal["error"]
+    message: str
+    retryable: Optional[bool] = None
+    message_id: Optional[str] = None
+    created_at: Optional[datetime] = None
+
+
+ChatStreamEvent = Annotated[
+    Union[
+        TokenStreamEvent,
+        StatusStreamEvent,
+        ToolCallStreamEvent,
+        ToolResultStreamEvent,
+        FinalStreamEvent,
+        ErrorStreamEvent,
+    ],
+    Field(discriminator="type"),
+]
+
+_chat_stream_event_adapter = TypeAdapter(ChatStreamEvent)
+
+
+def serialize_chat_stream_event(event: Any) -> Dict[str, Any]:
+    """校验并序列化项目统一的结构化流式事件。"""
+    validated_event = _chat_stream_event_adapter.validate_python(event)
+    return validated_event.model_dump(mode="json", exclude_none=True)

@@ -2,11 +2,16 @@
 """
 FastAPI 兼容 Agent 服务适配层。
 
-修改时间: 2026-03-27 20:40 Asia/Shanghai
+修改时间: 2026-03-31 10:45 Asia/Shanghai
 主要修改内容:
 - 本地 FastAPI 改为异步生命周期管理，不再在模块导入时立即初始化 Agent
 - 切回 ainvoke / astream，并继续保留结构化流式事件协议
 - 新增 initialize/get/shutdown 三段式单例管理，便于 startup/shutdown 中显式控制资源
+- 修正流式最终答案聚合逻辑，避免将多节点 token 误落库为最终回答
+- 修正 tool_call_chunk 聚合键，统一按 chunk index 归并工具调用
+- 非流式错误改为向上抛出，由 API 层返回标准错误响应
+- 新增 LangSmith tracing metadata / tags，便于按会话、模型与运行模式过滤 trace
+- 2026-03-31 21:52 Asia/Shanghai: 新增 Agent 执行任务取消收敛，尽量把断连取消继续向下传到图执行与模型调用
 """
 
 from __future__ import annotations
@@ -14,11 +19,13 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+from contextlib import suppress
 from typing import Any, AsyncIterator, Dict, Optional
 
 from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 
 from backend.app.agent.service import SQLAgentService as CoreSQLAgentService
+from backend.app.config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -49,12 +56,123 @@ class SQLAgentService:
         self.conn_pool = None
         self.core = None
 
+    def _resolve_llm_provider(self) -> str:
+        """根据当前服务配置解析追踪用的 provider 名称。"""
+        if getattr(self.core, "_use_ollama", False):
+            return "ollama"
+
+        base_url = (settings.deepseek_base_url or "").lower()
+        if "deepseek.com" in base_url:
+            return "deepseek"
+        if "openai" in base_url:
+            return "openai"
+        return "custom"
+
+    def _resolve_llm_model_name(self) -> str:
+        """获取当前服务使用的模型名称。"""
+        if getattr(self.core, "_use_ollama", False):
+            return settings.ollama_model or "unknown"
+        return settings.deepseek_model or "unknown"
+
     @staticmethod
-    def _build_config(session_id: str, config: Optional[dict]) -> dict:
-        """构造 LangGraph 会话配置。"""
-        if config is not None:
-            return config
-        return {"configurable": {"thread_id": str(session_id)}}
+    def _merge_unique_items(*items: list[str]) -> list[str]:
+        """按顺序合并字符串列表并去重。"""
+        merged: list[str] = []
+        seen: set[str] = set()
+
+        for group in items:
+            for item in group:
+                normalized = str(item).strip()
+                if not normalized or normalized in seen:
+                    continue
+                seen.add(normalized)
+                merged.append(normalized)
+
+        return merged
+
+    def _build_trace_metadata(
+        self,
+        session_id: str,
+        request_mode: str,
+        existing_metadata: Optional[dict[str, Any]] = None,
+    ) -> dict[str, Any]:
+        """构造 LangSmith trace metadata。"""
+        llm_provider = self._resolve_llm_provider()
+        llm_model_name = self._resolve_llm_model_name()
+        metadata = {
+            "session_id": str(session_id),
+            "thread_id": str(session_id),
+            "request_mode": request_mode,
+            "app_component": "fastapi_chat_api",
+            "runtime_mode": "fastapi_local",
+            "rag_backend": settings.rag_backend,
+            "ls_provider": llm_provider,
+            "ls_model_name": llm_model_name,
+            "ls_temperature": settings.agent_temperature,
+            "ls_max_tokens": settings.agent_max_tokens,
+        }
+
+        if existing_metadata:
+            metadata.update(existing_metadata)
+            if (
+                "business_domain" not in metadata
+                and existing_metadata.get("domain") is not None
+            ):
+                metadata["business_domain"] = existing_metadata["domain"]
+
+        return metadata
+
+    def _build_trace_tags(
+        self,
+        request_mode: str,
+        existing_tags: Optional[list[Any]] = None,
+    ) -> list[str]:
+        """构造 LangSmith trace tags。"""
+        llm_provider = self._resolve_llm_provider()
+        llm_model_name = self._resolve_llm_model_name()
+        default_tags = [
+            "chat-api",
+            "sql-agent",
+            f"mode:{request_mode}",
+            "runtime:fastapi_local",
+            f"rag:{settings.rag_backend}",
+            f"provider:{llm_provider}",
+            f"model:{llm_model_name}",
+            f"env:{'debug' if settings.debug else 'prod'}",
+        ]
+
+        normalized_existing = [str(item) for item in (existing_tags or [])]
+        return self._merge_unique_items(default_tags, normalized_existing)
+
+    def _build_config(
+        self,
+        session_id: str,
+        config: Optional[dict],
+        *,
+        request_mode: str,
+    ) -> dict:
+        """构造并补全 LangGraph / LangSmith 配置。"""
+        resolved_config = dict(config or {})
+        configurable = dict(resolved_config.get("configurable") or {})
+        metadata = dict(resolved_config.get("metadata") or {})
+        tags = resolved_config.get("tags") or []
+
+        configurable["thread_id"] = str(session_id)
+        resolved_config["configurable"] = configurable
+        resolved_config["metadata"] = self._build_trace_metadata(
+            session_id,
+            request_mode,
+            metadata,
+        )
+        resolved_config["tags"] = self._build_trace_tags(
+            request_mode,
+            tags if isinstance(tags, list) else [tags],
+        )
+        resolved_config.setdefault(
+            "run_name",
+            "SQLAgentChatStream" if request_mode == "stream" else "SQLAgentChatInvoke",
+        )
+        return resolved_config
 
     @staticmethod
     def _iter_content_blocks(message: Any) -> list[dict]:
@@ -108,6 +226,7 @@ class SQLAgentService:
         tool_calls: dict[str, dict[str, Any]],
         *,
         tool_call_id: str,
+        actual_id: str = "",
         name: str = "",
         args: Any = None,
         args_text_delta: str = "",
@@ -117,12 +236,15 @@ class SQLAgentService:
             tool_call_id,
             {
                 "id": tool_call_id,
+                "actual_id": "",
                 "name": "",
                 "args": {},
                 "args_text": "",
             },
         )
 
+        if actual_id:
+            existing["actual_id"] = actual_id
         if name:
             existing["name"] = name
         if args is not None:
@@ -136,6 +258,20 @@ class SQLAgentService:
         tool_calls[tool_call_id] = existing
         return existing
 
+    @staticmethod
+    def _find_tool_call_key_by_actual_id(
+        tool_calls: dict[str, dict[str, Any]],
+        actual_id: str,
+    ) -> Optional[str]:
+        """根据 LangChain 原始 tool_call_id 查找内部聚合键。"""
+        if not actual_id:
+            return None
+
+        for key, item in tool_calls.items():
+            if item.get("actual_id") == actual_id or item.get("id") == actual_id:
+                return key
+        return None
+
     def _collect_tool_calls_from_message(
         self,
         message: Any,
@@ -145,14 +281,19 @@ class SQLAgentService:
         raw_tool_calls = getattr(message, "tool_calls", None) or []
         for tool_call in raw_tool_calls:
             try:
-                tool_call_id = tool_call["id"] if tool_call.get("id") else ""
+                actual_id = tool_call["id"] if tool_call.get("id") else ""
                 tool_name = tool_call["name"] if tool_call.get("name") else ""
-                if not tool_call_id or not tool_name:
+                if not actual_id or not tool_name:
                     continue
 
+                tool_call_id = (
+                    self._find_tool_call_key_by_actual_id(tool_calls, actual_id)
+                    or actual_id
+                )
                 self._upsert_tool_call(
                     tool_calls,
                     tool_call_id=tool_call_id,
+                    actual_id=actual_id,
                     name=tool_name,
                     args=tool_call.get("args"),
                 )
@@ -171,11 +312,20 @@ class SQLAgentService:
                 continue
 
             block_index = block.get("index", 0)
-            tool_call_id = block.get("id") or f"tool_call_chunk_{block_index}"
+            actual_id = block.get("id") or ""
+            tool_call_id = (
+                self._find_tool_call_key_by_actual_id(tool_calls, actual_id)
+                or (
+                    f"tool_call_index_{block_index}"
+                    if block.get("index") is not None
+                    else actual_id or f"tool_call_chunk_{len(tool_calls)}"
+                )
+            )
             is_new = tool_call_id not in tool_calls
             tool_info = self._upsert_tool_call(
                 tool_calls,
                 tool_call_id=tool_call_id,
+                actual_id=actual_id,
                 name=block.get("name") or "",
                 args_text_delta=block.get("args") or "",
             )
@@ -198,6 +348,7 @@ class SQLAgentService:
     def _collect_tool_result_event(
         self,
         message: Any,
+        tool_calls: dict[str, dict[str, Any]],
         tool_results: dict[str, str],
     ) -> Optional[dict[str, Any]]:
         """从 ToolMessage 中提取工具结果事件。"""
@@ -208,15 +359,20 @@ class SQLAgentService:
         if not message.tool_call_id or not content:
             return None
 
-        previous = tool_results.get(message.tool_call_id)
-        tool_results[message.tool_call_id] = content
+        tool_call_id = (
+            self._find_tool_call_key_by_actual_id(tool_calls, message.tool_call_id)
+            or message.tool_call_id
+        )
+
+        previous = tool_results.get(tool_call_id)
+        tool_results[tool_call_id] = content
 
         if previous == content:
             return None
 
         return {
             "type": "tool_result",
-            "id": message.tool_call_id,
+            "id": tool_call_id,
             "content": content,
         }
 
@@ -278,7 +434,11 @@ class SQLAgentService:
             for message in messages:
                 if isinstance(message, AIMessage):
                     self._collect_tool_calls_from_message(message, tool_calls_map)
-                tool_result_event = self._collect_tool_result_event(message, tool_results)
+                tool_result_event = self._collect_tool_result_event(
+                    message,
+                    tool_calls_map,
+                    tool_results,
+                )
                 if tool_result_event:
                     tool_results[tool_result_event["id"]] = tool_result_event["content"]
 
@@ -396,183 +556,242 @@ class SQLAgentService:
         self, message: str, session_id: str, config: dict = None
     ) -> Dict[str, Any]:
         """处理用户消息（非流式）。"""
-        try:
-            resolved_config = self._build_config(session_id, config)
-            result = await self.agent.ainvoke(
+        resolved_config = self._build_config(
+            session_id,
+            config,
+            request_mode="invoke",
+        )
+        invoke_task = asyncio.create_task(
+            self.agent.ainvoke(
                 {"messages": [HumanMessage(content=message)]},
                 config=resolved_config,
             )
+        )
+        try:
+            result = await invoke_task
+        except asyncio.CancelledError:
+            logger.info("非流式 Agent 调用被取消: session_id=%s", session_id)
+            invoke_task.cancel()
+            with suppress(asyncio.CancelledError):
+                await invoke_task
+            raise
 
-            content, tool_calls, tool_results = self._extract_tool_data_from_result(
-                result
-            )
+        content, tool_calls, tool_results = self._extract_tool_data_from_result(
+            result
+        )
 
-            return {
-                "content": content,
-                "tool_calls": json.dumps(tool_calls, ensure_ascii=False) if tool_calls else None,
-                "tool_results": json.dumps(tool_results, ensure_ascii=False) if tool_results else None,
-            }
-
-        except Exception as exc:
-            logger.error("处理消息失败: %s", exc, exc_info=True)
-            return {
-                "content": f"处理消息时出错: {exc}",
-                "tool_calls": None,
-                "tool_results": None,
-            }
+        return {
+            "content": content,
+            "tool_calls": json.dumps(tool_calls, ensure_ascii=False) if tool_calls else None,
+            "tool_results": json.dumps(tool_results, ensure_ascii=False) if tool_results else None,
+        }
 
     async def process_stream(
         self, message: str, session_id: str, config: dict = None
     ) -> AsyncIterator[dict[str, Any]]:
         """流式处理用户消息，输出结构化事件。"""
-        try:
-            resolved_config = self._build_config(session_id, config)
-            logger.info("开始流式处理，消息: %s...", message[:100])
+        resolved_config = self._build_config(
+            session_id,
+            config,
+            request_mode="stream",
+        )
+        logger.info("开始流式处理，消息: %s...", message[:100])
 
-            accumulated_text: list[str] = []
-            accumulated_tool_calls: dict[str, dict[str, Any]] = {}
-            accumulated_tool_results: dict[str, str] = {}
-            final_text_fallback = ""
-            last_status_signature: Optional[tuple[str, str, str]] = None
+        has_stream_tokens = False
+        accumulated_tool_calls: dict[str, dict[str, Any]] = {}
+        accumulated_tool_results: dict[str, str] = {}
+        latest_ai_content = ""
+        last_status_signature: Optional[tuple[str, str, str]] = None
+        event_queue: asyncio.Queue[dict[str, Any] | object] = asyncio.Queue()
+        stream_done = object()
+        source_iter: Optional[Any] = None
+        producer_task: Optional[asyncio.Task[None]] = None
 
-            initial_status = {
-                "type": "status",
-                "stage": "thinking",
-                "text": "正在分析问题",
-                "source": "agent",
-            }
-            yield initial_status
-            last_status_signature = self._status_signature(initial_status)
+        async def _emit(event: dict[str, Any]) -> None:
+            await event_queue.put(event)
 
-            async for chunk in self.agent.astream(
-                {"messages": [HumanMessage(content=message)]},
-                config=resolved_config,
-                stream_mode=["messages", "updates", "custom"],
-                version="v2",
-            ):
-                if not chunk:
-                    continue
+        async def _produce_events() -> None:
+            nonlocal has_stream_tokens
+            nonlocal latest_ai_content
+            nonlocal last_status_signature
+            nonlocal source_iter
 
-                chunk_type, chunk_data = self._unpack_stream_chunk(chunk)
-                if chunk_type is None:
-                    logger.debug("无法识别的流式块结构: %r", chunk)
-                    continue
+            try:
+                initial_status = {
+                    "type": "status",
+                    "stage": "thinking",
+                    "text": "正在分析问题",
+                    "source": "agent",
+                }
+                await _emit(initial_status)
+                last_status_signature = self._status_signature(initial_status)
 
-                if chunk_type == "messages":
-                    if (
-                        not isinstance(chunk_data, (tuple, list))
-                        or len(chunk_data) != 2
-                    ):
+                source_iter = self.agent.astream(
+                    {"messages": [HumanMessage(content=message)]},
+                    config=resolved_config,
+                    stream_mode=["messages", "updates", "custom"],
+                    version="v2",
+                )
+
+                async for chunk in source_iter:
+                    if not chunk:
                         continue
 
-                    message_chunk, metadata = chunk_data
-                    node_name = (
-                        metadata.get("langgraph_node")
-                        if isinstance(metadata, dict)
-                        else None
-                    )
+                    chunk_type, chunk_data = self._unpack_stream_chunk(chunk)
+                    if chunk_type is None:
+                        logger.debug("无法识别的流式块结构: %r", chunk)
+                        continue
 
-                    for text_segment in self._extract_text_segments(message_chunk):
-                        if not text_segment:
+                    if chunk_type == "messages":
+                        if (
+                            not isinstance(chunk_data, (tuple, list))
+                            or len(chunk_data) != 2
+                        ):
                             continue
-                        accumulated_text.append(text_segment)
-                        yield {
-                            "type": "token",
-                            "text": text_segment,
-                            "node": node_name,
-                        }
 
-                    for event in self._collect_tool_call_chunk_events(
-                        message_chunk,
-                        accumulated_tool_calls,
-                    ):
-                        yield event
-
-                    tool_result_event = self._collect_tool_result_event(
-                        message_chunk,
-                        accumulated_tool_results,
-                    )
-                    if tool_result_event:
-                        yield tool_result_event
-
-                elif chunk_type == "updates" and isinstance(chunk_data, dict):
-                    for node_name, state_update in chunk_data.items():
-                        status_event = self._build_status_event(
-                            node_name,
-                            has_tool_results=bool(accumulated_tool_results),
-                            has_tokens=bool(accumulated_text),
+                        message_chunk, metadata = chunk_data
+                        node_name = (
+                            metadata.get("langgraph_node")
+                            if isinstance(metadata, dict)
+                            else None
                         )
-                        if status_event:
-                            status_signature = self._status_signature(status_event)
-                            if status_signature != last_status_signature:
-                                yield status_event
-                                last_status_signature = status_signature
 
-                        if not isinstance(state_update, dict):
-                            continue
-
-                        updated_messages = state_update.get("messages", [])
-                        last_message = (
-                            updated_messages[-1] if updated_messages else None
-                        )
-                        if last_message is None:
-                            continue
-
-                        if isinstance(last_message, AIMessage):
-                            self._collect_tool_calls_from_message(
-                                last_message,
-                                accumulated_tool_calls,
+                        for text_segment in self._extract_text_segments(message_chunk):
+                            if not text_segment:
+                                continue
+                            has_stream_tokens = True
+                            await _emit(
+                                {
+                                    "type": "token",
+                                    "text": text_segment,
+                                    "node": node_name,
+                                }
                             )
-                            if not getattr(last_message, "tool_calls", None):
-                                final_text_fallback = self._extract_message_content(
-                                    last_message
-                                )
+
+                        for event in self._collect_tool_call_chunk_events(
+                            message_chunk,
+                            accumulated_tool_calls,
+                        ):
+                            await _emit(event)
 
                         tool_result_event = self._collect_tool_result_event(
-                            last_message,
+                            message_chunk,
+                            accumulated_tool_calls,
                             accumulated_tool_results,
                         )
                         if tool_result_event:
-                            yield tool_result_event
+                            await _emit(tool_result_event)
 
-                elif chunk_type == "custom":
-                    custom_event = self._normalize_custom_event(chunk_data)
-                    if not custom_event:
-                        continue
+                    elif chunk_type == "updates" and isinstance(chunk_data, dict):
+                        for node_name, state_update in chunk_data.items():
+                            status_event = self._build_status_event(
+                                node_name,
+                                has_tool_results=bool(accumulated_tool_results),
+                                has_tokens=has_stream_tokens,
+                            )
+                            if status_event:
+                                status_signature = self._status_signature(status_event)
+                                if status_signature != last_status_signature:
+                                    await _emit(status_event)
+                                    last_status_signature = status_signature
 
-                    if custom_event.get("type") == "status":
-                        status_signature = self._status_signature(custom_event)
-                        if status_signature == last_status_signature:
+                            if not isinstance(state_update, dict):
+                                continue
+
+                            updated_messages = state_update.get("messages", [])
+                            last_message = (
+                                updated_messages[-1] if updated_messages else None
+                            )
+                            if last_message is None:
+                                continue
+
+                            if isinstance(last_message, AIMessage):
+                                self._collect_tool_calls_from_message(
+                                    last_message,
+                                    accumulated_tool_calls,
+                                )
+                                if not getattr(last_message, "tool_calls", None):
+                                    latest_ai_content = self._extract_message_content(
+                                        last_message
+                                    )
+
+                            tool_result_event = self._collect_tool_result_event(
+                                last_message,
+                                accumulated_tool_calls,
+                                accumulated_tool_results,
+                            )
+                            if tool_result_event:
+                                await _emit(tool_result_event)
+
+                    elif chunk_type == "custom":
+                        custom_event = self._normalize_custom_event(chunk_data)
+                        if not custom_event:
                             continue
-                        last_status_signature = status_signature
 
-                    yield custom_event
+                        if custom_event.get("type") == "status":
+                            status_signature = self._status_signature(custom_event)
+                            if status_signature == last_status_signature:
+                                continue
+                            last_status_signature = status_signature
 
-            final_content = "".join(accumulated_text) or final_text_fallback
-            tool_calls = self._serialize_tool_calls(
-                accumulated_tool_calls,
-                final=True,
-            )
-            logger.info(
-                "流式提取完成：text_len=%d, tool_calls=%d 个, tool_results=%d 个",
-                len(final_content),
-                len(tool_calls),
-                len(accumulated_tool_results),
-            )
-            yield {
-                "type": "final",
-                "content": final_content,
-                "tool_calls": tool_calls or None,
-                "tool_results": accumulated_tool_results or None,
-            }
+                        await _emit(custom_event)
 
-        except Exception as exc:
-            logger.error("流式处理失败: %s", exc, exc_info=True)
-            yield {
-                "type": "error",
-                "message": f"错误: {exc}",
-                "retryable": False,
-            }
+                final_content = latest_ai_content
+                tool_calls = self._serialize_tool_calls(
+                    accumulated_tool_calls,
+                    final=True,
+                )
+                logger.info(
+                    "流式提取完成：text_len=%d, tool_calls=%d 个, tool_results=%d 个",
+                    len(final_content),
+                    len(tool_calls),
+                    len(accumulated_tool_results),
+                )
+                await _emit(
+                    {
+                        "type": "final",
+                        "content": final_content,
+                        "tool_calls": tool_calls or None,
+                        "tool_results": accumulated_tool_results or None,
+                    }
+                )
+
+            except asyncio.CancelledError:
+                logger.info("流式 Agent 任务被取消: session_id=%s", session_id)
+                raise
+            except Exception as exc:
+                logger.error("流式处理失败: %s", exc, exc_info=True)
+                await _emit(
+                    {
+                        "type": "error",
+                        "message": f"错误: {exc}",
+                        "retryable": False,
+                    }
+                )
+            finally:
+                await event_queue.put(stream_done)
+
+        producer_task = asyncio.create_task(_produce_events())
+
+        try:
+            while True:
+                event = await event_queue.get()
+                if event is stream_done:
+                    break
+                yield event
+        except asyncio.CancelledError:
+            logger.info("流式事件消费被取消，准备中断下游图执行: session_id=%s", session_id)
+            raise
+        finally:
+            if producer_task is not None and not producer_task.done():
+                producer_task.cancel()
+            if producer_task is not None:
+                with suppress(asyncio.CancelledError):
+                    await producer_task
+
+            if source_iter is not None:
+                with suppress(Exception):
+                    await source_iter.aclose()
 
 _agent_service: Optional[SQLAgentService] = None
 _agent_service_lock: Optional[asyncio.Lock] = None

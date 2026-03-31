@@ -451,7 +451,9 @@ npm run dev
 
 ### 技术文档
 
+- [聊天取消与中断机制开发指南](./backend/docs/聊天取消与中断机制开发指南.md)
 - [聊天流式输出结构化事件开发指南](./backend/docs/聊天流式输出结构化事件开发指南.md)
+- [LangSmith Tracing Metadata 与 Tags 开发指南](./backend/docs/LangSmith%20Tracing%20Metadata%20%E4%B8%8E%20Tags%20%E5%BC%80%E5%8F%91%E6%8C%87%E5%8D%97.md)
 - [Milvus RAG 异步化故障排查指南](./backend/docs/Milvus-RAG-异步化故障排查指南.md)
 - [Milvus 延迟初始化工作流程详解](./backend/docs/延迟初始化工作流程详解.md)
 - [llama.cpp + Qwen3 Embedding 接入与复用最佳实践](./backend/docs/llamacpp-qwen3-embedding-local-deployment.md)

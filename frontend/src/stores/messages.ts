@@ -17,18 +17,37 @@ export const useMessagesStore = defineStore('messages', () => {
   const isStreaming = ref(false)  // 是否正在流式输出 - 2025-01-01
   const loading = ref(false)
   const error = ref<string | null>(null)
+  const latestFetchRequestId = ref(0)  // 2026-03-29 22:55 Asia/Shanghai: 防止会话切换时旧请求覆盖新消息
+  const latestRequestedSessionId = ref<string | null>(null)
 
   // Actions
   const fetchMessages = async (sessionId: string) => {
+    const requestId = latestFetchRequestId.value + 1
+    latestFetchRequestId.value = requestId
+    latestRequestedSessionId.value = sessionId
     loading.value = true
     error.value = null
     try {
-      messages.value = await getMessagesBySessionApi(sessionId)
+      const fetchedMessages = await getMessagesBySessionApi(sessionId)
+      if (
+        requestId !== latestFetchRequestId.value
+        || latestRequestedSessionId.value !== sessionId
+      ) {
+        return null
+      }
+
+      messages.value = fetchedMessages
+      return fetchedMessages
     } catch (err) {
+      if (requestId !== latestFetchRequestId.value) {
+        return null
+      }
       error.value = '加载消息失败'
       throw err
     } finally {
-      loading.value = false
+      if (requestId === latestFetchRequestId.value) {
+        loading.value = false
+      }
     }
   }
 
@@ -62,6 +81,8 @@ export const useMessagesStore = defineStore('messages', () => {
   }
 
   const clearMessages = () => {
+    latestFetchRequestId.value += 1
+    latestRequestedSessionId.value = null
     messages.value = []
   }
 
@@ -182,6 +203,33 @@ export const useMessagesStore = defineStore('messages', () => {
   }
 
   /**
+   * 用户主动停止生成时，保留已生成片段并落定为本地中断消息
+   */
+  const finalizeStreamingInterrupted = () => {
+    if (!streamingMessage.value) return null
+
+    const interruptedMessage: Message = {
+      id: `${streamingMessage.value.id}-interrupted`,
+      session_id: streamingMessage.value.session_id,
+      role: 'assistant',
+      content: streamingMessage.value.content || '已停止生成',
+      created_at: streamingMessage.value.created_at,
+      tool_calls: streamingMessage.value.toolCalls.length
+        ? JSON.stringify(streamingMessage.value.toolCalls)
+        : null,
+      tool_results: Object.keys(streamingMessage.value.toolResults).length
+        ? JSON.stringify(streamingMessage.value.toolResults)
+        : null,
+      is_interrupted: true,
+    }
+
+    messages.value.push(interruptedMessage)
+    streamingMessage.value = null
+    isStreaming.value = false
+    return interruptedMessage
+  }
+
+  /**
    * 完成流式消息（将临时消息转换为正式消息）
    */
   const completeStreamingMessage = (payload: FinalizedStreamingMessage = {}) => {
@@ -249,6 +297,7 @@ export const useMessagesStore = defineStore('messages', () => {
     setStreamingToolResult,
     setStreamingError,
     finalizeStreamingError,
+    finalizeStreamingInterrupted,
     completeStreamingMessage,
     clearStreamingMessage,
     displayMessages,  // 包含流式临时消息的列表

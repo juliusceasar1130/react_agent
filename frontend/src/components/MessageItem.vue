@@ -9,6 +9,13 @@
       :class="messageWrapperClass"
     >
       <div
+        v-if="isInterruptedMessage && !isUser"
+        class="px-5 pt-3 text-xs font-medium tracking-wide text-amber-600"
+      >
+        已停止生成
+      </div>
+
+      <div
         v-if="showDebugDetails && statusText && !isUser"
         class="px-5 pt-3 text-xs font-medium tracking-wide"
         :class="statusClass"
@@ -133,6 +140,12 @@ const content = computed(() =>
 
 const statusText = computed(() => streamingState.value?.statusText ?? null)
 const errorText = computed(() => streamingState.value?.error ?? null)
+const isInterruptedMessage = computed(() => {
+  if (streamingState.value) {
+    return Boolean(streamingState.value.isInterrupted)
+  }
+  return Boolean((props.message as Message).is_interrupted)
+})
 
 const toolCallList = computed<StreamToolCall[]>(() => {
   if (streamingState.value) {
@@ -160,6 +173,10 @@ const toolStatusText = (tool: StreamToolCall) => {
     return '已完成'
   }
 
+  if (isInterruptedMessage.value) {
+    return '已停止'
+  }
+
   const status = tool.status
   switch (status) {
     case 'started':
@@ -176,6 +193,9 @@ const messageWrapperClass = computed(() => {
   if (errorText.value) {
     return 'bg-gradient-to-br from-red-50 to-white border border-red-200'
   }
+  if (isInterruptedMessage.value) {
+    return 'bg-gradient-to-br from-amber-50 to-white border border-amber-200'
+  }
   if (streamingState.value) {
     return 'bg-gradient-to-br from-primary/5 to-secondary/5 border border-primary/20'
   }
@@ -189,6 +209,9 @@ const textClass = computed(() => {
   if (errorText.value) {
     return 'text-red-700'
   }
+  if (isInterruptedMessage.value) {
+    return 'text-amber-800'
+  }
   if (streamingState.value) {
     return 'text-primary'
   }
@@ -199,6 +222,9 @@ const statusClass = computed(() => {
   if (errorText.value) {
     return 'text-red-500'
   }
+  if (isInterruptedMessage.value) {
+    return 'text-amber-600'
+  }
   return 'text-primary'
 })
 
@@ -208,6 +234,9 @@ const timeClass = computed(() => {
   }
   if (errorText.value) {
     return 'text-red-400'
+  }
+  if (isInterruptedMessage.value) {
+    return 'text-amber-500'
   }
   return 'text-neutral-400'
 })
