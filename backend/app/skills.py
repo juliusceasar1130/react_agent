@@ -1,17 +1,19 @@
 from typing import TypedDict
 
 
-class Skill(TypedDict):  
+class Skill(TypedDict):
     """A skill that can be progressively disclosed to the agent."""
+
     name: str  # Unique identifier for the skill
     description: str  # 1-2 sentence description to show in system prompt
     content: str  # Full skill content with detailed instructions
 
+
 SKILLS: list[Skill] = [
     {
-    "name": "paint_shop_vehicle_tracking",
-    "description": "涂装车间车辆追踪系统数据库架构，用于实时监控车辆在涂装车间的状态、位置和属性信息，包括车型、颜色、平台等维度的数据管理。",
-    "content": """# 涂装车间车辆追踪系统架构
+        "name": "paint_shop_vehicle_tracking",
+        "description": "涂装车间车辆追踪系统数据库架构，用于实时监控车辆在涂装车间的状态、位置和属性信息，包括车型、颜色、平台等维度的数据管理。",
+        "content": """# 涂装车间车辆追踪系统架构
 
 ## 数据表
 
@@ -88,9 +90,11 @@ SKILLS: list[Skill] = [
 - reserved_1字段 : 28位为预留字段1
 - reserved_2字段 : 29位为预留字段2
 
-**有效车辆判断**：
-- 有效车辆：vehicle_id != '--------------' 且 body_type != '-----'
-- 空位车辆：vehicle_id = '--------------' 且 body_type = '-----'
+**有效车辆判断规则**：
+- 有效车辆：vehicle_id 的前缀是 '782026' 且 body_type != '-----' 且 carrier_id != 0
+**空位/无车规则**：
+- 空位/滚床上无车：vehicle_id = '--------------' 且 body_type = '-----' 且 carrier_id = 0
+
 
 **字典数据管理**：
 - 预定义数据：is_defined = TRUE，表示已知的标准代码
@@ -161,6 +165,6 @@ LEFT JOIN vehicle_body_types vbt ON rp.body_type = vbt.body_type
 WHERE rp.process_area = 'L2面漆存储线'
   AND rp.vehicle_id != '--------------'
 ORDER BY rp.rb_index;
-"""
-},
+""",
+    },
 ]

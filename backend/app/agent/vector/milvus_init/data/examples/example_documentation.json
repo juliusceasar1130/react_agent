@@ -33,7 +33,17 @@
     }
   },
   {
-    "document": "面漆分为主线与存储线（buffer）。主线负责生产，存储线负责缓存。面漆主线与存储线各有3条，可称为1线、2线、3线，或L1、L2、L3。",
+    "document": "面漆区域有3条流水线，可称为1线、2线、3线，或L1、L2、L3。每一条生产节拍40JPH(每小时生产40台车)",
+    "metadata": {
+      "type": "documentation",
+      "domain": "paint_shop_vehicle_tracking",
+      "process": "面漆",
+      "term": "产线结构",
+      "aliases": []
+    }
+  },
+  {
+    "document": "面漆区域细分分为：色漆线、中间烘房、清漆线、烘房、储存线/buffer 区域",
     "metadata": {
       "type": "documentation",
       "domain": "paint_shop_vehicle_tracking",
@@ -123,7 +133,7 @@
       ]
     }
   },
-    {
+  {
     "document": "车身号，也称fis号码，是每一台产品车身的唯一id,带有id的车身绝大多数是正式的产品车，也有可能是调试车或者项目车",
     "metadata": {
       "type": "documentation",
@@ -133,6 +143,18 @@
       "aliases": [
         "fis",
         "车身号"
+      ]
+    }
+  },
+  {
+    "document": " 异常车辆有2种：第一种：vehicle_id 的前缀不是 '782026'且 carrier_id != 0。第二种：vehicle_id = '--------------'且carrier_id != 0。默认两种分别计算并合并，除非用户指明哪种情景。",
+    "metadata": {
+      "type": "documentation",
+      "domain": "paint_shop_vehicle_tracking",
+      "process": "common",
+      "term": "异常车",
+      "aliases": [
+        "非产品车"
       ]
     }
   }
