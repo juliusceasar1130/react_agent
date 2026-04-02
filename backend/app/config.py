@@ -53,8 +53,6 @@ class Settings(BaseSettings):
     sql_export_ttl_hours: int = int(os.getenv("SQL_EXPORT_TTL_HOURS", "24"))
 
     # 服务器配置
-    host: str = os.getenv("HOST", "0.0.0.0")
-    port: int = int(os.getenv("PORT", "8000"))
     debug: bool = os.getenv("DEBUG", "true").lower() == "true"
 
     # Agent配置

@@ -20,7 +20,7 @@ export default defineConfig({
     open: true,
     proxy: {
       '/rearch/api': {
-        target: 'http://localhost:8000',
+        target: 'http://172.22.44.99:8013',
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/rearch/, ''),
       },

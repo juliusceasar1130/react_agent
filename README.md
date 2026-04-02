@@ -458,6 +458,7 @@ npm run dev
 
 ### 技术文档
 
+- [Docker 容器网络与外部服务访问指南](./backend/docs/Docker容器网络与外部服务访问指南.md)
 - [聊天取消与中断机制开发指南](./backend/docs/聊天取消与中断机制开发指南.md)
 - [聊天流式输出结构化事件开发指南](./backend/docs/聊天流式输出结构化事件开发指南.md)
 - [SQL导出文件下载开发指南](./backend/docs/SQL导出文件下载开发指南.md)

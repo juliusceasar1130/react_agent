@@ -10,6 +10,10 @@ milvus_init/init_milvus.py
 
 运行方式（必须在 backend 的父目录执行）：
   cd .tree/features/agent
+  ## 对于ccr远程milvus的初始化,修改  .env 文件的
+  #  MILVUS_URI= 'http://172.22.44.99:19530',以使用本地嵌入模型，更加简便。前提：本地需要打开嵌入模型服务
+
+
   python -m backend.app.agent.vector.milvus_init.init_milvus
 
   或作为模块导入：
@@ -121,10 +125,12 @@ async def main(
     except Exception as e:
         print(f"\n❌ 初始化失败: {str(e)}")
         import traceback
+
         traceback.print_exc()
         return
 
 
 if __name__ == "__main__":
     import asyncio
+
     asyncio.run(main())

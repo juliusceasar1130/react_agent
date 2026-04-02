@@ -1,5 +1,50 @@
 # Changelog
 
+## 2026-04-02 13:00 - 修复 Docker 构建阶段的 Milvus 依赖版本冲突
+
+### 概述
+修复 Docker 构建 `pip install -r /app/requirements.txt` 时的依赖解析失败。根因是项目显式锁定了 `pymilvus==2.6.3`，但 `llama-index-vector-stores-milvus==1.0.0` 要求 `pymilvus>=2.6.7,<3`，导致 pip 无法完成依赖求解。
+
+### 变更内容
+- **依赖版本对齐**:
+  - 更新 `requirements.txt`
+  - 更新 `requirements_standard.txt`
+  - 将 `pymilvus` 从 `2.6.3` 提升为 `2.6.7`
+- **修复效果**:
+  - 与 `llama-index-vector-stores-milvus==1.0.0` 的最低兼容版本保持一致
+  - 保持改动最小，避免一次性升级到更高版本带来的额外兼容风险
+
+## 2026-04-02 12:50 - 修复 Docker 容器启动时 backend 包导入失败
+
+### 概述
+修复 `docker-compose.yml` 启动后端容器时出现的 `ModuleNotFoundError: No module named 'backend'`。根因是镜像内的 `WORKDIR`、`PYTHONPATH` 与 Uvicorn 启动入口使用了 `app.main:app` 路径，但仓库代码实际大量采用 `backend.app...` 绝对导入，导致容器内包根路径不一致。
+
+### 变更内容
+- **镜像启动路径修复**:
+  - 更新 `backend/Dockerfile`
+  - `WORKDIR` 从 `/app/backend` 调整为 `/app`
+  - `PYTHONPATH` 从 `/app/backend` 调整为 `/app`
+  - Uvicorn 启动入口从 `app.main:app` 调整为 `backend.app.main:app`
+- **修复效果**:
+  - 让容器内 Python 包根路径与仓库实际导入风格保持一致
+  - 避免 `export_files.py`、`services.py`、`agent/service.py` 等模块中的 `backend.app...` 绝对导入在容器中失效
+
+## 2026-04-02 00:10 - 新增 Docker 容器网络与外部服务访问指南
+
+### 概述
+围绕本次 `backend`、PostgreSQL、Milvus 与宿主机模型服务之间的 Docker 联通排查，新增一份可复用的实施/排障手册，统一沉淀 `external network`、容器名寻址、`host.docker.internal` 使用边界以及常见易错点，方便后续继续接入新的数据库或本地 API 服务。
+
+### 变更内容
+- **新增文档**:
+  - 新增 `backend/docs/Docker容器网络与外部服务访问指南.md`
+- **文档内容覆盖**:
+  - 容器访问容器、容器访问宿主机、本机访问本机三类地址边界
+  - `savedatabase_app-network` 与 `savedatabase_app_network` 命名差异带来的真实排障经验
+  - Milvus 同时接入默认网络与外部网络的设计原因
+  - 后续接入新依赖服务时的标准判断步骤与检查清单
+- **README 同步**:
+  - 更新技术文档列表，补充 Docker 网络与外部服务访问指南入口
+
 ## 2026-04-01 23:25 - 新增前端聊天消息 Markdown 渲染开发指南
 
 ### 概述

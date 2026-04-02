@@ -24,4 +24,5 @@ networks:
     external: true
     # 确保这个名字和 postgres docker-compose 里创建的网络名字完全一致
     # 可以通过 docker network ls 查看
-    name: savedatabase_app_network
+    # 这个网络是savedatabase-postgresql_v2 这个项目构建的
+    name: savedatabase-postgresql_v2_app-network

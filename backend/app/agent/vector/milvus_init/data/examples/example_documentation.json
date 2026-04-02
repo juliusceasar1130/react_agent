@@ -147,7 +147,7 @@
     }
   },
   {
-    "document": " 异常车辆有2种：第一种：vehicle_id 的前缀不是 '782026'且 carrier_id != 0。第二种：vehicle_id = '--------------'且carrier_id != 0。默认两种分别计算并合并，除非用户指明哪种情景。",
+    "document": " 异常车辆有2种：第一种：vehicle_id 的前缀不是 '782026'开头 且 carrier_id 不等于 0。第二种：vehicle_id 等于 '--------------'且carrier_id 不等于 0。默认两种分别计算并合并，除非用户指明哪种情景。",
     "metadata": {
       "type": "documentation",
       "domain": "paint_shop_vehicle_tracking",
