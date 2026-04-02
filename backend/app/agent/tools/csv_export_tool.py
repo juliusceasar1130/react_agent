@@ -4,27 +4,28 @@ CSV 导出工具
 
 当 SQL 查询结果超过系统硬限制（被截断）时，Agent 可调用此工具
 将完整查询结果导出为 CSV 文件供用户下载，全程不经过 LLM 上下文。
+
+修改时间: 2026-04-01 00:00 Asia/Shanghai
+主要修改内容:
+- 导出结果改为返回结构化文件元数据
+- 配合后端下载接口支持前端安全下载
 """
 
 import csv
+import json
 import logging
 import os
-import re
-import tempfile
 from datetime import datetime
-from typing import Any, Optional
+from typing import Any
 
 from langchain.tools import ToolRuntime, tool as langchain_tool
 from sqlalchemy import create_engine, text
 
 from backend.app.agent.tools.sql_tools import FORBIDDEN_SQL_PATTERN
 from backend.app.agent.utils import emit_stream_status
-from backend.app.config import settings
+from backend.app.export_files import create_export_record, get_export_dir
 
 logger = logging.getLogger(__name__)
-
-# CSV 导出的默认目录，使用系统的临时文件夹以方便系统自动清理，避免长期占用大量磁盘空间
-CSV_EXPORT_DIR = os.path.join(tempfile.gettempdir(), "sql_agent_exports")
 
 
 def create_csv_export_tool(db_uri: str) -> Any:
@@ -54,7 +55,6 @@ def create_csv_export_tool(db_uri: str) -> Any:
             query: A valid SQL SELECT query string.
             required_skill: The name of the skill/domain this query belongs to.
         """
-        # 0. 安全性拦截：与 sql_db_query 保持一致
         if FORBIDDEN_SQL_PATTERN.search(query):
             logger.warning(f"CSV 导出安全拦截：检测到危险 SQL 关键字。Query: {query}")
             return (
@@ -62,7 +62,6 @@ def create_csv_export_tool(db_uri: str) -> Any:
                 "export_to_csv 仅允许执行只读查询 (SELECT)，禁止执行任何修改操作。"
             )
 
-        # 1. 技能加载校验
         skills_loaded = runtime.state.get("skills_loaded", [])
         if required_skill not in skills_loaded:
             return (
@@ -70,43 +69,47 @@ def create_csv_export_tool(db_uri: str) -> Any:
                 f"当前已加载的技能: {skills_loaded or '无'}。"
             )
 
+        engine = None
         try:
-            # 2. 准备导出环境：确保临时存储目录已创建
             emit_stream_status(
                 "正在导出完整 CSV 文件",
                 stage="querying",
                 source="export_to_csv",
             )
-            os.makedirs(CSV_EXPORT_DIR, exist_ok=True)
 
-            # 3. 构造唯一文件名：使用时间戳防止并发导出时的文件冲突
+            export_dir = get_export_dir()
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             filename = f"export_{timestamp}.csv"
-            filepath = os.path.join(CSV_EXPORT_DIR, filename)
+            filepath = export_dir / filename
 
-            # 4. 数据库读取逻辑：使用 SQLAlchemy Engine 直接拉取完整结果集
-            # 这种方式不占用 LangGraph 的状态内存，也不涉及 LLM 的 Token 消耗
             engine = create_engine(db_uri)
             with engine.connect() as conn:
                 result = conn.execute(text(query))
-                columns = list(result.keys()) # 提取列名作为 CSV 表头
-                rows = result.fetchall()      # 拉取所有行
+                columns = list(result.keys())
+                rows = result.fetchall()
 
-            # 5. 文件写入逻辑：使用 utf-8-sig 编码以兼容 Windows Excel 直接打开不乱码
             with open(filepath, "w", newline="", encoding="utf-8-sig") as f:
                 writer = csv.writer(f)
-                writer.writerow(columns)  # 写入首行表头
+                writer.writerow(columns)
                 for row in rows:
                     writer.writerow(row)
 
-            # 6. 元数据收集：用于向 Agent 反馈导出结果统计
             row_count = len(rows)
             col_count = len(columns)
             file_size_kb = os.path.getsize(filepath) / 1024
 
+            record = create_export_record(
+                file_path=filepath,
+                filename=filename,
+                media_type="text/csv",
+                row_count=row_count,
+                col_count=col_count,
+                columns=columns,
+            )
+
             logger.info(
-                "CSV 导出成功: %s (%d 行, %d 列, %.1f KB)",
-                filepath, row_count, col_count, file_size_kb,
+                "CSV 导出成功: %s (%d 行, %d 列, %.1f KB), file_id=%s",
+                filepath, row_count, col_count, file_size_kb, record["file_id"],
             )
             emit_stream_status(
                 "CSV 导出完成",
@@ -114,21 +117,14 @@ def create_csv_export_tool(db_uri: str) -> Any:
                 source="export_to_csv",
             )
 
-            # 释放连接池资源
-            engine.dispose()
-
-            # 返回给 Agent 的结果：仅包含路径和统计信息，不包含任何数据内容
-            return (
-                f"✅ CSV 导出成功！\n"
-                f"- 文件路径: {filepath}\n"
-                f"- 数据量: {row_count} 行 × {col_count} 列\n"
-                f"- 文件大小: {file_size_kb:.1f} KB\n"
-                f"- 列名: {', '.join(columns)}\n\n"
-                f"请告知用户文件已导出，可以到上述路径下载。"
-            )
+            record["message"] = "CSV 导出成功，前端可使用 file_id 调用下载接口获取文件。"
+            return json.dumps(record, ensure_ascii=False)
 
         except Exception as exc:
             logger.error("CSV 导出失败: %s", exc)
             return f"Error: CSV 导出失败 - {exc}"
+        finally:
+            if engine is not None:
+                engine.dispose()
 
     return export_to_csv

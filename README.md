@@ -14,11 +14,14 @@
 - **日期标准化** - 针对数据库日期字段（如 `DD/MM/YYYY`）的自动 ISO 8601 转换清洗
 - **SQL 弹性限流** - 智能判断查询行数，超限时自动截断并返回预览预览及系统警告，防止上下文溢出
 - **CSV 数据导出** - 支持将大量 SQL 结果直接导出为 CSV 文件供用户下载，全程不占 LLM 上下文
+- **前端安全下载** - 导出结果通过 `file_id` 映射到后端下载接口，前端可直接点击下载 CSV，而不暴露服务器绝对路径
+- **Markdown 结果展示** - 助手完成态消息支持 Markdown 渲染，适合表格、列表、代码块和统计摘要展示
 - **状态持久化** - FastAPI 本地模式使用 `AsyncPostgresSaver`，托管模式由 LangGraph 自动管理 Agent 状态
 - **现代 UI/UX** - 基于 Neural Tones + AI Purple 设计系统，支持毛玻璃效果与流畅动画
 - **前后端分离** - FastAPI + Vue 3 + TypeScript
 - **技能系统 (Skills)** - 动态加载业务领域知识，支持大规模上下文管理 (Agent V2)
 - **代码阅读讲解子智能体** - 新增 code-explainer，用于解释代码架构、技术栈、流程与调用链，帮助快速上手仓库
+- **开发指南提炼技能** - 新增 development-guide-synthesizer，用于把开发实现、讨论结论和踩坑经验沉淀成可复用的手册
 - **RAG 知识增强** - 支持 PGVector / Milvus Hybrid 检索，Milvus 可在 `Ollama` 与 `llama.cpp + Qwen3 Embedding` 之间切换，并可选接入 NVIDIA Rerank 精排
 
 ## 技术栈
@@ -113,6 +116,8 @@ MYSQL_DATABASE_URL='mysql+pymysql://...'
 SQL_AGENT_TOP_K=1000         # 软限制：指导 LLM 生成 SQL 时的 LIMIT
 SQL_RESULT_HARD_LIMIT=500    # 硬限制：后端强制截断行数，防内存溢出
 SQL_RESULT_PREVIEW_ROWS=5    # 截断时给 LLM 展示的预览行数
+SQL_EXPORT_DIR=''            # 可选：CSV 导出文件目录，默认系统临时目录/sql_agent_exports
+SQL_EXPORT_TTL_HOURS=24      # CSV 导出文件有效期（小时）
 
 # RAG & Rerank 配置
 RAG_BACKEND='milvus_hybrid'      # 检索后端：pgvector | milvus_hybrid
@@ -213,6 +218,7 @@ rearch_agent/
 ├── .agents/                      # Codex / Agent 侧扩展能力
 │   └── skills/
 │       └── code-explainer/       # 代码阅读与解释 skill
+│       └── development-guide-synthesizer/ # 开发指南提炼 skill
 │           └── SKILL.md
 ├── backend/                        # 后端应用与相关文档
 │   ├── app/
@@ -292,6 +298,7 @@ rearch_agent/
 | ---- | ------------------- | ------------------ |
 | POST | `/api/chat/message` | 发送消息（非流式） |
 | POST | `/api/chat/stream`  | 发送消息（流式，结构化 SSE 事件） |
+| GET  | `/api/chat/files/{file_id}` | 下载 SQL 导出的 CSV 文件 |
 
 #### 示例请求
 
@@ -362,7 +369,7 @@ result = await agent.ainvoke({"messages": [...]}, config=config)
 2. **技能路由增强 (SkillMiddleware)**: 在核心 Agent 前置中间件拦截请求，动态加载特定业务领域（如订单、物流）的 Schema 上下文，防止全局全量 Schema 注入导致 LLM 上下文溢出 (Token Limit)。
 3. **知识与示例检索 (BusinessRagMiddleware)**: 基于 PGVector 或 Milvus 的混合检索，智能匹配相关的业务术语解释或历史相似的优质 SQL 示例。
 4. **安全与弹性 SQL 执行 (Wrapped Query Tool)**: 深度封装了执行节点，强制进行基于正则黑名单的语法与安全检查（拦截 `DROP` 等命令），并带有智能行数截断限流机制，大结果自动总结为预览。
-5. **异步/大文件导出**: 针对巨量查询结果请求，系统提供单独的 `export_to_csv` 工具让 Agent 可以选择生成下载链接而非污染对话历史。
+5. **异步/大文件导出**: 针对巨量查询结果请求，系统提供单独的 `export_to_csv` 工具让 Agent 可以选择生成下载文件而非污染对话历史；前端会根据工具结果自动展示下载卡片。
 
 ### 日期标准化清洗 (Strategy A)
 
@@ -453,6 +460,8 @@ npm run dev
 
 - [聊天取消与中断机制开发指南](./backend/docs/聊天取消与中断机制开发指南.md)
 - [聊天流式输出结构化事件开发指南](./backend/docs/聊天流式输出结构化事件开发指南.md)
+- [SQL导出文件下载开发指南](./backend/docs/SQL导出文件下载开发指南.md)
+- [前端聊天消息 Markdown 渲染开发指南](./docs/前端聊天消息Markdown渲染开发指南.md)
 - [LangSmith Tracing Metadata 与 Tags 开发指南](./backend/docs/LangSmith%20Tracing%20Metadata%20%E4%B8%8E%20Tags%20%E5%BC%80%E5%8F%91%E6%8C%87%E5%8D%97.md)
 - [Milvus RAG 异步化故障排查指南](./backend/docs/Milvus-RAG-异步化故障排查指南.md)
 - [Milvus 延迟初始化工作流程详解](./backend/docs/延迟初始化工作流程详解.md)

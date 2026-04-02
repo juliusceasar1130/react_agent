@@ -1,4 +1,4 @@
-<!-- 2026-03-27 22:12 Asia/Shanghai - 默认仅展示最终结论，过程细节仅在调试模式显示 -->
+<!-- 2026-04-01 22:55 Asia/Shanghai - 默认仅展示最终结论，完成态支持 Markdown 渲染 -->
 <template>
   <div
     class="flex animate-slide-up"
@@ -24,7 +24,11 @@
       </div>
 
       <div class="px-5 py-3.5">
-        <p class="text-[15px] leading-relaxed whitespace-pre-wrap break-words" :class="textClass">
+        <p
+          v-if="isUser || isStreamingActive"
+          class="text-[15px] leading-relaxed whitespace-pre-wrap break-words"
+          :class="textClass"
+        >
           <template v-if="isStreamingActive">
             {{ content }}
             <span class="cursor-blink"></span>
@@ -33,6 +37,58 @@
             {{ content }}
           </template>
         </p>
+        <div
+          v-else
+          class="message-markdown text-[15px] leading-relaxed break-words"
+          :class="textClass"
+          v-html="renderedContent"
+        ></div>
+      </div>
+
+      <div
+        v-if="!isUser && exportArtifacts.length > 0"
+        class="px-4 pb-3 space-y-3"
+      >
+        <div
+          v-for="artifact in exportArtifacts"
+          :key="artifact.file_id"
+          class="rounded-2xl border border-emerald-200 bg-gradient-to-br from-emerald-50 to-white px-4 py-3 shadow-sm"
+        >
+          <div class="flex items-start justify-between gap-4">
+            <div class="min-w-0">
+              <div class="text-sm font-semibold text-emerald-800">CSV 文件已生成</div>
+              <div class="mt-1 break-all text-sm text-emerald-700">{{ artifact.filename }}</div>
+              <div class="mt-2 text-xs leading-5 text-emerald-700/90">
+                <span v-if="artifact.row_count !== undefined && artifact.col_count !== undefined">
+                  {{ artifact.row_count }} 行 × {{ artifact.col_count }} 列
+                </span>
+                <span v-if="artifact.size_bytes !== undefined">
+                  · {{ formatFileSize(artifact.size_bytes) }}
+                </span>
+              </div>
+              <div
+                v-if="artifact.columns && artifact.columns.length > 0"
+                class="mt-1 text-xs leading-5 text-emerald-700/90"
+              >
+                列名：{{ artifact.columns.join('、') }}
+              </div>
+              <div
+                v-if="artifact.expires_at"
+                class="mt-1 text-xs leading-5 text-emerald-700/80"
+              >
+                有效期至：{{ formatDateTime(artifact.expires_at) }}
+              </div>
+            </div>
+
+            <button
+              type="button"
+              class="shrink-0 rounded-xl bg-emerald-600 px-3 py-2 text-sm font-medium text-white transition hover:bg-emerald-700"
+              @click="handleExportDownload(artifact.file_id)"
+            >
+              下载 CSV
+            </button>
+          </div>
+        </div>
       </div>
 
       <div
@@ -96,9 +152,11 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
+import { triggerExportDownload } from '@/api/exports'
 import { CHAT_DEBUG_STREAM } from '@/config/chat'
-import type { Message, StreamToolCall, StreamingMessage } from '@/types'
+import type { ExportArtifact, Message, StreamToolCall, StreamingMessage } from '@/types'
 import { useDateFormat } from '@/composables/useDateFormat'
+import { renderMarkdown } from '@/utils/markdown'
 
 interface Props {
   message: Message | StreamingMessage
@@ -137,6 +195,12 @@ const showDebugDetails = CHAT_DEBUG_STREAM
 const content = computed(() =>
   streamingState.value ? streamingState.value.content : props.message.content
 )
+const renderedContent = computed(() => renderMarkdown(content.value))
+
+const rawToolResults = computed<Record<string, string>>(() => {
+  const message = props.message as Message
+  return streamingState.value?.toolResults ?? parseJson<Record<string, string>>(message.tool_results) ?? {}
+})
 
 const statusText = computed(() => streamingState.value?.statusText ?? null)
 const errorText = computed(() => streamingState.value?.error ?? null)
@@ -158,15 +222,64 @@ const toolCallList = computed<StreamToolCall[]>(() => {
 })
 
 const toolResultEntries = computed<ToolResultEntry[]>(() => {
-  const message = props.message as Message
-  const rawResults = streamingState.value?.toolResults ?? parseJson<Record<string, string>>(message.tool_results) ?? {}
-  return Object.entries(rawResults).map(([id, result]) => ({
+  return Object.entries(rawToolResults.value).map(([id, result]) => ({
     id,
     content: String(result)
   }))
 })
 
+const isExportArtifact = (value: unknown): value is ExportArtifact => {
+  if (!value || typeof value !== 'object') return false
+  const artifact = value as Record<string, unknown>
+  return (
+    artifact.kind === 'file_export'
+    && typeof artifact.file_id === 'string'
+    && typeof artifact.filename === 'string'
+  )
+}
+
+const exportArtifacts = computed<ExportArtifact[]>(() => {
+  const results = rawToolResults.value
+
+  return toolCallList.value.flatMap((tool) => {
+    if (tool.name !== 'export_to_csv') {
+      return []
+    }
+
+    const rawResult = results[tool.id]
+    if (typeof rawResult !== 'string') {
+      return []
+    }
+
+    const parsed = parseJson<ExportArtifact>(rawResult)
+    if (!isExportArtifact(parsed)) {
+      return []
+    }
+
+    return [parsed]
+  })
+})
+
 const hasToolResult = (toolId: string) => toolResultEntries.value.some(item => item.id === toolId)
+
+const formatFileSize = (sizeBytes: number) => {
+  if (sizeBytes < 1024) {
+    return `${sizeBytes} B`
+  }
+  if (sizeBytes < 1024 * 1024) {
+    return `${(sizeBytes / 1024).toFixed(1)} KB`
+  }
+  return `${(sizeBytes / 1024 / 1024).toFixed(1)} MB`
+}
+
+const formatDateTime = (value: string) => {
+  const date = new Date(value)
+  return Number.isNaN(date.getTime()) ? value : date.toLocaleString('zh-CN')
+}
+
+const handleExportDownload = (fileId: string) => {
+  triggerExportDownload(fileId)
+}
 
 const toolStatusText = (tool: StreamToolCall) => {
   if (tool.status === 'completed' || hasToolResult(tool.id)) {

@@ -1,5 +1,110 @@
 # Changelog
 
+## 2026-04-01 23:25 - 新增前端聊天消息 Markdown 渲染开发指南
+
+### 概述
+将本次“聊天消息完成态 Markdown 渲染 + 业务报表风格样式”实现过程沉淀为一份可复用开发指南，便于后续在其他聊天结果展示、分析摘要卡片或统计报表类前端场景中继续复用。
+
+### 变更内容
+- **新增文档**:
+  - 新增 `docs/前端聊天消息Markdown渲染开发指南.md`
+- **文档内容覆盖**:
+  - 聊天消息 Markdown 渲染的背景、目标与整体分层设计
+  - `markdown-it + DOMPurify + MessageItem.vue + style.css` 的调用链与职责拆分
+  - 流式纯文本 / 完成态 Markdown 的设计取舍、易错点与检查清单
+  - 业务报表风格样式的复用经验、边界与后续优化方向
+- **README 同步**:
+  - 更新项目特性与技术文档列表，补充 Markdown 展示能力与指南入口
+
+## 2026-04-01 23:10 - 优化聊天消息为业务报表风格展示
+
+### 概述
+继续细化聊天消息的 Markdown 呈现方式，将原先偏通用文档的样式收敛为更适合统计结果、异常说明、分析摘要等场景的“业务报表风格”，让标题层次、表格扫描效率和数字信息可读性更清晰。
+
+### 变更内容
+- **样式优化**:
+  - 更新 `frontend/src/style.css`
+  - 强化仅含加粗文本段落的区块标题表现，模拟报表分组标题
+  - 优化表格表头背景、行间斑马纹、边框与阴影，提升企业报表观感
+  - 为第二列数字内容增加右对齐与等宽数字展示，便于快速对比数量
+  - 放宽说明列换行规则，减少长文本被挤压的问题
+
+## 2026-04-01 22:55 - 前端聊天消息支持 Markdown 展示渲染
+
+### 概述
+为聊天前端新增“完成态 Markdown 渲染”能力，让助手最终回复中的粗体、列表、表格、代码块和链接能够以更舒适、更易读的样式展示；同时保留流式输出阶段的纯文本效果，避免生成过程中频繁重排。
+
+### 变更内容
+- **前端依赖**:
+  - `frontend/package.json` 新增 `markdown-it` 与 `dompurify`
+- **渲染能力**:
+  - 新增 `frontend/src/utils/markdown.ts`
+  - 统一封装 Markdown 转 HTML 与安全清洗逻辑
+  - 链接默认补充新窗口打开与安全 `rel` 属性
+- **消息展示**:
+  - 更新 `frontend/src/components/MessageItem.vue`
+  - 用户消息与流式中的助手消息继续按纯文本显示
+  - 助手完成态消息切换为 Markdown HTML 渲染
+- **视觉样式**:
+  - 更新 `frontend/src/style.css`
+  - 新增聊天消息 Markdown 样式，优化段落、列表、表格、代码块、引用和链接展示
+
+## 2026-04-01 01:00 - 新增 development-guide-synthesizer 技能
+
+### 概述
+新增一个面向“开发经验沉淀”的项目级技能，用于根据开发实现、讨论内容、代码改动和验证结果，快速提炼出结构化开发指南手册。该技能内置清晰模板、示例、关键点和常见错误，方便后续重复使用。
+
+### 变更内容
+- **新增技能**:
+  - 新增 `.agents/skills/development-guide-synthesizer/SKILL.md`
+- **新增参考资料**:
+  - 新增 `.agents/skills/development-guide-synthesizer/references/guide-template.md`
+  - 新增 `.agents/skills/development-guide-synthesizer/references/examples.md`
+- **技能能力**:
+  - 支持把功能开发、调试排障、架构讨论等内容沉淀为开发指南、排障手册、实施手册或复用 playbook
+  - 提供标准章节模板、调用示例、关键点维度和易错点清单
+- **README 同步**:
+  - 更新项目特性与目录结构，补充该技能入口
+
+## 2026-04-01 00:30 - 新增 SQL 导出文件下载开发指南
+
+### 概述
+围绕本次“SQL 大结果导出 + 后端下载接口 + 前端下载卡片”能力，新增一份可复用的开发指南，统一沉淀从查询限流、导出工具、文件元数据、安全下载到前端消息展示的设计经验，方便后续在其他导出类场景继续复用。
+
+### 变更内容
+- **新增文档**:
+  - 新增 `backend/docs/SQL导出文件下载开发指南.md`
+- **文档内容覆盖**:
+  - SQL 导出下载链路的整体架构与调用顺序
+  - `export_to_csv`、`export_files.py`、下载接口与前端下载卡片的职责分层
+  - 为什么选择“结构化 JSON 字符串 + file_id + sidecar metadata”方案
+  - 文件下载安全边界、复用模板、检查清单与后续演进方向
+- **README 同步**:
+  - 在技术文档列表新增该指南入口
+
+## 2026-04-01 00:00 - 为 SQL 导出结果新增前端可下载能力
+
+### 概述
+为 `export_to_csv` 打通“服务器落盘 -> 后端安全下载接口 -> 前端下载按钮”的完整链路。现在导出工具不会再把服务器绝对路径直接暴露给前端，而是返回结构化导出元数据，聊天消息中可直接点击下载 CSV。
+
+### 变更内容
+- **后端导出元数据管理**:
+  - 新增 `backend/app/export_files.py`
+  - 为每个导出文件生成 `file_id`，并使用 sidecar JSON 保存文件元数据
+- **后端下载接口**:
+  - `backend/app/api.py` 新增 `GET /api/chat/files/{file_id}`
+  - 通过 `FileResponse` 安全返回已导出的 CSV 文件
+- **导出工具返回结构升级**:
+  - `backend/app/agent/tools/csv_export_tool.py` 从“返回服务器路径文本”改为“返回结构化 JSON 字符串”
+  - `backend/app/config.py` 新增 `SQL_EXPORT_DIR`、`SQL_EXPORT_TTL_HOURS`
+- **前端下载卡片**:
+  - 新增 `frontend/src/api/exports.ts`
+  - `frontend/src/components/MessageItem.vue` 自动识别 `export_to_csv` 结果并渲染“下载 CSV”按钮
+  - `frontend/src/types/index.ts` 新增 `ExportArtifact` 类型
+
+### OpenSpec
+- 新增 `openspec/changes/add-sql-export-download/`，记录本次导出下载能力的 proposal / design / tasks / spec delta
+
 ## 2026-03-31 22:08 - 新增聊天取消与中断机制开发指南
 
 ### 概述

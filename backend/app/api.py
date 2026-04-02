@@ -4,7 +4,7 @@ import json
 import logging
 from contextlib import suppress
 from fastapi import APIRouter, Depends, HTTPException, Request, status
-from fastapi.responses import StreamingResponse
+from fastapi.responses import FileResponse, StreamingResponse
 from sqlalchemy.orm import Session
 from typing import Any, List
 
@@ -38,6 +38,7 @@ from .schemas import (
     MessageResponse,
 )
 from . import crud
+from .export_files import get_export_record
 
 from .services import get_agent_service  # FastAPI 兼容层，内部复用 Agent V2 核心服务
 
@@ -177,6 +178,31 @@ def delete_message_endpoint(message_id: str, db: Session = Depends(get_db)):
     if not success:
         raise HTTPException(status_code=404, detail=f"消息 {message_id} 不存在")
     return {"message": f"消息 {message_id} 已删除"}
+
+
+@router.get("/files/{file_id}")
+def download_export_file(file_id: str):
+    """下载由 export_to_csv 生成的导出文件。
+
+    修改时间: 2026-04-01 00:00 Asia/Shanghai
+    修改内容:
+    - 新增基于 file_id 的安全下载接口
+    - 避免前端暴露服务器绝对路径
+    """
+    try:
+        record = get_export_record(file_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail="导出文件不存在或已被清理") from exc
+    except TimeoutError as exc:
+        raise HTTPException(status_code=410, detail="导出文件已过期，请重新导出") from exc
+
+    return FileResponse(
+        path=record["stored_path"],
+        media_type=record.get("media_type", "application/octet-stream"),
+        filename=record.get("filename") or file_id,
+    )
 
 
 # ====================== 消息处理 ======================

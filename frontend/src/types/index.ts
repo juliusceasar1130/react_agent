@@ -36,6 +36,20 @@ export interface MessageCreate {
   tool_results?: string | null
 }
 
+export interface ExportArtifact {
+  kind: 'file_export'
+  file_id: string
+  filename: string
+  media_type?: string
+  size_bytes?: number
+  row_count?: number
+  col_count?: number
+  columns?: string[]
+  created_at?: string
+  expires_at?: string
+  message?: string
+}
+
 export type StreamStage = 'thinking' | 'retrieving' | 'querying' | 'writing'
 
 export interface StreamToolCall {

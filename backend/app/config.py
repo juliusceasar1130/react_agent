@@ -1,4 +1,5 @@
 import os
+import tempfile
 from pathlib import Path
 from typing import Optional
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -43,6 +44,13 @@ class Settings(BaseSettings):
     
     # SQL 结果预览行数：当查询结果触发硬限制被截断时，实际回吐给 LLM 观察的前 N 条数据行数
     sql_result_preview_rows: int = int(os.getenv("SQL_RESULT_PREVIEW_ROWS", "5"))
+
+    # SQL 导出文件配置：前端下载能力使用的临时导出目录与过期时间
+    sql_export_dir: str = os.getenv(
+        "SQL_EXPORT_DIR",
+        str(Path(tempfile.gettempdir()) / "sql_agent_exports"),
+    )
+    sql_export_ttl_hours: int = int(os.getenv("SQL_EXPORT_TTL_HOURS", "24"))
 
     # 服务器配置
     host: str = os.getenv("HOST", "0.0.0.0")
