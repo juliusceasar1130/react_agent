@@ -79,7 +79,7 @@ backend/app/              # 后端应用核心
 ├── services.py          # LangChain Agent 服务层
 └── test.py              # 测试文件
 
-backend/docs/            # 技术文档
+docs/backend/            # 技术文档
 
 frontend/                # Vue 3 前端应用
 ├── src/
@@ -408,10 +408,10 @@ for chunk in self.agent.stream(
 
 ## 技术文档
 
-详细的技术文档位于 `backend/docs/` 目录：
+详细的技术文档位于 `docs/backend/` 目录：
 
 ### FastAPI 与 SQLAlchemy
-`backend/docs/FastAPI与SQLAlchemy知识点复习.md`，包含：
+`docs/backend/FastAPI与SQLAlchemy知识点复习.md`，包含：
 1. CRUD 操作最佳实践
 2. 同步 vs 异步架构对比
 3. FastAPI 依赖注入机制
@@ -422,7 +422,7 @@ for chunk in self.agent.stream(
 8. **ORM 与 Pydantic 对象转换**
 
 ### PostgresSaver 集成
-`backend/docs/PostgresSaver集成重构总结.md`，包含：
+`docs/backend/PostgresSaver集成重构总结.md`，包含：
 1. 需求背景和重构目标
 2. 技术方案设计（混合模式架构）
 3. 实现细节和文件变更清单
@@ -432,7 +432,7 @@ for chunk in self.agent.stream(
 7. 性能和成本优化分析
 
 ### 连接池与上下文管理器
-`backend/docs/连接池与上下文管理器详解.md`，包含：
+`docs/backend/连接池与上下文管理器详解.md`，包含：
 1. 上下文管理器定义和工作原理
 2. 连接池概念和优势
 3. PostgresSaver 集成问题与解决

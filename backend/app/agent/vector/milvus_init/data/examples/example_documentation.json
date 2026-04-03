@@ -157,5 +157,29 @@
         "非产品车"
       ]
     }
+  },
+  {
+    "document": "车型是产品的类型，常见的车型代码有：2N54Y、IM186、IM142、YM34K等5个字符构成，vehicle_body_types表提供详细的定义和明细",
+    "metadata": {
+      "type": "documentation",
+      "domain": "paint_shop_vehicle_tracking",
+      "process": "common",
+      "term": "产品构成",
+      "aliases": [
+        "车型","body type"
+      ]
+    }
+  },
+  {
+    "document": "颜色是产品的外观颜色，常见的颜色代码有：2T2T、0Q0Q、PZPZ等4个字符构成，vehicle_color_codes表提供详细的定义和明细",
+    "metadata": {
+      "type": "documentation",
+      "domain": "paint_shop_vehicle_tracking",
+      "process": "common",
+      "term": "产品构成",
+      "aliases": [
+        "颜色","color"
+      ]
+    }
   }
 ]

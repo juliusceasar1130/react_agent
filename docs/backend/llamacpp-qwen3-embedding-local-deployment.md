@@ -60,7 +60,8 @@ backend/
 │               ├── init_milvus.py
 │               ├── init_store.py
 │               └── data/
-└── docs/
+docs/
+└── backend/
     ├── RAG架构与技术总结.md
     └── llamacpp-qwen3-embedding-local-deployment.md
 ```

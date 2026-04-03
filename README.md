@@ -220,7 +220,7 @@ rearch_agent/
 │       └── code-explainer/       # 代码阅读与解释 skill
 │       └── development-guide-synthesizer/ # 开发指南提炼 skill
 │           └── SKILL.md
-├── backend/                        # 后端应用与相关文档
+├── backend/                      # 后端应用
 │   ├── app/
 │   │   ├── main.py                # FastAPI 应用入口
 │   │   ├── api.py                 # RESTful API 路由
@@ -250,7 +250,6 @@ rearch_agent/
 │   │           ├── pgvector/              # PGVector 纯向量检索实现
 │   │           ├── pgvector_init/         # PGVector 数据导入工具集
 │   │           └── rerank/                # NVIDIA Rerank 精排器封装
-│   ├── docs/                    # 后端技术文档
 │   ├── llamaCpp/                # llama.cpp 本地部署脚本
 │   └── Dockerfile               # 后端 Docker 镜像配置
 ├── frontend/                    # 前端应用
@@ -263,6 +262,15 @@ rearch_agent/
 │   ├── vite.config.ts           # Vite 配置
 │   └── package.json             # 前端依赖
 ├── deploy/                      # 部署文档与辅助配置
+├── docs/                        # 项目文档总目录
+│   ├── backend/                 # 后端技术文档
+│   │   └── rpd/                 # 后端需求与 RAG 方案草稿
+│   └── obsidian/
+│       ├── agent-sql-learning/  # Agent / SQL 相关学习笔记
+│       ├── architecture-learning/ # 架构与部署认知笔记
+│       ├── backend-learning/    # 后端开发学习导航与编号笔记
+│       ├── data-quality-learning/ # 数据格式与质量相关笔记
+│       └── frontend-learning/   # 前端专题学习笔记
 ├── openspec/                    # 规格与变更提案
 ├── .env                         # 当前本地环境变量
 ├── changelog.md                 # 项目变更记录
@@ -458,19 +466,24 @@ npm run dev
 
 ### 技术文档
 
-- [Docker 容器网络与外部服务访问指南](./backend/docs/Docker容器网络与外部服务访问指南.md)
-- [聊天取消与中断机制开发指南](./backend/docs/聊天取消与中断机制开发指南.md)
-- [聊天流式输出结构化事件开发指南](./backend/docs/聊天流式输出结构化事件开发指南.md)
-- [SQL导出文件下载开发指南](./backend/docs/SQL导出文件下载开发指南.md)
+- [Obsidian Agent / SQL 学习导航](./docs/obsidian/agent-sql-learning/00_Agent与SQL学习导航.md)
+- [Obsidian 架构学习导航](./docs/obsidian/architecture-learning/00_架构学习导航.md)
+- [Obsidian 后端开发学习导航](./docs/obsidian/backend-learning/00_后端开发学习导航.md)
+- [Obsidian 数据质量学习导航](./docs/obsidian/data-quality-learning/00_数据质量学习导航.md)
+- [Obsidian 前端学习导航](./docs/obsidian/frontend-learning/00_前端学习导航.md)
+- [Docker 容器网络与外部服务访问指南](./docs/backend/Docker容器网络与外部服务访问指南.md)
+- [聊天取消与中断机制开发指南](./docs/backend/聊天取消与中断机制开发指南.md)
+- [聊天流式输出结构化事件开发指南](./docs/backend/聊天流式输出结构化事件开发指南.md)
+- [SQL导出文件下载开发指南](./docs/backend/SQL导出文件下载开发指南.md)
 - [前端聊天消息 Markdown 渲染开发指南](./docs/前端聊天消息Markdown渲染开发指南.md)
-- [LangSmith Tracing Metadata 与 Tags 开发指南](./backend/docs/LangSmith%20Tracing%20Metadata%20%E4%B8%8E%20Tags%20%E5%BC%80%E5%8F%91%E6%8C%87%E5%8D%97.md)
-- [Milvus RAG 异步化故障排查指南](./backend/docs/Milvus-RAG-异步化故障排查指南.md)
-- [Milvus 延迟初始化工作流程详解](./backend/docs/延迟初始化工作流程详解.md)
-- [llama.cpp + Qwen3 Embedding 接入与复用最佳实践](./backend/docs/llamacpp-qwen3-embedding-local-deployment.md)
-- [RAG 架构与技术总结](./backend/docs/RAG架构与技术总结.md)
-- [FastAPI 与 SQLAlchemy 知识点](./backend/docs/FastAPI与SQLAlchemy知识点复习.md)
-- [PostgresSaver 集成重构总结](./backend/docs/PostgresSaver集成重构总结.md)
-- [连接池与上下文管理器详解](./backend/docs/连接池与上下文管理器详解.md)
+- [LangSmith Tracing Metadata 与 Tags 开发指南](./docs/backend/LangSmith%20Tracing%20Metadata%20%E4%B8%8E%20Tags%20%E5%BC%80%E5%8F%91%E6%8C%87%E5%8D%97.md)
+- [Milvus RAG 异步化故障排查指南](./docs/backend/Milvus-RAG-异步化故障排查指南.md)
+- [Milvus 延迟初始化工作流程详解](./docs/backend/延迟初始化工作流程详解.md)
+- [llama.cpp + Qwen3 Embedding 接入与复用最佳实践](./docs/backend/llamacpp-qwen3-embedding-local-deployment.md)
+- [RAG 架构与技术总结](./docs/backend/RAG架构与技术总结.md)
+- [FastAPI 与 SQLAlchemy 知识点](./docs/backend/FastAPI与SQLAlchemy知识点复习.md)
+- [PostgresSaver 集成重构总结](./docs/backend/PostgresSaver集成重构总结.md)
+- [连接池与上下文管理器详解](./docs/backend/连接池与上下文管理器详解.md)
 
 ## 常见问题
 

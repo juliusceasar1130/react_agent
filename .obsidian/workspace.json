@@ -1,0 +1,196 @@
+{
+  "main": {
+    "id": "939a68baecc102d4",
+    "type": "split",
+    "children": [
+      {
+        "id": "fbf4115764493bd5",
+        "type": "tabs",
+        "children": [
+          {
+            "id": "c37745fda6395a13",
+            "type": "leaf",
+            "state": {
+              "type": "markdown",
+              "state": {
+                "file": "README.md",
+                "mode": "source",
+                "source": false
+              },
+              "icon": "lucide-file",
+              "title": "README"
+            }
+          }
+        ]
+      }
+    ],
+    "direction": "vertical"
+  },
+  "left": {
+    "id": "fd239bc248aef9d6",
+    "type": "split",
+    "children": [
+      {
+        "id": "94227f5271537b23",
+        "type": "tabs",
+        "children": [
+          {
+            "id": "15ef24953a06b131",
+            "type": "leaf",
+            "state": {
+              "type": "file-explorer",
+              "state": {
+                "sortOrder": "alphabetical",
+                "autoReveal": false
+              },
+              "icon": "lucide-folder-closed",
+              "title": "文件列表"
+            }
+          },
+          {
+            "id": "358f9f231f06c2ec",
+            "type": "leaf",
+            "state": {
+              "type": "search",
+              "state": {
+                "query": "",
+                "matchingCase": false,
+                "explainSearch": false,
+                "collapseAll": false,
+                "extraContext": false,
+                "sortOrder": "alphabetical"
+              },
+              "icon": "lucide-search",
+              "title": "搜索"
+            }
+          },
+          {
+            "id": "d68d1d932c543730",
+            "type": "leaf",
+            "state": {
+              "type": "bookmarks",
+              "state": {},
+              "icon": "lucide-bookmark",
+              "title": "书签"
+            }
+          }
+        ]
+      }
+    ],
+    "direction": "horizontal",
+    "width": 300
+  },
+  "right": {
+    "id": "578749499f354614",
+    "type": "split",
+    "children": [
+      {
+        "id": "609ae0ab04bada8f",
+        "type": "tabs",
+        "children": [
+          {
+            "id": "094d99d2e92d0f0e",
+            "type": "leaf",
+            "state": {
+              "type": "backlink",
+              "state": {
+                "file": "开发规范与最佳实践.md",
+                "collapseAll": false,
+                "extraContext": false,
+                "sortOrder": "alphabetical",
+                "showSearch": false,
+                "searchQuery": "",
+                "backlinkCollapsed": false,
+                "unlinkedCollapsed": true
+              },
+              "icon": "links-coming-in",
+              "title": "开发规范与最佳实践 的反向链接列表"
+            }
+          },
+          {
+            "id": "c8541e240f6cb0ff",
+            "type": "leaf",
+            "state": {
+              "type": "outgoing-link",
+              "state": {
+                "file": "开发规范与最佳实践.md",
+                "linksCollapsed": false,
+                "unlinkedCollapsed": true
+              },
+              "icon": "links-going-out",
+              "title": "开发规范与最佳实践 的出链列表"
+            }
+          },
+          {
+            "id": "cdf62933709b4de5",
+            "type": "leaf",
+            "state": {
+              "type": "tag",
+              "state": {
+                "sortOrder": "frequency",
+                "useHierarchy": true,
+                "showSearch": false,
+                "searchQuery": ""
+              },
+              "icon": "lucide-tags",
+              "title": "标签"
+            }
+          },
+          {
+            "id": "c2357621f29c684e",
+            "type": "leaf",
+            "state": {
+              "type": "all-properties",
+              "state": {
+                "sortOrder": "frequency",
+                "showSearch": false,
+                "searchQuery": ""
+              },
+              "icon": "lucide-archive",
+              "title": "添加笔记属性"
+            }
+          },
+          {
+            "id": "e3f56f1b5985a7c4",
+            "type": "leaf",
+            "state": {
+              "type": "outline",
+              "state": {
+                "file": "开发规范与最佳实践.md",
+                "followCursor": false,
+                "showSearch": false,
+                "searchQuery": ""
+              },
+              "icon": "lucide-list",
+              "title": "开发规范与最佳实践 的大纲"
+            }
+          }
+        ]
+      }
+    ],
+    "direction": "horizontal",
+    "width": 300,
+    "collapsed": true
+  },
+  "left-ribbon": {
+    "hiddenItems": {
+      "switcher:打开快速切换": false,
+      "graph:查看关系图谱": false,
+      "canvas:新建白板": false,
+      "daily-notes:打开/创建今天的日记": false,
+      "templates:插入模板": false,
+      "command-palette:打开命令面板": false,
+      "bases:新建数据库": false
+    }
+  },
+  "active": "c37745fda6395a13",
+  "lastOpenFiles": [
+    "开发规范与最佳实践.md",
+    "docs/sql_agent.md",
+    "docs/obsidian/architecture-learning/01_前后端与Nginx架构知识总结.md",
+    "docs/obsidian/agent-sql-learning/00_Agent与SQL学习导航.md",
+    "docs/obsidian/agent-sql-learning/03_LangChain_PostgreSQL注释识别最佳实践.md",
+    "docs/obsidian/agent-sql-learning/01_生产数据查询智能体需求.md",
+    "docs/生产数据查询智能体需求.md"
+  ]
+}

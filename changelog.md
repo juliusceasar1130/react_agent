@@ -1,5 +1,63 @@
 # Changelog
 
+## 2026-04-03 20:00 - 整理文档目录结构并更新 Obsidian 引用
+
+### 概述
+将原先分散在 `backend/docs` 下的后端技术文档统一归档到 `docs/backend`，让项目文档入口全部收口到 `docs/` 下；同时同步修正 Obsidian 学习笔记、README 与相关说明中的旧路径引用，避免目录调整后出现断链。
+
+### 变更内容
+- **目录整合**:
+  - 将 `backend/docs/` 迁移为 `docs/backend/`
+  - 保留 `docs/backend/rpd/` 子目录结构
+- **Obsidian 引用更新**:
+  - 批量更新 `docs/obsidian/backend-learning/` 下 21 篇学习笔记的 `source_note`、原文入口与嵌入路径
+  - 更新 `00_后端开发学习导航.md` 中的原文目录说明
+- **说明文档同步**:
+  - 更新 `README.md` 中的项目结构与技术文档入口
+  - 更新 `CLAUDE.md`、`开发规范与最佳实践.md` 中的后端文档目录路径
+  - 修正 `docs/backend/rpd/` 内少量旧绝对路径说明
+
+## 2026-04-02 22:25 - 新增通用文档的 Obsidian 分类学习目录
+
+### 概述
+将 `docs/` 下 7 篇原先零散放置的通用文档，按主题整理进对应的 Obsidian 学习目录，延续 `backend-learning` 的组织规则：保留原文不动，新增导航页、编号学习页、原文入口与嵌入，方便后续在 Obsidian 中按专题学习。
+
+### 变更内容
+- **新增 Obsidian 分类目录**:
+  - 新增 `docs/obsidian/agent-sql-learning/`
+  - 新增 `docs/obsidian/architecture-learning/`
+  - 新增 `docs/obsidian/frontend-learning/`
+  - 新增 `docs/obsidian/data-quality-learning/`
+- **整理范围**:
+  - `agent_best_practices.md`
+  - `LangChain + PostgreSQL 注释识别最佳实践.md`
+  - `sql_agent.md`
+  - `前后端与Nginx架构知识总结.md`
+  - `前端聊天消息Markdown渲染开发指南.md`
+  - `数据库日期时间记录与大模型处理分析报告.md`
+  - `生产数据查询智能体需求.md`
+- **README 同步**:
+  - 更新 Obsidian 学习目录说明
+  - 增加新的学习导航入口
+
+## 2026-04-02 22:15 - 新增 Obsidian 后端开发学习导航与编号笔记
+
+### 概述
+为了方便系统化学习 `backend/docs` 下的后端开发文档，新增一组面向 Obsidian 的学习笔记目录。在不改动原始文档的前提下，按学习顺序重新编号，并补充导航页、前后跳转和原文嵌入入口，降低后续复习与串联成本。
+
+### 变更内容
+- **新增 Obsidian 学习目录**:
+  - 新增 `docs/obsidian/backend-learning/`
+  - 新增 `00_后端开发学习导航.md`
+  - 新增 21 篇编号学习笔记，覆盖 `backend/docs` 与 `backend/docs/rpd` 的现有后端文档
+- **组织方式**:
+  - 保留原始 `backend/docs` 文档不动
+  - 每篇学习笔记增加学习建议、原文入口、上下篇导航与 Obsidian 嵌入
+  - 导航页按“基础认知 / Agent 与 RAG / SQL Agent / 交互观测 / 部署环境”分阶段整理
+- **README 同步**:
+  - 更新项目结构说明
+  - 增加 Obsidian 后端学习导航入口
+
 ## 2026-04-02 13:00 - 修复 Docker 构建阶段的 Milvus 依赖版本冲突
 
 ### 概述
