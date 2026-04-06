@@ -67,6 +67,23 @@ def render_scenario_for_llm(scenario: ScenarioSkill) -> str:
         f"- 必填: {', '.join(scenario['required_inputs']) or '无'}",
         f"- 可选: {', '.join(scenario['optional_inputs']) or '无'}",
         "",
+    ]
+
+    # 新增：参数详细展示
+    if scenario.get("parameters"):
+        lines.append("## 参数定义")
+        for param_name, param_def in scenario["parameters"].items():
+            lines.append(f"### {param_name}")
+            lines.append(f"- 类型: {param_def['type']}" + (f" (元素类型: {param_def['items_type']})" if param_def.get('items_type') else ""))
+            lines.append(f"- 必填: {'是' if param_def['required'] else '否'}")
+            lines.append(f"- 说明: {param_def['description']}")
+            lines.append(f"- 来源表: {param_def['source_table']}.{param_def['source_column']}")
+            lines.append(f"- 示例值: {', '.join(param_def['example_values'])}")
+            lines.append(f"- SQL 片段: {param_def['sql_fragment']}")
+            lines.append(f"- 使用方式: {param_def['usage']}")
+            lines.append("")
+
+    lines.extend([
         "## 固定流程",
         *[
             f"{index}. {step}"
@@ -82,7 +99,7 @@ def render_scenario_for_llm(scenario: ScenarioSkill) -> str:
         "## 输出契约",
         f"- {scenario['output_contract']}",
         "",
-    ]
+    ])
 
     lines.extend(_render_asset_refs("模板资产", scenario["sql_template_refs"]))
     lines.append("")

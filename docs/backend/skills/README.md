@@ -1,12 +1,13 @@
 # Skills 总览与文档导航
 
-修改时间：2026-04-05 Asia/Shanghai
+修改时间：2026-04-06 Asia/Shanghai
 
 主要修改内容：
-- 将目录级 README 升级为“机制总览 + 调用链说明 + 文档导航”
-- 汇总“领域 skill + 场景 skill”二级重构的核心机制、模块职责与函数调用关系
-- 补充“固定场景命中后仍检索历史 SQL 示例”的潜在冲突与后续完善计划
+- 将目录级 README 升级为”机制总览 + 调用链说明 + 文档导航”
+- 汇总”领域 skill + 场景 skill”二级重构的核心机制、模块职责与函数调用关系
+- 补充”固定场景命中后仍检索历史 SQL 示例”的潜在冲突与后续完善计划
 - 同步当前目录结构示例，补充 `realtime_area_body_count` 场景与 SQL 模板
+- 新增场景参数化筛选机制说明，支持 LLM 自主决定参数填充
 
 ## 重构后的核心机制
 
@@ -65,6 +66,7 @@ from backend.app.skills import SKILLS
 职责：
 
 - 定义领域技能、场景技能、资产引用的数据结构
+- 定义场景参数的结构化描述
 
 核心结构：
 
@@ -76,6 +78,8 @@ from backend.app.skills import SKILLS
   场景内部运行时结构
 - `AssetRef`
   外部 SQL / 脚本 / 文档引用
+- `ParameterDefinition`
+  场景参数定义，用于指导 LLM 动态填充参数
 
 ### 3. 资产层：`assets.py`
 
@@ -135,6 +139,7 @@ from backend.app.skills import SKILLS
   - 场景描述
   - triggers
   - 输入参数
+  - **参数定义**（parameters）：详细展示参数类型、说明、示例值、SQL 片段和使用方式
   - workflow
   - rules
   - gotchas
@@ -357,19 +362,98 @@ SkillMiddleware.wrap_model_call()
 
 ## 当前潜在问题：固定场景与历史 SQL 示例可能互相干扰
 
-当前实现虽然已经支持“命中固定场景后先加载 `load_scenario()`”，但在 system prompt 的工作流里，仍然保留了“查询前优先调用 `search_saved_correct_tool_uses(...)`”这一策略。
+当前实现虽然已经支持”命中固定场景后先加载 `load_scenario()`”，但在 system prompt 的工作流里，仍然保留了”查询前优先调用 `search_saved_correct_tool_uses(...)`”这一策略。
 
-这在普通自由查询里通常是有价值的，但对“SQL 结构基本固定、只变化参数”的场景来说，会带来潜在冲突：
+这在普通自由查询里通常是有价值的，但对”SQL 结构基本固定、只变化参数”的场景来说，会带来潜在冲突：
 
 1. 场景模板已经在约束模型按固定 SQL 结构思考
 2. `search_saved_correct_tool_uses(...)` 又会返回另一组历史 SQL 示例
-3. 如果两者写法不一致，模型会重新进入“多候选综合决策”状态
-4. 这会削弱场景层原本想达到的“减少随机规划、固定 SQL 结构”的目标
+3. 如果两者写法不一致，模型会重新进入”多候选综合决策”状态
+4. 这会削弱场景层原本想达到的”减少随机规划、固定 SQL 结构”的目标
 
 换句话说：
 
-- 如果场景只是“说明性 playbook”，查历史 SQL 仍然有帮助
-- 如果场景已经接近“准模板 / 半执行器”，再查历史 SQL 就可能干扰最终决策
+- 如果场景只是”说明性 playbook”，查历史 SQL 仍然有帮助
+- 如果场景已经接近”准模板 / 半执行器”，再查历史 SQL 就可能干扰最终决策
+
+## 场景参数化筛选机制
+
+### 背景
+
+某些场景需要支持参数筛选，让 LLM 能根据用户问题自主决定是否添加 SQL 条件。例如：
+
+- “各区域有多少车身” → 查询所有区域
+- “电泳区域有多少车身” → 只查询电泳区域
+- “电泳和面漆区域各有多少车身” → 只查询这两个区域
+
+### 设计方案
+
+采用**声明式参数定义 + SQL 模板参数化**的方案：
+
+1. **场景元数据增强**：新增 `parameters` 字段，详细描述每个参数
+2. **数据模型更新**：新增 `ParameterDefinition` 类型定义
+3. **SQL 模板参数化**：在 SQL 中添加参数注释和使用示例
+4. **渲染器更新**：在场景加载时展示参数定义
+
+### 参数定义结构
+
+```python
+class ParameterDefinition(TypedDict):
+    “””场景参数定义，用于指导 LLM 动态填充参数。”””
+    type: str  # “array”, “string”, “integer” 等
+    items_type: str  # 仅当 type=”array” 时使用
+    description: str  # 参数用途说明
+    required: bool  # 是否必填
+    source_column: str  # 数据库列名
+    source_table: str  # 可选值来源表
+    example_values: list[str]  # 示例值
+    usage: str  # 使用方式说明
+    sql_fragment: str  # SQL 片段模板
+```
+
+### LLM 决策流程
+
+```
+用户问题 → load_scenario() → LLM 阅读参数定义
+                                    ↓
+                          判断是否需要筛选
+                          ↓              ↓
+                       需要筛选       不需要筛选
+                          ↓              ↓
+                   添加 WHERE 条件    保持原 SQL
+```
+
+### 示例：realtime_area_body_count
+
+```python
+“parameters”: {
+    “process_area”: {
+        “type”: “array”,
+        “items_type”: “string”,
+        “description”: “工艺区域名称列表，用于筛选特定区域的车身数量”,
+        “required”: False,
+        “source_column”: “process_area”,
+        “source_table”: “process_areas”,
+        “example_values”: [“电泳”, “面漆”, “烘干”],
+        “usage”: “当用户询问特定区域时，将此参数添加到 SQL 的 WHERE 子句中”,
+        “sql_fragment”: “AND rp.process_area IN ('{values}')”,
+    }
+}
+```
+
+渲染后 LLM 看到的内容：
+
+```
+## 参数定义
+### process_area
+- 类型: array (元素类型: string)
+- 必填: 否
+- 说明: 工艺区域名称列表，用于筛选特定区域的车身数量
+- 来源表: process_areas.process_area
+- 示例值: 电泳, 面漆, 烘干, 电泳烘干, 面漆烘干
+- SQL 片段: AND rp.process_area IN ('{values}')
+- 使用方式: 当用户询问特定区域时，将此参数添加到 SQL 的 WHERE 子句中
+```
 
 ## 当前设计结论
 

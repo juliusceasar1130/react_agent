@@ -233,7 +233,9 @@ def _prepare_tools(
         ]
 
         logger.info("SQL 查询工具已包装：技能检查 + 语法检查 + 日期清洗 + 智能限流")
-        logger.info("已移除 sql_db_list_tables 和 sql_db_schema，强制通过 skills 获取表信息")
+        logger.info(
+            "已移除 sql_db_list_tables 和 sql_db_schema，强制通过 skills 获取表信息"
+        )
     else:
         tools = raw_tools
         logger.warning("未找到 sql_db_query 工具，跳过包装")
@@ -301,7 +303,7 @@ def _build_system_prompt(db: SQLDatabase) -> str:
 1. 使用 load_skill 工具加载相关业务领域的技能
 2. 从技能内容中了解可用的表结构、字段含义和业务规则
 2.5. 若用户问题属于固定统计、固定报表或固定流程场景，优先使用 load_scenario 加载对应场景技能
-3. 在查询数据前，你应优先使用 search_saved_correct_tool_uses 工具，检索与当前问题相似的历史 SQL 示例
+3. 如果尚未加载场景技能，你应优先使用 search_saved_correct_tool_uses 工具，检索与当前问题相似的历史 SQL 示例。如果已经加载场景技能，search_saved_correct_tool_uses 工具不推荐使用，容易引起混淆。
 4. 结合历史 SQL 示例、领域技能信息和场景技能信息，编写新的 SQL 查询（可以在示例基础上改写和优化）
 5. 使用 sql_db_query 工具执行查询（会自动进行语法检查）
 
@@ -398,7 +400,9 @@ class SQLAgentService:
             return
 
         if self._managed_runtime:
-            logger.info("托管模式下由 LangGraph 自动注入 checkpointer/store，跳过本地持久化初始化")
+            logger.info(
+                "托管模式下由 LangGraph 自动注入 checkpointer/store，跳过本地持久化初始化"
+            )
             return
 
         self.checkpointer, self.conn_pool = _create_local_checkpointer()
@@ -410,7 +414,9 @@ class SQLAgentService:
             return
 
         if self._managed_runtime:
-            logger.info("托管模式下由 LangGraph 自动注入 checkpointer/store，跳过本地持久化初始化")
+            logger.info(
+                "托管模式下由 LangGraph 自动注入 checkpointer/store，跳过本地持久化初始化"
+            )
             return
 
         self.checkpointer, self.conn_pool = await _create_local_async_checkpointer()

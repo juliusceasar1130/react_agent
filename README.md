@@ -266,6 +266,7 @@ rearch_agent/
 ├── docs/                        # 项目文档总目录
 │   ├── backend/                 # 后端技术文档
 │   │   └── rpd/                 # 后端需求与 RAG 方案草稿
+│   ├── todolist/                # 评审记录、优化待办与后续跟踪
 │   └── obsidian/
 │       ├── agent-sql-learning/  # Agent / SQL 相关学习笔记
 │       ├── architecture-learning/ # 架构与部署认知笔记
