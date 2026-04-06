@@ -19,7 +19,7 @@
 - **状态持久化** - FastAPI 本地模式使用 `AsyncPostgresSaver`，托管模式由 LangGraph 自动管理 Agent 状态
 - **现代 UI/UX** - 基于 Neural Tones + AI Purple 设计系统，支持毛玻璃效果与流畅动画
 - **前后端分离** - FastAPI + Vue 3 + TypeScript
-- **技能系统 (Skills)** - 动态加载业务领域知识，支持大规模上下文管理 (Agent V2)
+- **技能系统 (Skills)** - 动态加载业务领域知识，并支持“领域 skill + 场景 skill”二级披露，适配固定统计与固定流程场景
 - **代码阅读讲解子智能体** - 新增 code-explainer，用于解释代码架构、技术栈、流程与调用链，帮助快速上手仓库
 - **开发指南提炼技能** - 新增 development-guide-synthesizer，用于把开发实现、讨论结论和踩坑经验沉淀成可复用的手册
 - **RAG 知识增强** - 支持 PGVector / Milvus Hybrid 检索，Milvus 可在 `Ollama` 与 `llama.cpp + Qwen3 Embedding` 之间切换，并可选接入 NVIDIA Rerank 精排
@@ -232,7 +232,8 @@ rearch_agent/
 │   │   ├── services.py            # FastAPI Agent 兼容适配层
 │   │   ├── services_graph.py      # LangGraph SQL Agent 服务
 │   │   ├── test_*.py              # 后端冒烟 / 功能测试脚本
-│   │   └── agent/                 # Agent 模块化架构核心
+│   │   ├── agent/                 # Agent 模块化架构核心
+│   │   └── skills/                # 业务技能注册中心（领域 + 场景 + 资产）
 │   │       ├── service.py             # Agent V2 核心运行时（兼容 LangGraph CLI）
 │   │       ├── service_llama.cpp.py   # 本地 llama.cpp 适配服务实验入口
 │   │       ├── state.py               # Graph 状态定义
@@ -375,9 +376,10 @@ result = await agent.ainvoke({"messages": [...]}, config=config)
 
 1. **预加载 Schema**: 移除了原生的 `sql_db_list_tables` 和 `sql_db_schema` 工具，在服务启动时全量解析表结构与中文注释，提升响应速度和准确度。
 2. **技能路由增强 (SkillMiddleware)**: 在核心 Agent 前置中间件拦截请求，动态加载特定业务领域（如订单、物流）的 Schema 上下文，防止全局全量 Schema 注入导致 LLM 上下文溢出 (Token Limit)。
-3. **知识与示例检索 (BusinessRagMiddleware)**: 基于 PGVector 或 Milvus 的混合检索，智能匹配相关的业务术语解释或历史相似的优质 SQL 示例。
-4. **安全与弹性 SQL 执行 (Wrapped Query Tool)**: 深度封装了执行节点，强制进行基于正则黑名单的语法与安全检查（拦截 `DROP` 等命令），并带有智能行数截断限流机制，大结果自动总结为预览。
-5. **异步/大文件导出**: 针对巨量查询结果请求，系统提供单独的 `export_to_csv` 工具让 Agent 可以选择生成下载文件而非污染对话历史；前端会根据工具结果自动展示下载卡片。
+3. **二级技能披露 (Domain + Scenario)**: 领域 skill 只提供公共业务知识与场景摘要；固定统计、固定报表类问题可按需再加载场景 skill，获取固定 workflow、统计口径、易错点与模板引用，减少每次随机规划。
+4. **知识与示例检索 (BusinessRagMiddleware)**: 基于 PGVector 或 Milvus 的混合检索，智能匹配相关的业务术语解释或历史相似的优质 SQL 示例。
+5. **安全与弹性 SQL 执行 (Wrapped Query Tool)**: 深度封装了执行节点，强制进行基于正则黑名单的语法与安全检查（拦截 `DROP` 等命令），并带有智能行数截断限流机制，大结果自动总结为预览。
+6. **异步/大文件导出**: 针对巨量查询结果请求，系统提供单独的 `export_to_csv` 工具让 Agent 可以选择生成下载文件而非污染对话历史；前端会根据工具结果自动展示下载卡片。
 
 ### 日期标准化清洗 (Strategy A)
 
@@ -481,6 +483,10 @@ npm run dev
 - [Milvus 延迟初始化工作流程详解](./docs/backend/延迟初始化工作流程详解.md)
 - [llama.cpp + Qwen3 Embedding 接入与复用最佳实践](./docs/backend/llamacpp-qwen3-embedding-local-deployment.md)
 - [RAG 架构与技术总结](./docs/backend/RAG架构与技术总结.md)
+- [Skills 文档导航](./docs/backend/skills/README.md)
+- [新增业务领域技能开发指南](./docs/backend/skills/新增业务领域技能开发指南.md)
+- [新增场景技能开发指南](./docs/backend/skills/新增场景技能开发指南.md)
+- [技能注册中心与加载机制说明](./docs/backend/skills/技能注册中心与加载机制说明.md)
 - [FastAPI 与 SQLAlchemy 知识点](./docs/backend/FastAPI与SQLAlchemy知识点复习.md)
 - [PostgresSaver 集成重构总结](./docs/backend/PostgresSaver集成重构总结.md)
 - [连接池与上下文管理器详解](./docs/backend/连接池与上下文管理器详解.md)

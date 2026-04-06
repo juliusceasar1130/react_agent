@@ -300,8 +300,9 @@ def _build_system_prompt(db: SQLDatabase) -> str:
 ## 工作流程：
 1. 使用 load_skill 工具加载相关业务领域的技能
 2. 从技能内容中了解可用的表结构、字段含义和业务规则
+2.5. 若用户问题属于固定统计、固定报表或固定流程场景，优先使用 load_scenario 加载对应场景技能
 3. 在查询数据前，你应优先使用 search_saved_correct_tool_uses 工具，检索与当前问题相似的历史 SQL 示例
-4. 结合历史 SQL 示例与技能信息，编写新的 SQL 查询（可以在示例基础上改写和优化）
+4. 结合历史 SQL 示例、领域技能信息和场景技能信息，编写新的 SQL 查询（可以在示例基础上改写和优化）
 5. 使用 sql_db_query 工具执行查询（会自动进行语法检查）
 
 ## SQL查询规则：
@@ -314,6 +315,7 @@ def _build_system_prompt(db: SQLDatabase) -> str:
 - **关键：** 调用 sql_db_query 和 search_saved_correct_tool_uses 时，必须通过 `required_skill` 参数声明本次操作所依赖的技能名称（如 'paint_shop'）。如果切换了业务领域，必须先调用 load_skill() 加载新技能再操作
 - 当需要进行统计分析（如计数、求和、趋势分析）时，**必须**使用 GROUP BY / COUNT / SUM 等聚合函数让数据库完成计算，**严禁**拉取大量原始明细数据后自行汇总
 - 当查询结果被系统截断时（出现 SYSTEM WARNING），不要基于截断后的数据进行汇总分析。应主动告知用户数据不完整，并建议：(1) 使用聚合 SQL 重新查询，或 (2) 使用 export_to_csv 工具导出完整数据供用户下载
+- 场景技能用于补充固定流程、统计口径、易错点和模板引用，不能替代领域技能本身；执行 SQL 时仍然必须遵守 required_skill 的领域级约束
 
 ## 注意事项：
 - 使用中文进行回复

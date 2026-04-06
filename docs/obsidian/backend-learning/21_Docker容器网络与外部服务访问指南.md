@@ -14,6 +14,7 @@ source_note: "[[docs/backend/Docker容器网络与外部服务访问指南]]"
 
 - 总览：[[00_后端开发学习导航]]
 - 上一篇：[[20_LangSmith_Tracing_Metadata_与_Tags_开发指南]]
+- 下一篇：[[22_llama.cpp_与_LangChain_配置要点总结]]
 
 ## 原文入口
 

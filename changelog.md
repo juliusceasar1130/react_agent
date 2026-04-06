@@ -1,5 +1,113 @@
 # Changelog
 
+## 2026-04-06 10:25 - 同步 Obsidian 后端学习导航，补齐遗漏文档包装页
+### 概述
+扫描 `docs/` 与 `docs/obsidian/` 的对应关系后，补齐此前未纳入 Obsidian 后端学习路径的 5 篇中文文档，确保 `llama.cpp` 配置总结与 skills 专题文档也能在 Obsidian 中通过导航页顺序访问。
+### 变更内容
+- **导航更新**:
+  - 更新 `docs/obsidian/backend-learning/00_后端开发学习导航.md`
+  - 新增“本地模型与技能系统扩展”阶段，补充 22-26 号学习笔记入口
+- **包装页补齐**:
+  - 新增 `docs/obsidian/backend-learning/22_llama.cpp_与_LangChain_配置要点总结.md`
+  - 新增 `docs/obsidian/backend-learning/23_Skills总览与文档导航.md`
+  - 新增 `docs/obsidian/backend-learning/24_技能注册中心与加载机制说明.md`
+  - 新增 `docs/obsidian/backend-learning/25_新增业务领域技能开发指南.md`
+  - 新增 `docs/obsidian/backend-learning/26_新增场景技能开发指南.md`
+- **链路修正**:
+  - 更新 `docs/obsidian/backend-learning/21_Docker容器网络与外部服务访问指南.md`
+  - 为原有阶段末尾补充下一篇跳转，保持学习链路连续
+
+## 2026-04-06 10:14 - 新增 llama.cpp 与 LangChain 配置要点总结文档
+### 概述
+将项目内接入 `llama.cpp` OpenAI 兼容接口时的关键经验整理为独立文档，集中说明 `BASE_URL`、协议、API Key、模型名与 `max_tokens` 的配置规律，便于后续排查本地模型接入问题。
+### 变更内容
+- **新增文档**:
+  - 新增 `docs/llama.cpp 与 LangChain 配置要点总结.md`
+- **沉淀内容**:
+  - 总结 `BASE_URL` 应只保留到 `/v1`
+  - 补充 `http`/`https` 协议匹配要求
+  - 记录 `llama.cpp` 默认不校验 API Key 的约定
+  - 补充模型名、`max_tokens` 与推荐 `ChatOpenAI` 参数写法
+- **维护价值**:
+  - 为后续本地 GGUF 模型接入、排错与配置统一提供固定参考
+
+## 2026-04-05 20:15 - 新增实时区域车身数量场景技能
+### 概述
+在 `paint_shop_vehicle_tracking` 领域下补充一个“实时各区域车身数量统计”固定场景，沉淀对应的场景 playbook 和外部 SQL 模板，让 Agent 能按场景方式加载这类高频实时统计需求。
+### 变更内容
+- **场景技能新增**:
+  - 新增 `backend/app/skills/domains/paint_shop_vehicle_tracking/scenarios/realtime_area_body_count.py`
+  - 定义实时区域车身数量统计的触发问法、workflow、规则、易错点与输出契约
+- **SQL 模板新增**:
+  - 新增 `backend/app/skills/domains/paint_shop_vehicle_tracking/sql/realtime_area_body_count.sql`
+  - 按 `process_area` 聚合统计当前有效车身数量，并按数量降序输出
+- **注册与验证补充**:
+  - 更新 `backend/app/skills/registry.py`，显式注册 `realtime_area_body_count`
+  - 更新 `backend/app/test_skill_registry.py`，覆盖新场景的注册与加载断言
+- **文档同步**:
+  - 更新 `docs/backend/skills/README.md` 的当前目录结构示例，补充新场景文件
+
+## 2026-04-05 11:40 - 补全 skills 专题文档目录
+### 概述
+继续完善 `docs/backend/skills/`，将原先的单篇“新增业务领域技能开发指南”扩展为一个可导航的小型专题文档集，覆盖目录索引、场景技能扩展方式以及注册中心与加载机制说明，方便团队后续系统化维护技能系统。
+### 变更内容
+- **新增文档索引**:
+  - 新增 `docs/backend/skills/README.md`
+  - 统一收口 skills 相关文档入口和推荐阅读顺序
+- **新增扩展教程**:
+  - 新增 `docs/backend/skills/新增场景技能开发指南.md`
+  - 新增 `docs/backend/skills/技能注册中心与加载机制说明.md`
+- **README 同步**:
+  - 在技术文档列表中补充 skills 专题导航和新文档入口
+- **维护价值**:
+  - 让 `docs/backend/skills/` 从单文档目录演进为可持续扩展的技能系统手册目录
+
+## 2026-04-05 11:10 - 新增业务领域技能扩展教程
+### 概述
+围绕当前“领域 skill + 场景 skill”二级披露架构，补充一份面向维护者的可复用教程，专门说明如何新增、配置和验证一个新的业务领域，避免后续只创建目录却遗漏注册中心、场景挂载或资产路径配置。
+### 变更内容
+- **新增教程文档**:
+  - 新增 `docs/backend/skills/新增业务领域技能开发指南.md`
+  - 说明新增领域目录、`meta.py`、`domain.md`、场景定义、SQL 模板与 `registry.py` 显式注册步骤
+- **文档入口补充**:
+  - 更新 `README.md` 的技术文档列表，加入该教程入口
+- **维护建议沉淀**:
+  - 明确当前实现属于“显式注册”机制，不会自动发现新领域
+  - 总结新增领域后的验证清单与常见错误，便于团队后续复用
+
+## 2026-04-05 10:30 - 引入领域与场景二级 Skill 披露骨架
+### 概述
+围绕 SQL Agent 的业务技能系统，实施“领域 skill + 场景 skill”二级披露改造：保留现有 `load_skill -> required_skill -> sql_db_query` 主链路，在不引入固定报表执行器的前提下，新增场景级 playbook、外部 SQL 资产和二级加载工具，为后续模板执行器与专用 report tool 预留扩展接口。
+### 变更内容
+- **技能包重构**:
+  - 将 `backend/app/skills.py` 升级为 `backend/app/skills/` package
+  - 新增 `models.py`、`registry.py`、`renderers.py`、`loaders.py`、`assets.py`
+  - 保留 `SKILLS` 兼容导出，避免现有中间件和测试脚本回归
+- **二级披露链路**:
+  - 新增 `load_scenario` 工具
+  - 扩展 `CustomState`，增加 `scenarios_loaded`、`active_skill`、`active_scenario`
+  - 更新 `SkillMiddleware` 与系统提示词，引导“先加载领域，再按需加载场景”
+- **样板场景落地**:
+  - 为 `paint_shop_vehicle_tracking` 新增 `daily_area_body_count` 场景元数据
+  - 引入外部 SQL 模板 `daily_area_body_count.sql`
+  - 场景文本新增 workflow、rules、gotchas、output contract 和模板资产引用
+- **文档与测试**:
+  - 更新 `README.md` 中的技能系统说明
+  - 新增 `backend/app/test_skill_registry.py`，覆盖注册中心、加载器和二级加载辅助逻辑
+
+## 2026-04-04 14:55 - 清理 Docker 环境文件中的敏感信息并补充忽略规则
+
+### 概述
+针对 GitHub Push Protection 阻止 `feature/agent` 推送的问题，先在当前工作区完成最小化安全修复：补充相关忽略规则，降低后续再次误提交本地敏感配置的风险，并为后续清理未推送提交历史做准备。
+
+### 变更内容
+- **忽略规则补充**:
+  - 更新 `.gitignore`
+  - 新增 `.env_docker`、`.env copy`、`env_exp` 忽略项，覆盖本次触发扫描的本地环境文件命名
+- **历史清理说明**:
+  - 当前变更仅处理工作区与后续防误提交保护
+  - 仍需对本地未推送提交历史执行重写，才能解除 GitHub 对旧提交中 secret 的拦截
+
 ## 2026-04-03 20:00 - 整理文档目录结构并更新 Obsidian 引用
 
 ### 概述
