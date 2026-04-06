@@ -3,16 +3,16 @@
 
 修改时间: 2026-04-06 Asia/Shanghai
 主要修改内容:
-- 新增 `realtime_area_body_count` 场景
-- 引入实时区域车身数量统计的 workflow、rules、gotchas 与外部 SQL 模板引用
-- 新增 parameters 字段，支持 process_area 参数化筛选
+- 将场景迁移到按场景名聚合的目录结构
+- 调整 SQL 资产引用为 `scope + path` 语义
+- 保留 process_area 参数化筛选能力
 """
 
 SCENARIO = {
     "skill_name": "paint_shop_vehicle_tracking",
     "name": "realtime_area_body_count",
     "title": "实时各区域车身数量统计",
-    "description": "基于当前 rb_position_data 实时快照，统计各工艺区域的有效车身数量，支持按区域名称筛选，并输出实时分区域数量口径说明。",
+    "description": "基于当前 rb_position_data 实时快照，统计各区域的有效车身数量，支持按区域名称筛选，并输出实时分区域数量口径说明。",
     "triggers": [
         "实时统计各个区域的车身数量",
         "现在每个区域有多少车身",
@@ -67,8 +67,9 @@ SCENARIO = {
     "sql_template_refs": [
         {
             "type": "sql",
-            "name": "realtime_area_body_count",
-            "path": "paint_shop_vehicle_tracking/sql/realtime_area_body_count.sql",
+            "name": "main",
+            "scope": "scenario",
+            "path": "sql/main.sql",
             "description": "按工艺区域统计实时有效车身数量的 SQL 模板，支持 process_area 参数筛选。",
         }
     ],

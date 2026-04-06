@@ -1,10 +1,10 @@
 """
 每日各区域车身数量统计场景元数据。
 
-修改时间: 2026-04-05 Asia/Shanghai
+修改时间: 2026-04-06 Asia/Shanghai
 主要修改内容:
-- 新增 `daily_area_body_count` 样板场景
-- 引入场景级 workflow、rules、gotchas 与外部 SQL 模板引用
+- 将场景迁移到按场景名聚合的目录结构
+- 调整 SQL 资产引用为 `scope + path` 语义
 """
 
 SCENARIO = {
@@ -26,6 +26,7 @@ SCENARIO = {
     ],
     "required_inputs": ["stat_date"],
     "optional_inputs": ["shift", "snapshot_time", "area_names"],
+    "parameters": {},
     "workflow": [
         "先确认是当前快照还是指定日期/班次窗口。",
         "应用有效车辆过滤规则，排除空位和无车记录。",
@@ -45,8 +46,9 @@ SCENARIO = {
     "sql_template_refs": [
         {
             "type": "sql",
-            "name": "daily_area_body_count",
-            "path": "paint_shop_vehicle_tracking/sql/daily_area_body_count.sql",
+            "name": "main",
+            "scope": "scenario",
+            "path": "sql/main.sql",
             "description": "按工艺区域统计有效车身数量的 SQL 模板。",
         }
     ],

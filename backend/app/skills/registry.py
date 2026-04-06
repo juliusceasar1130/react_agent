@@ -1,24 +1,17 @@
 """
 业务技能注册中心。
 
-修改时间: 2026-04-05 Asia/Shanghai
+修改时间: 2026-04-06 Asia/Shanghai
 主要修改内容:
 - 新增领域技能与场景技能注册能力
 - 保留旧版 `SKILLS` 导出，兼容现有中间件与测试代码
-- 注册 `realtime_area_body_count` 实时区域车身数量场景
+- 升级为基于目录约定的领域/场景自动发现
 """
 
 from collections import defaultdict
 
-from backend.app.skills.assets import read_asset_text
-from backend.app.skills.domains.paint_shop_vehicle_tracking.meta import DOMAIN_META
-
-# from backend.app.skills.domains.paint_shop_vehicle_tracking.scenarios.daily_area_body_count import (
-#     SCENARIO as DAILY_AREA_BODY_COUNT,
-# )
-from backend.app.skills.domains.paint_shop_vehicle_tracking.scenarios.realtime_area_body_count import (
-    SCENARIO as REALTIME_AREA_BODY_COUNT,
-)
+from backend.app.skills.assets import read_text_file
+from backend.app.skills.discovery import discover_domains, discover_scenarios
 from backend.app.skills.models import DomainSkill, ScenarioSkill, Skill
 from backend.app.skills.renderers import render_domain_for_llm
 
@@ -27,22 +20,30 @@ def _build_scenario_summaries(scenarios: list[ScenarioSkill]) -> list[str]:
     return [f"- **{item['name']}**: {item['description']}" for item in scenarios]
 
 
-_RAW_SCENARIOS: dict[str, list[ScenarioSkill]] = defaultdict(list)
-# _RAW_SCENARIOS[DAILY_AREA_BODY_COUNT["skill_name"]].append(DAILY_AREA_BODY_COUNT)
-_RAW_SCENARIOS[REALTIME_AREA_BODY_COUNT["skill_name"]].append(REALTIME_AREA_BODY_COUNT)
+_DISCOVERED_DOMAINS = discover_domains()
 
-SCENARIOS_BY_SKILL: dict[str, list[ScenarioSkill]] = dict(_RAW_SCENARIOS)
+_RAW_SCENARIOS: dict[str, list[ScenarioSkill]] = defaultdict(list)
+for domain_name, domain in _DISCOVERED_DOMAINS.items():
+    for scenario in discover_scenarios(domain):
+        _RAW_SCENARIOS[domain_name].append(scenario)
+
+SCENARIOS_BY_SKILL: dict[str, list[ScenarioSkill]] = {
+    skill_name: sorted(items, key=lambda item: item["name"])
+    for skill_name, items in _RAW_SCENARIOS.items()
+}
 
 DOMAIN_SKILLS: dict[str, DomainSkill] = {
-    DOMAIN_META["name"]: {
-        "name": DOMAIN_META["name"],
-        "description": DOMAIN_META["description"],
-        "domain_content": read_asset_text("paint_shop_vehicle_tracking/domain.md"),
+    domain_name: {
+        "name": domain_name,
+        "description": domain.meta["description"],
+        "domain_content": read_text_file(domain.domain_dir / "domain.md"),
         "scenario_summaries": _build_scenario_summaries(
-            SCENARIOS_BY_SKILL.get(DOMAIN_META["name"], [])
+            SCENARIOS_BY_SKILL.get(domain_name, [])
         ),
-        "tags": DOMAIN_META["tags"],
+        "tags": list(domain.meta["tags"]),
+        "domain_root": str(domain.domain_dir),
     }
+    for domain_name, domain in _DISCOVERED_DOMAINS.items()
 }
 
 SKILLS: list[Skill] = [

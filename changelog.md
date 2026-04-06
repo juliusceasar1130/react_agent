@@ -1,5 +1,30 @@
 # Changelog
 
+## 2026-04-06 21:22 - 重构技能场景目录与自动发现机制
+### 概述
+围绕后续固定场景持续增加后的维护成本问题，将业务技能系统从“场景文件 + 分散 SQL + 手工注册”升级为“场景目录聚合 + 自动发现 + scoped 资产解析”模式。这样新增一个场景时，只需要新增一个场景目录并填写模板，不再修改 `registry.py`。
+### 变更内容
+- **注册与发现重构**:
+  - 新增 `backend/app/skills/discovery.py`
+  - 更新 `backend/app/skills/registry.py`
+  - 由显式 import/append 改为扫描 `domains/*/meta.py` 和 `scenarios/*/scenario.py` 自动装配
+- **资产解析升级**:
+  - 更新 `backend/app/skills/models.py`
+  - 更新 `backend/app/skills/assets.py`
+  - 更新 `backend/app/skills/renderers.py`
+  - 为场景资产引入 `scope + path` 语义，支持 `scenario / shared / domain` 三类作用域
+- **目录结构迁移**:
+  - 迁移 `paint_shop_vehicle_tracking` 现有场景到 `scenarios/<scenario_name>/scenario.py + sql/main.sql`
+  - 新增 `backend/app/skills/domains/paint_shop_vehicle_tracking/shared/scripts/README.md`
+  - 删除旧版 `scenarios/*.py`、`sql/*.sql` 与领域级脚本占位说明文件
+- **验证与文档同步**:
+  - 更新 `backend/app/test_skill_registry.py`，补充自动发现、shared 资产解析和失败即报错场景
+  - 更新 `docs/backend/skills/README.md`
+  - 更新 `docs/backend/skills/新增场景技能开发指南.md`
+  - 更新 `docs/backend/skills/新增业务领域技能开发指南.md`
+  - 更新 `docs/backend/skills/技能注册中心与加载机制说明.md`
+  - 更新 `README.md` 的技能系统说明
+
 ## 2026-04-06 11:15 - 新增技能机制评审与优化待办文档
 ### 概述
 将本次围绕“领域技能 / 场景技能加载机制”的评审结论整理为独立待办文档，集中记录当前问题、推荐方案与分期待办，便于后续继续按阶段推进优化，而不把讨论内容散落在聊天记录中。

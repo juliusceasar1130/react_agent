@@ -1,14 +1,15 @@
 """
 业务技能渲染器。
 
-修改时间: 2026-04-05 Asia/Shanghai
+修改时间: 2026-04-06 Asia/Shanghai
 主要修改内容:
 - 新增领域技能与场景技能的 LLM 文本渲染能力
 - 支持场景资产引用摘要和 SQL 模板展示
+- 适配基于 `scope + path` 的资产渲染
 """
 
 from backend.app.skills.assets import read_asset_text
-from backend.app.skills.models import DomainSkill, ScenarioSkill
+from backend.app.skills.models import AssetRef, DomainSkill, ScenarioSkill
 
 
 def render_domain_for_llm(
@@ -37,14 +38,15 @@ def render_domain_for_llm(
     ).strip()
 
 
-def _render_asset_refs(title: str, refs: list[dict]) -> list[str]:
+def _render_asset_refs(title: str, refs: list[AssetRef]) -> list[str]:
     if not refs:
         return [f"## {title}", "- 暂无"]
 
     lines = [f"## {title}"]
     for ref in refs:
         lines.append(
-            f"- {ref['name']} ({ref['type']}): {ref['description']} [path={ref['path']}]"
+            f"- {ref['name']} ({ref['type']}): {ref['description']} "
+            f"[scope={ref['scope']} path={ref['path']}]"
         )
     return lines
 
@@ -74,7 +76,14 @@ def render_scenario_for_llm(scenario: ScenarioSkill) -> str:
         lines.append("## 参数定义")
         for param_name, param_def in scenario["parameters"].items():
             lines.append(f"### {param_name}")
-            lines.append(f"- 类型: {param_def['type']}" + (f" (元素类型: {param_def['items_type']})" if param_def.get('items_type') else ""))
+            lines.append(
+                f"- 类型: {param_def['type']}"
+                + (
+                    f" (元素类型: {param_def['items_type']})"
+                    if param_def.get("items_type")
+                    else ""
+                )
+            )
             lines.append(f"- 必填: {'是' if param_def['required'] else '否'}")
             lines.append(f"- 说明: {param_def['description']}")
             lines.append(f"- 来源表: {param_def['source_table']}.{param_def['source_column']}")
@@ -107,7 +116,7 @@ def render_scenario_for_llm(scenario: ScenarioSkill) -> str:
 
     if scenario["sql_template_refs"]:
         first_sql_ref = scenario["sql_template_refs"][0]
-        sql_text = read_asset_text(first_sql_ref["path"])
+        sql_text = read_asset_text(first_sql_ref, scenario=scenario)
         lines.extend(
             [
                 "",

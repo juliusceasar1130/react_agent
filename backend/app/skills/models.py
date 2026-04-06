@@ -6,9 +6,10 @@
 - 新增领域技能、场景技能与资产引用的数据结构
 - 保留兼容旧版 `SKILLS` 的 `Skill` 结构
 - 新增 ParameterDefinition 参数定义类型
+- 增加场景资产 `scope` 语义与自动发现所需的内部路径字段
 """
 
-from typing import TypedDict
+from typing import NotRequired, TypedDict
 
 
 class Skill(TypedDict):
@@ -24,6 +25,7 @@ class AssetRef(TypedDict):
 
     type: str
     name: str
+    scope: str
     path: str
     description: str
 
@@ -59,7 +61,9 @@ class ScenarioSkill(TypedDict):
     output_contract: str
     sql_template_refs: list[AssetRef]
     script_refs: list[AssetRef]
-    parameters: dict[str, ParameterDefinition]  # 新增：参数定义
+    parameters: NotRequired[dict[str, ParameterDefinition]]
+    scenario_root: NotRequired[str]
+    domain_root: NotRequired[str]
 
 
 class DomainSkill(TypedDict):
@@ -70,3 +74,4 @@ class DomainSkill(TypedDict):
     domain_content: str
     scenario_summaries: list[str]
     tags: list[str]
+    domain_root: NotRequired[str]

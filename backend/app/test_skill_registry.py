@@ -1,19 +1,24 @@
 """
 技能注册中心与加载器测试。
 
-修改时间: 2026-04-05 Asia/Shanghai
+修改时间: 2026-04-06 Asia/Shanghai
 主要修改内容:
 - 覆盖领域/场景注册与文本加载
 - 覆盖 `load_skill` / `load_scenario` 的辅助构造函数
 - 补充 `realtime_area_body_count` 场景的注册与加载断言
+- 覆盖自动发现与 scoped 资产解析
 """
 
+from pathlib import Path
+import tempfile
 from types import SimpleNamespace
 
 from backend.app.agent.tools.skill_tools import (
     _build_load_scenario_command,
     _build_load_skill_command,
 )
+from backend.app.skills.assets import resolve_asset_path
+from backend.app.skills.discovery import discover_domains, discover_scenarios
 from backend.app.skills import (
     SKILLS,
     get_scenario_by_name,
@@ -47,6 +52,8 @@ def test_scenario_registry_returns_daily_area_body_count() -> None:
     )
     assert scenario is not None
     assert scenario["title"] == "每日各区域车身数量统计"
+    assert scenario["sql_template_refs"][0]["scope"] == "scenario"
+    assert scenario["sql_template_refs"][0]["path"] == "sql/main.sql"
 
 
 def test_scenario_registry_returns_realtime_area_body_count() -> None:
@@ -84,6 +91,123 @@ def test_realtime_scenario_content_includes_sql_template() -> None:
     assert content is not None
     assert "实时各区域车身数量统计" in content
     assert "COUNT(*) AS vehicle_count" in content
+
+
+def test_shared_asset_scope_can_be_resolved() -> None:
+    scenario = get_scenario_by_name(
+        "paint_shop_vehicle_tracking",
+        "daily_area_body_count",
+    )
+    assert scenario is not None
+
+    shared_asset = {
+        "type": "doc",
+        "name": "shared_scripts_readme",
+        "scope": "shared",
+        "path": "scripts/README.md",
+        "description": "共享脚本目录说明",
+    }
+    resolved_path = resolve_asset_path(shared_asset, scenario=scenario)
+    assert resolved_path.name == "README.md"
+    assert "shared" in str(resolved_path)
+
+
+def test_discovery_rejects_scenario_name_mismatch() -> None:
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        root = Path(tmp_dir)
+        domain_dir = root / "demo_domain"
+        scenario_dir = domain_dir / "scenarios" / "wrong_dir_name"
+        scenario_dir.mkdir(parents=True)
+        (domain_dir / "domain.md").write_text("# demo", encoding="utf-8")
+        (domain_dir / "meta.py").write_text(
+            "DOMAIN_META = {'name': 'demo_domain', 'description': 'demo', 'tags': ['demo']}\n",
+            encoding="utf-8",
+        )
+        (scenario_dir / "scenario.py").write_text(
+            "SCENARIO = {"
+            "'skill_name': 'demo_domain', "
+            "'name': 'expected_name', "
+            "'title': 'demo', "
+            "'description': 'demo', "
+            "'triggers': [], "
+            "'intent_keywords': [], "
+            "'required_inputs': [], "
+            "'optional_inputs': [], "
+            "'workflow': [], "
+            "'rules': [], "
+            "'gotchas': [], "
+            "'output_contract': 'demo', "
+            "'sql_template_refs': [], "
+            "'script_refs': [], "
+            "'parameters': {}"
+            "}\n",
+            encoding="utf-8",
+        )
+
+        import backend.app.skills.discovery as discovery_module
+
+        original_root = discovery_module.DOMAINS_ROOT
+        discovery_module.DOMAINS_ROOT = root
+        try:
+            domains = discover_domains()
+            try:
+                discover_scenarios(domains["demo_domain"])
+            except ValueError as exc:
+                assert "场景目录名与 SCENARIO['name'] 不一致" in str(exc)
+            else:
+                raise AssertionError("预期发现阶段抛出场景目录名不一致错误")
+        finally:
+            discovery_module.DOMAINS_ROOT = original_root
+
+
+def test_discovery_rejects_invalid_asset_path() -> None:
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        root = Path(tmp_dir)
+        domain_dir = root / "demo_domain"
+        scenario_dir = domain_dir / "scenarios" / "demo_scenario"
+        (scenario_dir / "sql").mkdir(parents=True)
+        (domain_dir / "domain.md").write_text("# demo", encoding="utf-8")
+        (domain_dir / "meta.py").write_text(
+            "DOMAIN_META = {'name': 'demo_domain', 'description': 'demo', 'tags': ['demo']}\n",
+            encoding="utf-8",
+        )
+        (scenario_dir / "scenario.py").write_text(
+            "SCENARIO = {"
+            "'skill_name': 'demo_domain', "
+            "'name': 'demo_scenario', "
+            "'title': 'demo', "
+            "'description': 'demo', "
+            "'triggers': [], "
+            "'intent_keywords': [], "
+            "'required_inputs': [], "
+            "'optional_inputs': [], "
+            "'workflow': [], "
+            "'rules': [], "
+            "'gotchas': [], "
+            "'output_contract': 'demo', "
+            "'sql_template_refs': ["
+            "{'type': 'sql', 'name': 'main', 'scope': 'scenario', 'path': 'sql/missing.sql', 'description': 'missing'}"
+            "], "
+            "'script_refs': [], "
+            "'parameters': {}"
+            "}\n",
+            encoding="utf-8",
+        )
+
+        import backend.app.skills.discovery as discovery_module
+
+        original_root = discovery_module.DOMAINS_ROOT
+        discovery_module.DOMAINS_ROOT = root
+        try:
+            domains = discover_domains()
+            try:
+                discover_scenarios(domains["demo_domain"])
+            except FileNotFoundError as exc:
+                assert "资产不存在" in str(exc)
+            else:
+                raise AssertionError("预期发现阶段抛出无效资产路径错误")
+        finally:
+            discovery_module.DOMAINS_ROOT = original_root
 
 
 def test_legacy_skills_export_is_compatible() -> None:
