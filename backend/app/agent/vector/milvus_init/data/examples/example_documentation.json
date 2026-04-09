@@ -134,7 +134,7 @@
     }
   },
   {
-    "document": "车身号，也称fis号码，是每一台产品车身的唯一id,带有id的车身绝大多数是正式的产品车，也有可能是调试车或者项目车",
+    "document": "车身号，也称fis号码，是每一台产品车身的唯一id,以782026开头，如<782026xxxxxxxx>带有id的车身绝大多数是正式的产品车，也有可能是调试车或者项目车",
     "metadata": {
       "type": "documentation",
       "domain": "paint_shop_vehicle_tracking",
@@ -159,14 +159,14 @@
     }
   },
   {
-    "document": "车型是产品的类型，常见的车型代码有：2N54Y、IM186、IM142、YM34K等5个字符构成，vehicle_body_types表提供详细的定义和明细",
+    "document": "车型是产品的类型，body_type是车型代码，用于生产，type_name是车型的系列名称，一个车型type_name对应多个body_type。常见的body_type有2N54Y、IM186、IM142、YM34K等5个字符构成。常见的type_name有TiguanL， E7， E5， A5， ID3， ID4， A7，TiguanPro，小鹏等。vehicle_body_types表提供详细的定义和明细",
     "metadata": {
       "type": "documentation",
       "domain": "paint_shop_vehicle_tracking",
       "process": "common",
-      "term": "产品构成",
+      "term": "车型构成",
       "aliases": [
-        "车型","body type"
+        "车型","body type","type name"
       ]
     }
   },

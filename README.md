@@ -21,6 +21,7 @@
 - **前后端分离** - FastAPI + Vue 3 + TypeScript
 - **技能系统 (Skills)** - 动态加载业务领域知识，并支持“领域 skill + 场景 skill”二级披露、场景目录聚合与自动发现，适配固定统计与固定流程场景
 - **代码阅读讲解子智能体** - 新增 code-explainer，用于解释代码架构、技术栈、流程与调用链，帮助快速上手仓库
+- **代码质量审查子智能体** - 新增 code-reviewer，用于在 review 场景下聚焦 bug、回归风险、安全隐患和测试缺口
 - **开发指南提炼技能** - 新增 development-guide-synthesizer，用于把开发实现、讨论结论和踩坑经验沉淀成可复用的手册
 - **RAG 知识增强** - 支持 PGVector / Milvus Hybrid 检索，Milvus 可在 `Ollama` 与 `llama.cpp + Qwen3 Embedding` 之间切换，并可选接入 NVIDIA Rerank 精排
 
@@ -210,9 +211,13 @@ start_langgraph_dev.bat
 
 ```
 rearch_agent/
+├── database/                    # 数据库结构快照与分析输入文件
+│   ├── README.md                # 数据库快照目录说明
+│   └── defect_db_schema_snapshot.json # defect_db 字段结构快照
 ├── .claude/                      # Claude Code 本地配置
 │   ├── agents/                   # 项目级子智能体定义
-│   │   └── code-explainer.md     # 代码阅读与解释子智能体
+│   │   ├── code-explainer.md     # 代码阅读与解释子智能体
+│   │   └── code-reviewer.md      # 代码质量审查子智能体
 │   ├── commands/                 # Claude 自定义命令
 │   └── skills/                   # Claude 本地技能
 ├── .agents/                      # Codex / Agent 侧扩展能力
@@ -567,3 +572,4 @@ MIT License
 ## 贡献
 
 欢迎提交 Issue 和 Pull Request！
+

@@ -1,22 +1,3 @@
-<!-- OPENSPEC:START -->
-<!-- # OpenSpec Instructions
-
-These instructions are for AI assistants working in this project.
-
-Always open `@/openspec/AGENTS.md` when the request:
-- Mentions planning or proposals (words like proposal, spec, change, plan)
-- Introduces new capabilities, breaking changes, architecture shifts, or big performance/security work
-- Sounds ambiguous and you need the authoritative spec before coding
-
-Use `@/openspec/AGENTS.md` to learn:
-- How to create and apply change proposals
-- Spec format and conventions
-- Project structure and guidelines
-
-Keep this managed block so 'openspec update' can refresh the instructions. -->
-
-<!-- OPENSPEC:END -->
-
 ## 项目规则补充（2026-03-23 00:00 Asia/Shanghai）
 
 主要修改内容：
@@ -55,5 +36,5 @@ Keep this managed block so 'openspec update' can refresh the instructions. -->
 - 尽量使用中文进行交互，除了必要的关键英文术语。
 - 本项目的环境是 `conda activate py312_agent`。
 - 对于新特性和重要优化，记录到 `changelog.md` 文件；如果该文件不存在，则在项目根目录新建。
-- 对于各种修改和优化，`README.md` 记录主要的项目特性和目录变更，其余内容放置到 `changelog.md` 文件。
+- 对于各种修改和优化，`README.md` 记录主要的项目特性和项目文件结构变更，其余内容放置到 `changelog.md` 文件。
 - 对于每个优化，其记录头部应注明优化时间和简要概括。

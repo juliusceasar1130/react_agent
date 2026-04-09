@@ -43,7 +43,6 @@
 ### 已知文档入口
 
 - 根目录 `AGENTS.md`：项目协作规则
-- `openspec/AGENTS.md`：涉及 proposal、spec、plan、架构变更时优先查阅
 
 ## 术语与偏好补充区
 
@@ -64,3 +63,8 @@
 - 新增项目级 `memory.md`
 - 记录当前协作偏好、修改约定、搜索约定与文档入口
 - 作为后续项目长期记忆的统一追加位置
+
+## 可用技能
+
+对代码优化和新增功能，你可以使用OpenSpec的技能进行开发
+proposal / design / tasks / archive

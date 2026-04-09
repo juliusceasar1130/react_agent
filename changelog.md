@@ -1,5 +1,64 @@
 # Changelog
 
+## 2026-04-09 20:28 - 新增项目内数据库结构快照目录
+### 概述
+为方便后续字段分析、结构梳理和离线阅读，将 `defect_db` 中 5 张业务表的字段结构同步保存到项目根目录 `database/` 下，不再只依赖数据库内查询。
+### 变更内容
+- **新增本地快照目录与文件**:
+  - 新增 `database/README.md`
+  - 新增 `database/defect_db_schema_snapshot.json`
+- **README 同步**:
+  - 更新项目结构，补充 `database/` 目录说明
+- **快照范围**:
+  - `history`
+  - `history_detail`
+  - `history_extras`
+  - `history_station`
+  - `history_tokens`
+
+## 2026-04-08 21:49 - 新增代码质量审查子智能体
+### 概述
+为项目补充一个专门用于“做代码 review、找 bug、识别回归风险、检查测试缺口”的子智能体 `code-reviewer`，帮助日常代码质量审查聚焦高风险问题与缺失测试，而不是停留在泛化风格建议。
+### 变更内容
+- **新增子智能体定义**:
+  - 新增 `.claude/agents/code-reviewer.md`
+  - 约束其聚焦代码质量问题、稳定性风险、安全隐患与测试覆盖审查
+- **README 同步**:
+  - 补充“代码质量审查子智能体”能力说明
+  - 在项目结构中新增 `.claude/agents/code-reviewer.md` 入口
+## 2026-04-07 21:18 - 同步 openspec/project.md 到当前项目上下文
+### 概述
+重写 `openspec/project.md` 中已经过期的 OpenSpec 项目背景说明，使其不再沿用旧版通用聊天 / arXiv Agent 视角，而是聚焦当前真实使用的 SQL Agent、Skills、RAG、结构化流式协议和双模式持久化实现，便于后续 proposal / spec 编写时获得更准确的项目上下文。
+### 变更内容
+- **项目定位修正**:
+  - 更新 `openspec/project.md`
+  - 将 Purpose 从旧版通用聊天 / 论文搜索场景，修正为当前生产数据查询型 SQL Agent 场景
+- **技术与架构同步**:
+  - 将技术栈更新为 LangChain/LangGraph、AsyncPostgresSaver / PostgresSaver、PGVector / Milvus Hybrid 等当前实现
+  - 将架构模式更新为 `api.py -> services.py -> agent/service.py` 主链路
+  - 补充结构化 SSE 事件协议和双模式持久化约定
+- **约束与术语更新**:
+  - 补充 `required_skill`、`export_to_csv`、BusinessRagMiddleware 等当前领域术语
+  - 更新重要约束为只读 SQL、聚合优先、截断结果不可直接汇总、切换 embedding provider 后需重建向量库
+  - 移除旧版固定主分支、FastAPI 测试客户端、arXiv API 等不再适合作为当前项目事实的描述
+
+## 2026-04-07 21:04 - 同步 CLAUDE.md 到当前项目实现
+### 概述
+清理并重写根目录 `CLAUDE.md` 中已经过期的项目说明，使其与当前仓库中的环境约定、SQL Agent 架构、Skills/RAG 能力、结构化流式协议和双模式持久化实现保持一致，避免后续继续参考旧版 arXiv / 同步 PostgresSaver 文档造成误导。
+### 变更内容
+- **文档定位更新**:
+  - 更新 `CLAUDE.md`
+  - 明确 `AGENTS.md`、`memory.md`、`README.md`、`CLAUDE.md` 的建议优先级
+  - 补充 proposal / spec / plan 场景下优先查看 `openspec/AGENTS.md` 的提示
+- **环境与架构同步**:
+  - 将环境说明从旧版 `py314_agent` 修正为 `py312_agent`
+  - 将项目定位从旧版通用聊天 / arXiv Agent 更新为当前 SQL Agent + Skills + RAG 架构
+  - 更新后端、前端主链路与关键目录说明
+- **关键行为说明修正**:
+  - 将流式说明更新为 `token/status/tool_call/tool_result/final/error` 结构化 SSE 事件协议
+  - 将持久化说明更新为 FastAPI 本地异步 `AsyncPostgresSaver` 与 LangGraph 托管双模式
+  - 补充 `required_skill` 约束、CSV 导出下载链路与当前常见误区说明
+
 ## 2026-04-06 21:22 - 重构技能场景目录与自动发现机制
 ### 概述
 围绕后续固定场景持续增加后的维护成本问题，将业务技能系统从“场景文件 + 分散 SQL + 手工注册”升级为“场景目录聚合 + 自动发现 + scoped 资产解析”模式。这样新增一个场景时，只需要新增一个场景目录并填写模板，不再修改 `registry.py`。
@@ -1190,7 +1249,6 @@ database = settings.rollerbed_postgres_db
 ---
 
 
- 
 ## 2026-01-16: UI/UX 全面升级与后端数据库依赖修复
 
 ### 概述
@@ -1269,6 +1327,4 @@ ollama pull qwen3:30b
 ### 备注
 - 原有 DeepSeek 配置保留在 `config.py` 中，可随时切换回去
 - 如需使用 DeepSeek，只需将 `services.py` 中的导入和初始化改回即可
-
-
 
