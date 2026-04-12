@@ -1,0 +1,50 @@
+"""
+车型缺陷趋势场景元数据。
+
+修改时间: 2026-04-12 Asia/Shanghai
+主要修改内容:
+- 新增质量缺陷领域的车型缺陷趋势场景
+"""
+
+SCENARIO = {
+    "skill_name": "paint_shop_defect_analysis",
+    "name": "model_defect_trend",
+    "title": "车型缺陷趋势",
+    "description": "基于 `mart_vehicle_quality_360` 统计某车型或各车型在时间维度上的缺陷趋势。",
+    "triggers": [
+        "某车型最近缺陷趋势",
+        "各车型缺陷趋势",
+        "A7 最近缺陷是否升高",
+    ],
+    "intent_keywords": ["车型", "趋势", "缺陷", "最近", "波动"],
+    "required_inputs": [],
+    "optional_inputs": ["defect_type_name", "date_range", "tunnel", "cycle"],
+    "parameters": {},
+    "workflow": [
+        "确认用户要的是趋势，而不是单次检测列表。",
+        "优先查询 `mart_vehicle_quality_360`。",
+        "按 DATE(detect_time) 和 defect_type_name 聚合。",
+        "如用户指定 tunnel 或 cycle，再增加条件。",
+        "输出时间趋势并说明统计口径。",
+    ],
+    "rules": [
+        "优先使用 `defect_type_name` 作为车型名称展示字段。",
+        "如用户提到 model 编码，再补充 defect_model 过滤。",
+        "趋势统计默认按检测次数口径。",
+    ],
+    "gotchas": [
+        "`defect_type_name` 是可读名称，`defect_model` 是业务编码，不要混用。",
+        "如果要比较不同车型，输出时应保持时间粒度一致。",
+    ],
+    "output_contract": "输出字段至少包含 stat_date、defect_type_name、total_defect_count；必要时可补 detection_count。",
+    "sql_template_refs": [
+        {
+            "type": "sql",
+            "name": "main",
+            "scope": "scenario",
+            "path": "sql/main.sql",
+            "description": "按日期和车型统计缺陷趋势的 SQL 模板。",
+        }
+    ],
+    "script_refs": [],
+}

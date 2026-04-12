@@ -21,7 +21,6 @@ from typing import TYPE_CHECKING, Any, Optional
 from langchain.agents import create_agent
 from langchain.agents.middleware import SummarizationMiddleware
 from langchain_community.agent_toolkits import SQLDatabaseToolkit
-from langchain_community.utilities import SQLDatabase
 from langchain_openai import ChatOpenAI
 
 from backend.app.agent.constants import EXCLUDED_TOOLS, ToolNames
@@ -32,6 +31,8 @@ from backend.app.agent.tools import (
     create_wrapped_query_tool,
 )
 from backend.app.agent.utils import (
+    MaterializedViewSQLDatabase,
+    build_postgres_search_path_engine_args,
     ensure_windows_selector_loop,
     fetch_table_definitions_with_comments,
 )
@@ -103,26 +104,51 @@ def _create_llm(use_ollama: bool = False) -> Any:
     )
 
 
-def _create_database_connection() -> tuple[SQLDatabase, dict]:
+def _get_business_database_url() -> str:
+    """获取业务 SQL 查询入口，优先 analytics_db，回退 rollerbed 源库。"""
+    analytics_db_url = settings.analytics_database_url.strip()
+    if analytics_db_url:
+        return analytics_db_url
+    return settings.rollerbed_database_url
+
+
+def _get_business_database_engine_args(db_url: str) -> dict[str, Any]:
+    """为业务数据库连接生成 engine_args。"""
+    analytics_db_url = settings.analytics_database_url.strip()
+    if analytics_db_url and db_url == analytics_db_url:
+        return build_postgres_search_path_engine_args(
+            settings.analytics_db_search_path
+        )
+    return {}
+
+
+def _create_database_connection() -> tuple[MaterializedViewSQLDatabase, dict]:
     """
     创建数据库连接和获取表定义。
 
     Returns:
-        tuple: (SQLDatabase 实例, 表定义字典)
+        tuple: (MaterializedViewSQLDatabase 实例, 表定义字典)
     """
+    db_url = _get_business_database_url()
+    engine_args = _get_business_database_engine_args(db_url)
+
     logger.info("开始提取数据库表结构和注释信息...")
     custom_table_info = fetch_table_definitions_with_comments(
-        settings.rollerbed_database_url
+        db_url,
+        engine_args=engine_args,
+        include_views=True,
+        include_materialized_views=True,
     )
 
-    db = SQLDatabase.from_uri(
-        settings.rollerbed_database_url,
+    db = MaterializedViewSQLDatabase.from_uri(
+        db_url,
+        engine_args=engine_args,
         view_support=True,
         custom_table_info=custom_table_info if custom_table_info else None,
         sample_rows_in_table_info=2,
     )
 
-    logger.info("SQL Agent 连接到数据库: %s", settings.rollerbed_database_url)
+    logger.info("SQL Agent 连接到数据库: %s", db_url)
 
     if custom_table_info:
         logger.info("成功注入 %d 个表的注释信息到 SQLDatabase", len(custom_table_info))
@@ -196,7 +222,7 @@ async def _create_local_async_checkpointer() -> tuple["BaseCheckpointSaver", Any
 
 
 def _prepare_tools(
-    db: SQLDatabase,
+    db: MaterializedViewSQLDatabase,
     llm: Any,
     retriever: Optional[BaseRetriever] = None,
 ) -> list:
@@ -254,7 +280,11 @@ def _prepare_tools(
             )
 
     try:
-        csv_export_tool = create_csv_export_tool(settings.rollerbed_database_url)
+        business_db_url = _get_business_database_url()
+        csv_export_tool = create_csv_export_tool(
+            business_db_url,
+            engine_args=_get_business_database_engine_args(business_db_url),
+        )
         tools.append(csv_export_tool)
         logger.info("已注入 CSV 导出工具：export_to_csv")
     except Exception as exc:
@@ -263,7 +293,7 @@ def _prepare_tools(
     return tools
 
 
-def _build_system_prompt(db: SQLDatabase) -> str:
+def _build_system_prompt(db: MaterializedViewSQLDatabase) -> str:
     """构建 Agent 系统提示词。"""
     return f"""You are an 120JPH paint shop agent designed to interact with a SQL database.
 

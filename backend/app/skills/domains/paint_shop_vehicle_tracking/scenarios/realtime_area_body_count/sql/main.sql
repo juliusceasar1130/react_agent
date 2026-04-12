@@ -10,14 +10,12 @@
 --   3. 查询多区域: 在 WHERE 子句末尾添加 AND rp.process_area IN ('电泳', '面漆')
 
 SELECT
-    rp.process_area,
+    overview.process_area,
     COUNT(*) AS vehicle_count
-FROM rb_position_data rp
-WHERE rp.vehicle_id LIKE '782026%'
-  AND rp.body_type != '-----'
-  AND rp.carrier_id <> '0'
+FROM mart_position_current_overview overview
+WHERE overview.entity_type = 'product_vehicle'
   -- 可选参数: process_area（当用户指定特定区域时取消注释并填充值）
-  -- 单区域示例: AND rp.process_area = '电泳'
-  -- 多区域示例: AND rp.process_area IN ('电泳', '面漆')
-GROUP BY rp.process_area
+  -- 单区域示例: AND overview.process_area = '电泳'
+  -- 多区域示例: AND overview.process_area IN ('电泳', '面漆')
+GROUP BY overview.process_area
 ORDER BY vehicle_count DESC;

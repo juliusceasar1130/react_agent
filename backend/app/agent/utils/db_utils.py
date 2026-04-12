@@ -22,11 +22,17 @@ def _get_column_comment_postgresql(
     """从 PostgreSQL 获取列注释"""
     comment_query = text(
         """
-        SELECT col_description(
-            (SELECT oid FROM pg_class WHERE relname = :table_name),
-            (SELECT ordinal_position FROM information_schema.columns 
-             WHERE table_name = :table_name AND column_name = :col_name)
-        )
+        SELECT col_description(c.oid, a.attnum)
+        FROM pg_class c
+        JOIN pg_namespace n ON n.oid = c.relnamespace
+        JOIN pg_attribute a ON a.attrelid = c.oid
+        WHERE c.relname = :table_name
+          AND a.attname = :col_name
+          AND a.attnum > 0
+          AND NOT a.attisdropped
+          AND n.nspname = ANY (current_schemas(false))
+        ORDER BY array_position(current_schemas(false), n.nspname)
+        LIMIT 1
         """
     )
     result = conn.execute(
@@ -140,7 +146,13 @@ def _process_single_table(
         return None
 
 
-def fetch_table_definitions_with_comments(db_uri: str) -> Dict[str, str]:
+def fetch_table_definitions_with_comments(
+    db_uri: str,
+    *,
+    engine_args: dict | None = None,
+    include_views: bool = False,
+    include_materialized_views: bool = False,
+) -> Dict[str, str]:
     """
     从数据库元数据中提取表结构和注释信息。
 
@@ -155,7 +167,7 @@ def fetch_table_definitions_with_comments(db_uri: str) -> Dict[str, str]:
         Dict[表名, 带注释的表结构定义(DDL)]
     """
     try:
-        engine = create_engine(db_uri)
+        engine = create_engine(db_uri, **(engine_args or {}))
         inspector = inspect(engine)
         table_definitions: Dict[str, str] = {}
 
@@ -163,9 +175,20 @@ def fetch_table_definitions_with_comments(db_uri: str) -> Dict[str, str]:
         db_dialect = engine.dialect.name
         logger.info(f"检测到数据库类型: {db_dialect}")
 
-        # 获取所有表
+        # 获取所有表 / 视图 / 物化视图
         tables = inspector.get_table_names()
-        logger.info(f"找到 {len(tables)} 个表")
+        if include_views:
+            tables += inspector.get_view_names()
+        if include_materialized_views:
+            get_materialized_view_names = getattr(
+                inspector,
+                "get_materialized_view_names",
+                None,
+            )
+            if callable(get_materialized_view_names):
+                tables += get_materialized_view_names()
+        tables = list(dict.fromkeys(tables))
+        logger.info(f"找到 {len(tables)} 个数据库对象")
 
         with engine.connect() as conn:
             for table in tables:

@@ -5,10 +5,11 @@ CSV 导出工具
 当 SQL 查询结果超过系统硬限制（被截断）时，Agent 可调用此工具
 将完整查询结果导出为 CSV 文件供用户下载，全程不经过 LLM 上下文。
 
-修改时间: 2026-04-01 00:00 Asia/Shanghai
+修改时间: 2026-04-12 02:05 Asia/Shanghai
 主要修改内容:
 - 导出结果改为返回结构化文件元数据
 - 配合后端下载接口支持前端安全下载
+- 支持通过 engine_args 继承 analytics_db 的 search_path 配置
 """
 
 import csv
@@ -28,12 +29,16 @@ from backend.app.export_files import create_export_record, get_export_dir
 logger = logging.getLogger(__name__)
 
 
-def create_csv_export_tool(db_uri: str) -> Any:
+def create_csv_export_tool(
+    db_uri: str,
+    engine_args: dict[str, Any] | None = None,
+) -> Any:
     """
     创建 CSV 导出工具。
 
     Args:
         db_uri: 数据库连接 URI
+        engine_args: 可选 SQLAlchemy 引擎参数，例如 PostgreSQL search_path
 
     Returns:
         export_to_csv 工具实例
@@ -82,7 +87,7 @@ def create_csv_export_tool(db_uri: str) -> Any:
             filename = f"export_{timestamp}.csv"
             filepath = export_dir / filename
 
-            engine = create_engine(db_uri)
+            engine = create_engine(db_uri, **(engine_args or {}))
             with engine.connect() as conn:
                 result = conn.execute(text(query))
                 columns = list(result.keys())

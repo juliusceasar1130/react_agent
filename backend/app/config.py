@@ -2,6 +2,7 @@ import os
 import tempfile
 from pathlib import Path
 from typing import Optional
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from dotenv import load_dotenv
 
@@ -12,6 +13,16 @@ if "NO_PROXY" not in os.environ:
     os.environ["NO_PROXY"] = "localhost,127.0.0.1,172.22.44.99,192.22.44.99"
 elif "localhost" not in os.environ["NO_PROXY"]:
     os.environ["NO_PROXY"] += ",localhost,127.0.0.1"
+
+
+def _parse_debug_flag(raw_value: str | None) -> bool:
+    """兼容多种环境标记写法的 DEBUG 解析。"""
+    normalized = (raw_value or "true").strip().lower()
+    if normalized in {"1", "true", "yes", "on", "debug", "dev"}:
+        return True
+    if normalized in {"0", "false", "no", "off", "release", "prod", "production"}:
+        return False
+    return True
 
 
 class Settings(BaseSettings):
@@ -29,6 +40,14 @@ class Settings(BaseSettings):
     rollerbed_database_url: str = os.getenv(
         "ROLLERBED_DATABASE_URL",
         "postgresql://root:root@localhost:5432/rollerbed_tracking_db",
+    )
+    analytics_database_url: str = os.getenv(
+        "ANALYTICS_DATABASE_URL",
+        "",
+    )
+    analytics_db_search_path: str = os.getenv(
+        "ANALYTICS_DB_SEARCH_PATH",
+        "mart,fct,dim,ods,meta,public",
     )
 
     # MySQL 生产数据库配置（SQL Agent 使用）
@@ -53,7 +72,7 @@ class Settings(BaseSettings):
     sql_export_ttl_hours: int = int(os.getenv("SQL_EXPORT_TTL_HOURS", "24"))
 
     # 服务器配置
-    debug: bool = os.getenv("DEBUG", "true").lower() == "true"
+    debug: bool = _parse_debug_flag(os.getenv("DEBUG", "true"))
 
     # Agent配置
     agent_temperature: float = float(os.getenv("AGENT_TEMPERATURE", "0.1"))
@@ -130,6 +149,15 @@ class Settings(BaseSettings):
         env_file=".env",
         extra="ignore"
     )
+
+    @field_validator("debug", mode="before")
+    @classmethod
+    def _normalize_debug(cls, value: object) -> bool:
+        if isinstance(value, bool):
+            return value
+        if value is None:
+            return True
+        return _parse_debug_flag(str(value))
 
 
 settings = Settings()

@@ -10,8 +10,9 @@
 """
 
 from pathlib import Path
-import tempfile
+import shutil
 from types import SimpleNamespace
+from uuid import uuid4
 
 from backend.app.agent.tools.skill_tools import (
     _build_load_scenario_command,
@@ -33,6 +34,12 @@ def _make_runtime(state: dict | None = None) -> SimpleNamespace:
     return SimpleNamespace(tool_call_id="test-call", state=state or {})
 
 
+def _make_workspace_temp_dir() -> Path:
+    temp_root = Path.cwd() / f".tmp_skill_registry_{uuid4().hex}"
+    temp_root.mkdir(parents=True, exist_ok=False)
+    return temp_root
+
+
 def test_skill_registry_returns_paint_shop_domain() -> None:
     domain = get_skill_by_name("paint_shop_vehicle_tracking")
     assert domain is not None
@@ -41,6 +48,14 @@ def test_skill_registry_returns_paint_shop_domain() -> None:
     assert any(
         "realtime_area_body_count" in item for item in domain["scenario_summaries"]
     )
+
+
+def test_skill_registry_returns_paint_shop_defect_domain() -> None:
+    domain = get_skill_by_name("paint_shop_defect_analysis")
+    assert domain is not None
+    assert domain["name"] == "paint_shop_defect_analysis"
+    assert any("daily_defect_summary" in item for item in domain["scenario_summaries"])
+    assert any("model_defect_trend" in item for item in domain["scenario_summaries"])
 
 
 def test_scenario_registry_returns_daily_area_body_count() -> None:
@@ -63,6 +78,17 @@ def test_scenario_registry_returns_realtime_area_body_count() -> None:
     )
     assert scenario is not None
     assert scenario["title"] == "实时各区域车身数量统计"
+
+
+def test_scenario_registry_returns_daily_defect_summary() -> None:
+    scenarios = list_scenarios_by_skill("paint_shop_defect_analysis")
+    assert len(scenarios) == 5
+    scenario = get_scenario_by_name(
+        "paint_shop_defect_analysis",
+        "daily_defect_summary",
+    )
+    assert scenario is not None
+    assert scenario["title"] == "每日缺陷汇总"
 
 
 def test_domain_content_includes_scenario_summary() -> None:
@@ -93,6 +119,23 @@ def test_realtime_scenario_content_includes_sql_template() -> None:
     assert "COUNT(*) AS vehicle_count" in content
 
 
+def test_defect_domain_content_includes_scenario_summary() -> None:
+    content = load_domain_content("paint_shop_defect_analysis")
+    assert content is not None
+    assert "## 可用场景摘要" in content
+    assert "daily_defect_summary" in content
+    assert "black_roof_defect_comparison" in content
+
+
+def test_defect_scenario_content_includes_sql_template() -> None:
+    content = load_scenario_content(
+        "paint_shop_defect_analysis",
+        "daily_defect_summary",
+    )
+    assert content is not None
+    assert "SUM(mq.total_defect_count)" in content
+
+
 def test_shared_asset_scope_can_be_resolved() -> None:
     scenario = get_scenario_by_name(
         "paint_shop_vehicle_tracking",
@@ -113,8 +156,8 @@ def test_shared_asset_scope_can_be_resolved() -> None:
 
 
 def test_discovery_rejects_scenario_name_mismatch() -> None:
-    with tempfile.TemporaryDirectory() as tmp_dir:
-        root = Path(tmp_dir)
+    root = _make_workspace_temp_dir()
+    try:
         domain_dir = root / "demo_domain"
         scenario_dir = domain_dir / "scenarios" / "wrong_dir_name"
         scenario_dir.mkdir(parents=True)
@@ -158,11 +201,13 @@ def test_discovery_rejects_scenario_name_mismatch() -> None:
                 raise AssertionError("预期发现阶段抛出场景目录名不一致错误")
         finally:
             discovery_module.DOMAINS_ROOT = original_root
+    finally:
+        shutil.rmtree(root, ignore_errors=True)
 
 
 def test_discovery_rejects_invalid_asset_path() -> None:
-    with tempfile.TemporaryDirectory() as tmp_dir:
-        root = Path(tmp_dir)
+    root = _make_workspace_temp_dir()
+    try:
         domain_dir = root / "demo_domain"
         scenario_dir = domain_dir / "scenarios" / "demo_scenario"
         (scenario_dir / "sql").mkdir(parents=True)
@@ -208,11 +253,14 @@ def test_discovery_rejects_invalid_asset_path() -> None:
                 raise AssertionError("预期发现阶段抛出无效资产路径错误")
         finally:
             discovery_module.DOMAINS_ROOT = original_root
+    finally:
+        shutil.rmtree(root, ignore_errors=True)
 
 
 def test_legacy_skills_export_is_compatible() -> None:
     assert SKILLS
-    assert SKILLS[0]["name"] == "paint_shop_vehicle_tracking"
+    assert any(skill["name"] == "paint_shop_vehicle_tracking" for skill in SKILLS)
+    assert any(skill["name"] == "paint_shop_defect_analysis" for skill in SKILLS)
     assert "content" in SKILLS[0]
 
 

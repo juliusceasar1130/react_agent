@@ -1,5 +1,203 @@
 # Changelog
 
+## 2026-04-12 02:20 - 新增 Agent 接分析库后未实施阶段待办清单
+### 概述
+围绕“Agent 已接入 `analytics_db`、tracking 与 defect 两个领域已初步落地”后的下一步规划，新增一份独立的未实施阶段清单文档，用于统一记录后续还未落地的阶段、优先级、进入条件和完成标准，避免后续计划继续散落在聊天记录里。
+### 变更内容
+- **新增待办文档**:
+  - 新增 `docs/backend/database_refactor/unimplemented_phases_todolist.md`
+  - 按“阶段目标 / 主要任务 / 完成标准 / 是否建议立即做”整理未实施阶段
+- **规划范围明确**:
+  - 覆盖跨域质量关联领域
+  - 覆盖高频主题 `mart`
+  - 覆盖现有技能与场景继续优化
+  - 覆盖端到端验证与灰度
+  - 覆盖后续可选增强项
+
+## 2026-04-12 02:05 - 修复 CSV 导出工具未继承 analytics_db search_path 的问题
+### 概述
+补齐 `export_to_csv` 与 `analytics_db` 的连接一致性。此前 Agent 已经能在查询阶段通过 `search_path` 正常访问 `mart/fct/dim/ods` 对象，但 CSV 导出工具内部自行创建数据库连接时没有继承该配置，导致无 schema 前缀的查询在导出时可能报 `relation does not exist`。本次修复后，导出工具会与主查询链路共享相同的 `engine_args`。
+### 变更内容
+- **导出工具修复**:
+  - 更新 `backend/app/agent/tools/csv_export_tool.py`
+  - 为 `create_csv_export_tool()` 增加 `engine_args` 参数
+  - 导出工具内部创建 SQLAlchemy 引擎时继承 `search_path`
+- **服务注入修复**:
+  - 更新 `backend/app/agent/service.py`
+  - 注入 `export_to_csv` 时同步传入业务库对应的 `engine_args`
+  - 使查询与导出在 `analytics_db` 下使用一致的 schema 可见性
+
+## 2026-04-12 00:10 - SQL Agent 第一阶段接入 Analytics DB
+### 概述
+启动“Agent 接分析库”第一阶段改造，新增 `ANALYTICS_DATABASE_URL` 配置，并把 SQL Agent 的业务库入口切换为“优先 `analytics_db`、回退 `rollerbed_tracking_db`”模式。同时补齐 PostgreSQL `search_path` 和物化视图兼容，避免 Agent 接入分析库后看不到核心 `mart` / `fct` 对象。
+### 变更内容
+- **配置增强**:
+  - 更新 `backend/app/config.py`
+  - 新增 `analytics_database_url`
+  - 新增 `analytics_db_search_path`
+  - 兼容 `DEBUG=release/prod` 等环境标记，避免 Settings 初始化失败
+  - 更新 `.env`
+  - 新增 `ANALYTICS_DATABASE_URL`
+  - 新增 `ANALYTICS_DB_SEARCH_PATH`
+- **SQLDatabase 能力增强**:
+  - 新增 `backend/app/agent/utils/sql_database.py`
+  - 增加 `MaterializedViewSQLDatabase`，支持将 PostgreSQL 物化视图纳入可用对象集合
+  - 增加 `build_postgres_search_path_engine_args()`，用于将 `mart,fct,dim,ods,meta` 注入连接 `search_path`
+- **元数据抓取增强**:
+  - 更新 `backend/app/agent/utils/db_utils.py`
+  - 支持传入 `engine_args`
+  - 支持把普通视图和物化视图一并纳入表结构抓取
+- **Agent 业务库入口切换**:
+  - 更新 `backend/app/agent/service.py`
+  - 更新 `backend/app/agent/service_llama.cpp.py`
+  - 业务 SQL 连接改为优先使用 `ANALYTICS_DATABASE_URL`
+  - 若未配置则回退到 `ROLLERBED_DATABASE_URL`
+  - CSV 导出工具同步复用新的业务库入口
+
+## 2026-04-12 00:25 - 更新车辆追踪领域文档为分析库查询视角
+### 概述
+进入“Agent 接分析库”第二阶段，先对 `paint_shop_vehicle_tracking` 的领域文档做最小改动升级：保留源表说明，同时补充 `analytics_db` 下的推荐查询入口、正式产品车/异常车/当前现场总览口径，以及当前缺陷关联分析的易错点，让 Agent 加载领域技能后能直接理解应该优先查询哪些 `mart` / `fct`。
+### 变更内容
+- **领域文档增强**:
+  - 更新 `backend/app/skills/domains/paint_shop_vehicle_tracking/domain.md`
+  - 新增 `analytics_db` 分析库查询入口说明
+  - 新增 `mart_position_current_overview`、`mart_abnormal_vehicle_current`、`mart_vehicle_quality_360` 等推荐对象
+  - 明确 `fct_vehicle_position_current` 只表示正式产品车当前事实
+  - 补充“异常车不适合只按 `vehicle_id` 建模”“当前缺陷关联不是检测时位置”等易错点
+
+## 2026-04-12 00:40 - 优化车辆追踪固定场景到分析库口径
+### 概述
+继续“Agent 接分析库”第二阶段，对 `paint_shop_vehicle_tracking` 下现有固定场景做最小改造：让 `daily_area_body_count` 与 `realtime_area_body_count` 优先面向 `mart_position_current_overview`，不再默认从 `rb_position_data` 直接统计，并同步收敛场景口径为“当前快照下正式产品车数量”。
+### 变更内容
+- **场景元数据更新**:
+  - 更新 `backend/app/skills/domains/paint_shop_vehicle_tracking/scenarios/daily_area_body_count/scenario.py`
+  - 更新 `backend/app/skills/domains/paint_shop_vehicle_tracking/scenarios/realtime_area_body_count/scenario.py`
+  - 补充分析库对象说明
+  - 明确仅统计正式产品车
+  - 将区域维度参数来源切到 `dim_process_area`
+- **SQL 模板更新**:
+  - 更新 `backend/app/skills/domains/paint_shop_vehicle_tracking/scenarios/daily_area_body_count/sql/main.sql`
+  - 更新 `backend/app/skills/domains/paint_shop_vehicle_tracking/scenarios/realtime_area_body_count/sql/main.sql`
+  - 查询入口由 `rb_position_data` 切换为 `mart_position_current_overview`
+
+## 2026-04-12 01:10 - 新增质量缺陷分析领域与第一批固定场景
+### 概述
+进入“Agent 接分析库”第三阶段，新增独立的 `paint_shop_defect_analysis` 业务领域，把质量缺陷能力从车辆追踪领域中拆出来。第一批基于 `mart_vehicle_quality_360` 落地 5 个固定场景，用于承接每日缺陷汇总、车型趋势、部位分布、tunnel/cycle 对比和黑车顶对比等高频问题。
+### 变更内容
+- **新增领域骨架**:
+  - 新增 `backend/app/skills/domains/paint_shop_defect_analysis/__init__.py`
+  - 新增 `backend/app/skills/domains/paint_shop_defect_analysis/meta.py`
+  - 新增 `backend/app/skills/domains/paint_shop_defect_analysis/domain.md`
+- **新增第一批质量场景**:
+  - 新增 `daily_defect_summary`
+  - 新增 `model_defect_trend`
+  - 新增 `defect_station_distribution`
+  - 新增 `tunnel_cycle_defect_comparison`
+  - 新增 `black_roof_defect_comparison`
+  - 每个场景均补充 `scenario.py` 与 `sql/main.sql`
+- **测试补充**:
+  - 更新 `backend/app/test_skill_registry.py`
+  - 补充新领域与新场景的自动发现、内容加载与兼容性断言
+
+## 2026-04-12 00:35 - 调整车辆追踪领域文档顺序以适配 Agent 阅读
+### 概述
+继续第二阶段文档优化，将 `paint_shop_vehicle_tracking/domain.md` 重排为“先推荐查询入口，再业务逻辑与易错点，最后源表背景”的顺序，让 Agent 在加载领域技能后更容易优先命中 `mart/fct`，同时把 `ods` 和源表说明保留为背景知识与兜底参考。
+### 变更内容
+- **文档结构重排**:
+  - 更新 `backend/app/skills/domains/paint_shop_vehicle_tracking/domain.md`
+  - 将“推荐查询入口”提升到前部
+  - 将“业务逻辑”和“当前易错点”前置
+  - 将原“数据表”章节调整为“源表与底层数据表”
+
+## 2026-04-12 00:45 - 补充车辆追踪领域中核心 mart/fct 的关键字段说明
+### 概述
+继续增强 `paint_shop_vehicle_tracking/domain.md`，在“推荐查询入口”下为核心分析对象补充轻量但高频的关键字段说明，让 Agent 在优先查询 `mart/fct` 时，不只知道应该查哪个对象，也能更快理解对象粒度和常用字段语义。
+### 变更内容
+- **分析对象字段说明补充**:
+  - 更新 `backend/app/skills/domains/paint_shop_vehicle_tracking/domain.md`
+  - 为 `mart_position_current_overview` 补充当前总览关键字段
+  - 为 `fct_vehicle_position_current` 补充正式产品车当前事实关键字段
+  - 为 `fct_position_current_all` 补充当前全部有效占位关键字段
+  - 为 `mart_abnormal_vehicle_current` 补充异常车关键字段
+  - 为 `mart_vehicle_quality_360` 补充缺陷关联分析关键字段
+## 2026-04-11 21:20 - 新增 Analytics DB 后续待办清单与 mart 复用判断说明
+### 概述
+为方便后续在 `analytics_db` 基础上继续选择扩展方向，新增一份面向维护者的待办清单文档，集中整理当前已完成内容、建议下一步、可选增强项，以及“当前是否可以只依赖 `mart_vehicle_quality_360` 让 LLM 自主生成 SQL”的判断依据。
+### 变更内容
+- **新增待办文档**:
+  - 新增 `docs/backend/database_refactor/analytics_db_todolist.md`
+  - 按“已完成 / 建议下一步 / 可选增强”整理数据库后续建设路径
+- **设计判断沉淀**:
+  - 补充当前直接复用 `mart_vehicle_quality_360` 的适用范围
+  - 补充何时需要新增 `mart_defect_daily_by_model`、`mart_defect_station_distribution` 的判断标准
+
+## 2026-04-11 20:15 - 落地当前车辆事实分层第一阶段并同步数据库重构文档
+### 概述
+围绕 `analytics_db` 中“正式产品车 / 异常车 / 全量占位”混用的问题，正式落地当前车辆事实分层优化第一阶段：新增全量当前占位事实、异常车事实、异常车主题 `mart` 与当前现场总览 `mart`，同时将原有产品车当前位置事实明确收口到正式产品车，并把 `database_refactor` 文档同步到数据库真实状态。
+### 变更内容
+- **数据库对象新增与调整**:
+  - 在 `analytics_db` 中新增 `fct.fct_position_current_all`
+  - 在 `analytics_db` 中新增 `fct.fct_abnormal_vehicle_current`
+  - 在 `analytics_db` 中新增 `mart.mart_abnormal_vehicle_current`
+  - 在 `analytics_db` 中新增 `mart.mart_position_current_overview`
+  - 重建 `fct.fct_vehicle_position_current`，明确其仅服务正式产品车
+  - 重建 `mart.mart_vehicle_quality_360`，使其继续面向产品车质量分析主链路
+- **维度层增强**:
+  - 为 `dim.dim_vehicle_profile` 增加 `current_position_id`、`current_carrier_id`、`current_carrier_type`、`current_process_area`、`current_full_rb_code`、`current_position_updated_at`
+  - 让车辆画像维度可保留正式产品车的当前绑定快照
+- **刷新流程升级**:
+  - 更新 `meta.refresh_analytics_all()`
+  - 将新 `fct` / `mart` 对象纳入一键刷新流程
+  - 刷新后自动补齐 `agent_ro` 对新增对象的 `SELECT` 权限
+- **验证结果**:
+  - 刷新后 `fct.fct_position_current_all = 114`
+  - 刷新后 `fct.fct_vehicle_position_current = 102`
+  - 刷新后 `fct.fct_abnormal_vehicle_current = 12`
+  - 刷新后 `mart.mart_abnormal_vehicle_current = 12`
+  - 刷新后 `mart.mart_position_current_overview = 114`
+  - 异常车分类样例为 `empty_vehicle_id_with_carrier = 8`、`non_product_prefix = 4`
+- **文档同步**:
+  - 更新 `docs/backend/database_refactor/analytics_db_architecture.md`
+  - 更新 `docs/backend/database_refactor/why_analytics_db.md`
+  - 更新 `docs/backend/database_refactor/current_vehicle_fact_refactor.md`
+
+## 2026-04-11 18:55 - 补充当前车辆事实分层重构方案文档
+### 概述
+围绕 `analytics_db` 当前车辆事实层在异常车、重复调试 `vehicle_id` 和 `carrier_id` 反查场景下的限制，补充一份面向后续数据库重构的专题方案文档，并同步修正现有 `database_refactor` 文档中的限制说明与演进建议，帮助后续将“正式产品车 / 异常车 / 全量占位”分层建模。
+### 变更内容
+- **新增专题方案文档**:
+  - 新增 `docs/backend/database_refactor/current_vehicle_fact_refactor.md`
+  - 说明当前 `fct_vehicle_position_current` 的局限，以及 `fct_position_current_all`、`fct_abnormal_vehicle_current`、异常车主题 `mart` 的设计方向
+- **现有文档补充**:
+  - 更新 `docs/backend/database_refactor/analytics_db_architecture.md`
+  - 增加当前 `fct_vehicle_position_current` 对异常车与重复调试车场景的限制说明
+  - 更新 `docs/backend/database_refactor/why_analytics_db.md`
+  - 增加当前产品车事实与异常车事实不应长期混用的设计依据与后续演进建议
+
+## 2026-04-11 18:36 - 新增 Analytics DB 设计动机说明文档
+### 概述
+在已经补齐 `analytics_db` 落地与刷新操作手册的基础上，再新增一份面向后续复用的设计说明文档，专门回答“为什么要设计 `analytics_db`、为什么不是直接查源库、为什么要分层以及当前取舍是什么”，用于统一数据库重构和 Agent 接库改造的设计认知。
+### 变更内容
+- **新增设计说明文档**:
+  - 新增 `docs/backend/database_refactor/why_analytics_db.md`
+  - 从背景、问题、分层、设计决策、已验证事实、踩坑与复用清单几个维度解释 `analytics_db` 的必要性
+- **与现有手册互补**:
+  - 与 `docs/backend/database_refactor/analytics_db_architecture.md` 形成“为什么这样设计”与“如何落地执行”的双文档结构
+
+## 2026-04-11 17:20 - 修正 Analytics DB 落地与刷新操作手册为最新已验证版
+### 概述
+将 `docs/backend/analytics_db_architecture.md` 从偏概念性的架构说明重写为可直接执行的 `analytics_db` 落地与刷新操作手册，统一当前数据库中已经验证成功的 schema、表、物化视图、权限与刷新流程，避免后续继续沿用遗漏 `dim` 刷新和 `refresh_watermark` 更新的旧版步骤。
+### 变更内容
+- **文档重写**:
+  - 更新 `docs/backend/analytics_db_architecture.md`
+  - 补充一次性初始化、FDW 外表导入、ODS/DIM/FCT/MART 初始化与授权步骤
+- **刷新流程修正**:
+  - 明确当前正式版 `meta.refresh_analytics_all()` 会同时刷新 `dim.dim_process_area`、`dim.dim_vehicle_profile` 与 `meta.refresh_watermark`
+  - 修正旧文档中仅刷新 `ods/fct/mart` 的过时描述
+- **运维说明补充**:
+  - 补充日常手工刷新、Windows 定时任务、验证 SQL 与后续项目接入步骤
+  - 明确当前 `mart_vehicle_quality_360` 关联的是“缺陷检测 + 当前最新位置”，不是检测当时位置
+
 ## 2026-04-09 20:28 - 新增项目内数据库结构快照目录
 ### 概述
 为方便后续字段分析、结构梳理和离线阅读，将 `defect_db` 中 5 张业务表的字段结构同步保存到项目根目录 `database/` 下，不再只依赖数据库内查询。
