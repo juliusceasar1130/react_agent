@@ -1,5 +1,29 @@
 # Changelog
 
+## 2026-04-12 03:15 - 新增 Agent SQL 上下文与结果返回机制说明文档
+### 概述
+围绕 `analytics_db` 接入后关于 `schema`、`search_path`、物化视图支持、元数据抓取、`sql_db_schema` 移除影响，以及“查询结果是否应默认带列名”的连续讨论，新增一份统一机制说明文档，帮助后续维护者快速理解哪些能力已经真正作用到 LLM，哪些仍属于底层准备能力。
+### 变更内容
+- **新增机制说明文档**:
+  - 新增 `docs/backend/database_refactor/agent_sql_context_mechanism.md`
+  - 统一解释 `schema` 与 `search_path` 的关系
+  - 统一解释物化视图如何纳入 `SQLDatabase`
+  - 统一解释元数据抓取在当前实现中的真实作用边界
+  - 统一解释为何将 `sql_db_query` 升级为默认带列名结果
+
+## 2026-04-12 03:00 - 优化 SQL 查询结果为带列名结构，降低 LLM 对 SELECT * 的误判风险
+### 概述
+将包装后的 `sql_db_query` 返回格式从“默认元组列表字符串”升级为“默认带列名的字典列表字符串”，让模型在读取结果时能直接看到列名与字段值的对应关系，降低 `SELECT *`、宽表查询和多列表结果下的理解偏差。同时保持结果限流与预览机制兼容新旧两种格式。
+### 变更内容
+- **查询工具增强**:
+  - 更新 `backend/app/agent/tools/sql_tools.py`
+  - 更新 `backend/app/agent/tools/sql_tools_local.py`
+  - 查询执行优先调用底层 `db.run_no_throw(query, include_columns=True)`
+  - 结果默认包含列名
+- **限流兼容增强**:
+  - 行数估算逻辑同时兼容元组列表与字典列表
+  - 预览截断逻辑同时兼容元组列表与字典列表
+
 ## 2026-04-12 02:20 - 新增 Agent 接分析库后未实施阶段待办清单
 ### 概述
 围绕“Agent 已接入 `analytics_db`、tracking 与 defect 两个领域已初步落地”后的下一步规划，新增一份独立的未实施阶段清单文档，用于统一记录后续还未落地的阶段、优先级、进入条件和完成标准，避免后续计划继续散落在聊天记录里。

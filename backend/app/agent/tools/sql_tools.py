@@ -7,6 +7,11 @@ SQL 查询工具工厂
 2. 自动 SQL 语法检查
 3. 日期格式标准化
 4. 智能结果限流与超限预警
+
+修改时间: 2026-04-12 03:00 Asia/Shanghai
+主要修改内容:
+- 默认返回带列名的结构化查询结果，降低 LLM 对 SELECT * 结果的误判风险
+- 结果限流逻辑同时兼容旧元组格式与新字典格式
 """
 
 import logging
@@ -33,18 +38,26 @@ def _estimate_row_count(result_text: str) -> int:
     """
     估算 LangChain sql_db_query 工具返回的结果字符串中的行数。
 
-    LangChain 的 sql_db_query 工具返回的是一个 Python 元组列表的文本表示，
-    例如: "[('val1', 'val2'), ('val3', 'val4')]"
-    我们通过统计顶层元组的数量来估算行数。
+    当前工具优先返回带列名的 Python 字典列表文本表示，例如：
+    "[{'col1': 'val1'}, {'col1': 'val2'}]"
+    同时兼容历史版本的元组列表表示：
+    "[('val1', 'val2'), ('val3', 'val4')]"
     """
-    # 优化策略：LangChain 的结果通常是以 "), (" 分隔的元组列表字符串。
-    # 相比于使用 ast.literal_eval() 完整解析大字符串（内存开销极大），
-    # 我们通过统计分隔符出现的次数来快速估算行数，牺牲极小的准确性换取极高的执行速度。
+    stripped = result_text.strip()
+    if not stripped.startswith("["):
+        return 0
+
+    if stripped.startswith("[{"):
+        count = result_text.count("}, {") + result_text.count("},\n{")
+        if count == 0 and "{" in stripped:
+            return 1
+        return count + 1 if count > 0 else 0
+
     count = result_text.count("), (") + result_text.count("),\n(")
-    
+
     # 特殊情况处理：
     # 1. 只有一行数据时，可能不包含分隔符
-    if count == 0 and result_text.strip().startswith("[") and "(" in result_text:
+    if count == 0 and stripped.startswith("[") and "(" in result_text:
         return 1
     # 2. 空结果集
     return count + 1 if count > 0 else 0
@@ -54,23 +67,28 @@ def _extract_preview_rows(result_text: str, n: int) -> str:
     """
     从结果字符串中提取前 n 行作为预览。
 
-    通过查找第 n 个元组结束标记来截取前 n 行。
+    同时兼容元组列表与字典列表两种字符串表示。
     """
-    # 实现原理：利用正则表达式匹配元组之间的分隔符 "), ("。
-    # re.split 会根据分隔符将整个结果集拆分为多个子字符串。
-    # 这种方式比完全加载为 Python 对象更节省内存。
-    parts = re.split(r"\),\s*\(", result_text)
+    stripped = result_text.strip()
+    separator_pattern = r"\),\s*\("
+    item_suffix = ")"
+
+    if stripped.startswith("[{"):
+        separator_pattern = r"\},\s*\{"
+        item_suffix = "}"
+
+    parts = re.split(separator_pattern, result_text)
     if len(parts) <= n:
         return result_text
 
-    # 截取前 n 个元组并重新使用分隔符拼接
+    # 截取前 n 个元素并重新使用分隔符拼接
     preview_parts = parts[:n]
-    preview = "), (".join(preview_parts)
+    join_token = "}, {" if item_suffix == "}" else "), ("
+    preview = join_token.join(preview_parts)
     
-    # 指后处理：re.split 会丢掉分隔符中匹配的部分，
-    # 且两端可能缺少方括号或括号，需要手动补齐以保持合法的 Python 语法表示。
-    if not preview.rstrip().endswith(")"):
-        preview += ")"
+    # re.split 会丢掉分隔符中匹配的部分，两端可能缺少闭合字符。
+    if not preview.rstrip().endswith(item_suffix):
+        preview += item_suffix
     if not preview.rstrip().endswith("]"):
         preview += "]"
     return preview
@@ -154,7 +172,13 @@ def create_wrapped_query_tool(
             stage="querying",
             source="sql_db_query",
         )
-        raw_result = original_query_tool.invoke({"query": query})
+        if hasattr(original_query_tool, "db") and hasattr(original_query_tool.db, "run_no_throw"):
+            raw_result = original_query_tool.db.run_no_throw(
+                query,
+                include_columns=True,
+            )
+        else:
+            raw_result = original_query_tool.invoke({"query": query})
         result_str = str(raw_result)
 
         # 4. 对查询结果的日期进行格式转换

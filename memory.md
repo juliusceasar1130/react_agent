@@ -68,3 +68,7 @@
 
 对代码优化和新增功能，你可以使用OpenSpec的技能进行开发
 proposal / design / tasks / archive
+
+## 依赖管理
+
+新增代码涉及第三方包的话，请更新requirements.txt
