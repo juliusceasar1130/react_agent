@@ -90,3 +90,15 @@ xxhash==3.6.0
 yarl==1.22.0
 zstandard==0.25.0
 python-dateutil==2.9.0.post0
+beautifulsoup4==4.14.3
+langchain-chroma==1.1.0
+langchain-nvidia-ai-endpoints==1.0.4
+langchain-postgres==0.0.16
+llama-index-core==0.14.15
+llama-index-embeddings-nvidia==0.4.2
+llama-index-embeddings-ollama==0.9.0
+llama-index-vector-stores-milvus==1.0.0
+pgvector==0.3.6
+pymilvus==2.6.7
+asyncpg==0.31.0
+jieba==0.42.1

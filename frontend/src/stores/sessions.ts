@@ -88,14 +88,6 @@ export const useSessionsStore = defineStore('sessions', () => {
     currentSessionId.value = id
   }
 
-  // 增加消息数量 - 2025-01-01
-  const incrementMessageCount = (sessionId: string, count: number = 1) => {
-    const session = sessions.value.find(s => s.id === sessionId)
-    if (session) {
-      session.message_count += count
-    }
-  }
-
   return {
     // State
     sessions,
@@ -110,6 +102,5 @@ export const useSessionsStore = defineStore('sessions', () => {
     updateSession,
     deleteSession,
     setCurrentSession,
-    incrementMessageCount,  // 新增 - 2025-01-01
   }
 })

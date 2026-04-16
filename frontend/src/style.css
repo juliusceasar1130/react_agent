@@ -1,4 +1,4 @@
-/* 2025-01-07 - 全局样式升级：现代化配色与字体系统 */
+/* 2026-04-01 22:55 Asia/Shanghai - 新增聊天消息 Markdown 展示样式 */
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -149,6 +149,164 @@
     100% {
       opacity: 0;
     }
+  }
+
+  .message-markdown {
+    color: inherit;
+  }
+
+  .message-markdown > :first-child {
+    margin-top: 0;
+  }
+
+  .message-markdown > :last-child {
+    margin-bottom: 0;
+  }
+
+  .message-markdown p,
+  .message-markdown ul,
+  .message-markdown ol,
+  .message-markdown blockquote,
+  .message-markdown pre,
+  .message-markdown table,
+  .message-markdown h1,
+  .message-markdown h2,
+  .message-markdown h3,
+  .message-markdown h4 {
+    margin: 0 0 0.9rem;
+  }
+
+  .message-markdown strong {
+    font-weight: 700;
+  }
+
+  .message-markdown p {
+    line-height: 1.75;
+  }
+
+  .message-markdown p:has(> strong:only-child) {
+    margin-bottom: 0.7rem;
+    border-left: 4px solid rgb(124 58 237 / 0.7);
+    padding-left: 0.75rem;
+    font-size: 1rem;
+    font-weight: 700;
+    letter-spacing: 0.01em;
+  }
+
+  .message-markdown ul,
+  .message-markdown ol {
+    padding-left: 1.4rem;
+  }
+
+  .message-markdown li + li {
+    margin-top: 0.35rem;
+  }
+
+  .message-markdown code {
+    border-radius: 0.45rem;
+    background: rgb(124 58 237 / 0.08);
+    padding: 0.12rem 0.38rem;
+    font-size: 0.92em;
+  }
+
+  .message-markdown pre {
+    overflow-x: auto;
+    border-radius: 0.95rem;
+    background: rgb(15 23 42 / 0.92);
+    padding: 0.95rem 1rem;
+    color: #e2e8f0;
+  }
+
+  .message-markdown pre code {
+    background: transparent;
+    padding: 0;
+    color: inherit;
+  }
+
+  .message-markdown blockquote {
+    border-left: 3px solid rgb(124 58 237 / 0.28);
+    background: rgb(124 58 237 / 0.05);
+    padding: 0.7rem 0.9rem;
+    color: rgb(71 85 105);
+  }
+
+  .message-markdown table {
+    display: block;
+    width: 100%;
+    overflow-x: auto;
+    border-collapse: separate;
+    border-spacing: 0;
+    border: 1px solid rgb(226 232 240);
+    border-radius: 0.95rem;
+    background: rgb(255 255 255 / 0.98);
+    box-shadow: 0 10px 20px -18px rgb(15 23 42 / 0.4);
+  }
+
+  .message-markdown thead {
+    background: linear-gradient(180deg, rgb(248 250 252 / 1), rgb(241 245 249 / 1));
+  }
+
+  .message-markdown th,
+  .message-markdown td {
+    min-width: 5rem;
+    border-bottom: 1px solid rgb(226 232 240);
+    padding: 0.78rem 0.9rem;
+    text-align: left;
+    vertical-align: top;
+    white-space: normal;
+    line-height: 1.6;
+  }
+
+  .message-markdown th {
+    font-size: 0.82rem;
+    font-weight: 700;
+    color: rgb(51 65 85);
+  }
+
+  .message-markdown td {
+    font-size: 0.9rem;
+    color: rgb(30 41 59);
+  }
+
+  .message-markdown th + th,
+  .message-markdown td + td {
+    border-left: 1px solid rgb(226 232 240);
+  }
+
+  .message-markdown tbody tr:nth-child(even) {
+    background: rgb(248 250 252 / 0.72);
+  }
+
+  .message-markdown tbody tr:last-child td {
+    border-bottom: none;
+  }
+
+  .message-markdown th:nth-child(2),
+  .message-markdown td:nth-child(2) {
+    width: 6.5rem;
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .message-markdown td:nth-child(2) {
+    font-weight: 700;
+    color: rgb(79 70 229);
+  }
+
+  .message-markdown th:last-child,
+  .message-markdown td:last-child {
+    min-width: 12rem;
+  }
+
+  .message-markdown a {
+    color: var(--color-primary);
+    text-decoration: underline;
+    text-decoration-color: rgb(124 58 237 / 0.28);
+    text-underline-offset: 0.16rem;
+  }
+
+  .message-markdown > p:last-child {
+    margin-bottom: 0;
   }
 }
 

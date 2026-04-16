@@ -1,0 +1,63 @@
+[
+  {
+    "model": 4,
+    "type_name": "TiguanL",
+    "black_roof": null
+  },
+  {
+    "model": 7,
+    "type_name": "A7",
+    "black_roof": null
+  },
+
+  {
+    "model": 19,
+    "type_name": "Tiguan Pro",
+    "black_roof": null
+  },
+  {
+    "model": 20,
+    "type_name": "A5",
+    "black_roof": null
+  },
+  {
+    "model": 21,
+    "type_name": "A5",
+    "black_roof": null
+  },
+  {
+    "model": 22,
+    "type_name": "A5",
+    "black_roof": "黑车顶"
+  },
+  {
+    "model": 23,
+    "type_name": "E5",
+    "black_roof": null
+  },
+  {
+    "model": 25,
+    "type_name": "TiguanL",
+    "black_roof": "黑车顶"
+  },
+  {
+    "model": 26,
+    "type_name": "Tiguan Pro",
+    "black_roof": "黑车顶"
+  },
+  {
+    "model": 27,
+    "type_name": "E7",
+    "black_roof": null
+  },
+  {
+    "model": 28,
+    "type_name": "TiguanL PHEV",
+    "black_roof": null
+  },
+  {
+    "model": 77,
+    "type_name": "A7",
+    "black_roof": "黑车顶"
+  }
+]

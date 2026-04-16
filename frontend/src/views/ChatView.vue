@@ -29,7 +29,9 @@
     <main class="flex-1 flex flex-col bg-gradient-to-br from-bg via-surface to-primary/5">
       <header v-if="currentSession" class="px-6 py-4 bg-surface/80 backdrop-blur-sm border-b border-neutral-200 shadow-sm animate-fade-in">
         <h3 class="text-xl font-semibold text-text">{{ currentSession.title }}</h3>
-        <p class="text-sm text-neutral-500 mt-0.5">AI 智能助手</p>
+        <p class="text-sm mt-0.5" :class="streamHeaderClass">
+          {{ streamHeaderText }}
+        </p>
       </header>
       <div v-else class="px-6 py-4 bg-surface/80 backdrop-blur-sm border-b border-neutral-200">
         <p class="text-neutral-500">选择或创建一个会话开始对话</p>
@@ -80,14 +82,20 @@
               </div>
           </div>
           <button
-            @click="handleSendMessage"
-            :disabled="!inputText.trim() || isSending"
-            class="btn-primary self-end flex items-center gap-2 !px-5"
+            @click="isSending && streamMode ? handleStopStreaming() : handleSendMessage()"
+            :disabled="!isSending && !inputText.trim()"
+            class="self-end flex items-center gap-2 !px-5"
+            :class="isSending && streamMode
+              ? 'px-5 py-2.5 rounded-xl font-medium transition-all duration-200 ease-out bg-neutral-100 text-neutral-700 hover:bg-neutral-200 active:scale-[0.98]'
+              : 'btn-primary'"
           >
             <svg v-if="!isSending" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
             </svg>
-            {{ isSending ? '发送中' : '发送' }}
+            <svg v-else-if="streamMode" class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+              <path d="M7 7h10v10H7z" />
+            </svg>
+            {{ isSending ? (streamMode ? '停止生成' : '发送中') : '发送' }}
           </button>
         </div>
       </div>
@@ -98,6 +106,7 @@
 <script setup lang="ts">
 import { computed, ref, nextTick } from 'vue'
 import { useSessionsStore } from '@/stores/sessions'
+import { useMessagesStore } from '@/stores/messages'
 import { useChatStream } from '@/composables/useChatStream'
 import ToggleSwitch from '@/components/ToggleSwitch.vue'
 import SessionList from '@/components/SessionList.vue'
@@ -105,9 +114,29 @@ import MessageList from '@/components/MessageList.vue'
 import EmptyState from '@/components/EmptyState.vue'
 
 const sessionsStore = useSessionsStore()
-const { isSending, streamMode, sendMessage } = useChatStream()
+const messagesStore = useMessagesStore()
+const { isSending, streamMode, sendMessage, stopStreaming } = useChatStream()
 
 const currentSession = computed(() => sessionsStore.currentSession)
+const currentStreamingMessage = computed(() => messagesStore.streamingMessage)
+const streamHeaderText = computed(() => {
+  if (currentStreamingMessage.value?.error) {
+    return currentStreamingMessage.value.error
+  }
+  if (streamMode.value && currentStreamingMessage.value?.statusText) {
+    return currentStreamingMessage.value.statusText
+  }
+  return 'AI 智能助手'
+})
+const streamHeaderClass = computed(() => {
+  if (currentStreamingMessage.value?.error) {
+    return 'text-sm text-red-500'
+  }
+  if (streamMode.value && currentStreamingMessage.value?.statusText) {
+    return 'text-sm text-primary'
+  }
+  return 'text-sm text-neutral-500'
+})
 const inputText = ref('')
 const messageListRef = ref<InstanceType<typeof MessageList> | null>(null)
 
@@ -128,5 +157,10 @@ const handleSendMessage = async () => {
     console.error('发送消息失败:', err)
     alert('发送消息失败，请重试')
   }
+}
+
+const handleStopStreaming = () => {
+  if (!isSending.value || !streamMode.value) return
+  stopStreaming()
 }
 </script>

@@ -33,7 +33,17 @@
     }
   },
   {
-    "document": "面漆分为主线与存储线（buffer）。主线负责生产，存储线负责缓存。面漆主线与存储线各有3条，可称为1线、2线、3线，或L1、L2、L3。",
+    "document": "面漆区域有3条流水线，可称为1线、2线、3线，或L1、L2、L3。每一条生产节拍40JPH(每小时生产40台车)",
+    "metadata": {
+      "type": "documentation",
+      "domain": "paint_shop_vehicle_tracking",
+      "process": "面漆",
+      "term": "产线结构",
+      "aliases": []
+    }
+  },
+  {
+    "document": "面漆区域细分分为：色漆线、中间烘房、清漆线、烘房、储存线/buffer 区域",
     "metadata": {
       "type": "documentation",
       "domain": "paint_shop_vehicle_tracking",
@@ -120,6 +130,55 @@
       "aliases": [
         "雪橇",
         "吊架"
+      ]
+    }
+  },
+  {
+    "document": "车身号，也称fis号码，是每一台产品车身的唯一id,以782026开头，如<782026xxxxxxxx>带有id的车身绝大多数是正式的产品车，也有可能是调试车或者项目车",
+    "metadata": {
+      "type": "documentation",
+      "domain": "paint_shop_vehicle_tracking",
+      "process": "common",
+      "term": "车身号",
+      "aliases": [
+        "fis",
+        "车身号"
+      ]
+    }
+  },
+  {
+    "document": " 异常车辆有2种：第一种：vehicle_id 的前缀不是 '782026'开头 且 carrier_id 不等于 0。第二种：vehicle_id 等于 '--------------'且carrier_id 不等于 0。默认两种分别计算并合并，除非用户指明哪种情景。",
+    "metadata": {
+      "type": "documentation",
+      "domain": "paint_shop_vehicle_tracking",
+      "process": "common",
+      "term": "异常车",
+      "aliases": [
+        "非产品车"
+      ]
+    }
+  },
+  {
+    "document": "车型是产品的类型，body_type是车型代码，用于生产，type_name是车型的系列名称，一个车型type_name对应多个body_type。常见的body_type有2N54Y、IM186、IM142、YM34K等5个字符构成。常见的type_name有TiguanL， E7， E5， A5， ID3， ID4， A7，TiguanPro，小鹏等。vehicle_body_types表提供详细的定义和明细",
+    "metadata": {
+      "type": "documentation",
+      "domain": "paint_shop_vehicle_tracking",
+      "process": "common",
+      "term": "车型构成",
+      "aliases": [
+        "车型","body type","type name"
+      ]
+    }
+  },
+  {
+    "document": "颜色是产品的外观颜色，常见的颜色代码有：2T2T、0Q0Q、PZPZ等4个字符构成，vehicle_color_codes表提供详细的定义和明细",
+    "metadata": {
+      "type": "documentation",
+      "domain": "paint_shop_vehicle_tracking",
+      "process": "common",
+      "term": "产品构成",
+      "aliases": [
+        "颜色","color"
       ]
     }
   }

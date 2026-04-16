@@ -1,0 +1,77 @@
+{
+  "generated_at": "2026-04-09 Asia/Shanghai",
+  "source_database": "defect_db",
+  "schema": "public",
+  "tables": {
+    "history": [
+      {"ordinal_position": 1, "column_name": "history_id", "data_type": "integer", "udt_name": "int4", "is_nullable": false, "column_default": null},
+      {"ordinal_position": 2, "column_name": "model", "data_type": "integer", "udt_name": "int4", "is_nullable": false, "column_default": null},
+      {"ordinal_position": 3, "column_name": "serial_number", "data_type": "character varying", "udt_name": "varchar", "is_nullable": true, "column_default": null},
+      {"ordinal_position": 4, "column_name": "global_serial_number", "data_type": "character varying", "udt_name": "varchar", "is_nullable": true, "column_default": null},
+      {"ordinal_position": 5, "column_name": "color", "data_type": "smallint", "udt_name": "int2", "is_nullable": false, "column_default": null},
+      {"ordinal_position": 6, "column_name": "date_time", "data_type": "timestamp without time zone", "udt_name": "timestamp", "is_nullable": false, "column_default": null},
+      {"ordinal_position": 7, "column_name": "enabled", "data_type": "bit", "udt_name": "bit", "is_nullable": true, "column_default": null},
+      {"ordinal_position": 8, "column_name": "status", "data_type": "integer", "udt_name": "int4", "is_nullable": true, "column_default": null},
+      {"ordinal_position": 9, "column_name": "RESULT", "data_type": "integer", "udt_name": "int4", "is_nullable": true, "column_default": null},
+      {"ordinal_position": 10, "column_name": "ACTION", "data_type": "integer", "udt_name": "int4", "is_nullable": true, "column_default": null},
+      {"ordinal_position": 11, "column_name": "wers_code", "data_type": "character varying", "udt_name": "varchar", "is_nullable": true, "column_default": null},
+      {"ordinal_position": 12, "column_name": "color_code", "data_type": "character varying", "udt_name": "varchar", "is_nullable": true, "column_default": null},
+      {"ordinal_position": 13, "column_name": "suffix_mask", "data_type": "character varying", "udt_name": "varchar", "is_nullable": true, "column_default": null},
+      {"ordinal_position": 14, "column_name": "tunnel", "data_type": "integer", "udt_name": "int4", "is_nullable": true, "column_default": null},
+      {"ordinal_position": 15, "column_name": "finished", "data_type": "bit", "udt_name": "bit", "is_nullable": true, "column_default": null},
+      {"ordinal_position": 16, "column_name": "finish_line", "data_type": "integer", "udt_name": "int4", "is_nullable": true, "column_default": null},
+      {"ordinal_position": 17, "column_name": "CYCLE", "data_type": "integer", "udt_name": "int4", "is_nullable": true, "column_default": null},
+      {"ordinal_position": 18, "column_name": "repaired", "data_type": "bit", "udt_name": "bit", "is_nullable": true, "column_default": null},
+      {"ordinal_position": 19, "column_name": "scrap", "data_type": "bit", "udt_name": "bit", "is_nullable": true, "column_default": null}
+    ],
+    "history_detail": [
+      {"ordinal_position": 1, "column_name": "history_id", "data_type": "integer", "udt_name": "int4", "is_nullable": false, "column_default": null},
+      {"ordinal_position": 2, "column_name": "part", "data_type": "integer", "udt_name": "int4", "is_nullable": false, "column_default": null},
+      {"ordinal_position": 3, "column_name": "defect", "data_type": "integer", "udt_name": "int4", "is_nullable": false, "column_default": null},
+      {"ordinal_position": 4, "column_name": "station", "data_type": "integer", "udt_name": "int4", "is_nullable": false, "column_default": null},
+      {"ordinal_position": 5, "column_name": "ZONE", "data_type": "integer", "udt_name": "int4", "is_nullable": false, "column_default": null},
+      {"ordinal_position": 6, "column_name": "count", "data_type": "smallint", "udt_name": "int2", "is_nullable": false, "column_default": null},
+      {"ordinal_position": 7, "column_name": "SIZE", "data_type": "numeric", "udt_name": "numeric", "is_nullable": true, "column_default": null},
+      {"ordinal_position": 8, "column_name": "x_manto", "data_type": "integer", "udt_name": "int4", "is_nullable": false, "column_default": null},
+      {"ordinal_position": 9, "column_name": "y_manto", "data_type": "integer", "udt_name": "int4", "is_nullable": false, "column_default": null},
+      {"ordinal_position": 10, "column_name": "x_layout", "data_type": "integer", "udt_name": "int4", "is_nullable": false, "column_default": null},
+      {"ordinal_position": 11, "column_name": "y_layout", "data_type": "integer", "udt_name": "int4", "is_nullable": false, "column_default": null},
+      {"ordinal_position": 12, "column_name": "enabled", "data_type": "bit", "udt_name": "bit", "is_nullable": false, "column_default": null},
+      {"ordinal_position": 13, "column_name": "status", "data_type": "integer", "udt_name": "int4", "is_nullable": false, "column_default": null},
+      {"ordinal_position": 14, "column_name": "RESULT", "data_type": "integer", "udt_name": "int4", "is_nullable": false, "column_default": null},
+      {"ordinal_position": 15, "column_name": "feedback", "data_type": "integer", "udt_name": "int4", "is_nullable": true, "column_default": null},
+      {"ordinal_position": 16, "column_name": "observations", "data_type": "character varying", "udt_name": "varchar", "is_nullable": true, "column_default": null},
+      {"ordinal_position": 17, "column_name": "camera", "data_type": "integer", "udt_name": "int4", "is_nullable": true, "column_default": null},
+      {"ordinal_position": 18, "column_name": "subtype", "data_type": "integer", "udt_name": "int4", "is_nullable": true, "column_default": null},
+      {"ordinal_position": 19, "column_name": "x_frame", "data_type": "integer", "udt_name": "int4", "is_nullable": true, "column_default": null},
+      {"ordinal_position": 20, "column_name": "y_frame", "data_type": "integer", "udt_name": "int4", "is_nullable": true, "column_default": null},
+      {"ordinal_position": 21, "column_name": "frame", "data_type": "integer", "udt_name": "int4", "is_nullable": true, "column_default": null},
+      {"ordinal_position": 22, "column_name": "x_mesh", "data_type": "double precision", "udt_name": "float8", "is_nullable": true, "column_default": null},
+      {"ordinal_position": 23, "column_name": "y_mesh", "data_type": "double precision", "udt_name": "float8", "is_nullable": true, "column_default": null},
+      {"ordinal_position": 24, "column_name": "z_mesh", "data_type": "double precision", "udt_name": "float8", "is_nullable": true, "column_default": null},
+      {"ordinal_position": 25, "column_name": "rx_mesh", "data_type": "double precision", "udt_name": "float8", "is_nullable": true, "column_default": null},
+      {"ordinal_position": 26, "column_name": "ry_mesh", "data_type": "double precision", "udt_name": "float8", "is_nullable": true, "column_default": null},
+      {"ordinal_position": 27, "column_name": "rz_mesh", "data_type": "double precision", "udt_name": "float8", "is_nullable": true, "column_default": null},
+      {"ordinal_position": 28, "column_name": "diameter", "data_type": "double precision", "udt_name": "float8", "is_nullable": true, "column_default": null},
+      {"ordinal_position": 29, "column_name": "d_mesh", "data_type": "double precision", "udt_name": "float8", "is_nullable": true, "column_default": null},
+      {"ordinal_position": 30, "column_name": "defect_range", "data_type": "integer", "udt_name": "int4", "is_nullable": true, "column_default": null},
+      {"ordinal_position": 31, "column_name": "subtype_manual", "data_type": "integer", "udt_name": "int4", "is_nullable": true, "column_default": null},
+      {"ordinal_position": 32, "column_name": "original_station", "data_type": "smallint", "udt_name": "int2", "is_nullable": true, "column_default": null}
+    ],
+    "history_extras": [
+      {"ordinal_position": 1, "column_name": "ID", "data_type": "integer", "udt_name": "int4", "is_nullable": false, "column_default": null},
+      {"ordinal_position": 2, "column_name": "HISTORY_ID", "data_type": "integer", "udt_name": "int4", "is_nullable": false, "column_default": null},
+      {"ordinal_position": 3, "column_name": "MNEMONIC", "data_type": "character varying", "udt_name": "varchar", "is_nullable": true, "column_default": null},
+      {"ordinal_position": 4, "column_name": "DESCRIPTION", "data_type": "character varying", "udt_name": "varchar", "is_nullable": true, "column_default": null},
+      {"ordinal_position": 5, "column_name": "VALUE", "data_type": "character varying", "udt_name": "varchar", "is_nullable": true, "column_default": null}
+    ],
+    "history_station": [
+      {"ordinal_position": 1, "column_name": "HISTORY_ID", "data_type": "integer", "udt_name": "int4", "is_nullable": false, "column_default": null},
+      {"ordinal_position": 2, "column_name": "STATION_ID", "data_type": "integer", "udt_name": "int4", "is_nullable": false, "column_default": null}
+    ],
+    "history_tokens": [
+      {"ordinal_position": 1, "column_name": "history_id", "data_type": "integer", "udt_name": "int4", "is_nullable": false, "column_default": null},
+      {"ordinal_position": 2, "column_name": "TOKEN", "data_type": "character varying", "udt_name": "varchar", "is_nullable": true, "column_default": null}
+    ]
+  }
+}

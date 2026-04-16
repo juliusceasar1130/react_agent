@@ -22,26 +22,8 @@ from llama_index.core.schema import BaseNode
 from llama_index.vector_stores.milvus import MilvusVectorStore
 from llama_index.vector_stores.milvus.utils import BM25BuiltInFunction
 
-
-def _configure_llama_index_settings() -> None:
-    """
-    配置 LlamaIndex 全局 Settings（Embedding 模型）。
-    
-    使用 Ollama 部署的本地 Embedding 模型（默认 qwen3-embedding:0.6b），与 Milvus 配置保持一致。
-    此函数幂等，多次调用无副作用。
-    """
-    from llama_index.core import Settings as LISettings
-    from llama_index.embeddings.ollama import OllamaEmbedding
-    from backend.app.config import settings
-
-    model_name = getattr(settings, "ollama_embed_model", "qwen3-embedding:0.6b")
-    base_url = getattr(settings, "ollama_base_url", "http://localhost:11434")
-
-    LISettings.embed_model = OllamaEmbedding(
-        model_name=model_name,
-        base_url=base_url,
-    )
-    print(f"  ✅ [init_store] LlamaIndex Embedding 已配置: {model_name} (Ollama)")
+from backend.app.agent.vector.embedding_provider import configure_llama_index_settings
+from backend.app.config import settings
 
 
 def init_hybrid_store(
@@ -69,7 +51,12 @@ def init_hybrid_store(
     print(f"\n🚀 [init_store] 构建混合检索索引 → Collection: {collection_name}")
 
     # 配置 LlamaIndex Settings（确保 Embedding 模型正确）
-    _configure_llama_index_settings()
+    embed_model = configure_llama_index_settings(settings)
+    print(
+        "  ✅ [init_store] LlamaIndex Embedding 已配置: "
+        f"{getattr(settings, 'embedding_provider', 'ollama')} / "
+        f"{getattr(embed_model, 'model_name', 'unknown')}"
+    )
 
     # 配置 BM25 分词器（使用 jieba）
     bm25_function = BM25BuiltInFunction(

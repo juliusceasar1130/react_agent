@@ -3,7 +3,7 @@
     "."
   ],
   "graphs": {
-    "agent": "backend/app/agent/service.py:agent_service"
+    "agent": "backend/app/agent/service.py:build_agent_graph"
   },
   "env": ".env"
 }

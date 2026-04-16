@@ -24,5 +24,6 @@
             "envManager": "ms-python.python:conda",
             "packageManager": "ms-python.python:conda"
         }
-    ]
+    ],
+    "chatgpt.openOnStartup": true
 }

@@ -12,6 +12,10 @@ logger = logging.getLogger(__name__)
 
 from .database import get_db, create_tables
 from .api import router
+from .services import initialize_agent_service, shutdown_agent_service
+from .agent.utils import ensure_windows_selector_loop
+
+ensure_windows_selector_loop()
 
 
 @asynccontextmanager  # 装饰器，将函数标记为异步上下文管理器
@@ -19,7 +23,9 @@ async def lifespan(app: FastAPI):
     # 应用启动时执行 - 创建数据库表
     logger.info("App 启动")
     create_tables()  # 创建数据库和数据表
+    await initialize_agent_service()
     yield
+    await shutdown_agent_service()
     logger.info("App 关闭")
 
 

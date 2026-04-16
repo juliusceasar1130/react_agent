@@ -13,13 +13,16 @@ from typing import Any, Optional
 from langchain.agents import create_agent
 from langchain.agents.middleware import SummarizationMiddleware
 from langchain_community.agent_toolkits import SQLDatabaseToolkit
-from langchain_community.utilities import SQLDatabase
 from langchain_openai import ChatOpenAI
 
 from backend.app.agent.constants import EXCLUDED_TOOLS, ToolNames
 from backend.app.agent.middleware import SkillMiddleware
 from backend.app.agent.tools import create_wrapped_query_tool
-from backend.app.agent.utils import fetch_table_definitions_with_comments
+from backend.app.agent.utils import (
+    MaterializedViewSQLDatabase,
+    build_postgres_search_path_engine_args,
+    fetch_table_definitions_with_comments,
+)
 from backend.app.config import settings
 
 # 配置日志
@@ -78,28 +81,51 @@ def _create_llm(use_ollama: bool = False) -> Any:
     )
 
 
-def _create_database_connection() -> tuple[SQLDatabase, dict]:
+def _get_business_database_url() -> str:
+    """获取业务 SQL 查询入口，优先 analytics_db，回退 rollerbed 源库。"""
+    analytics_db_url = settings.analytics_database_url.strip()
+    if analytics_db_url:
+        return analytics_db_url
+    return settings.rollerbed_database_url
+
+
+def _get_business_database_engine_args(db_url: str) -> dict[str, Any]:
+    """为业务数据库连接生成 engine_args。"""
+    analytics_db_url = settings.analytics_database_url.strip()
+    if analytics_db_url and db_url == analytics_db_url:
+        return build_postgres_search_path_engine_args(
+            settings.analytics_db_search_path
+        )
+    return {}
+
+
+def _create_database_connection() -> tuple[MaterializedViewSQLDatabase, dict]:
     """
     创建数据库连接和获取表定义
 
     Returns:
-        tuple: (SQLDatabase 实例, 表定义字典)
+        tuple: (MaterializedViewSQLDatabase 实例, 表定义字典)
     """
+    db_url = _get_business_database_url()
+    engine_args = _get_business_database_engine_args(db_url)
+
     logger.info("开始提取数据库表结构和注释信息...")
     custom_table_info = fetch_table_definitions_with_comments(
-        settings.rollerbed_database_url
+        db_url,
+        engine_args=engine_args,
+        include_views=True,
+        include_materialized_views=True,
     )
 
-    db = SQLDatabase.from_uri(
-        settings.rollerbed_database_url,
+    db = MaterializedViewSQLDatabase.from_uri(
+        db_url,
+        engine_args=engine_args,
         view_support=True,
         custom_table_info=custom_table_info if custom_table_info else None,
         sample_rows_in_table_info=2,
     )
 
-    logger.info(
-        f"SQL Agent 连接到数据库: {settings.rollerbed_database_url}"
-    )
+    logger.info(f"SQL Agent 连接到数据库: {db_url}")
 
     if custom_table_info:
         logger.info(
@@ -111,12 +137,12 @@ def _create_database_connection() -> tuple[SQLDatabase, dict]:
     return db, custom_table_info
 
 
-def _prepare_tools(db: SQLDatabase, llm: Any) -> list:
+def _prepare_tools(db: MaterializedViewSQLDatabase, llm: Any) -> list:
     """
     准备 Agent 工具列表
 
     Args:
-        db: SQLDatabase 实例
+        db: MaterializedViewSQLDatabase 实例
         llm: LLM 实例
 
     Returns:
@@ -157,14 +183,15 @@ def _prepare_tools(db: SQLDatabase, llm: Any) -> list:
     return tools
 
 
-def _build_system_prompt(db: SQLDatabase) -> str:
+def _build_system_prompt(db: MaterializedViewSQLDatabase) -> str:
     """构建 Agent 系统提示词"""
     return f"""You are an 120JPH paint shop agent designed to interact with a SQL database.
 
 工作流程：
 1. 在查询数据前，你必须先使用 load_skill 工具加载相关业务领域的技能
 2. 从技能内容中了解可用的表结构、字段含义和业务规则
-3. 根据技能提供的信息编写 SQL 查询
+2.5. 若用户问题属于固定统计、固定报表或固定流程场景，优先使用 load_scenario 工具加载对应场景技能
+3. 根据领域技能与场景技能提供的信息编写 SQL 查询
 4. 使用 sql_db_query 工具执行查询（会自动进行语法检查）
 
 SQL 查询规则：

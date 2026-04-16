@@ -1,8 +1,9 @@
 # 使用Python 3.12-slim镜像
 FROM python:3.12-slim
 
-# 设置工作目录为/app/backend
-WORKDIR /app/backend
+# 2026-04-02 Asia/Shanghai: 与仓库内 `backend.app...` 绝对导入保持一致
+# 将工作目录切到 /app，并把 /app 作为 Python 包根路径。
+WORKDIR /app
 
 # 安装系统依赖
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -14,14 +15,14 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY requirements.txt /app/
 RUN pip install --no-cache-dir -r /app/requirements.txt
 
-# 复制backend目录的所有文件到/app/backend
+# 复制 backend 目录的所有文件到 /app/backend
 COPY backend/ /app/backend/
 
 # 暴露端口
 EXPOSE 8000
 
-# 增加 PYTHONPATH，防止 Python 找不到模块
-ENV PYTHONPATH=/app/backend
+# 增加 PYTHONPATH，确保容器内可解析 `backend.app...` 绝对导入
+ENV PYTHONPATH=/app
 
-# 启动命令（在/app/backend目录下，可以找到app模块）
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+# 启动命令：按仓库真实包路径启动 FastAPI
+CMD ["uvicorn", "backend.app.main:app", "--host", "0.0.0.0", "--port", "8000"]

@@ -1,6 +1,8 @@
 import os
+import tempfile
 from pathlib import Path
 from typing import Optional
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from dotenv import load_dotenv
 
@@ -11,6 +13,16 @@ if "NO_PROXY" not in os.environ:
     os.environ["NO_PROXY"] = "localhost,127.0.0.1,172.22.44.99,192.22.44.99"
 elif "localhost" not in os.environ["NO_PROXY"]:
     os.environ["NO_PROXY"] += ",localhost,127.0.0.1"
+
+
+def _parse_debug_flag(raw_value: str | None) -> bool:
+    """兼容多种环境标记写法的 DEBUG 解析。"""
+    normalized = (raw_value or "true").strip().lower()
+    if normalized in {"1", "true", "yes", "on", "debug", "dev"}:
+        return True
+    if normalized in {"0", "false", "no", "off", "release", "prod", "production"}:
+        return False
+    return True
 
 
 class Settings(BaseSettings):
@@ -29,6 +41,14 @@ class Settings(BaseSettings):
         "ROLLERBED_DATABASE_URL",
         "postgresql://root:root@localhost:5432/rollerbed_tracking_db",
     )
+    analytics_database_url: str = os.getenv(
+        "ANALYTICS_DATABASE_URL",
+        "",
+    )
+    analytics_db_search_path: str = os.getenv(
+        "ANALYTICS_DB_SEARCH_PATH",
+        "mart,fct,dim,ods,meta,public",
+    )
 
     # MySQL 生产数据库配置（SQL Agent 使用）
     mysql_database_url: str = os.getenv(
@@ -44,14 +64,21 @@ class Settings(BaseSettings):
     # SQL 结果预览行数：当查询结果触发硬限制被截断时，实际回吐给 LLM 观察的前 N 条数据行数
     sql_result_preview_rows: int = int(os.getenv("SQL_RESULT_PREVIEW_ROWS", "5"))
 
+    # SQL 导出文件配置：前端下载能力使用的临时导出目录与过期时间
+    sql_export_dir: str = os.getenv(
+        "SQL_EXPORT_DIR",
+        str(Path(tempfile.gettempdir()) / "sql_agent_exports"),
+    )
+    sql_export_ttl_hours: int = int(os.getenv("SQL_EXPORT_TTL_HOURS", "24"))
+
     # 服务器配置
-    host: str = os.getenv("HOST", "0.0.0.0")
-    port: int = int(os.getenv("PORT", "8000"))
-    debug: bool = os.getenv("DEBUG", "true").lower() == "true"
+    debug: bool = _parse_debug_flag(os.getenv("DEBUG", "true"))
 
     # Agent配置
     agent_temperature: float = float(os.getenv("AGENT_TEMPERATURE", "0.1"))
     agent_max_tokens: int = int(os.getenv("AGENT_MAX_TOKENS", "2000"))
+    llm_timeout: float = float(os.getenv("LLM_TIMEOUT", "120"))
+    llm_max_retries: int = int(os.getenv("LLM_MAX_RETRIES", "2"))
     
     # RAG 配置
     rag_backend: str = os.getenv("RAG_BACKEND", "milvus_hybrid")  # pgvector | milvus_hybrid
@@ -72,6 +99,25 @@ class Settings(BaseSettings):
     _default_data_dir = str(Path(__file__).resolve().parent / "agent" / "vector" / "milvus_init" / "data" / "examples")
     milvus_data_dir: str = os.getenv("MILVUS_DATA_DIR", _default_data_dir)
     milvus_overwrite: bool = os.getenv("MILVUS_OVERWRITE", "true").lower() == "true"
+
+    # Embedding Provider 配置（Milvus 混合检索共用）
+    embedding_provider: str = os.getenv("EMBEDDING_PROVIDER", "ollama")
+    llama_cpp_embed_base_url: str = os.getenv(
+        "LLAMA_CPP_EMBED_BASE_URL", "http://127.0.0.1:8081"
+    )
+    llama_cpp_embed_model: str = os.getenv(
+        "LLAMA_CPP_EMBED_MODEL", "Qwen/Qwen3-Embedding-0.6B-GGUF:q8_0"
+    )
+    llama_cpp_embed_timeout: float = float(
+        os.getenv("LLAMA_CPP_EMBED_TIMEOUT", "30")
+    )
+    qwen_query_instruction_enabled: bool = (
+        os.getenv("QWEN_QUERY_INSTRUCTION_ENABLED", "true").lower() == "true"
+    )
+    qwen_query_instruction: str = os.getenv(
+        "QWEN_QUERY_INSTRUCTION",
+        "Given a web search query, retrieve relevant passages that answer the query",
+    )
 
     # Rerank 配置
     rerank_enabled: bool = os.getenv("RERANK_ENABLED", "false").lower() == "true"
@@ -103,6 +149,15 @@ class Settings(BaseSettings):
         env_file=".env",
         extra="ignore"
     )
+
+    @field_validator("debug", mode="before")
+    @classmethod
+    def _normalize_debug(cls, value: object) -> bool:
+        if isinstance(value, bool):
+            return value
+        if value is None:
+            return True
+        return _parse_debug_flag(str(value))
 
 
 settings = Settings()
