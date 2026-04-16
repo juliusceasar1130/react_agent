@@ -9,6 +9,7 @@ SQL Agent 服务
 - 新增 FastAPI 本地异步运行链路，支持 AsyncPostgresSaver 初始化与关闭
 - 保留 LangGraph 托管模式同步建图逻辑，避免影响现有 graph factory
 - 本地 FastAPI 可通过 `create_local_async()` 切回 ainvoke / astream
+- 2026-04-16 11:00 Asia/Shanghai: 为本地 AsyncConnectionPool 增加 `connect_timeout`，修复 Windows 下连接池初始化长时间挂起后超时的问题
 """
 
 from __future__ import annotations
@@ -206,6 +207,7 @@ async def _create_local_async_checkpointer() -> tuple["BaseCheckpointSaver", Any
             "autocommit": True,
             "prepare_threshold": 0,
             "row_factory": dict_row,
+            "connect_timeout": 5,
         },
     )
 

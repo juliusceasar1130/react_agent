@@ -1,5 +1,34 @@
 # Changelog
 
+## 2026-04-16 10:31 - 优化 Windows 本地后端启动入口，修复 AsyncPostgresSaver 事件循环兼容问题
+### 概述
+针对 Windows 本地开发场景下 `AsyncPostgresSaver` 与 `psycopg` 异步连接池依赖 `SelectorEventLoop` 的限制，新增一个独立的 Python 启动入口，在 Uvicorn 创建事件循环前显式设置 `WindowsSelectorEventLoopPolicy`。这样可以保持现有异步 Agent 链路不回退，同时避免继续直接使用 `uvicorn backend.app.main:app` 时落回 `ProactorEventLoop` 导致启动超时。
+
+补充说明：首次落地后进一步确认，Windows 下 `uvicorn --reload` 的 `WatchFiles` 会通过 `spawn` 方式启动子进程，子进程不会继承父进程中预设的事件循环策略。因此本地 Windows 启动入口继续调整为“默认关闭 reload”，确保 async checkpointer 稳定启动。
+
+后续进一步定位发现，`uvicorn 0.40` 在 Windows 下默认会显式选择 `ProactorEventLoop` 作为运行 loop，而不是单纯跟随当前事件循环策略。这意味着仅在入口脚本里设置 `WindowsSelectorEventLoopPolicy` 仍然不够，必须额外为 Uvicorn 显式注入自定义 `loop factory`，强制切换到 `SelectorEventLoop`，才能真正兼容 `psycopg` 异步连接池。
+
+补充清理：在确认最终有效修复后，进一步移除了首轮尝试留下的重复配置，仅在 Windows 下向 Uvicorn 注入自定义 `loop`，并删除批处理脚本中重复的 `UVICORN_RELOAD=false` 设置，保持启动入口更接近最小改动原则。
+### 变更内容
+- **新增本地启动入口**:
+  - 新增 `run_backend.py`
+  - 在 Windows 下启动前显式设置 `WindowsSelectorEventLoopPolicy`
+  - 继续复用 `backend.app.main:app`
+  - 显式为 Uvicorn 注入自定义 `loop factory`
+- **新增便捷启动脚本**:
+  - 新增 `start_backend.bat`
+  - 自动切换到 `py312_agent` 环境并调用 `python run_backend.py`
+  - Windows 下默认设置 `UVICORN_RELOAD=false`
+- **异步连接池修复**:
+  - 更新 `backend/app/agent/service.py`
+  - 为本地 `AsyncConnectionPool` 补充 `connect_timeout=5`
+  - 修复 Windows 下连接池 worker 长时间挂起后触发 `pool initialization incomplete after 30 sec`
+- **文档更新**:
+  - 更新 `README.md`
+  - 将 Windows 本地开发推荐启动方式调整为 `python run_backend.py`
+  - 明确 Windows 本地默认关闭 reload
+  - 明确 Docker / Linux 部署无需同步修改启动命令
+
 ## 2026-04-12 03:15 - 新增 Agent SQL 上下文与结果返回机制说明文档
 ### 概述
 围绕 `analytics_db` 接入后关于 `schema`、`search_path`、物化视图支持、元数据抓取、`sql_db_schema` 移除影响，以及“查询结果是否应默认带列名”的连续讨论，新增一份统一机制说明文档，帮助后续维护者快速理解哪些能力已经真正作用到 LLM，哪些仍属于底层准备能力。

@@ -175,8 +175,8 @@ npm install
 # 创建数据库
 createdb agent_memory
 
-# 启动后端服务（会自动创建表）
-uvicorn backend.app.main:app --reload --host 0.0.0.0 --port 8000
+# Windows 本地开发建议使用 Python 启动入口（默认关闭 reload）
+python run_backend.py
 ```
 
 ### 5. 启动前端
@@ -458,8 +458,12 @@ graph LR
 ### 后端开发
 
 ```bash
-uvicorn backend.app.main:app --reload --host 0.0.0.0 --port 8000
+python run_backend.py
 ```
+
+Windows 本地开发默认推荐使用 `python run_backend.py`（或 `start_backend.bat`），以便在 Uvicorn 启动前预先切换到 `WindowsSelectorEventLoopPolicy`，兼容 `AsyncPostgresSaver` / `psycopg` 异步连接池。
+
+注意：Windows 下该启动入口默认会关闭 `reload`。原因是 `uvicorn --reload` 使用 `WatchFiles` 时会额外启动子进程，而子进程不会继承当前进程里预先设置的 `SelectorEventLoop` 策略，最终仍会在 `AsyncConnectionPool` 初始化阶段失败。Docker / Linux 部署仍可继续使用 `uvicorn backend.app.main:app`。
 
 ### 前端开发
 

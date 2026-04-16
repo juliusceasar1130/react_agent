@@ -45,6 +45,20 @@ def ensure_windows_selector_loop() -> None:
         logger.warning("设置事件循环策略失败: %s", exc)
 
 
+def uvicorn_windows_safe_loop() -> asyncio.AbstractEventLoop:
+    """
+    为 Uvicorn 提供显式 event loop 实例。
+
+    Uvicorn 0.40 在 Windows 下默认会优先选择 ProactorEventLoop，
+    这会导致 psycopg async / AsyncConnectionPool 无法工作。
+    因此这里强制返回 SelectorEventLoop，确保本地 FastAPI
+    启动链路与 psycopg3 async 兼容。
+    """
+    if platform.system() == "Windows":
+        return asyncio.SelectorEventLoop()
+    return asyncio.new_event_loop()
+
+
 def create_async_task(coro, *, name: Optional[str] = None) -> asyncio.Task:
     """创建异步任务前确保事件循环策略已设置。"""
     ensure_windows_selector_loop()
