@@ -1,19 +1,23 @@
 """
 实时各区域车身数量统计场景元数据。
 
-修改时间: 2026-04-06 Asia/Shanghai
+修改时间: 2026-04-16 Asia/Shanghai
 主要修改内容:
 - 将场景迁移到按场景名聚合的目录结构
 - 调整 SQL 资产引用为 `scope + path` 语义
 - 保留 process_area 参数化筛选能力
 - 对齐 `analytics_db` 当前总览口径，优先查询 `mart_position_current_overview`
+- 补充领域技能摘要相关字段注释，便于后续维护
 """
 
 SCENARIO = {
     "skill_name": "paint_shop_vehicle_tracking",
+    # 会进入领域技能一级摘要，作为场景唯一标识展示。
     "name": "realtime_area_body_count",
     "title": "实时各区域车身数量统计",
+    # 会进入领域技能一级摘要，作为场景说明展示。
     "description": "基于 `mart_position_current_overview` 当前快照，统计各区域正式产品车数量，支持按区域名称筛选，并输出实时分区域数量口径说明。",
+    # 当前仅在 load_scenario 二级加载时完整展示，不进入领域技能一级摘要。
     "triggers": [
         "实时统计各个区域的车身数量",
         "现在每个区域有多少车身",
@@ -21,6 +25,7 @@ SCENARIO = {
         "电泳区域有多少车身",
         "电泳和面漆区域各有多少车身",
     ],
+    # 当前仅用于场景命中提示/理解，不进入领域技能一级摘要。
     "intent_keywords": [
         "实时",
         "区域",

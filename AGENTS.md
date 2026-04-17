@@ -1,40 +1,97 @@
-## 项目规则补充（2026-03-23 00:00 Asia/Shanghai）
+# AGENTS.md
 
-主要修改内容：
+## Rule Priority
 
-- 追加项目级协作规则补充
-- 明确文件修改时间与主要修改内容的记录要求
-- 增加对 `memory.md` 的使用约定
+Follow rules in this order:
 
-### 协作偏好
+1. Safety rules
+2. Working rules
+3. Preferences
+4. Project context from `memory.md`
 
-- 默认使用中文回复；必要时对关键术语补充英文
-- 进行代码修改时，优先保持最小改动原则（minimal change）
-- 不确定项目约定时，先查阅现有文档与代码，再实施修改
-- 如遇潜在破坏性操作，应先说明风险
+## Working Rules
 
-### 文件修改记录要求
+- 默认使用中文回复；必要时对关键术语补充英文。
+- 进行代码修改时，优先保持最小改动原则（minimal change）。
+- 不确定项目约定时，先查阅现有文档与代码，再实施修改。
+- 如遇潜在破坏性操作，应先说明风险。
+- 处理涉及项目背景、团队偏好、固定流程的问题时，同时参考 `AGENTS.md` 与 `memory.md`。
+- 新增约定时，采用追加方式，不删除既有内容。
 
-- 修改文件时，尽量在对应文件或相关说明中注明修改时间
-- 修改完成后，应说明主要修改内容
-- 若文件本身不适合写入修改记录，则在回复中明确列出修改时间与主要变更
+## File Change Reporting
 
-### 项目上下文维护
+- 修改完成后，在回复中明确说明：
+  - 修改时间
+  - 主要修改内容
+- 若变更属于新特性或重要优化，记录到 `changelog.md`。
+- 若涉及项目主要特性或项目文件结构变更，同时更新 `README.md`。
+- 如果 `changelog.md` 不存在，则在项目根目录新建。
+- 仅在适合的文档文件中记录变更；不要在普通代码文件中添加无关修改历史注释。
 
-- 项目长期约定、术语、背景信息优先维护在 `memory.md`
-- 处理涉及项目背景、团队偏好、固定流程的问题时，应同时参考 `AGENTS.md` 与 `memory.md`
-- 新增约定时，采用追加方式，不删除既有内容
+## Think Before Coding
 
-## 用户新增规则整合（2026-03-23 00:00 Asia/Shanghai）
+- 明确说明假设，不要默认假设成立。
+- 如果存在多种理解，不要静默选择其一，应显式说明。
+- 若有更简单方案，应优先采用，并说明取舍。
+- 如果需求或约定不清晰，应先指出不清晰点，再继续实施。
 
-主要修改内容：
+## Simplicity First
 
-- 将用户新增的协作与文档记录规则集中整合到 `AGENTS.md`
+- 只实现当前需求，不额外扩展功能。
+- 不为一次性逻辑引入不必要抽象。
+- 不增加未被请求的灵活性、可配置性或复杂错误处理。
+- 若实现明显过度复杂，应主动简化。
 
-执行规则：
+## Surgical Changes
 
-- 尽量使用中文进行交互，除了必要的关键英文术语。
-- 本项目的环境是 `conda activate py312_agent`。
-- 对于新特性和重要优化，记录到 `changelog.md` 文件；如果该文件不存在，则在项目根目录新建。
-- 对于各种修改和优化，`README.md` 记录主要的项目特性和项目文件结构变更，其余内容放置到 `changelog.md` 文件。
-- 对于每个优化，其记录头部应注明优化时间和简要概括。
+- 仅修改完成任务所必需的内容。
+- 不顺手修改无关代码、注释或格式。
+- 不重构未损坏的部分，除非明确要求。
+- 保持与现有代码风格一致。
+- 只清理因本次修改而产生的无用导入、变量、函数。
+- 若发现既有无关死代码，可以说明，但不要擅自删除。
+
+## Goal-Driven Execution
+
+For multi-step tasks, use a brief plan:
+
+1. [Step] → verify: [check]
+2. [Step] → verify: [check]
+3. [Step] → verify: [check]
+
+Convert requests into verifiable outcomes whenever practical.
+
+## Environment
+
+- 执行项目相关命令时，使用项目环境：`conda activate py312_agent`。
+
+## Disallowed Behaviors
+
+- 不要重构无关代码。
+- 不要无理由引入新依赖。
+- 不要静默修改公共接口或既有行为。
+- 不要在未说明风险的情况下进行潜在破坏性操作。
+
+## Technology Version and Documentation Rules
+
+- 涉及第三方框架、SDK、工具链时，优先以项目当前锁定依赖版本为准。
+- 对于快速迭代的技术（如 LangChain、LangGraph、MCP 相关 SDK 等），优先参考官方文档与项目内既有实现，不默认采用网络上的最新示例。
+- 未明确要求时，不主动执行 major version 升级，也不擅自引入迁移性改写。
+- 若项目代码、锁定依赖版本与外部文档存在差异，应在回复中显式说明。
+- 若已提供文档 MCP，则优先使用其提供的文档资源作为参考上下文。
+
+## MCP Usage Rules
+
+- 涉及第三方库、框架、SDK 的实现或版本差异时，优先使用相关 MCP 查询文档。
+- 涉及 LangChain / LangGraph / LangSmith 时，优先使用 LangChain docs MCP。
+- 涉及其他第三方库时，优先使用 Context7 MCP。
+- 涉及浏览器页面、console、network、DOM、性能问题时，优先使用 chrome-devtools MCP。
+- 项目依赖版本、锁文件和现有实现优先级高于 MCP 返回的最新文档。
+- 未明确要求时，不因 MCP 查询结果主动做 major version 升级或大规模迁移。
+
+## Source Priority
+
+1. 项目代码与锁定依赖
+2. 项目文档与仓库规则
+3. MCP 文档与工具结果
+4. 通用知识

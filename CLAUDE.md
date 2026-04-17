@@ -1,10 +1,10 @@
-
 # CLAUDE.md
 
 This file provides repository-specific guidance for Claude Code when working in this project.
 
 修改时间: 2026-04-07 Asia/Shanghai
 主要修改内容:
+
 - 同步当前项目环境为 `py312_agent`
 - 将项目定位从旧版通用聊天/arXiv Agent 更新为当前 SQL Agent + Skills + RAG 架构
 - 更新流式协议、持久化模式、目录结构与开发入口说明
@@ -34,13 +34,13 @@ This file provides repository-specific guidance for Claude Code when working in 
 
 ## 当前技术栈
 
-| 层 | 技术 |
-| --- | --- |
-| 后端 | FastAPI + SQLAlchemy + PostgreSQL + LangChain/LangGraph |
-| 前端 | Vue 3 + TypeScript + Vite + Pinia + Tailwind CSS |
-| LLM | DeepSeek / OpenAI 兼容接口 / Ollama（可选） |
-| 状态持久化 | AsyncPostgresSaver / PostgresSaver |
-| 检索增强 | PGVector / Milvus Hybrid + 可选 NVIDIA Rerank |
+| 层         | 技术                                                    |
+| ---------- | ------------------------------------------------------- |
+| 后端       | FastAPI + SQLAlchemy + PostgreSQL + LangChain/LangGraph |
+| 前端       | Vue 3 + TypeScript + Vite + Pinia + Tailwind CSS        |
+| LLM        | DeepSeek / OpenAI 兼容接口 / Ollama（可选）             |
+| 状态持久化 | AsyncPostgresSaver / PostgresSaver                      |
+| 检索增强   | PGVector / Milvus Hybrid + 可选 NVIDIA Rerank           |
 
 ## 开发环境
 
@@ -194,9 +194,6 @@ docs/
   obsidian/
   todolist/
 
-openspec/
-  AGENTS.md
-  project.md
 ```
 
 ## 开发约定
@@ -221,38 +218,67 @@ openspec/
 - `README.md` 主要记录项目特性和目录结构
 - 若修改内容不适合写进源码文件，应在交付说明里给出修改时间与主要变更
 
-## 常见注意点
-
-### 1. 不要再把项目理解成 arXiv 论文搜索 Agent
-
-历史上存在这类定位，但当前主线已经是 SQL Agent + Skills + RAG。
-
-### 2. 不要默认使用旧版流式格式
-
-现在应优先兼容结构化事件协议；旧版 `is_final` 风格只能视为历史资料。
-
-### 3. 不要把本地 FastAPI 模式简单写成同步 PostgresSaver
-
-当前本地主链路使用异步 saver，只有托管或特定兼容模式下才会出现同步 saver 代码路径。
-
-### 4. 不要跳过 skills 约束直接查库
-
-SQL 查询和历史 SQL 示例检索需要遵守 `required_skill` 约束，否则容易出现跨领域误查。
-
-### 5. 大结果不要直接塞回模型上下文
-
-优先改写为聚合 SQL，或走 CSV 导出。
-
-## 推荐阅读
-
-- `AGENTS.md`
-- `memory.md`
-- `README.md`
-- `docs/backend/聊天流式输出结构化事件开发指南.md`
-- `docs/backend/PostgresSaver集成重构总结.md`
-- `docs/backend/RAG架构与技术总结.md`
-- `docs/backend/skills/README.md`
-
 ## 备注
 
 如果你发现本文件再次落后，请优先以实际代码和 `README.md` 为准，然后同步更新本文件与 `changelog.md`。
+
+## Code Guidelines
+
+### 1. Think Before Coding
+
+**Don't assume. Don't hide confusion. Surface tradeoffs.**
+
+Before implementing:
+
+- State your assumptions explicitly. If uncertain, ask.
+- If multiple interpretations exist, present them - don't pick silently.
+- If a simpler approach exists, say so. Push back when warranted.
+- If something is unclear, stop. Name what's confusing. Ask.
+
+### 2. Simplicity First
+
+**Minimum code that solves the problem. Nothing speculative.**
+
+- No features beyond what was asked.
+- No abstractions for single-use code.
+- No "flexibility" or "configurability" that wasn't requested.
+- No error handling for impossible scenarios.
+- If you write 200 lines and it could be 50, rewrite it.
+
+Ask yourself: "Would a senior engineer say this is overcomplicated?" If yes, simplify.
+
+### 3. Surgical Changes
+
+**Touch only what you must. Clean up only your own mess.**
+
+When editing existing code:
+
+- Don't "improve" adjacent code, comments, or formatting.
+- Don't refactor things that aren't broken.
+- Match existing style, even if you'd do it differently.
+- If you notice unrelated dead code, mention it - don't delete it.
+
+When your changes create orphans:
+
+- Remove imports/variables/functions that YOUR changes made unused.
+- Don't remove pre-existing dead code unless asked.
+
+The test: Every changed line should trace directly to the user's request.
+
+### 4. Goal-Driven Execution
+
+**Define success criteria. Loop until verified.**
+
+Transform tasks into verifiable goals:
+
+- "Add validation" → "Write tests for invalid inputs, then make them pass"
+- "Fix the bug" → "Write a test that reproduces it, then make it pass"
+- "Refactor X" → "Ensure tests pass before and after"
+
+For multi-step tasks, state a brief plan:
+
+```
+1. [Step] → verify: [check]
+2. [Step] → verify: [check]
+3. [Step] → verify: [check]
+```
