@@ -66,6 +66,39 @@ class ChatResponse(BaseModel):
     is_complete: bool = True
 
 
+class ChartArtifactRef(BaseModel):
+    kind: Literal["chart_artifact_ref"]
+    chart_id: str
+    chart_type: Literal["line", "bar"]
+    title: str
+    point_count: int
+    created_at: datetime
+    expires_at: datetime
+    message: Optional[str] = None
+
+
+class ChartSeriesDefinition(BaseModel):
+    name: str
+    field: str
+    y_axis: Literal["left", "right"] = "left"
+    category_field: Optional[str] = None
+    category_value: Optional[str] = None
+    color: Optional[str] = None
+
+
+class ChartArtifactResponse(BaseModel):
+    kind: Literal["chart_spec"]
+    chart_id: str
+    chart_type: Literal["line", "bar"]
+    title: str
+    description: Optional[str] = None
+    x_field: str
+    series: List[ChartSeriesDefinition]
+    rows: List[Dict[str, Any]]
+    created_at: datetime
+    expires_at: datetime
+
+
 StreamStage = Literal["thinking", "retrieving", "querying", "writing"]
 StreamToolCallStatus = Literal["started", "streaming", "completed"]
 

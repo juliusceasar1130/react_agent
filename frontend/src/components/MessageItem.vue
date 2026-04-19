@@ -92,6 +92,17 @@
       </div>
 
       <div
+        v-if="!isUser && chartArtifacts.length > 0"
+        class="px-4 pb-3 space-y-3"
+      >
+        <ChartArtifactCard
+          v-for="artifact in chartArtifacts"
+          :key="artifact.chart_id"
+          :artifact-ref="artifact"
+        />
+      </div>
+
+      <div
         v-if="showDebugDetails && !isUser && toolCallList.length > 0"
         class="px-4 pb-3 space-y-2"
       >
@@ -152,9 +163,16 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
+import ChartArtifactCard from '@/components/ChartArtifactCard.vue'
 import { triggerExportDownload } from '@/api/exports'
 import { CHAT_DEBUG_STREAM } from '@/config/chat'
-import type { ExportArtifact, Message, StreamToolCall, StreamingMessage } from '@/types'
+import type {
+  ChartArtifactRef,
+  ExportArtifact,
+  Message,
+  StreamToolCall,
+  StreamingMessage
+} from '@/types'
 import { useDateFormat } from '@/composables/useDateFormat'
 import { renderMarkdown } from '@/utils/markdown'
 
@@ -253,6 +271,38 @@ const exportArtifacts = computed<ExportArtifact[]>(() => {
 
     const parsed = parseJson<ExportArtifact>(rawResult)
     if (!isExportArtifact(parsed)) {
+      return []
+    }
+
+    return [parsed]
+  })
+})
+
+const isChartArtifactRef = (value: unknown): value is ChartArtifactRef => {
+  if (!value || typeof value !== 'object') return false
+  const artifact = value as Record<string, unknown>
+  return (
+    artifact.kind === 'chart_artifact_ref'
+    && typeof artifact.chart_id === 'string'
+    && typeof artifact.title === 'string'
+  )
+}
+
+const chartArtifacts = computed<ChartArtifactRef[]>(() => {
+  const results = rawToolResults.value
+
+  return toolCallList.value.flatMap((tool) => {
+    if (tool.name !== 'build_chart_artifact') {
+      return []
+    }
+
+    const rawResult = results[tool.id]
+    if (typeof rawResult !== 'string') {
+      return []
+    }
+
+    const parsed = parseJson<ChartArtifactRef>(rawResult)
+    if (!isChartArtifactRef(parsed)) {
       return []
     }
 

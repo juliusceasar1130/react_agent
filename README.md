@@ -14,6 +14,7 @@
 - **日期标准化** - 针对数据库日期字段（如 `DD/MM/YYYY`）的自动 ISO 8601 转换清洗
 - **SQL 弹性限流** - 智能判断查询行数，超限时自动截断并返回预览预览及系统警告，防止上下文溢出
 - **CSV 数据导出** - 支持将大量 SQL 结果直接导出为 CSV 文件供用户下载，全程不占 LLM 上下文
+- **聊天内嵌图表** - 当用户明确要求生成图表时，后端生成 chart artifact，前端按 `chart_id` 拉取并渲染折线图或柱状图
 - **前端安全下载** - 导出结果通过 `file_id` 映射到后端下载接口，前端可直接点击下载 CSV，而不暴露服务器绝对路径
 - **Markdown 结果展示** - 助手完成态消息支持 Markdown 渲染，适合表格、列表、代码块和统计摘要展示
 - **状态持久化** - FastAPI 本地模式使用 `AsyncPostgresSaver`，托管模式由 LangGraph 自动管理 Agent 状态
@@ -48,6 +49,7 @@
 | TypeScript   | 类型安全                                 |
 | Vite         | 前端构建工具                             |
 | Pinia        | 状态管理                                 |
+| ECharts      | 聊天内嵌图表渲染                         |
 | Tailwind CSS | CSS 框架 (支持 Neural Tones + AI Purple) |
 | Axios        | HTTP 客户端                              |
 
@@ -119,6 +121,9 @@ SQL_RESULT_HARD_LIMIT=500    # 硬限制：后端强制截断行数，防内存�
 SQL_RESULT_PREVIEW_ROWS=5    # 截断时给 LLM 展示的预览行数
 SQL_EXPORT_DIR=''            # 可选：CSV 导出文件目录，默认系统临时目录/sql_agent_exports
 SQL_EXPORT_TTL_HOURS=24      # CSV 导出文件有效期（小时）
+CHART_ARTIFACT_DIR=''        # 可选：图表 artifact 目录，默认系统临时目录/sql_agent_charts
+CHART_ARTIFACT_TTL_HOURS=24  # 图表 artifact 有效期（小时）
+CHART_ARTIFACT_MAX_POINTS=100 # 聊天图表单次最大点数，超限时提示先聚合或导出 CSV
 
 # RAG & Rerank 配置
 RAG_BACKEND='milvus_hybrid'      # 检索后端：pgvector | milvus_hybrid
@@ -234,6 +239,7 @@ rearch_agent/
 │   │   ├── schemas.py             # Pydantic Schema
 │   │   ├── database.py            # 数据库连接
 │   │   ├── config.py              # 配置管理
+│   │   ├── chart_artifacts.py     # 图表 artifact 存储与读取
 │   │   ├── services.py            # FastAPI Agent 兼容适配层
 │   │   ├── services_graph.py      # LangGraph SQL Agent 服务
 │   │   ├── test_*.py              # 后端冒烟 / 功能测试脚本

@@ -70,6 +70,16 @@ class Settings(BaseSettings):
         str(Path(tempfile.gettempdir()) / "sql_agent_exports"),
     )
     sql_export_ttl_hours: int = int(os.getenv("SQL_EXPORT_TTL_HOURS", "24"))
+    chart_artifact_dir: str = os.getenv(
+        "CHART_ARTIFACT_DIR",
+        str(Path(tempfile.gettempdir()) / "sql_agent_charts"),
+    )
+    chart_artifact_ttl_hours: int = int(
+        os.getenv("CHART_ARTIFACT_TTL_HOURS", "24")
+    )
+    chart_artifact_max_points: int = int(
+        os.getenv("CHART_ARTIFACT_MAX_POINTS", "100")
+    )
 
     # 服务器配置
     debug: bool = _parse_debug_flag(os.getenv("DEBUG", "true"))

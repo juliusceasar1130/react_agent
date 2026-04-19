@@ -27,6 +27,7 @@ from langchain_openai import ChatOpenAI
 from backend.app.agent.constants import EXCLUDED_TOOLS, ToolNames
 from backend.app.agent.middleware import BusinessRagMiddleware, SkillMiddleware
 from backend.app.agent.tools import (
+    create_chart_artifact_tool,
     create_csv_export_tool,
     create_sql_example_search_tool,
     create_wrapped_query_tool,
@@ -283,6 +284,14 @@ def _prepare_tools(
 
     try:
         business_db_url = _get_business_database_url()
+        chart_artifact_tool = create_chart_artifact_tool(
+            business_db_url,
+            engine_args=_get_business_database_engine_args(business_db_url),
+        )
+        tools.append(chart_artifact_tool)
+        logger.info("已注入图表 artifact 工具：build_chart_artifact")
+
+        business_db_url = _get_business_database_url()
         csv_export_tool = create_csv_export_tool(
             business_db_url,
             engine_args=_get_business_database_engine_args(business_db_url),
@@ -349,6 +358,14 @@ def _build_system_prompt(db: MaterializedViewSQLDatabase) -> str:
 - **关键：** 调用 sql_db_query 和 search_saved_correct_tool_uses 时，必须通过 `required_skill` 参数声明本次操作所依赖的技能名称（如 'paint_shop'）。如果切换了业务领域，必须先调用 load_skill() 加载新技能再操作
 - 当需要进行统计分析（如计数、求和、趋势分析）时，**必须**使用 GROUP BY / COUNT / SUM 等聚合函数让数据库完成计算，**严禁**拉取大量原始明细数据后自行汇总
 - 当查询结果被系统截断时（出现 SYSTEM WARNING），不要基于截断后的数据进行汇总分析。应主动告知用户数据不完整，并建议：(1) 使用聚合 SQL 重新查询，或 (2) 使用 export_to_csv 工具导出完整数据供用户下载
+- 当结果属于时间趋势、分类对比、Top N 排名或双指标对比时，如果用户未明确要求生成图表，必须明确提醒用户这组结果可以生成图表，但不要主动生成图表
+- 图表提醒必须直接告诉用户可用的操作方式，例如：这组结果适合用图表查看。你可以直接回复“生成图表”、“生成趋势图”或“生成柱状图”
+- 不要只用“是否需要进一步分析”“是否继续查看”这类泛化收尾替代图表引导
+- 当用户明确要求生成图表时，优先调用 build_chart_artifact 工具
+- build_chart_artifact 的 series 只允许这些键：name、field、y_axis、category_field、category_value、color；不要使用 metric、label、type、axis 等自定义键
+- 如果图表要对比多个车型、缺陷类型或其他分类，而多个系列共用同一个数值字段，不要只重复引用同一个 field 作为多条系列
+- 对这种“同一指标按分类拆线”的图表，必须为每条系列补充 category_field/category_value，或至少在系列名称里包含可识别的分类值（如 A7、TiguanL）
+- build_chart_artifact 返回给你的是轻量 chart_ref，不会返回全部 rows；不要期待工具把大数据重新放回上下文
 - 场景技能用于补充固定流程、统计口径、易错点和模板引用，不能替代领域技能本身；执行 SQL 时仍然必须遵守 required_skill 的领域级约束
 
 ## 注意事项：

@@ -50,6 +50,39 @@ export interface ExportArtifact {
   message?: string
 }
 
+export interface ChartArtifactRef {
+  kind: 'chart_artifact_ref'
+  chart_id: string
+  chart_type: 'line' | 'bar'
+  title: string
+  point_count: number
+  created_at?: string
+  expires_at?: string
+  message?: string
+}
+
+export interface ChartArtifactSeries {
+  name: string
+  field: string
+  y_axis: 'left' | 'right'
+  category_field?: string
+  category_value?: string
+  color?: string
+}
+
+export interface ChartArtifact {
+  kind: 'chart_spec'
+  chart_id: string
+  chart_type: 'line' | 'bar'
+  title: string
+  description?: string
+  x_field: string
+  series: ChartArtifactSeries[]
+  rows: Array<Record<string, string | number | null>>
+  created_at?: string
+  expires_at?: string
+}
+
 export type StreamStage = 'thinking' | 'retrieving' | 'querying' | 'writing'
 
 export interface StreamToolCall {
