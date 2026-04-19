@@ -5,8 +5,9 @@ description: Create reusable development guides, troubleshooting manuals, implem
 
 # Development Guide Synthesizer Skill
 
-更新时间：2026-04-01 Asia/Shanghai
+更新时间：2026-04-19 Asia/Shanghai
 主要内容：新增面向“开发经验沉淀”的项目级 skill，帮助把开发过程、讨论结论、代码实现、踩坑记录和验证结果提炼为结构清晰、可复用的开发指南手册。
+- 新增要求：当输出为中长篇开发指南时，默认在正文前增加可跳转目录（Table of Contents），提升长文档的可扫描性与导航效率。
 
 ## Purpose
 
@@ -125,16 +126,18 @@ Prefer this structure unless the user requests another format:
 2. Metadata
    - modification time
    - main updates
-3. Background
-4. What problem this solves
-5. Overall design
-6. Call chain or execution flow
-7. Layered responsibilities
-8. Key design decisions
-9. Pitfalls and lessons learned
-10. Reuse checklist
-11. Optional future improvements
-12. One-sentence takeaway
+3. Table of contents
+   - include for medium/long guides by default
+4. Background
+5. What problem this solves
+6. Overall design
+7. Call chain or execution flow
+8. Layered responsibilities
+9. Key design decisions
+10. Pitfalls and lessons learned
+11. Reuse checklist
+12. Optional future improvements
+13. One-sentence takeaway
 
 ## Template
 
@@ -156,6 +159,7 @@ A good development guide should be:
 - clear about what is fixed versus what is still contextual
 - easy to skim
 - easy to extend later
+- easy to navigate in long-form documentation
 
 ## Key Points To Preserve
 
@@ -190,6 +194,7 @@ Avoid these mistakes:
 - Prefer ordered steps for workflows and call chains
 - Prefer compact bullet lists for checklists and pitfalls
 - Keep examples concrete and close to the actual code or discussion
+- For medium/long guides, add a table of contents near the top unless the user explicitly asks not to
 
 ## Guardrails
 

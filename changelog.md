@@ -1,5 +1,129 @@
 # Changelog
 
+## 2026-04-19 09:45 - 为 development-guide-synthesizer 技能补充长文档目录要求
+
+### 概述
+- 将“中长篇开发指南默认增加目录”正式纳入 `development-guide-synthesizer` 技能要求，提升长篇开发文档的导航与复用体验。
+
+### 变更内容
+
+#### .agents/skills/development-guide-synthesizer/SKILL.md
+- 在技能说明、输出结构和推荐风格中明确：中长篇开发指南默认增加目录，除非用户明确要求不加。
+
+#### .agents/skills/development-guide-synthesizer/references/guide-template.md
+- 在模板中新增“目录”章节说明与示例，统一目录放置位置和适用边界。
+
+## 2026-04-18 14:40 - 修复结构化图表工具调用缺少 ToolRuntime 时单车型作图失败
+
+### 概述
+- 修复 `build_chart_artifact` 在 LangChain 结构化调用路径下未注入 `ToolRuntime` 时直接抛错的问题，恢复单车型图表生成。
+
+### 变更内容
+
+#### backend/app/agent/tools/chart_artifact_tool.py
+- 将 `build_chart_artifact` 的 `runtime` 参数改为可选，兼容 `tool.invoke(...)` 与实际 Agent 结构化调用路径。
+- 当未注入 `ToolRuntime` 时跳过 `skills_loaded` 状态校验，并记录调试日志；其余 SQL 安全限制、序列 schema 校验和数值列校验保持不变。
+
+## 2026-04-18 15:20 - 修复 ToolNode 注入 runtime 后被图表 args_schema 拦截的问题
+
+### 概述
+- 修复 `build_chart_artifact` 在真实 LangGraph `ToolNode` 执行链中被自动注入 `runtime` 后，因 `args_schema` 顶层 `extra=\"forbid\"` 提前校验失败的问题。该问题会导致图表工具在进入函数体之前就报 `Error invoking tool ...`，尤其体现在单车型趋势图这类最常见场景。
+
+### 变更内容
+
+#### backend/app/agent/tools/chart_artifact_tool.py
+- 将 `BuildChartArtifactInput` 顶层额外字段策略调整为“只允许注入的 `runtime`，继续拒绝其他未知字段”。
+- 保持 `series` 结构化 schema、数值列校验和多分类拆线校验不变。
+
+#### backend/app/test_chart_artifact_tool.py
+- 新增覆盖 `ToolNode` 注入 `runtime` 语义的回归测试。
+- 新增顶层未知字段仍会被拒绝的校验测试，避免为了兼容 runtime 注入而放松整体参数约束。
+
+## 2026-04-18 13:20 - 强化图表工具入参 schema 与错误参数拦截
+### 概述
+围绕 `build_chart_artifact` 在多系列图表场景下容易被 LLM 填错参数的问题，进一步把 `series` 入参从宽松的 `list[dict[str, Any]]` 收紧为明确的结构化 schema，并在工具内部新增数值列校验、未知键拦截和分类拆线配对校验。这样即使模型继续传入 `metric`、`label`、`type` 等未支持字段，或把 `field` 错填成分类列，也会被明确拒绝，而不会再悄悄生成错误图表。
+### 变更内容
+- 更新 `backend/app/agent/tools/chart_artifact_tool.py`
+- 更新 `backend/app/agent/service.py`
+- 更新 `backend/app/test_chart_artifact_tool.py`
+- 更新 `backend/app/test_agent_service_prompt.py`
+- `build_chart_artifact` 现在使用明确的 `BuildChartArtifactInput / ChartSeriesInput` schema
+- 强制 `series.field` 必须是数值列
+- 拒绝 `metric`、`label`、`type`、`axis` 等未支持键
+- 强制 `category_field/category_value` 成对出现，并继续支持从系列名称自动推断分类值
+
+## 2026-04-18 13:04 - 收紧多系列对比图的 LLM 参数生成约束
+### 概述
+在补齐前后端“按分类拆线”能力后，继续收紧主 Agent 的系统提示词与图表工具说明，避免模型在多车型/多类别对比图里继续只重复同一个数值字段，遗漏分类拆线元数据。现在当同一指标需要按车型、缺陷类型等分类拆成多条系列时，模型会被明确要求提供 `category_field/category_value`，或至少在系列名称中包含可识别的分类值，便于工具自动推断。
+### 变更内容
+- 更新 `backend/app/agent/service.py`
+- 更新 `backend/app/agent/tools/chart_artifact_tool.py`
+- 更新 `backend/app/test_agent_service_prompt.py`
+- 明确禁止仅通过重复 `field` 生成多条对比系列
+- 明确要求多分类对比图补充 `category_field/category_value` 或可识别分类值
+
+## 2026-04-18 13:05 - 修复同一指标按多分类拆线时图表系列重合的问题
+### 概述
+首版图表能力原本只稳定支持“多个不同数值字段并列展示”，还不真正支持“同一个数值字段按车型/类别拆成多条线”。因此像 `A7` 与 `TiguanL` 这种对比图里，如果多个系列都引用同一个数值列，前端会直接复用同一组数据，导致系列重合。此次修复后，图表工具会为系列补齐分类拆线元数据，前端也会按分类字段和值真正拆分数据。
+### 变更内容
+- 更新 `backend/app/agent/tools/chart_artifact_tool.py`
+- 更新 `backend/app/schemas.py`
+- 更新 `frontend/src/types/index.ts`
+- 更新 `frontend/src/components/ChartArtifactCard.vue`
+- 更新 `backend/app/test_chart_artifact_tool.py`
+- 支持图表系列携带 `category_field`、`category_value` 与可选 `color`
+- 当同一数值字段被拆成多个系列时，后端可从系列名中自动推断分类值
+- 前端按 `category_field/category_value` 过滤行数据，避免多系列直接叠成同一条线
+
+## 2026-04-18 12:42 - 优化 LLM 对图表能力的主动引导文案
+### 概述
+针对查询结果已经明显适合可视化、但助手仍然只用“是否需要进一步分析”收尾的问题，收紧主 Agent 的系统提示词约束。现在当结果属于时间趋势、分类对比、Top N 排名或双指标对比时，模型在用户尚未明确要求作图的情况下，也必须明确提醒“可以生成图表”，并给出可直接触发的示例话术。
+### 变更内容
+- 更新 `backend/app/agent/service.py`
+- 新增 `backend/app/test_agent_service_prompt.py`
+- 明确要求助手在合适场景下引导用户回复“生成图表”“生成趋势图”或“生成柱状图”
+- 禁止仅使用“是否需要进一步分析”这类泛化收尾替代图表提醒
+
+## 2026-04-18 11:55 - 修复聊天图表卡片已取到数据但未实际渲染的问题
+### 概述
+首版聊天图表能力接入后，前端已经能正确拿到 `chart_artifact` 并展示标题、说明与点数，但图表区域为空白。根因是 `ChartArtifactCard` 在 `loading=true` 时就调用了 `renderChart()`，此时真正的图表容器仍被 `v-if/v-else` 隐藏，ECharts 没有可初始化的 DOM 节点，因此不会报错但也不会出图。
+### 变更内容
+- 更新 `frontend/src/components/ChartArtifactCard.vue`
+- 将图表实例创建与 `setOption` 延后到 `loading` 结束之后
+- 在重新加载 artifact 时先销毁旧实例，避免复用旧容器状态
+- 补充 `resize()`，保证容器切换后尺寸同步
+
+## 2026-04-18 15:35 - 新增聊天内嵌图表 artifact 能力
+### 概述
+为聊天式 SQL Agent 增加“用户明确要求后再生成图表”的首版能力。此次实现采用 chart artifact 引用机制：LLM 只负责判断是否需要作图和图表基本元数据，后端工具重新执行聚合 SQL、存储完整图表配置，并只向模型返回轻量 `chart_artifact_ref`，避免大结果再次进入上下文。前端收到 `chart_id` 后再拉取完整 `chart_spec`，在消息卡片内渲染折线图或柱状图。
+### 变更内容
+- 新增 `backend/app/chart_artifacts.py`
+- 新增 `backend/app/agent/tools/chart_artifact_tool.py`
+- 更新 `backend/app/config.py`
+- 更新 `backend/app/schemas.py`
+- 更新 `backend/app/api.py`
+- 更新 `backend/app/agent/service.py`
+- 更新 `backend/app/agent/tools/__init__.py`
+- 新增 `backend/app/test_chart_artifacts.py`
+- 新增 `backend/app/test_chart_artifact_tool.py`
+- 新增 `backend/app/test_chart_api.py`
+- 新增 `frontend/src/api/charts.ts`
+- 新增 `frontend/src/components/ChartArtifactCard.vue`
+- 更新 `frontend/src/components/MessageItem.vue`
+- 更新 `frontend/src/types/index.ts`
+- 新增聊天图表环境变量：`CHART_ARTIFACT_DIR`、`CHART_ARTIFACT_TTL_HOURS`、`CHART_ARTIFACT_MAX_POINTS`
+- 前端引入 `echarts`，并将 `typescript` 固定在与当前 `vue-tsc` 校验兼容的 `5.4.5` 版本区间
+
+## 2026-04-18 09:37 - 调整车型缺陷趋势场景为检测次数与平均缺陷数口径
+### 概述
+根据当前业务使用口径，将 `model_defect_trend` 场景的输出从“检测次数 + 缺陷总数”调整为“检测次数 + 每次检测平均缺陷数”，避免趋势解读时被样本量放大影响。
+### 变更内容
+- 更新 `backend/app/skills/domains/paint_shop_defect_analysis/scenarios/model_defect_trend/scenario.py`
+- 更新 `backend/app/skills/domains/paint_shop_defect_analysis/scenarios/model_defect_trend/sql/main.sql`
+- 更新 `backend/app/test_skill_registry.py`
+- 将 SQL 聚合字段由 `SUM(mq.total_defect_count)` 调整为 `AVG(mq.total_defect_count)`
+- 将输出契约调整为 `detection_count` 与 `avg_defect_per_detection`
+
 ## 2026-04-16 10:31 - 优化 Windows 本地后端启动入口，修复 AsyncPostgresSaver 事件循环兼容问题
 ### 概述
 针对 Windows 本地开发场景下 `AsyncPostgresSaver` 与 `psycopg` 异步连接池依赖 `SelectorEventLoop` 的限制，新增一个独立的 Python 启动入口，在 Uvicorn 创建事件循环前显式设置 `WindowsSelectorEventLoopPolicy`。这样可以保持现有异步 Agent 链路不回退，同时避免继续直接使用 `uvicorn backend.app.main:app` 时落回 `ProactorEventLoop` 导致启动超时。
