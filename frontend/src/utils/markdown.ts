@@ -11,9 +11,9 @@ const markdown = new MarkdownIt({
 
 const defaultLinkOpen =
   markdown.renderer.rules.link_open
-  ?? ((tokens, idx, options, _env, self) => self.renderToken(tokens, idx, options))
+  ?? ((tokens: any, idx: number, options: any, _env: any, self: any) => self.renderToken(tokens, idx, options))
 
-markdown.renderer.rules.link_open = (tokens, idx, options, env, self) => {
+markdown.renderer.rules.link_open = (tokens: any, idx: number, options: any, env: any, self: any) => {
   const token = tokens[idx]
   token.attrSet('target', '_blank')
   token.attrSet('rel', 'noopener noreferrer nofollow')
