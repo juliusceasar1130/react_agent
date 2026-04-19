@@ -23,20 +23,20 @@ SCENARIO = {
     "workflow": [
         "确认用户要的是趋势，而不是单次检测列表。",
         "优先查询 `mart_vehicle_quality_360`。",
-        "按 DATE(detect_time) 和 defect_type_name 聚合。",
+        "按 DATE(detect_time) 和 defect_type_name 聚合检测次数与平均缺陷数。",
         "如用户指定 tunnel 或 cycle，再增加条件。",
         "输出时间趋势并说明统计口径。",
     ],
     "rules": [
         "优先使用 `defect_type_name` 作为车型名称展示字段。",
         "如用户提到 model 编码，再补充 defect_model 过滤。",
-        "趋势统计默认按检测次数口径。",
+        "趋势统计默认输出检测次数与每次检测平均缺陷数。",
     ],
     "gotchas": [
         "`defect_type_name` 是可读名称，`defect_model` 是业务编码，不要混用。",
         "如果要比较不同车型，输出时应保持时间粒度一致。",
     ],
-    "output_contract": "输出字段至少包含 stat_date、defect_type_name、total_defect_count；必要时可补 detection_count。",
+    "output_contract": "输出字段至少包含 stat_date、defect_type_name、detection_count、avg_defect_per_detection。",
     "sql_template_refs": [
         {
             "type": "sql",

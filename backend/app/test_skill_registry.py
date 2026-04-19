@@ -136,6 +136,17 @@ def test_defect_scenario_content_includes_sql_template() -> None:
     assert "SUM(mq.total_defect_count)" in content
 
 
+def test_model_defect_trend_content_includes_average_metric() -> None:
+    content = load_scenario_content(
+        "paint_shop_defect_analysis",
+        "model_defect_trend",
+    )
+    assert content is not None
+    assert "COUNT(*) AS detection_count" in content
+    assert "AVG(mq.total_defect_count) AS avg_defect_per_detection" in content
+    assert "avg_defect_per_detection" in content
+
+
 def test_shared_asset_scope_can_be_resolved() -> None:
     scenario = get_scenario_by_name(
         "paint_shop_vehicle_tracking",
