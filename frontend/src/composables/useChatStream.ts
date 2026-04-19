@@ -11,11 +11,11 @@
 // - 2026-03-31 21:31 Asia/Shanghai: 移除宽松事件兜底，改为穷尽式处理统一 SSE 事件协议
 // - 2026-03-31 22:15 Asia/Shanghai: 停止生成后保留已生成片段，并明确落定为本地“已停止生成”消息
 
-import { ref } from 'vue'
+import { ref, watch } from 'vue'
 import { sendChatStream, sendChatMessage } from '@/api/chat'
 import { useMessagesStore } from '@/stores/messages'
 import { useSessionsStore } from '@/stores/sessions'
-import type { Message, StreamEvent, StreamToolCall } from '@/types'
+import type { ContextWarningPayload, Message, StreamEvent, StreamToolCall } from '@/types'
 
 const assertNever = (value: never): never => {
   throw new Error(`未处理的流式事件: ${JSON.stringify(value)}`)
@@ -32,6 +32,14 @@ export function useChatStream() {
   const isSending = ref(false)
   const streamMode = ref(false)  // 流式模式开关状态
   const activeStreamController = ref<AbortController | null>(null)
+  const contextWarning = ref<ContextWarningPayload | null>(null)
+
+  watch(
+    () => sessionsStore.currentSessionId,
+    () => {
+      contextWarning.value = null
+    }
+  )
 
   const syncMessagesIfCurrent = (sessionId: string) => {
     if (sessionsStore.currentSessionId !== sessionId) {
@@ -70,6 +78,7 @@ export function useChatStream() {
     }
 
     isSending.value = true
+    contextWarning.value = null
 
     // 1. 立即显示用户消息（乐观更新）- 2025-01-01
     const tempUserMessage: Message = {
@@ -134,6 +143,10 @@ export function useChatStream() {
           return
 
         case 'status':
+          if (event.source === 'context_warning' && event.detail) {
+            contextWarning.value = event.detail as ContextWarningPayload
+            return
+          }
           messagesStore.updateStreamingStatus(event.stage, event.text)
           return
 
@@ -200,11 +213,12 @@ export function useChatStream() {
    * 处理非流式消息
    */
   const handleNormalMessage = async (sessionId: string, content: string) => {
-    await sendChatMessage({
+    const response = await sendChatMessage({
       message: content,
       session_id: sessionId,
       stream: false
     })
+    contextWarning.value = response.context_warning ?? null
 
     // 非流式完成后，重新加载消息列表
     if (sessionsStore.currentSessionId === sessionId) {
@@ -216,6 +230,7 @@ export function useChatStream() {
   return {
     isSending,
     streamMode,
+    contextWarning,
     sendMessage,
     stopStreaming
   }

@@ -89,6 +89,23 @@ class Settings(BaseSettings):
     agent_max_tokens: int = int(os.getenv("AGENT_MAX_TOKENS", "2000"))
     llm_timeout: float = float(os.getenv("LLM_TIMEOUT", "120"))
     llm_max_retries: int = int(os.getenv("LLM_MAX_RETRIES", "2"))
+    llm_context_warning_enabled: bool = (
+        os.getenv("LLM_CONTEXT_WARNING_ENABLED", "false").lower() == "true"
+    )
+    llm_context_window: int = int(os.getenv("LLM_CONTEXT_WINDOW", "16384"))
+    llm_context_warn_tokens: int = int(
+        os.getenv("LLM_CONTEXT_WARN_TOKENS", "12000")
+    )
+    llm_context_safety_buffer: int = int(
+        os.getenv("LLM_CONTEXT_SAFETY_BUFFER", "512")
+    )
+    llama_cpp_tokenize_base_url: str = os.getenv(
+        "LLAMA_CPP_TOKENIZE_BASE_URL",
+        "http://127.0.0.1:8089",
+    )
+    llm_context_tokenizer_timeout: float = float(
+        os.getenv("LLM_CONTEXT_TOKENIZER_TIMEOUT", "5")
+    )
     
     # RAG 配置
     rag_backend: str = os.getenv("RAG_BACKEND", "milvus_hybrid")  # pgvector | milvus_hybrid

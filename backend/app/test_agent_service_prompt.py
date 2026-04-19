@@ -1,6 +1,8 @@
+import asyncio
 from types import SimpleNamespace
+from unittest.mock import AsyncMock, MagicMock
 
-from backend.app.agent.service import _build_system_prompt
+from backend.app.agent.service import SQLAgentService, _build_system_prompt
 
 
 def test_system_prompt_requires_explicit_chart_guidance() -> None:
@@ -21,3 +23,36 @@ def test_system_prompt_requires_category_split_for_multi_series_chart() -> None:
     assert "不要只重复引用同一个 field 作为多条系列" in prompt
     assert "必须为每条系列补充 category_field/category_value" in prompt
     assert "或至少在系列名称里包含可识别的分类值" in prompt
+
+
+def test_context_warning_middleware_is_appended_when_enabled(monkeypatch) -> None:
+    service = SQLAgentService(
+        use_ollama=False,
+        managed_runtime=False,
+        auto_initialize=False,
+    )
+    monkeypatch.setattr("backend.app.agent.service._configure_proxy_settings", lambda: None)
+    monkeypatch.setattr("backend.app.agent.service._create_llm", lambda _use_ollama: object())
+    monkeypatch.setattr(
+        "backend.app.agent.service._create_database_connection",
+        lambda: (SimpleNamespace(dialect="sqlite"), {}),
+    )
+    monkeypatch.setattr("backend.app.agent.service._prepare_tools", lambda db, llm, retriever=None: [])
+    monkeypatch.setattr("backend.app.agent.service._build_system_prompt", lambda db: "prompt")
+    monkeypatch.setattr(
+        "backend.app.agent.service.create_business_retriever_and_reranker",
+        lambda: (None, None),
+    )
+    monkeypatch.setattr(
+        "backend.app.agent.service.SummarizationMiddleware",
+        lambda **kwargs: SimpleNamespace(__class__=SimpleNamespace(__name__="SummarizationMiddleware")),
+    )
+    monkeypatch.setattr("backend.app.agent.service.settings.llm_context_warning_enabled", True)
+    mock_create_agent = MagicMock()
+    monkeypatch.setattr("backend.app.agent.service.create_agent", mock_create_agent)
+    monkeypatch.setattr(service, "_ainitialize_persistence", AsyncMock(return_value=None))
+
+    asyncio.run(service._ainitialize_agent())
+
+    middleware = mock_create_agent.call_args.kwargs["middleware"]
+    assert middleware[-1].__class__.__name__ == "ContextWarningMiddleware"

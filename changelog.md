@@ -1,5 +1,168 @@
 # Changelog
 
+## 2026-04-19 18:45 +08:00 - 恢复 context_warning 为正式 CustomState
+
+### 概述
+- 在升级 `langchain/langgraph` 后，恢复 `context_warning` 作为正式 `CustomState` 字段。
+- `ContextWarningMiddleware` 改为通过 `ExtendedModelResponse + Command(update=...)` 写回 graph state，不再依赖临时 `request.state`。
+- 恢复非流式 `ChatResponse.context_warning` 与流式 `final.context_warning` 透传，同时保留 custom `status` 告警事件。
+
+### 变更内容
+
+#### backend/app/agent/state.py
+- 恢复 `context_warning` 字段。
+- 为 `context_warning` 增加 `last wins` reducer，支持 payload 与 `None` 的动态覆盖。
+
+#### backend/app/agent/middleware/context_warning_middleware.py
+- 引入 `ExtendedModelResponse` 与 `Command(update=...)`。
+- `wrap_model_call()` / `awrap_model_call()` 现在会把 `context_warning` 正式写回 agent state。
+- 继续保留 token 估算、结构化日志和 `emit_stream_status(...)` 提醒。
+
+#### backend/app/services.py / backend/app/api.py / backend/app/schemas.py
+- 恢复非流式 `process_message()` / `ChatResponse` 的 `context_warning` 透传。
+- 恢复流式 `updates` 读取与 `final.context_warning` 输出。
+- 修复 custom status 与 updates state 双通道下的重复 warning 问题。
+
+#### frontend/src/types/index.ts / frontend/src/composables/useChatStream.ts
+- 恢复非流式 `response.context_warning` 的前端消费。
+- 保持流式 `status.detail` 预警消费不变。
+
+#### 测试与验证
+- 更新 `backend/app/test_context_warning_middleware.py`
+- 更新 `backend/app/test_services.py`
+- 更新 `backend/app/test_chart_api.py`
+- `pytest`：21 passed
+- `npm run build`：通过
+
+## 2026-04-19 18:20 +08:00 - 清理 context_warning 伪状态链路
+
+### 概述
+- 移除 `context_warning` 作为 `CustomState` 的字段定义，避免把仅用于流式提醒的临时数据误当成正式 graph state。
+- 收口后端与前端中依赖 `context_warning` state 透传的冗余逻辑，统一保留当前已工作的 custom `status` 事件提醒路径。
+
+### 变更内容
+
+#### backend/app/agent/state.py
+- 删除 `context_warning` 字段与对应说明。
+
+#### backend/app/agent/middleware/context_warning_middleware.py
+- 不再向 `request.state` 写入 `context_warning`。
+- 保留 token 估算、观测日志和 `emit_stream_status(...)` 预警事件。
+
+#### backend/app/services.py / backend/app/api.py / backend/app/schemas.py
+- 删除依赖 `context_warning` 作为正式 state / 非流式响应字段的冗余透传逻辑。
+- 流式链路继续通过 `status` 事件向前端发送预警。
+
+#### frontend/src/composables/useChatStream.ts / frontend/src/types/index.ts
+- 移除非流式 `ChatResponse.context_warning` 的消费与类型定义。
+- 保留流式 `status.detail` 告警消费逻辑。
+
+#### 测试
+- 更新 `backend/app/test_context_warning_middleware.py`
+- 更新 `backend/app/test_chart_api.py`
+
+## 2026-04-19 17:49 +08:00 - 优化 llama.cpp 上下文预警透传与观测日志
+
+### 概述
+- 修复上下文预警在 LangChain 当前中间件实现下“估算已执行但前端收不到提示”的问题。
+- 新增固定格式观测日志，直接打印预警开关、阈值、当前估算值和是否触发，便于本地调试。
+
+### 变更内容
+
+#### backend/app/agent/middleware/context_warning_middleware.py
+- 保持基于最终 `ModelRequest` 做 token 估算。
+- 触发预警时，直接通过 custom stream 发出 `status` 事件，而不再只依赖 `request.state` 透传。
+- 新增 `context warning check: ...` 结构化日志，打印 `enabled`、`estimated_input_tokens`、`warn_tokens`、`context_window`、`safety_buffer`、`triggered`、`message_count`、`tool_count`。
+
+#### backend/app/test_context_warning_middleware.py
+- 新增触发告警时 custom stream 事件与日志输出的测试。
+- 调整未触发和关闭开关场景下的状态断言。
+
+#### backend/app/test_services.py
+- 新增流式链路透传 `context_warning` custom status 事件的回归测试。
+
+## 2026-04-19 16:56 +08:00 - 修复流式上下文告警未命中时的作用域错误
+
+### 概述
+- 修复流式 SSE 链路在 `context_warning` 未出现时，最终 `final` 事件构造阶段抛出 `UnboundLocalError` 的问题。
+- 补充回归测试，确保普通流式回答即使没有任何上下文告警，也能正常落定为 `final` 事件。
+
+### 变更内容
+
+#### backend/app/services.py
+- 为 `process_stream()` 内部 `_produce_events()` 补充 `nonlocal context_warning`，保持闭包读写同一外层变量。
+
+#### backend/app/test_services.py
+- 新增 `test_process_stream_emits_final_event_without_context_warning`，覆盖“无 warning 的正常流式完成”场景。
+
+#### backend/app/test_llama_cpp_token_estimator.py
+- 调整配置测试的环境隔离方式，显式设置预期环境变量并重新加载配置模块，避免受当前进程环境污染。
+
+## 2026-04-19 16:10 +08:00 - 完成 llama.cpp 上下文预警端到端接入
+
+### 概述
+- 完成面向 OpenAI-compatible `llama.cpp` 的调用前上下文预警能力。在单次模型调用接近安全阈值时，后端会基于 `/tokenize` 估算输入上下文并透传统一 `context_warning` payload，前端展示轻量提醒条，提示用户建议新建对话。
+- 整套逻辑受 `LLM_CONTEXT_WARNING_ENABLED` 开关控制，关闭时不会影响其他模型接入，也不会触发自动压缩、自动摘要或请求阻断。
+
+### 变更内容
+
+#### backend/app/config.py
+- 新增 `LLM_CONTEXT_WARNING_ENABLED`、`LLM_CONTEXT_WINDOW`、`LLM_CONTEXT_WARN_TOKENS`、`LLM_CONTEXT_SAFETY_BUFFER`、`LLAMA_CPP_TOKENIZE_BASE_URL`、`LLM_CONTEXT_TOKENIZER_TIMEOUT` 配置项。
+
+#### backend/app/agent/utils/llama_cpp_token_estimator.py
+- 新增 `LlamaCppTokenEstimator`，优先调用 `llama.cpp /tokenize` 统计文本和 JSON-like 输入 token，接口异常时回退到保守估算。
+
+#### backend/app/agent/middleware/context_warning_middleware.py
+- 新增 `ContextWarningMiddleware`，在最终 `ModelRequest` 上估算 `system_message`、`messages`、`tools` 的输入 token。
+- 预警 payload 纳入 `safety_buffer`，并写入 `state["context_warning"]`。
+
+#### backend/app/agent/service.py
+- 在 Agent 初始化链路中注册 `ContextWarningMiddleware`，保持其位于 `SkillMiddleware` 之后，确保基于最终请求内容预警。
+
+#### backend/app/services.py / backend/app/api.py / backend/app/schemas.py
+- 非流式 `ChatResponse` 新增 `context_warning` 字段。
+- 流式链路在 `status.detail` 中透传 `context_warning`，并复用现有 `status` 事件协议，不新增 SSE 事件类型。
+
+#### frontend/src/types/index.ts
+- 新增 `ContextWarningPayload` 类型，并扩展 `ChatResponse`。
+
+#### frontend/src/composables/useChatStream.ts
+- 新增 `contextWarning` 状态。
+- 流式模式消费 `source === "context_warning"` 的 `status` 事件；非流式模式消费 `ChatResponse.context_warning`。
+- 切换会话和新一轮发送前自动清空旧 warning。
+
+#### frontend/src/views/ChatView.vue
+- 在聊天区域新增轻量预警条，展示估算输入 token、预警线与模型上下文窗口。
+
+#### 测试与验证
+- 新增 / 更新 `backend/app/test_llama_cpp_token_estimator.py`
+- 新增 / 更新 `backend/app/test_context_warning_middleware.py`
+- 更新 `backend/app/test_agent_service_prompt.py`
+- 更新 `backend/app/test_chart_api.py`
+- 后端相关测试 `17 passed`
+- 前端 `npm run build` 通过
+- 说明：Vite 构建仍有现存的大 bundle warning，但不影响本次功能上线
+
+
+## 2026-04-19 15:18 - 新增 ContextWarningMiddleware 上下文告警透传
+
+### 概述
+- 新增 `ContextWarningMiddleware`，在最终 `ModelRequest` 上估算 `system_message`、`messages`、`tools` 的输入 token，并在达到阈值时把统一 warning payload 写入 `state`，供后续 API / 前端链路透传。
+
+### 变更内容
+
+#### backend/app/agent/middleware/context_warning_middleware.py
+- 新增 `ContextWarningMiddleware(AgentMiddleware[CustomState])`。
+- 支持 `enabled`、`context_window`、`warn_tokens`、`output_reserve`、`safety_buffer` 参数。
+- 当 token 估算达到阈值时，生成统一 `context_warning` payload 并写入 `request.state`。
+- 保持只读行为，不裁剪请求、不阻断请求、不触发摘要。
+
+#### backend/app/agent/state.py
+- 为 `CustomState` 增加 `context_warning` 字段，作为 warning 透传载体。
+
+#### backend/app/agent/middleware/__init__.py
+- 导出 `ContextWarningMiddleware`，便于统一引用。
+
 ## 2026-04-19 09:45 - 为 development-guide-synthesizer 技能补充长文档目录要求
 
 ### 概述

@@ -36,6 +36,18 @@ export interface MessageCreate {
   tool_results?: string | null
 }
 
+export interface ContextWarningPayload {
+  estimated_input_tokens: number
+  warn_tokens: number
+  context_window: number
+  output_reserve: number
+  safety_buffer: number
+  message_count: number
+  tool_count: number
+  recommended_action: 'start_new_session'
+  source: 'context_warning'
+}
+
 export interface ExportArtifact {
   kind: 'file_export'
   file_id: string
@@ -177,4 +189,5 @@ export interface ChatResponse {
   session_id: string
   message: Message
   is_complete: boolean
+  context_warning?: ContextWarningPayload | null
 }

@@ -579,11 +579,12 @@ class SQLAgentService:
         content, tool_calls, tool_results = self._extract_tool_data_from_result(
             result
         )
-
+        context_warning = result.get("context_warning")
         return {
             "content": content,
             "tool_calls": json.dumps(tool_calls, ensure_ascii=False) if tool_calls else None,
             "tool_results": json.dumps(tool_results, ensure_ascii=False) if tool_results else None,
+            "context_warning": context_warning,
         }
 
     async def process_stream(
@@ -600,6 +601,7 @@ class SQLAgentService:
         has_stream_tokens = False
         accumulated_tool_calls: dict[str, dict[str, Any]] = {}
         accumulated_tool_results: dict[str, str] = {}
+        context_warning: Optional[dict[str, Any]] = None
         latest_ai_content = ""
         last_status_signature: Optional[tuple[str, str, str]] = None
         event_queue: asyncio.Queue[dict[str, Any] | object] = asyncio.Queue()
@@ -615,7 +617,7 @@ class SQLAgentService:
             nonlocal latest_ai_content
             nonlocal last_status_signature
             nonlocal source_iter
-
+            nonlocal context_warning
             try:
                 initial_status = {
                     "type": "status",
@@ -698,6 +700,28 @@ class SQLAgentService:
                             if not isinstance(state_update, dict):
                                 continue
 
+                            if "context_warning" in state_update:
+                                warning_payload = state_update.get("context_warning")
+                                normalized_warning = (
+                                    warning_payload
+                                    if isinstance(warning_payload, dict)
+                                    else None
+                                )
+                                if normalized_warning != context_warning:
+                                    context_warning = normalized_warning
+                                    if normalized_warning is not None:
+                                        warning_event = {
+                                            "type": "status",
+                                            "stage": "thinking",
+                                            "text": "当前上下文已接近安全阈值，建议新建对话",
+                                            "source": "context_warning",
+                                            "detail": normalized_warning,
+                                        }
+                                        status_signature = self._status_signature(warning_event)
+                                        if status_signature != last_status_signature:
+                                            await _emit(warning_event)
+                                            last_status_signature = status_signature
+
                             updated_messages = state_update.get("messages", [])
                             last_message = (
                                 updated_messages[-1] if updated_messages else None
@@ -728,6 +752,13 @@ class SQLAgentService:
                         if not custom_event:
                             continue
 
+                        if (
+                            custom_event.get("type") == "status"
+                            and custom_event.get("source") == "context_warning"
+                            and isinstance(custom_event.get("detail"), dict)
+                        ):
+                            context_warning = custom_event["detail"]
+
                         if custom_event.get("type") == "status":
                             status_signature = self._status_signature(custom_event)
                             if status_signature == last_status_signature:
@@ -753,6 +784,7 @@ class SQLAgentService:
                         "content": final_content,
                         "tool_calls": tool_calls or None,
                         "tool_results": accumulated_tool_results or None,
+                        "context_warning": context_warning,
                     }
                 )
 

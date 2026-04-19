@@ -8,11 +8,16 @@ Agent 状态定义。
 - 为二级技能披露与后续模板执行预留状态字段
 """
 
-from typing import List
+from typing import Annotated, Any, List
 
 from langchain.agents.middleware import AgentState
 from langchain_core.documents import Document
 from typing_extensions import NotRequired
+
+
+def _last_wins(_a: Any, b: Any) -> Any:
+    """Reducer: 后写入的值覆盖前一个值。"""
+    return b
 
 
 class CustomState(AgentState):
@@ -26,6 +31,7 @@ class CustomState(AgentState):
         active_scenario: 当前活跃场景技能
         rag_context: 检索到的业务知识文档列表
         rag_query: 触发检索的用户查询
+        context_warning: 当前会话最近一次模型调用的上下文预警 payload
     """
 
     skills_loaded: NotRequired[List[str]]
@@ -34,3 +40,4 @@ class CustomState(AgentState):
     active_scenario: NotRequired[str]
     rag_context: NotRequired[List[Document]]
     rag_query: NotRequired[str]
+    context_warning: NotRequired[Annotated[dict[str, Any] | None, _last_wins]]

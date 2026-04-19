@@ -25,7 +25,11 @@ from langchain_community.agent_toolkits import SQLDatabaseToolkit
 from langchain_openai import ChatOpenAI
 
 from backend.app.agent.constants import EXCLUDED_TOOLS, ToolNames
-from backend.app.agent.middleware import BusinessRagMiddleware, SkillMiddleware
+from backend.app.agent.middleware import (
+    BusinessRagMiddleware,
+    ContextWarningMiddleware,
+    SkillMiddleware,
+)
 from backend.app.agent.tools import (
     create_chart_artifact_tool,
     create_csv_export_tool,
@@ -33,6 +37,7 @@ from backend.app.agent.tools import (
     create_wrapped_query_tool,
 )
 from backend.app.agent.utils import (
+    LlamaCppTokenEstimator,
     MaterializedViewSQLDatabase,
     build_postgres_search_path_engine_args,
     ensure_windows_selector_loop,
@@ -51,6 +56,21 @@ logger = logging.getLogger(__name__)
 
 # 仅用于 LangGraph 调试入口，避免每次调用工厂都重新初始化模型/数据库元信息。
 _MANAGED_AGENT_SERVICE: Optional["SQLAgentService"] = None
+
+
+def _create_context_warning_middleware() -> ContextWarningMiddleware:
+    """创建上下文窗口告警中间件。"""
+    return ContextWarningMiddleware(
+        estimator=LlamaCppTokenEstimator(
+            base_url=settings.llama_cpp_tokenize_base_url,
+            timeout=settings.llm_context_tokenizer_timeout,
+        ),
+        enabled=settings.llm_context_warning_enabled,
+        context_window=settings.llm_context_window,
+        warn_tokens=settings.llm_context_warn_tokens,
+        output_reserve=settings.agent_max_tokens,
+        safety_buffer=settings.llm_context_safety_buffer,
+    )
 
 
 def _configure_proxy_settings() -> None:
@@ -118,9 +138,7 @@ def _get_business_database_engine_args(db_url: str) -> dict[str, Any]:
     """为业务数据库连接生成 engine_args。"""
     analytics_db_url = settings.analytics_database_url.strip()
     if analytics_db_url and db_url == analytics_db_url:
-        return build_postgres_search_path_engine_args(
-            settings.analytics_db_search_path
-        )
+        return build_postgres_search_path_engine_args(settings.analytics_db_search_path)
     return {}
 
 
@@ -519,7 +537,11 @@ class SQLAgentService:
                 keep=("messages", 5),
             )
 
-            middleware_list = [summarization_middleware, SkillMiddleware()]
+            middleware_list = [
+                summarization_middleware,
+                SkillMiddleware(),
+                _create_context_warning_middleware(),
+            ]
             if rag_middleware:
                 middleware_list.insert(0, rag_middleware)
 
@@ -592,11 +614,15 @@ class SQLAgentService:
 
             summarization_middleware = SummarizationMiddleware(
                 model=llm,
-                trigger=("tokens", 4000),
+                trigger=("tokens", 6000),
                 keep=("messages", 5),
             )
 
-            middleware_list = [summarization_middleware, SkillMiddleware()]
+            middleware_list = [
+                summarization_middleware,
+                SkillMiddleware(),
+                _create_context_warning_middleware(),
+            ]
             if rag_middleware:
                 middleware_list.insert(0, rag_middleware)
 

@@ -3,5 +3,6 @@
 
 from .skill_middleware import SkillMiddleware
 from .rag_middleware import BusinessRagMiddleware
+from .context_warning_middleware import ContextWarningMiddleware
 
-__all__ = ["SkillMiddleware", "BusinessRagMiddleware"]
+__all__ = ["SkillMiddleware", "BusinessRagMiddleware", "ContextWarningMiddleware"]

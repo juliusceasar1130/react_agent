@@ -59,11 +59,24 @@ class ChatRequest(BaseModel):
     stream: Optional[bool] = False
 
 
+class ContextWarningPayload(BaseModel):
+    estimated_input_tokens: int
+    warn_tokens: int
+    context_window: int
+    output_reserve: int
+    safety_buffer: int
+    message_count: int
+    tool_count: int
+    recommended_action: Literal["start_new_session"]
+    source: Literal["context_warning"]
+
+
 # 聊天响应
 class ChatResponse(BaseModel):
     session_id: str
     message: MessageResponse
     is_complete: bool = True
+    context_warning: Optional[ContextWarningPayload] = None
 
 
 class ChartArtifactRef(BaseModel):
@@ -144,6 +157,7 @@ class FinalStreamEvent(BaseModel):
     content: str
     tool_calls: Optional[List[StreamToolCallPayload]] = None
     tool_results: Optional[Dict[str, str]] = None
+    context_warning: Optional[ContextWarningPayload] = None
     message_id: Optional[str] = None
     created_at: Optional[datetime] = None
 

@@ -285,7 +285,10 @@ async def send_message(chat_request: ChatRequest, db: Session = Depends(get_db))
     )
     logger.info("Assistant消息保存完成")
     return ChatResponse(
-        session_id=session_id, message=assistant_message, is_complete=True
+        session_id=session_id,
+        message=assistant_message,
+        is_complete=True,
+        context_warning=agent_response.get("context_warning"),
     )
 
 

@@ -38,6 +38,15 @@
       </div>
 
       <!-- 消息列表 -->
+      <div
+        v-if="currentSession && contextWarning"
+        class="mx-6 mt-4 rounded-2xl border border-amber-200 bg-amber-50/95 px-4 py-3 text-sm text-amber-900 shadow-sm"
+      >
+        <p class="font-medium">当前上下文已接近安全阈值，建议新建对话。</p>
+        <p class="mt-1 text-amber-800/90">
+          估算输入 {{ contextWarning.estimated_input_tokens }} tokens，预警线 {{ contextWarning.warn_tokens }}，模型窗口 {{ contextWarning.context_window }}。
+        </p>
+      </div>
       <MessageList v-if="currentSession" ref="messageListRef" />
       <EmptyState v-else />
 
@@ -115,7 +124,7 @@ import EmptyState from '@/components/EmptyState.vue'
 
 const sessionsStore = useSessionsStore()
 const messagesStore = useMessagesStore()
-const { isSending, streamMode, sendMessage, stopStreaming } = useChatStream()
+const { isSending, streamMode, contextWarning, sendMessage, stopStreaming } = useChatStream()
 
 const currentSession = computed(() => sessionsStore.currentSession)
 const currentStreamingMessage = computed(() => messagesStore.streamingMessage)
