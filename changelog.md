@@ -1,5 +1,138 @@
 # Changelog
 
+## 2026-04-20 00:43 +08:00 - 默认开启流式输出
+
+### 概述
+- 将前端聊天界面的流式输出开关默认值调整为开启，进入会话后默认使用流式响应。
+
+### 变更内容
+
+#### frontend/src/composables/useChatStream.ts
+- 将 `streamMode` 的初始值从 `false` 调整为 `true`。
+
+#### 验证
+- 待执行 `npm run build:check`
+
+## 2026-04-20 00:37 +08:00 - 切换开关恢复为原先滑块式样
+
+### 概述
+- 将底部流式开关从整块胶囊包裹样式调整回更接近原先的滑块式表现，提升观感并保持紧凑布局。
+
+### 变更内容
+
+#### frontend/src/components/ToggleSwitch.vue
+- 移除整块外层胶囊容器，恢复“独立滑块 + 文案”的结构。
+- 保留较紧凑的字号与间距，但把滑块尺寸恢复到更自然的视觉比例。
+
+#### 验证
+- 待执行 `npm run build:check`
+
+## 2026-04-20 00:31 +08:00 - 压缩底部输入区高度以释放更多展示空间
+
+### 概述
+- 将聊天底部 composer 调整为更紧凑的布局，减少对消息展示区域的垂直占用。
+- 输入框高度缩小约三分之一，同时收紧流式开关、状态标签和发送按钮。
+
+### 变更内容
+
+#### frontend/src/views/ChatView.vue
+- 收紧底部区域外边距与内边距。
+- 将消息输入框高度从三行压缩到两行，并减小最小高度。
+- 缩小发送按钮高度和最小宽度。
+- 收紧字数标签与流式状态标签的占位。
+
+#### frontend/src/components/ToggleSwitch.vue
+- 缩小开关容器、轨道、滑块与标签字号，匹配新的紧凑底部布局。
+
+#### 验证
+- 待执行 `npm run build:check`
+
+## 2026-04-20 00:24 +08:00 - 修复前端时间显示与上海时区相差 8 小时
+
+### 概述
+- 修复会话列表、消息时间和图表附件时间在前端显示时与上海时区相差 `8 小时` 的问题。
+- 根因是前端直接用 `new Date(dateString)` 解析服务端返回的无时区 ISO 时间串，浏览器会把它当作本地时间处理；而这些时间实际表示的是 UTC。
+
+### 变更内容
+
+#### frontend/src/composables/useDateFormat.ts
+- 新增统一的 `parseServerDate()` 解析函数。
+- 对“无时区后缀的 ISO 时间串”按 UTC 处理，再转换为本地时间显示。
+
+#### frontend/src/components/SessionItem.vue / MessageItem.vue / ChartArtifactCard.vue
+- 统一改为使用 `parseServerDate()` 解析服务端时间。
+- 修复相对时间、消息气泡时间和图表卡片到期时间的 8 小时偏差。
+
+#### 验证
+- 待执行 `npm run build:check`
+
+## 2026-04-20 00:15 +08:00 - 调整用户消息与过程输出气泡配色
+
+### 概述
+- 将用户消息气泡从深蓝强对比样式调整为更柔和的浅蓝纯色卡片，降低突兀感。
+- 将过程输出气泡从淡渐变背景调整为淡色纯色背景，与最终答案白底卡片形成更稳定的层级区分。
+
+### 变更内容
+
+#### frontend/src/components/MessageItem.vue
+- 用户消息改为浅蓝纯色背景 + 深色文字。
+- 流式过程输出改为浅色纯色背景，不再使用渐变。
+- 同步调整用户消息时间文字颜色，匹配新的柔和气泡风格。
+
+#### 验证
+- 待执行 `npm run build:check`
+
+## 2026-04-20 00:08 +08:00 - 修复新建对话后输入区被挤出视口
+
+### 概述
+- 修复聊天界面升级后，在“新建对话且暂无消息”场景下，底部输入区未显示的问题。
+- 根因是根容器使用 `min-height` 而子布局依赖 `h-full`，导致主内容区高度约束不稳定，消息区会把 composer 挤出当前视口。
+
+### 变更内容
+
+#### frontend/src/App.vue / frontend/src/style.css
+- 将根容器高度链路从 `min-height` 收紧为稳定的 `100dvh` 高度。
+- 保留 `min-height` 作为兜底，同时显式设置 `#app` 的 `height: 100dvh`，确保聊天主布局、空状态和输入区都能正确占满视口。
+
+#### 验证
+- `npm run build:check`：通过
+
+## 2026-04-19 23:55 +08:00 - 前端聊天界面升级为明亮卡片式响应式工作台
+
+### 概述
+- 将 `frontend` 聊天界面升级为更现代、简洁明快、友好的 `方案 A` 风格，保持现有功能与逻辑不变。
+- 桌面端继续采用双栏布局，移动端新增会话抽屉，提升小屏场景下的可用性。
+- 一并修复一个阻塞前端类型检查的现有类型断言问题，保证界面改造后可继续进行构建验证。
+
+### 变更内容
+
+#### frontend/src/views/ChatView.vue
+- 重组主界面布局，强化顶部栏、消息区与输入区层级。
+- 新增移动端会话抽屉和遮罩交互。
+- 优化上下文预警条与底部输入 composer 的视觉表现。
+
+#### frontend/src/style.css / frontend/tailwind.config.js / frontend/src/App.vue
+- 将主题调整为浅冷白 + 蓝青点缀的明亮卡片式工作台风格。
+- 统一按钮、输入框、卡片、阴影与 Markdown 展示样式。
+- 优化全局背景、滚动条、动效与 reduced-motion 基础支持。
+
+#### frontend/src/components/SessionList.vue / SessionItem.vue
+- 将会话区改为更轻的导航面板样式。
+- 优化会话项选中态、信息层级与移动端可点击体验。
+- 新增选中会话后关闭移动端抽屉的联动。
+
+#### frontend/src/components/MessageList.vue / MessageItem.vue / EmptyState.vue / ToggleSwitch.vue
+- 调整消息阅读宽度、空状态、用户与 AI 气泡样式。
+- 统一流式中、错误、中断、工具结果和导出卡片的视觉体系。
+- 细化流式开关组件样式，与新主题保持一致。
+
+#### frontend/src/composables/useChatStream.ts
+- 将 `context_warning` 的流式事件详情断言改为更安全的 `unknown` 中转，修复 `vue-tsc` 阻塞问题。
+
+#### 验证
+- `npx vue-tsc --noEmit`：通过
+- `npm run build:check`：受当前环境 `esbuild spawn EPERM` 限制，未能在沙箱内完成 Vite 构建
+
 ## 2026-04-19 18:45 +08:00 - 恢复 context_warning 为正式 CustomState
 
 ### 概述

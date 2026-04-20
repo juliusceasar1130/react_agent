@@ -1,52 +1,47 @@
-<!-- 创建日期: 2025-01-07 - 可复用的开关组件 -->
+<!-- 2026-04-19 23:40 Asia/Shanghai - 开关组件更新：适配明亮卡片式主题 -->
 <template>
-  <label class="inline-flex items-center gap-2.5 cursor-pointer group">
-    <!-- 隐藏的 checkbox input -->
+  <label class="group inline-flex cursor-pointer items-center gap-2.5">
     <input
-      :modelValue="modelValue"
+      :checked="modelValue"
       @change="$emit('update:modelValue', ($event.target as HTMLInputElement).checked)"
       type="checkbox"
       class="sr-only peer"
     />
 
-    <!-- 开关轨道 -->
     <div
-      class="relative w-11 h-6 rounded-full transition-all duration-300 ease-out peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-primary/50"
-      :class="modelValue ? 'bg-primary shadow-md shadow-primary/30' : 'bg-neutral-300'"
+      class="relative h-6 w-11 rounded-full transition-all duration-300 ease-out peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-primary/50"
+      :class="modelValue ? 'bg-primary shadow-md shadow-primary/20' : 'bg-neutral-300'"
     >
-      <!-- 开关滑块 -->
       <div
-        class="absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow-sm transition-all duration-300 ease-out flex items-center justify-center"
+        class="absolute left-0.5 top-0.5 flex h-5 w-5 items-center justify-center rounded-full bg-white shadow-sm transition-all duration-300 ease-out"
         :class="modelValue ? 'translate-x-5' : 'translate-x-0'"
       >
-        <!-- 开启状态图标 -->
-        <svg v-if="modelValue" class="w-3 h-3 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <svg v-if="modelValue" class="h-3 w-3 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/>
         </svg>
-        <!-- 关闭状态图标 -->
-        <svg v-else class="w-3 h-3 text-neutral-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <svg v-else class="h-3 w-3 text-neutral-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
         </svg>
       </div>
     </div>
 
-    <!-- 标签文字 -->
-    <span
-      v-if="label"
-      class="text-sm font-medium transition-colors duration-200 select-none"
-      :class="modelValue ? 'text-primary' : 'text-neutral-500 group-hover:text-text'"
-    >
-      {{ label }}
-    </span>
+    <div class="flex items-center gap-2">
+      <span
+        v-if="label"
+        class="select-none text-[13px] font-medium transition-colors duration-200"
+        :class="modelValue ? 'text-primary' : 'text-neutral-600 group-hover:text-text'"
+      >
+        {{ label }}
+      </span>
 
-    <!-- 状态文字 -->
-    <span
-      v-if="showStatus"
-      class="text-xs transition-colors duration-200 select-none"
-      :class="modelValue ? 'text-primary/80' : 'text-neutral-400'"
-    >
-      {{ modelValue ? onLabel : offLabel }}
-    </span>
+      <span
+        v-if="showStatus"
+        class="select-none text-[11px] transition-colors duration-200"
+        :class="modelValue ? 'text-primary/80' : 'text-neutral-400'"
+      >
+        {{ modelValue ? onLabel : offLabel }}
+      </span>
+    </div>
   </label>
 </template>
 

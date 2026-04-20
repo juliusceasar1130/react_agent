@@ -1,43 +1,50 @@
-/* 2026-04-01 22:55 Asia/Shanghai - 新增聊天消息 Markdown 展示样式 */
+/* 2026-04-19 23:40 Asia/Shanghai - 聊天界面方案 A：明亮卡片式工作台 */
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 @layer base {
   :root {
-    /* Neural Tones + AI Purple System */
-    --color-primary: #7C3AED;
-    --color-primary-hover: #6D28D9;
-    --color-secondary: #A78BFA;
-    --color-accent: #06B6D4;
+    --color-primary: #2563eb;
+    --color-primary-hover: #1d4ed8;
+    --color-secondary: #7dd3fc;
+    --color-accent: #14b8a6;
 
-    --color-bg: #FAF5FF;
-    --color-surface: #FFFFFF;
-    --color-text: #1E1B4B;
-    --color-text-muted: #64748B;
+    --color-bg: #f4f8fc;
+    --color-bg-alt: #ebf3fb;
+    --color-surface: #ffffff;
+    --color-text: #0f172a;
+    --color-text-muted: #60758a;
 
-    --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
-    --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
-    --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
-    --shadow-xl: 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1);
-    --shadow-glow: 0 0 20px rgba(124, 58, 237, 0.15);
-    /* Purple glow */
+    --shadow-sm: 0 8px 20px -14px rgb(15 23 42 / 0.12);
+    --shadow-md: 0 20px 40px -28px rgb(15 23 42 / 0.18), 0 10px 20px -16px rgb(37 99 235 / 0.1);
+    --shadow-lg: 0 32px 60px -36px rgb(15 23 42 / 0.24), 0 18px 32px -24px rgb(37 99 235 / 0.12);
+    --shadow-xl: 0 40px 80px -42px rgb(15 23 42 / 0.3);
+    --shadow-glow: 0 22px 48px -28px rgb(37 99 235 / 0.45);
 
     --transition-fast: 150ms cubic-bezier(0.4, 0, 0.2, 1);
     --transition-normal: 200ms cubic-bezier(0.4, 0, 0.2, 1);
   }
 
-  body {
-    @apply m-0 font-sans antialiased;
-    font-family: 'Inter', system-ui, -apple-system, sans-serif;
-    background: var(--color-bg);
-    color: var(--color-text);
+  html {
+    min-height: 100%;
   }
 
-  /* Sleek Scrollbar */
+  body {
+    @apply m-0 font-sans antialiased;
+    font-family: 'Plus Jakarta Sans', 'Segoe UI Variable Text', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
+    min-height: 100vh;
+    background: var(--color-bg);
+    color: var(--color-text);
+    background-image:
+      radial-gradient(circle at top left, rgb(125 211 252 / 0.18), transparent 28%),
+      radial-gradient(circle at top right, rgb(20 184 166 / 0.1), transparent 24%),
+      linear-gradient(180deg, #f7fbff 0%, #f4f8fc 45%, #eef4fa 100%);
+  }
+
   ::-webkit-scrollbar {
-    width: 6px;
-    height: 6px;
+    width: 8px;
+    height: 8px;
   }
 
   ::-webkit-scrollbar-track {
@@ -45,67 +52,66 @@
   }
 
   ::-webkit-scrollbar-thumb {
-    @apply bg-neutral-300 rounded-full hover:bg-neutral-400 transition-colors;
+    @apply rounded-full bg-neutral-300/90 transition-colors hover:bg-neutral-400;
   }
 }
 
 @layer components {
-
-  /* Glassmorphism */
   .glass {
-    @apply bg-surface/70 backdrop-blur-md;
-    border: 1px solid rgba(255, 255, 255, 0.8);
+    @apply bg-surface/80 backdrop-blur-xl;
+    border: 1px solid rgb(255 255 255 / 0.88);
   }
 
-  /* Card */
   .card {
-    @apply bg-surface rounded-2xl shadow-soft;
+    @apply rounded-3xl bg-surface shadow-soft;
+    border: 1px solid rgb(255 255 255 / 0.88);
   }
 
-  /* Buttons */
+  .panel {
+    @apply rounded-3xl bg-surface/95 shadow-soft backdrop-blur-xl;
+    border: 1px solid rgb(255 255 255 / 0.92);
+  }
+
   .btn-primary {
-    @apply px-5 py-2.5 bg-primary text-white rounded-xl font-medium;
-    @apply transition-all duration-200 ease-out;
-    @apply hover:shadow-lg hover:bg-primary-hover hover:scale-[1.02];
-    @apply active:scale-[0.98];
-    @apply disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100;
+    @apply rounded-2xl bg-primary px-5 py-2.5 font-medium text-white;
+    @apply transition-all duration-200 ease-out hover:-translate-y-0.5 hover:bg-primary-hover hover:shadow-glow;
+    @apply active:translate-y-0 active:scale-[0.98];
+    @apply disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:translate-y-0 disabled:hover:scale-100;
   }
 
   .btn-ghost {
-    @apply px-4 py-2 text-neutral-500 rounded-xl font-medium transition-all duration-200;
-    @apply hover:bg-neutral-100 hover:text-text;
+    @apply rounded-2xl px-4 py-2 font-medium text-neutral-500 transition-all duration-200;
+    @apply hover:bg-white/80 hover:text-text;
   }
 
-  /* Inputs */
   .input {
-    @apply w-full px-4 py-3 bg-surface border border-neutral-200 rounded-xl;
-    @apply text-text placeholder:text-neutral-400;
-    @apply transition-all duration-200;
-    @apply focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary;
-    @apply disabled:bg-neutral-50 disabled:cursor-not-allowed;
+    @apply w-full rounded-3xl border border-neutral-200/90 bg-white/95 px-4 py-3.5 text-text;
+    @apply placeholder:text-neutral-400 transition-all duration-200;
+    @apply focus:border-primary focus:outline-none focus:ring-4 focus:ring-primary/10;
+    @apply disabled:cursor-not-allowed disabled:bg-neutral-50;
+    box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.9);
   }
 
-  /* Animations */
   .animate-fade-in {
-    animation: fadeIn 0.3s ease-out;
+    animation: fadeIn 0.28s ease-out;
   }
 
   .animate-slide-up {
-    animation: slideUp 0.3s ease-out;
+    animation: slideUp 0.28s ease-out;
   }
 
   .animate-scale-in {
     animation: scaleIn 0.2s ease-out;
   }
 
-  @keyframes fadeIn {
-    from {
-      opacity: 0;
-    }
+  .cursor-blink {
+    @apply ml-0.5 inline-block h-4 w-1.5 rounded-sm bg-primary;
+    animation: blink 1s infinite;
+  }
 
-    to {
-      opacity: 1;
-    }
+  @keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
   }
 
   @keyframes slideUp {
@@ -123,7 +129,7 @@
   @keyframes scaleIn {
     from {
       opacity: 0;
-      transform: scale(0.95);
+      transform: scale(0.96);
     }
 
     to {
@@ -132,21 +138,12 @@
     }
   }
 
-  /* Cursor Blink */
-  .cursor-blink {
-    @apply inline-block w-1.5 h-4 bg-primary ml-0.5 rounded-sm;
-    animation: blink 1s infinite;
-  }
-
   @keyframes blink {
-
-    0%,
-    50% {
+    0%, 50% {
       opacity: 1;
     }
 
-    51%,
-    100% {
+    51%, 100% {
       opacity: 0;
     }
   }
@@ -181,12 +178,12 @@
   }
 
   .message-markdown p {
-    line-height: 1.75;
+    line-height: 1.8;
   }
 
   .message-markdown p:has(> strong:only-child) {
     margin-bottom: 0.7rem;
-    border-left: 4px solid rgb(124 58 237 / 0.7);
+    border-left: 4px solid rgb(37 99 235 / 0.72);
     padding-left: 0.75rem;
     font-size: 1rem;
     font-weight: 700;
@@ -204,15 +201,16 @@
 
   .message-markdown code {
     border-radius: 0.45rem;
-    background: rgb(124 58 237 / 0.08);
+    background: rgb(37 99 235 / 0.08);
     padding: 0.12rem 0.38rem;
     font-size: 0.92em;
+    color: rgb(29 78 216);
   }
 
   .message-markdown pre {
     overflow-x: auto;
-    border-radius: 0.95rem;
-    background: rgb(15 23 42 / 0.92);
+    border-radius: 1rem;
+    background: linear-gradient(180deg, rgb(15 23 42 / 0.96), rgb(30 41 59 / 0.96));
     padding: 0.95rem 1rem;
     color: #e2e8f0;
   }
@@ -224,10 +222,11 @@
   }
 
   .message-markdown blockquote {
-    border-left: 3px solid rgb(124 58 237 / 0.28);
-    background: rgb(124 58 237 / 0.05);
-    padding: 0.7rem 0.9rem;
+    border-left: 3px solid rgb(20 184 166 / 0.32);
+    background: linear-gradient(180deg, rgb(20 184 166 / 0.08), rgb(37 99 235 / 0.03));
+    padding: 0.75rem 0.95rem;
     color: rgb(71 85 105);
+    border-radius: 0.9rem;
   }
 
   .message-markdown table {
@@ -236,20 +235,20 @@
     overflow-x: auto;
     border-collapse: separate;
     border-spacing: 0;
-    border: 1px solid rgb(226 232 240);
+    border: 1px solid rgb(219 229 240);
     border-radius: 0.95rem;
     background: rgb(255 255 255 / 0.98);
-    box-shadow: 0 10px 20px -18px rgb(15 23 42 / 0.4);
+    box-shadow: 0 16px 30px -24px rgb(15 23 42 / 0.4);
   }
 
   .message-markdown thead {
-    background: linear-gradient(180deg, rgb(248 250 252 / 1), rgb(241 245 249 / 1));
+    background: linear-gradient(180deg, rgb(248 251 254 / 1), rgb(238 244 250 / 1));
   }
 
   .message-markdown th,
   .message-markdown td {
     min-width: 5rem;
-    border-bottom: 1px solid rgb(226 232 240);
+    border-bottom: 1px solid rgb(219 229 240);
     padding: 0.78rem 0.9rem;
     text-align: left;
     vertical-align: top;
@@ -270,11 +269,11 @@
 
   .message-markdown th + th,
   .message-markdown td + td {
-    border-left: 1px solid rgb(226 232 240);
+    border-left: 1px solid rgb(219 229 240);
   }
 
   .message-markdown tbody tr:nth-child(even) {
-    background: rgb(248 250 252 / 0.72);
+    background: rgb(248 251 254 / 0.8);
   }
 
   .message-markdown tbody tr:last-child td {
@@ -290,7 +289,7 @@
 
   .message-markdown td:nth-child(2) {
     font-weight: 700;
-    color: rgb(79 70 229);
+    color: rgb(29 78 216);
   }
 
   .message-markdown th:last-child,
@@ -301,7 +300,7 @@
   .message-markdown a {
     color: var(--color-primary);
     text-decoration: underline;
-    text-decoration-color: rgb(124 58 237 / 0.28);
+    text-decoration-color: rgb(37 99 235 / 0.28);
     text-underline-offset: 0.16rem;
   }
 
@@ -311,5 +310,19 @@
 }
 
 #app {
-  @apply w-screen h-screen overflow-hidden;
+  width: 100%;
+  height: 100dvh;
+  min-height: 100dvh;
+  overflow: hidden;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+  }
 }

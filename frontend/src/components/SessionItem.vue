@@ -1,30 +1,34 @@
-<!-- 2025-01-07 - 会话项美化：现代卡片设计与交互状态 -->
+<!-- 2026-04-19 23:40 Asia/Shanghai - 会话项更新：轻量卡片层级与清晰选中态 -->
 <template>
   <div
-    class="mx-2 my-2 px-4 py-3.5 cursor-pointer rounded-xl transition-all duration-200 group"
-    :class="isActive ? 'bg-gradient-to-r from-primary/10 to-secondary/10 border border-primary/20 shadow-sm' : 'hover:bg-neutral-50 border border-transparent'"
+    class="group relative cursor-pointer rounded-[22px] border px-4 py-3.5 transition-all duration-200"
+    :class="isActive ? 'border-primary/20 bg-gradient-to-r from-primary/10 via-white to-accent/10 shadow-soft' : 'border-transparent bg-white/60 hover:border-neutral-200 hover:bg-white/90'"
     @click="handleClick"
   >
-    <div class="flex justify-between items-start gap-3">
-      <div class="flex-1 min-w-0">
+    <div
+      class="absolute inset-y-3 left-0 w-1 rounded-full transition-all duration-200"
+      :class="isActive ? 'bg-primary' : 'bg-transparent group-hover:bg-neutral-200'"
+    ></div>
+    <div class="flex items-start justify-between gap-3">
+      <div class="min-w-0 flex-1">
         <div class="flex items-center gap-2">
           <div
-            class="w-2 h-2 rounded-full transition-colors duration-200"
+            class="h-2.5 w-2.5 rounded-full transition-colors duration-200"
             :class="isActive ? 'bg-primary shadow-glow' : 'bg-neutral-300'"
           ></div>
-          <h4 class="text-sm font-semibold truncate" :class="isActive ? 'text-primary' : 'text-neutral-700'">
+          <h4 class="truncate text-sm font-semibold" :class="isActive ? 'text-primary' : 'text-neutral-700'">
             {{ session.title }}
           </h4>
         </div>
-        <div class="text-xs mt-2 space-y-1" :class="isActive ? 'text-primary/70' : 'text-neutral-500'">
+        <div class="mt-2 space-y-1.5 text-xs" :class="isActive ? 'text-primary/70' : 'text-neutral-500'">
           <p class="flex items-center gap-1.5">
-            <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
             {{ formattedUpdatedAt }}
           </p>
           <p class="flex items-center gap-1.5">
-            <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
             </svg>
             {{ session.message_count }} 条消息
@@ -33,9 +37,9 @@
       </div>
       <button
         @click.stop="handleDelete"
-        class="opacity-0 group-hover:opacity-100 p-1.5 rounded-lg transition-all duration-200 hover:bg-red-50 hover:text-red-500 text-neutral-400"
+        class="rounded-xl p-2 text-neutral-400 transition-all duration-200 hover:bg-red-50 hover:text-red-500 opacity-100 lg:opacity-0 lg:group-hover:opacity-100"
       >
-        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
         </svg>
       </button>
@@ -61,12 +65,11 @@ const emit = defineEmits<{
   delete: [sessionId: string]
 }>()
 
-const { formatFullDateTime } = useDateFormat()
+const { formatFullDateTime, parseServerDate } = useDateFormat()
 const { confirm } = useConfirmation()
 
-// 格式化更新时间
 const formattedUpdatedAt = computed(() => {
-  const date = new Date(props.session.updated_at)
+  const date = parseServerDate(props.session.updated_at)
   const now = new Date()
   const diffMs = now.getTime() - date.getTime()
   const diffMins = Math.floor(diffMs / 60000)

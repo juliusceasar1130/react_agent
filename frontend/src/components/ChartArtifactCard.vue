@@ -35,6 +35,7 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import * as echarts from 'echarts'
 import { getChartArtifactApi } from '@/api/charts'
+import { useDateFormat } from '@/composables/useDateFormat'
 import type { ChartArtifact, ChartArtifactRef, ChartArtifactSeries } from '@/types'
 
 interface Props {
@@ -47,6 +48,7 @@ const chartRef = ref<HTMLDivElement | null>(null)
 const artifact = ref<ChartArtifact | null>(null)
 const loading = ref(false)
 const error = ref<string | null>(null)
+const { parseServerDate } = useDateFormat()
 let chartInstance: echarts.ECharts | null = null
 
 const toKey = (value: string | number | null | undefined) => String(value ?? '')
@@ -132,7 +134,7 @@ const option = computed<echarts.EChartsOption | null>(() => {
 })
 
 const formatDateTime = (value: string) => {
-  const date = new Date(value)
+  const date = parseServerDate(value)
   return Number.isNaN(date.getTime()) ? value : date.toLocaleString('zh-CN')
 }
 

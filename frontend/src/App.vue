@@ -1,5 +1,5 @@
 <template>
-  <div id="app" class="h-screen w-screen bg-background text-text flex overflow-hidden">
+  <div id="app" class="flex h-[100dvh] w-full overflow-hidden bg-background text-text">
     <ChatView />
   </div>
 </template>

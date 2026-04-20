@@ -1,4 +1,4 @@
-/** 2025-01-07 - Tailwind 配置升级：支持自定义颜色与阴影 */
+/** 2026-04-19 23:40 Asia/Shanghai - 主题更新：切换为明亮卡片式聊天工作台 */
 /** @type {import('tailwindcss').Config} */
 export default {
   content: [
@@ -7,35 +7,33 @@ export default {
   ],
   theme: {
     extend: {
-      // Neural Tones + AI Purple System
       colors: {
-        // Neural Tones + AI Purple System
         primary: {
-          DEFAULT: '#7C3AED', // Violet 600
-          hover: '#6D28D9',
-          light: '#A78BFA', // Violet 400
+          DEFAULT: '#2563EB',
+          hover: '#1D4ED8',
+          light: '#60A5FA',
         },
-        secondary: '#A78BFA',
-        accent: '#06B6D4', // Cyan 500
-        background: '#FAF5FF', // Purple 50 (Light Neural)
+        secondary: '#7DD3FC',
+        accent: '#14B8A6',
+        background: '#F4F8FC',
         surface: '#FFFFFF',
-        text: '#1E1B4B', // Indigo 950
+        text: '#0F172A',
         neutral: {
-          50: '#F8FAFC',
-          100: '#F1F5F9',
-          200: '#E2E8F0',
-          300: '#CBD5E1',
-          400: '#94A3B8',
-          500: '#64748B',
-          600: '#475569',
-          700: '#334155',
+          50: '#F8FBFE',
+          100: '#EEF4FA',
+          200: '#DBE5F0',
+          300: '#C4D4E3',
+          400: '#8CA0B3',
+          500: '#60758A',
+          600: '#4B6075',
+          700: '#34475B',
           800: '#1E293B',
           900: '#0F172A',
         },
       },
       boxShadow: {
-        'soft': '0 2px 15px -3px rgb(0 0 0 / 0.07), 0 10px 20px -2px rgb(0 0 0 / 0.04)',
-        'glow': '0 0 20px -5px rgb(99 102 241 / 0.3)',
+        'soft': '0 18px 40px -28px rgb(15 23 42 / 0.28), 0 8px 18px -12px rgb(37 99 235 / 0.12)',
+        'glow': '0 18px 45px -24px rgb(37 99 235 / 0.35)',
       },
       borderRadius: {
         '2xl': '1rem',

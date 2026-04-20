@@ -1,16 +1,16 @@
-<!-- 2026-04-01 22:55 Asia/Shanghai - 默认仅展示最终结论，完成态支持 Markdown 渲染 -->
+<!-- 2026-04-19 23:40 Asia/Shanghai - 消息气泡更新：统一卡片层级与现代阅读体验 -->
 <template>
   <div
     class="flex animate-slide-up"
     :class="isUser ? 'justify-end' : 'justify-start'"
   >
     <div
-      class="max-w-[75%] rounded-2xl shadow-sm transition-all duration-200"
+      class="w-full max-w-[86%] rounded-[24px] shadow-sm transition-all duration-200 sm:max-w-[78%]"
       :class="messageWrapperClass"
     >
       <div
         v-if="isInterruptedMessage && !isUser"
-        class="px-5 pt-3 text-xs font-medium tracking-wide text-amber-600"
+        class="px-5 pt-3 text-xs font-medium tracking-wide text-amber-700"
       >
         已停止生成
       </div>
@@ -26,7 +26,7 @@
       <div class="px-5 py-3.5">
         <p
           v-if="isUser || isStreamingActive"
-          class="text-[15px] leading-relaxed whitespace-pre-wrap break-words"
+          class="whitespace-pre-wrap break-words text-[15px] leading-7"
           :class="textClass"
         >
           <template v-if="isStreamingActive">
@@ -39,7 +39,7 @@
         </p>
         <div
           v-else
-          class="message-markdown text-[15px] leading-relaxed break-words"
+          class="message-markdown break-words text-[15px] leading-relaxed"
           :class="textClass"
           v-html="renderedContent"
         ></div>
@@ -47,12 +47,12 @@
 
       <div
         v-if="!isUser && exportArtifacts.length > 0"
-        class="px-4 pb-3 space-y-3"
+        class="space-y-3 px-4 pb-3"
       >
         <div
           v-for="artifact in exportArtifacts"
           :key="artifact.file_id"
-          class="rounded-2xl border border-emerald-200 bg-gradient-to-br from-emerald-50 to-white px-4 py-3 shadow-sm"
+          class="rounded-[22px] border border-emerald-200 bg-gradient-to-br from-emerald-50 via-white to-emerald-50/50 px-4 py-3 shadow-sm"
         >
           <div class="flex items-start justify-between gap-4">
             <div class="min-w-0">
@@ -82,7 +82,7 @@
 
             <button
               type="button"
-              class="shrink-0 rounded-xl bg-emerald-600 px-3 py-2 text-sm font-medium text-white transition hover:bg-emerald-700"
+              class="shrink-0 rounded-2xl bg-emerald-600 px-3 py-2 text-sm font-medium text-white transition hover:bg-emerald-700"
               @click="handleExportDownload(artifact.file_id)"
             >
               下载 CSV
@@ -93,7 +93,7 @@
 
       <div
         v-if="!isUser && chartArtifacts.length > 0"
-        class="px-4 pb-3 space-y-3"
+        class="space-y-3 px-4 pb-3"
       >
         <ChartArtifactCard
           v-for="artifact in chartArtifacts"
@@ -104,12 +104,12 @@
 
       <div
         v-if="showDebugDetails && !isUser && toolCallList.length > 0"
-        class="px-4 pb-3 space-y-2"
+        class="space-y-2 px-4 pb-3"
       >
         <div
           v-for="tool in toolCallList"
           :key="tool.id"
-          class="rounded-xl border border-primary/15 bg-white/60 px-3 py-2 text-xs text-neutral-600"
+          class="rounded-2xl border border-primary/15 bg-white/70 px-3 py-2 text-xs text-neutral-600"
         >
           <div class="flex items-center justify-between gap-3">
             <span class="font-medium text-primary">{{ tool.name }}</span>
@@ -125,12 +125,12 @@
 
       <div
         v-if="showDebugDetails && !isUser && toolResultEntries.length > 0"
-        class="px-4 pb-3 space-y-2"
+        class="space-y-2 px-4 pb-3"
       >
         <details
           v-for="toolResult in toolResultEntries"
           :key="toolResult.id"
-          class="rounded-xl border border-neutral-200 bg-surface/80 px-3 py-2 text-xs text-neutral-600"
+          class="rounded-2xl border border-neutral-200 bg-surface/90 px-3 py-2 text-xs text-neutral-600"
         >
           <summary class="cursor-pointer select-none font-medium text-neutral-700">
             工具结果 {{ toolResult.id }}
@@ -149,10 +149,10 @@
       </div>
 
       <div
-        class="px-4 pb-2.5 pt-0 flex items-center justify-end gap-1.5"
+        class="flex items-center justify-end gap-1.5 px-4 pb-2.5 pt-0"
         :class="timeClass"
       >
-        <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <svg class="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
         </svg>
         <span class="text-xs">{{ formattedTime }}</span>
@@ -187,7 +187,7 @@ interface ToolResultEntry {
 
 const props = defineProps<Props>()
 
-const { formatTime } = useDateFormat()
+const { formatTime, parseServerDate } = useDateFormat()
 
 const parseJson = <T,>(value?: string | null): T | null => {
   if (!value) return null
@@ -323,7 +323,7 @@ const formatFileSize = (sizeBytes: number) => {
 }
 
 const formatDateTime = (value: string) => {
-  const date = new Date(value)
+  const date = parseServerDate(value)
   return Number.isNaN(date.getTime()) ? value : date.toLocaleString('zh-CN')
 }
 
@@ -345,38 +345,35 @@ const toolStatusText = (tool: StreamToolCall) => {
     case 'started':
       return '已开始'
     default:
-        return '执行中'
+      return '执行中'
   }
 }
 
 const messageWrapperClass = computed(() => {
   if (isUser.value) {
-    return 'bg-gradient-to-br from-primary to-primary-hover'
+    return 'border border-primary/15 bg-[#eaf2ff] shadow-sm'
   }
   if (errorText.value) {
-    return 'bg-gradient-to-br from-red-50 to-white border border-red-200'
+    return 'border border-red-200 bg-gradient-to-br from-red-50 to-white'
   }
   if (isInterruptedMessage.value) {
-    return 'bg-gradient-to-br from-amber-50 to-white border border-amber-200'
+    return 'border border-amber-200 bg-gradient-to-br from-amber-50 to-white'
   }
   if (streamingState.value) {
-    return 'bg-gradient-to-br from-primary/5 to-secondary/5 border border-primary/20'
+    return 'border border-sky-200 bg-sky-50'
   }
-  return 'bg-surface border border-neutral-200'
+  return 'border border-neutral-200/90 bg-white/95 shadow-sm'
 })
 
 const textClass = computed(() => {
   if (isUser.value) {
-    return 'text-white font-medium'
+    return 'font-medium text-slate-800'
   }
   if (errorText.value) {
     return 'text-red-700'
   }
   if (isInterruptedMessage.value) {
     return 'text-amber-800'
-  }
-  if (streamingState.value) {
-    return 'text-primary'
   }
   return 'text-text'
 })
@@ -393,7 +390,7 @@ const statusClass = computed(() => {
 
 const timeClass = computed(() => {
   if (isUser.value) {
-    return 'text-white/60'
+    return 'text-slate-400'
   }
   if (errorText.value) {
     return 'text-red-400'

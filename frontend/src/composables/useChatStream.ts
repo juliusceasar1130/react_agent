@@ -30,7 +30,7 @@ export function useChatStream() {
   const sessionsStore = useSessionsStore()
 
   const isSending = ref(false)
-  const streamMode = ref(false)  // 流式模式开关状态
+  const streamMode = ref(true)  // 流式模式开关状态
   const activeStreamController = ref<AbortController | null>(null)
   const contextWarning = ref<ContextWarningPayload | null>(null)
 
@@ -144,7 +144,7 @@ export function useChatStream() {
 
         case 'status':
           if (event.source === 'context_warning' && event.detail) {
-            contextWarning.value = event.detail as ContextWarningPayload
+            contextWarning.value = event.detail as unknown as ContextWarningPayload
             return
           }
           messagesStore.updateStreamingStatus(event.stage, event.text)
