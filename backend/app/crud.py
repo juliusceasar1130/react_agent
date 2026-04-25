@@ -1,4 +1,5 @@
 # backend/app/crud.py
+import re
 from sqlalchemy.orm import Session
 from typing import List, Optional
 from datetime import datetime
@@ -7,13 +8,37 @@ from .models import ChatSession, ChatMessage
 from .schemas import SessionCreate, SessionUpdate, MessageCreate
 
 
+DEFAULT_SESSION_TITLE = "新对话"
+LEGACY_PLACEHOLDER_TITLES = {"新会话"}
+SESSION_TITLE_MAX_LENGTH = 30
+
+
+def _is_placeholder_session_title(title: Optional[str]) -> bool:
+    normalized_title = (title or "").strip()
+    return not normalized_title or normalized_title in {
+        DEFAULT_SESSION_TITLE,
+        *LEGACY_PLACEHOLDER_TITLES,
+    }
+
+
+def _build_session_title_from_message(content: str) -> str:
+    normalized = re.sub(r"\s+", " ", content).strip()
+    if not normalized:
+        return DEFAULT_SESSION_TITLE
+
+    if len(normalized) <= SESSION_TITLE_MAX_LENGTH:
+        return normalized
+
+    return f"{normalized[:SESSION_TITLE_MAX_LENGTH - 3].rstrip()}..."
+
+
 # ==================== Session CRUD ====================
 
 
 def create_session(db: Session, session: SessionCreate) -> ChatSession:
     """创建新会话"""
     # 设置默认标题
-    title = session.title if session.title else "新会话"
+    title = session.title if session.title else DEFAULT_SESSION_TITLE
     db_session = ChatSession(title=title)
     db.add(db_session)
     db.commit()
@@ -77,6 +102,18 @@ def create_message(db: Session, message: MessageCreate) -> ChatMessage:
         tool_results=message.tool_results,
     )
     db.add(db_message)
+
+    if message.role == "user" and _is_placeholder_session_title(db_session.title):
+        existing_user_message = (
+            db.query(ChatMessage.id)
+            .filter(
+                ChatMessage.session_id == message.session_id,
+                ChatMessage.role == "user",
+            )
+            .first()
+        )
+        if existing_user_message is None:
+            db_session.title = _build_session_title_from_message(message.content)
 
     # 更新会话的 updated_at 时间
     db_session.updated_at = datetime.now()

@@ -16,7 +16,7 @@ Base = declarative_base()
 class ChatSession(Base):
     __tablename__ = "chat_sessions"
     id = Column(String(36), primary_key=True, index=True, default=generate_uuid)
-    title = Column(String(255), nullable=False, default="新会话")
+    title = Column(String(255), nullable=False, default="新对话")
     created_at = Column(DateTime, nullable=False, default=func.now())
     updated_at = Column(
         DateTime, nullable=False, default=func.now(), onupdate=func.now()
