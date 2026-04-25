@@ -5,7 +5,7 @@
     :class="isUser ? 'justify-end' : 'justify-start'"
   >
     <div
-      class="w-full max-w-[86%] rounded-[24px] shadow-sm transition-all duration-200 sm:max-w-[78%]"
+      class="w-full max-w-[92%] rounded-[24px] shadow-sm transition-all duration-200 sm:max-w-[88%]"
       :class="messageWrapperClass"
     >
       <div

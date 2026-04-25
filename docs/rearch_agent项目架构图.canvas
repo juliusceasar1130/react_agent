@@ -1,0 +1,350 @@
+{
+  "nodes": [
+    {
+      "id": "gfront01",
+      "type": "group",
+      "x": -2440,
+      "y": -640,
+      "width": 1360,
+      "height": 1560,
+      "label": "前端交互层",
+      "color": "5"
+    },
+    {
+      "id": "gback001",
+      "type": "group",
+      "x": -760,
+      "y": -640,
+      "width": 2280,
+      "height": 1560,
+      "label": "后端与 Agent 层",
+      "color": "4"
+    },
+    {
+      "id": "gdata001",
+      "type": "group",
+      "x": 1760,
+      "y": -640,
+      "width": 2020,
+      "height": 1560,
+      "label": "数据与外部依赖",
+      "color": "3"
+    },
+    {
+      "id": "gdev0001",
+      "type": "group",
+      "x": -760,
+      "y": 1120,
+      "width": 4540,
+      "height": 620,
+      "label": "运行与开发入口",
+      "color": "6"
+    },
+    {
+      "id": "u001a1b2",
+      "type": "text",
+      "x": -2280,
+      "y": -120,
+      "width": 260,
+      "height": 120,
+      "color": "1",
+      "text": "# 用户\n浏览器中的聊天会话"
+    },
+    {
+      "id": "f001a1b2",
+      "type": "text",
+      "x": -1900,
+      "y": -380,
+      "width": 420,
+      "height": 220,
+      "color": "5",
+      "text": "## Vue 3 前端\n- 会话管理与消息列表\n- 输入框与会话切换\n- 默认仅展示最终答案\n- Pinia + Vite + TypeScript"
+    },
+    {
+      "id": "f002a1b2",
+      "type": "text",
+      "x": -1900,
+      "y": 80,
+      "width": 420,
+      "height": 240,
+      "color": "5",
+      "text": "## 流式聊天编排\nfrontend/src/api/chat.ts\nfrontend/src/composables/useChatStream.ts\n- 解析 SSE 结构化事件\n- AbortController 停止生成\n- 同步会话与消息"
+    },
+    {
+      "id": "f003a1b2",
+      "type": "text",
+      "x": -1900,
+      "y": 560,
+      "width": 440,
+      "height": 240,
+      "color": "5",
+      "text": "## 消息与图表渲染\nMessageItem.vue\nChartArtifactCard.vue\n- Markdown 最终答案\n- CSV 下载入口\n- chart_id 拉取 ECharts 图表"
+    },
+    {
+      "id": "b001a1b2",
+      "type": "text",
+      "x": -420,
+      "y": -120,
+      "width": 460,
+      "height": 260,
+      "color": "4",
+      "text": "## FastAPI 接口层\nbackend/app/main.py\nbackend/app/api.py\n- /api/chat/message\n- /api/chat/stream\n- /sessions /messages\n- /files/{file_id}\n- /charts/{chart_id}"
+    },
+    {
+      "id": "b002a1b2",
+      "type": "text",
+      "x": 260,
+      "y": -120,
+      "width": 500,
+      "height": 260,
+      "color": "4",
+      "text": "## FastAPI 兼容服务层\nbackend/app/services.py\n- initialize / get / shutdown\n- 聚合 token、tool、final、error\n- 为 LangSmith 追加 metadata / tags"
+    },
+    {
+      "id": "b003a1b2",
+      "type": "text",
+      "x": 940,
+      "y": -180,
+      "width": 500,
+      "height": 360,
+      "color": "4",
+      "text": "## SQLAgent Core\nbackend/app/agent/service.py\n- create_agent 装配模型、工具与中间件\n- 本地 FastAPI 模式手动创建 checkpointer\n- LangGraph 托管模式走 build_agent_graph\n- thread_id 绑定 session_id"
+    },
+    {
+      "id": "b004a1b2",
+      "type": "text",
+      "x": 260,
+      "y": 420,
+      "width": 540,
+      "height": 300,
+      "color": "4",
+      "text": "## 工具与中间件\nbackend/app/agent/tools/*\nbackend/app/agent/middleware/*\nbackend/app/skills/registry.py\n- SQLDatabaseToolkit + 包装查询\n- Skill / ContextWarning / BusinessRag / Summarization\n- build_chart_artifact / export_to_csv / SQL 示例检索"
+    },
+    {
+      "id": "b005a1b2",
+      "type": "text",
+      "x": 940,
+      "y": 460,
+      "width": 520,
+      "height": 280,
+      "color": "4",
+      "text": "## 会话与状态持久化\nbackend/app/database.py\nbackend/app/models.py\n- chat_sessions / chat_messages\n- AsyncPostgresSaver / PostgresSaver\n- FastAPI 生命周期中初始化与关闭"
+    },
+    {
+      "id": "d001a1b2",
+      "type": "text",
+      "x": 1980,
+      "y": -260,
+      "width": 460,
+      "height": 280,
+      "color": "3",
+      "text": "## 业务数据库\nanalytics_db 或 rollerbed 源库\nMaterializedViewSQLDatabase\n- 注入表注释与 schema 信息\n- 提供 SQL 查询与统计结果"
+    },
+    {
+      "id": "d002a1b2",
+      "type": "text",
+      "x": 1980,
+      "y": 260,
+      "width": 500,
+      "height": 320,
+      "color": "3",
+      "text": "## RAG 知识检索\nbackend/app/agent/vector/*\n- pgvector 或 Milvus Hybrid\n- embedding provider\n- 可选 NVIDIA Rerank\n- 为业务问答与 SQL 示例提供补充上下文"
+    },
+    {
+      "id": "d003a1b2",
+      "type": "text",
+      "x": 2740,
+      "y": -260,
+      "width": 420,
+      "height": 260,
+      "color": "3",
+      "text": "## 大模型服务\n默认 DeepSeek / ChatOpenAI\n可切换 Ollama\n- llm_timeout\n- max_retries\n- agent_max_tokens"
+    },
+    {
+      "id": "d004a1b2",
+      "type": "text",
+      "x": 2740,
+      "y": 260,
+      "width": 520,
+      "height": 320,
+      "color": "3",
+      "text": "## Artifact 与下载存储\nbackend/app/chart_artifacts.py\nbackend/app/export_files.py\n- chart_id / file_id 注册\n- TTL 过期控制\n- 前端通过 ID 安全读取"
+    },
+    {
+      "id": "r001a1b2",
+      "type": "text",
+      "x": -420,
+      "y": 1260,
+      "width": 540,
+      "height": 220,
+      "color": "6",
+      "text": "## 本地运行入口\nrun_backend.py -> backend/app/main.py\nstartup:\n- create_tables()\n- initialize_agent_service()\nshutdown:\n- shutdown_agent_service()"
+    },
+    {
+      "id": "r002a1b2",
+      "type": "text",
+      "x": 520,
+      "y": 1260,
+      "width": 520,
+      "height": 220,
+      "color": "6",
+      "text": "## LangGraph Dev 入口\nlanggraph.json\nagent = backend/app/agent/service.py:build_agent_graph\n- 托管模式不显式绑定 checkpointer / store"
+    },
+    {
+      "id": "r003a1b2",
+      "type": "text",
+      "x": 1460,
+      "y": 1260,
+      "width": 520,
+      "height": 220,
+      "color": "6",
+      "text": "## 文档入口\nREADME.md\n- 功能概览\n- 环境变量\n- 前后端启动方式\n- Docker 部署说明"
+    }
+  ],
+  "edges": [
+    {
+      "id": "e001a1b2",
+      "fromNode": "u001a1b2",
+      "fromSide": "right",
+      "toNode": "f001a1b2",
+      "toSide": "left",
+      "toEnd": "arrow",
+      "label": "使用界面"
+    },
+    {
+      "id": "e002a1b2",
+      "fromNode": "f001a1b2",
+      "fromSide": "bottom",
+      "toNode": "f002a1b2",
+      "toSide": "top",
+      "toEnd": "arrow",
+      "label": "发送消息"
+    },
+    {
+      "id": "e003a1b2",
+      "fromNode": "f002a1b2",
+      "fromSide": "right",
+      "toNode": "b001a1b2",
+      "toSide": "left",
+      "toEnd": "arrow",
+      "label": "REST / SSE"
+    },
+    {
+      "id": "e004a1b2",
+      "fromNode": "f002a1b2",
+      "fromSide": "bottom",
+      "toNode": "f003a1b2",
+      "toSide": "top",
+      "toEnd": "arrow",
+      "label": "更新 UI"
+    },
+    {
+      "id": "e005a1b2",
+      "fromNode": "b001a1b2",
+      "fromSide": "right",
+      "toNode": "b002a1b2",
+      "toSide": "left",
+      "toEnd": "arrow",
+      "label": "调用服务"
+    },
+    {
+      "id": "e006a1b2",
+      "fromNode": "b002a1b2",
+      "fromSide": "right",
+      "toNode": "b003a1b2",
+      "toSide": "left",
+      "toEnd": "arrow",
+      "label": "invoke / astream"
+    },
+    {
+      "id": "e007a1b2",
+      "fromNode": "b003a1b2",
+      "fromSide": "bottom",
+      "toNode": "b004a1b2",
+      "toSide": "top",
+      "toEnd": "arrow",
+      "label": "装配工具与中间件"
+    },
+    {
+      "id": "e008a1b2",
+      "fromNode": "b003a1b2",
+      "fromSide": "bottom",
+      "toNode": "b005a1b2",
+      "toSide": "top",
+      "toEnd": "arrow",
+      "label": "会话状态"
+    },
+    {
+      "id": "e009a1b2",
+      "fromNode": "b004a1b2",
+      "fromSide": "right",
+      "toNode": "d001a1b2",
+      "toSide": "left",
+      "toEnd": "arrow",
+      "label": "SQL 查询"
+    },
+    {
+      "id": "e010a1b2",
+      "fromNode": "b004a1b2",
+      "fromSide": "right",
+      "toNode": "d002a1b2",
+      "toSide": "left",
+      "toEnd": "arrow",
+      "label": "知识检索"
+    },
+    {
+      "id": "e011a1b2",
+      "fromNode": "b003a1b2",
+      "fromSide": "right",
+      "toNode": "d003a1b2",
+      "toSide": "left",
+      "toEnd": "arrow",
+      "label": "LLM 调用"
+    },
+    {
+      "id": "e012a1b2",
+      "fromNode": "b004a1b2",
+      "fromSide": "right",
+      "toNode": "d004a1b2",
+      "toSide": "left",
+      "toEnd": "arrow",
+      "label": "生成 chart / csv"
+    },
+    {
+      "id": "e013a1b2",
+      "fromNode": "d004a1b2",
+      "fromSide": "left",
+      "toNode": "f003a1b2",
+      "toSide": "right",
+      "toEnd": "arrow",
+      "label": "按 ID 拉取并展示"
+    },
+    {
+      "id": "e014a1b2",
+      "fromNode": "r001a1b2",
+      "fromSide": "top",
+      "toNode": "b001a1b2",
+      "toSide": "bottom",
+      "toEnd": "arrow",
+      "label": "本地 FastAPI"
+    },
+    {
+      "id": "e015a1b2",
+      "fromNode": "r002a1b2",
+      "fromSide": "top",
+      "toNode": "b003a1b2",
+      "toSide": "bottom",
+      "toEnd": "arrow",
+      "label": "LangGraph Dev"
+    },
+    {
+      "id": "e016a1b2",
+      "fromNode": "r003a1b2",
+      "fromSide": "top",
+      "toNode": "b003a1b2",
+      "toSide": "bottom",
+      "toEnd": "arrow",
+      "label": "阅读入口"
+    }
+  ]
+}

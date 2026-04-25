@@ -89,7 +89,7 @@
       <div class="relative flex min-h-0 flex-1 flex-col px-3 pb-3 pt-3 sm:px-5 lg:px-8 lg:pb-6">
         <div
           v-if="currentSession && contextWarning"
-          class="animate-fade-in mx-auto mb-3 w-full max-w-4xl rounded-[22px] border border-amber-200/80 bg-amber-50/95 px-4 py-3 text-sm text-amber-900 shadow-sm"
+          class="animate-fade-in mx-auto mb-3 w-full max-w-5xl rounded-[22px] border border-amber-200/80 bg-amber-50/95 px-4 py-3 text-sm text-amber-900 shadow-sm"
         >
           <p class="font-semibold">当前上下文已接近安全阈值，建议新建对话。</p>
           <p class="mt-1 text-amber-800/90">
@@ -105,7 +105,7 @@
         v-if="currentSession"
         class="relative z-10 border-t border-white/70 bg-white/60 px-3 pb-[calc(env(safe-area-inset-bottom,0px)+0.5rem)] pt-2 backdrop-blur-xl sm:px-5 lg:px-8 lg:pt-3"
       >
-        <div class="mx-auto w-full max-w-4xl panel p-2.5 sm:p-3">
+        <div class="mx-auto w-full max-w-5xl panel p-2.5 sm:p-3">
           <div class="mb-2 flex flex-col gap-1.5 sm:flex-row sm:items-center sm:justify-between">
             <ToggleSwitch
               v-model="streamMode"

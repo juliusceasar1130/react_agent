@@ -12,7 +12,7 @@
         <p class="mt-1 text-sm text-neutral-500">发送一条消息，和 AI 助手一起推进当前任务。</p>
       </div>
     </div>
-    <div v-else class="mx-auto flex w-full max-w-4xl flex-col gap-5 px-1 py-2 sm:px-0">
+    <div v-else class="mx-auto flex w-full max-w-5xl flex-col gap-5 px-1 py-2 sm:px-0">
       <MessageItem
         v-for="message in messages"
         :key="message.id"
