@@ -2,7 +2,7 @@
 <template>
   <div
     class="group relative cursor-pointer rounded-[22px] border px-4 py-3.5 transition-all duration-200"
-    :class="isActive ? 'border-primary/20 bg-gradient-to-r from-primary/10 via-white to-accent/10 shadow-soft' : 'border-transparent bg-white/60 hover:border-neutral-200 hover:bg-white/90'"
+    :class="isActive ? 'border-primary/20 bg-white/95 shadow-sm' : 'border-transparent bg-white/60 hover:border-neutral-200 hover:bg-white/95'"
     @click="handleClick"
   >
     <div
@@ -14,13 +14,13 @@
         <div class="flex items-center gap-2">
           <div
             class="h-2.5 w-2.5 rounded-full transition-colors duration-200"
-            :class="isActive ? 'bg-primary shadow-glow' : 'bg-neutral-300'"
+            :class="isActive ? 'bg-primary' : 'bg-neutral-300'"
           ></div>
           <h4 class="truncate text-sm font-semibold" :class="isActive ? 'text-primary' : 'text-neutral-700'">
             {{ session.title }}
           </h4>
         </div>
-        <div class="mt-2 space-y-1.5 text-xs" :class="isActive ? 'text-primary/70' : 'text-neutral-500'">
+        <div class="mt-2 space-y-1.5 text-xs text-neutral-600">
           <p class="flex items-center gap-1.5">
             <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />

@@ -10,17 +10,17 @@
     --color-secondary: #7dd3fc;
     --color-accent: #14b8a6;
 
-    --color-bg: #f4f8fc;
-    --color-bg-alt: #ebf3fb;
+    --color-bg: #f6f7f9;
+    --color-bg-alt: #eef1f5;
     --color-surface: #ffffff;
     --color-text: #0f172a;
-    --color-text-muted: #60758a;
+    --color-text-muted: #4f6478;
 
-    --shadow-sm: 0 8px 20px -14px rgb(15 23 42 / 0.12);
-    --shadow-md: 0 20px 40px -28px rgb(15 23 42 / 0.18), 0 10px 20px -16px rgb(37 99 235 / 0.1);
-    --shadow-lg: 0 32px 60px -36px rgb(15 23 42 / 0.24), 0 18px 32px -24px rgb(37 99 235 / 0.12);
-    --shadow-xl: 0 40px 80px -42px rgb(15 23 42 / 0.3);
-    --shadow-glow: 0 22px 48px -28px rgb(37 99 235 / 0.45);
+    --shadow-sm: 0 8px 18px -14px rgb(15 23 42 / 0.11);
+    --shadow-md: 0 18px 36px -28px rgb(15 23 42 / 0.16), 0 8px 18px -16px rgb(37 99 235 / 0.06);
+    --shadow-lg: 0 30px 54px -36px rgb(15 23 42 / 0.22), 0 14px 28px -24px rgb(37 99 235 / 0.08);
+    --shadow-xl: 0 36px 72px -42px rgb(15 23 42 / 0.26);
+    --shadow-glow: 0 18px 40px -26px rgb(37 99 235 / 0.34);
 
     --transition-fast: 150ms cubic-bezier(0.4, 0, 0.2, 1);
     --transition-normal: 200ms cubic-bezier(0.4, 0, 0.2, 1);
@@ -37,9 +37,9 @@
     background: var(--color-bg);
     color: var(--color-text);
     background-image:
-      radial-gradient(circle at top left, rgb(125 211 252 / 0.18), transparent 28%),
-      radial-gradient(circle at top right, rgb(20 184 166 / 0.1), transparent 24%),
-      linear-gradient(180deg, #f7fbff 0%, #f4f8fc 45%, #eef4fa 100%);
+      radial-gradient(circle at top left, rgb(148 163 184 / 0.08), transparent 28%),
+      radial-gradient(circle at top right, rgb(20 184 166 / 0.05), transparent 24%),
+      linear-gradient(180deg, #fbfcfd 0%, #f6f7f9 48%, #eef1f5 100%);
   }
 
   ::-webkit-scrollbar {
@@ -69,7 +69,7 @@
 
   .panel {
     @apply rounded-3xl bg-surface/95 shadow-soft backdrop-blur-xl;
-    border: 1px solid rgb(255 255 255 / 0.92);
+    border: 1px solid rgb(226 232 240 / 0.82);
   }
 
   .btn-primary {
@@ -85,9 +85,9 @@
   }
 
   .input {
-    @apply w-full rounded-3xl border border-neutral-200/90 bg-white/95 px-4 py-3.5 text-text;
-    @apply placeholder:text-neutral-400 transition-all duration-200;
-    @apply focus:border-primary focus:outline-none focus:ring-4 focus:ring-primary/10;
+    @apply w-full rounded-3xl border border-neutral-200 bg-white px-4 py-3.5 text-text;
+    @apply placeholder:text-neutral-500 transition-all duration-200;
+    @apply focus:border-primary/80 focus:outline-none focus:ring-4 focus:ring-primary/10;
     @apply disabled:cursor-not-allowed disabled:bg-neutral-50;
     box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.9);
   }
@@ -223,7 +223,7 @@
 
   .message-markdown blockquote {
     border-left: 3px solid rgb(20 184 166 / 0.32);
-    background: linear-gradient(180deg, rgb(20 184 166 / 0.08), rgb(37 99 235 / 0.03));
+    background: linear-gradient(180deg, rgb(20 184 166 / 0.06), rgb(241 245 249 / 0.7));
     padding: 0.75rem 0.95rem;
     color: rgb(71 85 105);
     border-radius: 0.9rem;
@@ -242,7 +242,7 @@
   }
 
   .message-markdown thead {
-    background: linear-gradient(180deg, rgb(248 251 254 / 1), rgb(238 244 250 / 1));
+    background: linear-gradient(180deg, rgb(250 251 252 / 1), rgb(241 245 249 / 1));
   }
 
   .message-markdown th,
@@ -273,7 +273,7 @@
   }
 
   .message-markdown tbody tr:nth-child(even) {
-    background: rgb(248 251 254 / 0.8);
+    background: rgb(248 250 252 / 0.82);
   }
 
   .message-markdown tbody tr:last-child td {

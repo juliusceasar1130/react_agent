@@ -1,5 +1,94 @@
 # Changelog
 
+## 2026-04-25 17:52:00 +08:00 - AI 生成中增加滚动到底部按钮
+
+### 概述
+- 在 AI 流式生成过程中，当用户滚动离开消息底部时，显示一个向下按钮，方便一键回到底部查看最新生成内容。
+
+### 变更内容
+
+#### frontend/src/components/MessageList.vue
+- 新增消息滚动位置判断，识别当前是否接近底部。
+- 新增仅在 `isStreaming` 且不在底部时显示的浮动向下按钮。
+- 复用现有 `scrollToBottom()` 能力，按钮点击后平滑滚动到底部，不改聊天数据流和接口。
+
+### 验证
+- `conda activate py312_agent; npm run build:check`：通过
+
+## 2026-04-25 17:43:23 +08:00 - 增强图表卡片与消息背景区分
+
+### 概述
+- 将图表卡片从纯白底调整为浅中性冷灰蓝底，使其在助手回复白色消息气泡中有更明确的区域边界。
+
+### 变更内容
+
+#### frontend/src/components/ChartArtifactCard.vue
+- 将图表卡片背景从 `bg-white` 调整为 `#F6F9FC`，边框调整为 `#D8E2EE`。
+- 同步调整图表加载态的边框和背景透明度，保持卡片内层状态一致。
+
+### 验证
+- `conda activate py312_agent; npm run build:check`：通过
+
+## 2026-04-25 17:28:18 +08:00 - 加深用户消息气泡背景
+
+### 概述
+- 加深用户消息气泡的浅蓝背景，使用户输入与 AI 生成中状态、AI 最终回复形成更清楚的视觉对比。
+
+### 变更内容
+
+#### frontend/src/components/MessageItem.vue
+- 将用户消息气泡从 `#EEF6FF` 背景与 `#D9EAFB` 边框调整为 `#DBECFF` 背景与 `#B8D7F3` 边框。
+- 保持文字、布局、业务逻辑和消息结构不变。
+
+### 验证
+- `conda activate py312_agent; npm run build:check`：通过
+
+## 2026-04-25 17:25:26 +08:00 - 区分 AI 生成中与最终回复气泡
+
+### 概述
+- 将 AI 正在生成、尚未形成最终回复时的助手气泡改为轻微蓝白状态色，避免与最终白底回复混在一起。
+
+### 变更内容
+
+#### frontend/src/components/MessageItem.vue
+- 将 `streamingState` 对应的助手气泡从接近白色调整为 `#F3F8FF` 背景与 `#DDEBFA` 边框。
+- 保持最终助手回复仍为白底卡片，用户输入气泡仍为上一版浅蓝方案。
+
+### 验证
+- `conda activate py312_agent; npm run build:check`：通过
+
+## 2026-04-25 17:17:38 +08:00 - 前端聊天界面视觉样式克制优化
+
+### 概述
+- 基于现有前端配色方向做最小范围视觉优化，降低整体泛蓝感，同时保留品牌蓝用于主按钮、当前状态和关键强调。
+- 优化会话选中态、图表卡片、辅助文字、底部输入区和用户消息气泡的视觉层级。
+
+### 变更内容
+
+#### frontend/src/style.css / frontend/tailwind.config.js
+- 将全局背景从偏蓝浅色调整为更中性的浅灰蓝，并减弱背景径向蓝色光感。
+- 收敛阴影中的品牌蓝占比，提高辅助文字 token 对比度。
+- 调整输入框和通用 panel 的边框、背景和阴影，使底部输入区域更轻。
+
+#### frontend/src/views/ChatView.vue
+- 减弱侧栏、顶部栏和底部输入栏的白色叠加与边框层级。
+- 将部分辅助说明文字从较浅灰色加深为更易读的中性灰。
+
+#### frontend/src/components/SessionItem.vue
+- 当前会话选中态从蓝绿渐变改为更克制的白底弱阴影，保留品牌蓝标识当前状态。
+- 移除选中状态圆点的发光阴影，提升列表整体安静度。
+
+#### frontend/src/components/MessageItem.vue
+- 用户消息气泡调整为 `#EEF6FF` 背景与 `#D9EAFB` 边框，增强与页面背景的区分但保持柔和。
+- 将流式助手气泡改为更接近白色的低干扰背景，并加深时间辅助文字。
+
+#### frontend/src/components/ChartArtifactCard.vue
+- 图表卡片从 sky 蓝渐变改为白底中性边框，使图表区域更突出、减少蓝色干扰。
+- 图表描述、点数和有效期文字改为中性 slate 色，提高普通显示器上的可读性。
+
+### 验证
+- `conda activate py312_agent; npm run build:check`：通过
+
 ## 2026-04-25 13:22:30 +08:00 - 会话标题自动取首条用户问题
 
 ### 概述

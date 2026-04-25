@@ -1,27 +1,27 @@
 <template>
-  <div class="rounded-2xl border border-sky-200 bg-gradient-to-br from-sky-50 to-white px-4 py-3 shadow-sm">
+  <div class="rounded-2xl border border-[#D8E2EE] bg-[#F6F9FC] px-4 py-3 shadow-sm">
     <div class="flex items-start justify-between gap-4">
       <div class="min-w-0">
-        <div class="text-sm font-semibold text-sky-900">{{ artifact?.title ?? artifactRef.title }}</div>
+        <div class="text-sm font-semibold text-slate-900">{{ artifact?.title ?? artifactRef.title }}</div>
         <div
           v-if="artifact?.description"
-          class="mt-1 text-xs leading-5 text-sky-700/90"
+          class="mt-1 text-xs leading-5 text-slate-600"
         >
           {{ artifact.description }}
         </div>
-        <div class="mt-1 text-xs leading-5 text-sky-700/80">
+        <div class="mt-1 text-xs leading-5 text-slate-600">
           {{ artifactRef.chart_type === 'line' ? '折线图' : '柱状图' }} · {{ artifactRef.point_count }} 个点
         </div>
         <div
           v-if="artifactRef.expires_at"
-          class="mt-1 text-xs leading-5 text-sky-700/70"
+          class="mt-1 text-xs leading-5 text-slate-500"
         >
           有效期至：{{ formatDateTime(artifactRef.expires_at) }}
         </div>
       </div>
     </div>
 
-    <div v-if="loading" class="mt-3 rounded-xl border border-sky-100 bg-white/80 px-3 py-6 text-sm text-sky-700">
+    <div v-if="loading" class="mt-3 rounded-xl border border-[#D8E2EE] bg-white/85 px-3 py-6 text-sm text-slate-600">
       正在加载图表...
     </div>
     <div v-else-if="error" class="mt-3 rounded-xl border border-red-200 bg-red-50 px-3 py-3 text-sm text-red-600">

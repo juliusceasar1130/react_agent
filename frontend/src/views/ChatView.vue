@@ -8,7 +8,7 @@
     ></div>
 
     <aside
-      class="fixed inset-y-0 left-0 z-40 flex w-[18.5rem] max-w-[86vw] flex-col border-r border-white/70 bg-white/95 shadow-2xl backdrop-blur-xl transition-transform duration-200 lg:static lg:z-auto lg:max-w-none lg:translate-x-0 lg:bg-white/70 lg:shadow-none"
+      class="fixed inset-y-0 left-0 z-40 flex w-[18.5rem] max-w-[86vw] flex-col border-r border-neutral-200/80 bg-white/95 shadow-2xl backdrop-blur-xl transition-transform duration-200 lg:static lg:z-auto lg:max-w-none lg:translate-x-0 lg:bg-white/80 lg:shadow-none"
       :class="isSidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'"
     >
       <header class="flex items-center justify-between border-b border-neutral-200/80 px-4 py-4 sm:px-5">
@@ -19,7 +19,7 @@
             </svg>
           </div>
           <div>
-            <p class="text-xs font-medium uppercase tracking-[0.22em] text-neutral-400">Workspace</p>
+            <p class="text-xs font-medium uppercase tracking-[0.22em] text-neutral-500">Workspace</p>
             <h2 class="text-lg font-semibold text-text">对话</h2>
           </div>
         </div>
@@ -42,7 +42,7 @@
         </div>
       </header>
 
-      <div class="border-b border-neutral-200/70 px-4 py-3 text-xs text-neutral-500 sm:px-5">
+      <div class="border-b border-neutral-200/70 px-4 py-3 text-xs text-neutral-600 sm:px-5">
         在这里管理会话，保持不同话题的上下文更清晰。
       </div>
 
@@ -50,9 +50,9 @@
     </aside>
 
     <main class="relative flex min-w-0 flex-1 flex-col overflow-hidden">
-      <div class="pointer-events-none absolute inset-x-0 top-0 h-40 bg-gradient-to-b from-white/70 to-transparent"></div>
+      <div class="pointer-events-none absolute inset-x-0 top-0 h-40 bg-gradient-to-b from-white/60 to-transparent"></div>
 
-      <header class="relative z-10 border-b border-white/70 bg-white/70 backdrop-blur-xl">
+      <header class="relative z-10 border-b border-neutral-200/70 bg-white/70 backdrop-blur-xl">
         <div class="mx-auto flex w-full max-w-6xl items-center gap-3 px-3 py-3 sm:px-5 lg:px-8">
           <button
             class="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-neutral-200/90 bg-white text-neutral-600 shadow-sm transition hover:border-neutral-300 hover:text-text lg:hidden"
@@ -74,12 +74,12 @@
               </p>
             </template>
             <template v-else>
-              <p class="text-sm font-medium uppercase tracking-[0.18em] text-neutral-400">AI Chat Workspace</p>
-              <p class="mt-1 text-sm text-neutral-500">选择或创建一个会话开始对话</p>
+              <p class="text-sm font-medium uppercase tracking-[0.18em] text-neutral-500">AI Chat Workspace</p>
+              <p class="mt-1 text-sm text-neutral-600">选择或创建一个会话开始对话</p>
             </template>
           </div>
 
-          <div class="hidden items-center gap-2 rounded-full border border-white/80 bg-white/80 px-3 py-2 text-xs text-neutral-500 shadow-sm sm:flex">
+          <div class="hidden items-center gap-2 rounded-full border border-neutral-200/80 bg-white/80 px-3 py-2 text-xs text-neutral-600 shadow-sm sm:flex">
             <span class="h-2 w-2 rounded-full" :class="isSending ? 'bg-primary animate-pulse' : 'bg-emerald-400'"></span>
             {{ isSending ? '处理中' : '就绪' }}
           </div>
@@ -103,7 +103,7 @@
 
       <div
         v-if="currentSession"
-        class="relative z-10 border-t border-white/70 bg-white/60 px-3 pb-[calc(env(safe-area-inset-bottom,0px)+0.5rem)] pt-2 backdrop-blur-xl sm:px-5 lg:px-8 lg:pt-3"
+        class="relative z-10 border-t border-neutral-200/70 bg-white/70 px-3 pb-[calc(env(safe-area-inset-bottom,0px)+0.5rem)] pt-2 backdrop-blur-xl sm:px-5 lg:px-8 lg:pt-3"
       >
         <div class="mx-auto w-full max-w-5xl panel p-2.5 sm:p-3">
           <div class="mb-2 flex flex-col gap-1.5 sm:flex-row sm:items-center sm:justify-between">
@@ -140,7 +140,7 @@
               />
               <div
                 v-if="inputText.length > 0"
-                class="absolute bottom-2.5 right-3.5 rounded-full bg-white/90 px-2 py-0.5 text-[10px] text-neutral-400 shadow-sm"
+                class="absolute bottom-2.5 right-3.5 rounded-full bg-white/90 px-2 py-0.5 text-[10px] text-neutral-500 shadow-sm"
               >
                 {{ inputText.length }} 字符
               </div>

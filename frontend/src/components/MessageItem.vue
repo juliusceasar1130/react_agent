@@ -351,7 +351,7 @@ const toolStatusText = (tool: StreamToolCall) => {
 
 const messageWrapperClass = computed(() => {
   if (isUser.value) {
-    return 'border border-primary/15 bg-[#eaf2ff] shadow-sm'
+    return 'border border-[#B8D7F3] bg-[#DBECFF] shadow-sm'
   }
   if (errorText.value) {
     return 'border border-red-200 bg-gradient-to-br from-red-50 to-white'
@@ -360,7 +360,7 @@ const messageWrapperClass = computed(() => {
     return 'border border-amber-200 bg-gradient-to-br from-amber-50 to-white'
   }
   if (streamingState.value) {
-    return 'border border-sky-200 bg-sky-50'
+    return 'border border-[#DDEBFA] bg-[#F3F8FF] shadow-sm'
   }
   return 'border border-neutral-200/90 bg-white/95 shadow-sm'
 })
@@ -390,7 +390,7 @@ const statusClass = computed(() => {
 
 const timeClass = computed(() => {
   if (isUser.value) {
-    return 'text-slate-400'
+    return 'text-slate-500'
   }
   if (errorText.value) {
     return 'text-red-400'
@@ -398,7 +398,7 @@ const timeClass = computed(() => {
   if (isInterruptedMessage.value) {
     return 'text-amber-500'
   }
-  return 'text-neutral-400'
+  return 'text-neutral-500'
 })
 
 const formattedTime = computed(() => {
