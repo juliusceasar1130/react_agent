@@ -11,7 +11,7 @@
 """
 
 SCENARIO = {
-    "skill_name": "paint_shop_vehicle_tracking",
+    "skill_name": "paint_shop_vehicle_logistics",
     # 会进入领域技能一级摘要，作为场景唯一标识展示。
     "name": "realtime_area_body_count",
     "title": "实时各区域车身数量统计",

@@ -2,12 +2,13 @@
 
 This file provides repository-specific guidance for Claude Code when working in this project.
 
-修改时间: 2026-04-07 Asia/Shanghai
+修改时间: 2026-04-25 Asia/Shanghai
 主要修改内容:
 
 - 同步当前项目环境为 `py312_agent`
 - 将项目定位从旧版通用聊天/arXiv Agent 更新为当前 SQL Agent + Skills + RAG 架构
 - 更新流式协议、持久化模式、目录结构与开发入口说明
+- 修正 openspec 引用路径、补充遗漏中间件与前端模块、澄清 memory.md 与 .claude/CLAUDE.md 关系
 
 ## 使用优先级
 
@@ -18,7 +19,9 @@ This file provides repository-specific guidance for Claude Code when working in 
 3. `README.md`
 4. 本文件 `CLAUDE.md`
 
-涉及 proposal / spec / plan / 架构性变更时，优先查看 `openspec/AGENTS.md`。
+涉及 proposal / spec / plan / 架构性变更时，优先查看 `openspec/project.md`。
+
+> `memory.md` 与 `.claude/CLAUDE.md` 当前内容一致，均用于记录项目长期约定与协作偏好。
 
 ## 项目概述
 
@@ -79,9 +82,16 @@ start_langgraph_dev.bat
   - FastAPI 路由入口
   - 处理会话、消息、聊天和文件下载接口
 - `backend/app/services.py`
-  - FastAPI 兼容 Agent 适配层
+  - FastAPI 本地模式 Agent 适配层
   - 提供 `process_message()` / `process_stream()`
   - 输出结构化流式事件
+- `backend/app/services_graph.py`
+  - LangGraph 托管 / Dev 模式 Agent 适配层
+  - 与 `services.py` 接口对齐，由 LangGraph 运行时接管持久化
+- `backend/app/config.py`
+  - 应用级配置（模型、数据库、RAG 等）
+- `backend/app/chart_artifacts.py`
+  - ECharts 图表 artifact 生成与缓存
 - `backend/app/agent/service.py`
   - SQL Agent 核心装配
   - 管理模型、工具、middleware、skills、RAG 与 checkpointer
@@ -90,6 +100,9 @@ start_langgraph_dev.bat
 - `backend/app/agent/middleware/`
   - `SkillMiddleware`
   - `BusinessRagMiddleware`
+  - `ContextWarningMiddleware`（上下文长度预警）
+- `backend/app/agent/development/`
+  - Agent 开发配置、数据加载、Hybrid 与 Vector 开发工具
 - `backend/app/skills/`
   - 领域技能、场景技能、注册与自动发现
 - `backend/app/agent/vector/`
@@ -100,13 +113,29 @@ start_langgraph_dev.bat
 - `frontend/src/views/ChatView.vue`
   - 聊天主界面
 - `frontend/src/composables/useChatStream.ts`
-  - 流式聊天与事件消费
+  - 流式聊天与 SSE 事件消费
+- `frontend/src/composables/useConfirmation.ts`
+  - 危险操作确认逻辑
 - `frontend/src/stores/messages.ts`
-  - 消息状态与流式状态
+  - 消息状态与流式状态（Pinia Setup Store）
+- `frontend/src/stores/sessions.ts`
+  - 会话列表与当前会话状态
 - `frontend/src/components/MessageItem.vue`
   - 助手完成态 Markdown 渲染
+- `frontend/src/components/ChartArtifactCard.vue`
+  - ECharts 图表 artifact 卡片展示
+- `frontend/src/components/EmptyState.vue`
+  - 空状态欢迎占位
 - `frontend/src/api/chat.ts`
-  - 聊天相关 API
+  - 聊天流式 API
+- `frontend/src/api/sessions.ts`
+  - 会话 CRUD API
+- `frontend/src/api/messages.ts`
+  - 消息历史 API
+- `frontend/src/api/exports.ts`
+  - 文件下载 API
+- `frontend/src/api/charts.ts`
+  - 图表 artifact API
 
 ## 当前持久化模式
 
@@ -123,7 +152,7 @@ start_langgraph_dev.bat
 
 - 所有 Agent 调用都必须传递 `config["configurable"]["thread_id"] = session_id`
 - 自动历史管理依赖 checkpointer，不需要手工回放历史消息
-- `SummarizationMiddleware` 仍在使用，但只是中间件的一部分，不再是唯一关键特性
+- `SummarizationMiddleware`（来自 `langchain.agents.middleware`，非项目自定义）仍在使用，但只是众多中间件之一，不再是唯一关键特性
 
 ## 当前流式协议
 
@@ -179,6 +208,8 @@ backend/app/
   api.py
   services.py
   services_graph.py
+  config.py
+  chart_artifacts.py
   agent/
   skills/
 

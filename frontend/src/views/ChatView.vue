@@ -134,8 +134,8 @@
                 @keydown.enter.exact.prevent="handleSendMessage"
                 @keydown.enter.shift="inputText += '\n'"
                 placeholder="输入消息... (Enter 发送，Shift+Enter 换行)"
-                class="input min-h-[68px] resize-none pr-14"
-                rows="2"
+                class="input min-h-[44px] resize-none pr-14"
+                rows="1"
                 :disabled="isSending"
               />
               <div
