@@ -87,7 +87,7 @@ def render_scenario_for_llm(scenario: ScenarioSkill) -> str:
             lines.append(f"- 必填: {'是' if param_def['required'] else '否'}")
             lines.append(f"- 说明: {param_def['description']}")
             lines.append(f"- 来源表: {param_def['source_table']}.{param_def['source_column']}")
-            lines.append(f"- 示例值: {', '.join(param_def['example_values'])}")
+            lines.append(f"- 示例值: {', '.join(str(v) for v in param_def['example_values'])}")
             lines.append(f"- SQL 片段: {param_def['sql_fragment']}")
             lines.append(f"- 使用方式: {param_def['usage']}")
             lines.append("")
