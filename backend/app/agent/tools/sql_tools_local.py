@@ -205,7 +205,7 @@ def create_wrapped_query_tool(
             # 这里的返回内容会被 Agent 直接作为观察内容 (Observation)，
             # 注入 SYSTEM WARNING 的目的是通过 Prompt 强力引导模型不要产生错误的汇总逻辑。
             return (
-                f"⚠️ SYSTEM WARNING: 查询结果已达到系统硬限制 ({hard_limit} 行) 并被强制截断。\n"
+                f"⚠️ SYSTEM WARNING: 查询共返回 {estimated_rows} 行结果，达到系统硬限制 ({hard_limit} 行) 并被强制截断。\n"
                 f"以下仅展示前 {preview_rows} 行数据预览，基于此数据进行的汇总分析可能不完整或不准确。\n\n"
                 f"建议操作：\n"
                 f"1. 如果用户需要完整原始数据，请建议使用 export_to_csv 工具导出为 CSV 文件下载。\n"

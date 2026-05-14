@@ -12,7 +12,7 @@
 SELECT
     overview.process_area,
     COUNT(*) AS vehicle_count
-FROM mart_position_current_overview overview
+FROM mart.mart_position_current_overview overview
 WHERE overview.entity_type = 'product_vehicle'
   -- 可选参数: process_area（当用户指定特定区域时取消注释并填充值）
   -- 单区域示例: AND overview.process_area = '电泳'

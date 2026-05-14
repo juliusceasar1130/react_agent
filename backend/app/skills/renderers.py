@@ -114,13 +114,13 @@ def render_scenario_for_llm(scenario: ScenarioSkill) -> str:
     lines.append("")
     lines.extend(_render_asset_refs("脚本资产", scenario["script_refs"]))
 
-    if scenario["sql_template_refs"]:
-        first_sql_ref = scenario["sql_template_refs"][0]
-        sql_text = read_asset_text(first_sql_ref, scenario=scenario)
+    for sql_ref in scenario["sql_template_refs"]:
+        sql_text = read_asset_text(sql_ref, scenario=scenario)
         lines.extend(
             [
                 "",
-                f"## SQL 模板示例：{first_sql_ref['name']}",
+                f"## SQL 模板：{sql_ref['name']}",
+                f"> {sql_ref['description']}",
                 "```sql",
                 sql_text,
                 "```",
