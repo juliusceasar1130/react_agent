@@ -11,6 +11,11 @@ SCENARIO = {
     "name": "vehicle_historical_trace",
     "title": "单车历史轨迹追溯",
     "description": "基于 `ods.carbody_history` 还原单辆车的完整历史过点路径与时间序列。",
+    "example_questions": [
+        "帮我查一下车身 78202612345678 的历史轨迹",
+        "这辆车过去都经过了哪些工段",
+        "查看单车全生命周期路径"
+    ],
     "triggers": [
         "帮我查一下车身 78202612345678 的历史轨迹",
         "这辆车过去都经过了哪些工段",

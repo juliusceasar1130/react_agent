@@ -11,6 +11,11 @@ SCENARIO = {
     "name": "stranded_vehicle_detection",
     "title": "滞留车检测",
     "description": "基于 `dim.carbody_registry` 检测涂装车间内的滞留车辆。场景提供多个专用 SQL 模板：`in_process`（默认，带 JOIN，查询在制车辆位置）和 `historical`（查询已出口历史车辆）。请根据用户问题意图选择最匹配的模板进行参数填充。",
+    "example_questions": [
+        "有哪些滞留车",
+        "查一下滞留超过 3 天的车",
+        "有哪些 ADP 平台的滞留车"
+    ],
     "triggers": [
         "有哪些滞留车",
         "查一下滞留车辆",

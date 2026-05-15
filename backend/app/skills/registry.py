@@ -35,6 +35,7 @@ SCENARIOS_BY_SKILL: dict[str, list[ScenarioSkill]] = {
 DOMAIN_SKILLS: dict[str, DomainSkill] = {
     domain_name: {
         "name": domain_name,
+        "title": domain.meta.get("title", domain_name),
         "description": domain.meta["description"],
         "domain_content": read_text_file(domain.domain_dir / "domain.md"),
         "scenario_summaries": _build_scenario_summaries(

@@ -1,9 +1,9 @@
 """
 车型缺陷趋势场景元数据。
 
-修改时间: 2026-04-12 Asia/Shanghai
+修改时间: 2026-05-15 Asia/Shanghai
 主要修改内容:
-- 新增质量缺陷领域的车型缺陷趋势场景
+- 补齐 title 和 example_questions 字段
 """
 
 SCENARIO = {
@@ -11,6 +11,11 @@ SCENARIO = {
     "name": "model_defect_trend",
     "title": "车型缺陷趋势",
     "description": "基于 `mart_vehicle_quality_360` 统计某车型或各车型在时间维度上的缺陷趋势。",
+    "example_questions": [
+        "A7 车型最近的缺陷趋势",
+        "各个车型的缺陷趋势对比",
+        "最近一周的缺陷波动情况"
+    ],
     "triggers": [
         "某车型最近缺陷趋势",
         "各车型缺陷趋势",

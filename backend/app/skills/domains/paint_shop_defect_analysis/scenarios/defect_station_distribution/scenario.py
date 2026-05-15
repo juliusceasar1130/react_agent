@@ -11,6 +11,11 @@ SCENARIO = {
     "name": "defect_station_distribution",
     "title": "缺陷部位分布",
     "description": "基于 `mart_vehicle_quality_360` 分析 5 个检测部位的缺陷分布，适合识别主要缺陷来源。",
+    "example_questions": [
+        "缺陷主要集中在哪些部位？",
+        "A7 车型的部位缺陷分布情况",
+        "右侧和左侧哪个部位的缺陷更多？"
+    ],
     "triggers": [
         "缺陷主要集中在哪些部位",
         "某车型部位缺陷分布",

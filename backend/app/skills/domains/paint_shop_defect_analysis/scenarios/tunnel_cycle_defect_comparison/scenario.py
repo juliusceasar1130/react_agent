@@ -11,6 +11,11 @@ SCENARIO = {
     "name": "tunnel_cycle_defect_comparison",
     "title": "Tunnel 与 Cycle 缺陷对比",
     "description": "基于 `mart_vehicle_quality_360` 对比不同检测通道和检测次数下的缺陷差异。",
+    "example_questions": [
+        "不同检测通道 (Tunnel) 的缺陷差异",
+        "对比第一次检测和复检的缺陷分布",
+        "查看某车型在各检测周期的质量表现"
+    ],
     "triggers": [
         "不同 tunnel 的缺陷差异",
         "不同 cycle 的缺陷对比",

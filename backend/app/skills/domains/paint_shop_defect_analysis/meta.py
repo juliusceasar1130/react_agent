@@ -8,6 +8,7 @@
 
 DOMAIN_META = {
     "name": "paint_shop_defect_analysis",
+    "title": "质量缺陷分析",
     "description": "涂装车间质量缺陷汇总分析领域，面向车型缺陷趋势、部位分布、tunnel/cycle 对比和黑车顶对比等问题。",
     "tags": ["paint_shop", "quality", "defect", "scenario_enabled"],
 }

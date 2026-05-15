@@ -13,6 +13,11 @@ SCENARIO = {
     "name": "daily_area_body_count",
     "title": "每日各区域实际吞吐量统计",
     "description": "基于 `ods.carbody_history` 统计过去某天各工艺区域实际通过的车辆数（真实吞吐量），而非当前快照。",
+    "example_questions": [
+        "昨天各区域通过多少车",
+        "统计各区域历史日吞吐量",
+        "按区域汇总昨天通过车辆数"
+    ],
     "triggers": [
         "昨天各区域通过多少车",
         "统计各区域历史日吞吐量",

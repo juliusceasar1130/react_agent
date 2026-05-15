@@ -1,3 +1,59 @@
+## 2026-05-15 13:50 +08:00 - 技能元数据标准化与 Dashboard UI 视觉升级
+
+### 概述
+- 实现了 AI 助手技能发现机制从硬编码逻辑向“元数据驱动”的架构转型。
+- 显著提升了首页 Dashboard 的视觉细节，引入了更具高级感的“Arctic Glass”设计语言。
+
+### 变更内容
+
+#### 架构与元数据
+- **后端模型扩展**：在 `models.py` 中更新了 `DomainSkill` 和 `ScenarioSkill`，强制新增 `title` 和 `example_questions` 字段。
+- **动态发现重构**：移除 `api.py` 中硬编码的 UI 文案，改为动态读取各领域 `meta.py` 和场景 `scenario.py` 中的元数据。
+- **全量技能补齐**：为“物流追踪”与“质量缺陷分析”领域的 10+ 个场景手动补全了 UI 友好的标题与 `example_questions`。
+
+#### UI/UX 体验优化
+- **视觉风格升级**：应用“Arctic Glass”方案，为领域卡片引入毛玻璃特效 (`backdrop-blur`)、渐变图标容器及发光投影。
+- **输入框细节修正**：移除了首页及聊天页输入框聚焦时的浏览器默认黑框 (`focus:outline-none`)，统一为平滑的品牌色高亮。
+
+#### 规范与文档
+- **技能开发指南**：新增 `docs/skills/guide.md`，详细标注了各元数据字段的必填属性与编写示例。
+
+### 验证
+- 成功通过浏览器验证三种视觉原型，并正式上线“方案一”。
+- 前后端接口联调正常，首页能力矩阵可根据目录结构动态渲染。
+
+## 2026-05-15 09:55 +08:00 - 实现 AI 助手动态能力仪表盘 (WelcomeDashboard)
+
+### 概述
+- 将 AI 助手首页从静态占位符重构为动态能力仪表盘，支持自动发现后端技能并提供场景化提问。
+- 引入 Pinia 状态管理层，实现前后端技能元数据的动态同步。
+- 优化交互流程，支持从首页“直接提问”自动初始化会话上下文。
+
+### 变更内容
+
+#### backend/app/api.py
+- 新增 `GET /api/chat/skills` 接口，动态聚合后端注册的领域能力（Domain Skills）与可用场景（Scenarios）。
+
+#### frontend/src/stores/skills.ts [NEW]
+- 新增技能状态管理 Store，支持异步获取并缓存后端技能矩阵数据。
+
+#### frontend/src/components/WelcomeDashboard.vue [NEW]
+- 实现响应式 Bento Grid 布局的首页仪表盘。
+- 支持按领域展示技能卡片、核心场景及示例提问。
+- 集成快速开始与功能概览模块。
+
+#### frontend/src/views/ChatView.vue
+- 集成 `WelcomeDashboard` 作为无会话状态下的默认首页。
+- 实现 `handleDashboardSubmit` 逻辑，支持“点击示例/直接提问 -> 自动建联 -> 发送消息”的无缝交互。
+- 修复 `inputText` 等变量重复定义的编译错误，提升类型安全性。
+
+#### 其他清理
+- 移除过期的 `EmptyState.vue` 及临时原型 `PrototypeDashboard.vue`。
+
+### 验证
+- 前端编译错误已修复。
+- 待用户在后端服务运行时完成端到端验证。
+
 ## 2026-05-15 08:35 +08:00 - 沉淀 Agent 技能文档化与项目上下文
  
  ### 概述

@@ -11,6 +11,11 @@ SCENARIO = {
     "name": "black_roof_defect_comparison",
     "title": "黑车顶缺陷对比",
     "description": "基于 `mart_vehicle_quality_360` 对比黑车顶与非黑车顶车型的缺陷数量和检测次数差异。",
+    "example_questions": [
+        "黑车顶和非黑车顶的缺陷对比",
+        "黑车顶车型的缺陷是否更多？",
+        "最近一周黑车顶的缺陷差异情况"
+    ],
     "triggers": [
         "黑车顶和非黑车顶缺陷对比",
         "黑车顶车型缺陷是否更多",

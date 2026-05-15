@@ -22,6 +22,7 @@
 - **状态持久化** - FastAPI 本地模式使用 `AsyncPostgresSaver`，托管模式由 LangGraph 自动管理 Agent 状态
 - **现代 UI/UX** - 基于 Neural Tones + AI Purple 设计系统，支持毛玻璃效果与流畅动画
 - **前后端分离** - FastAPI + Vue 3 + TypeScript
+- **动态能力仪表盘 (Dashboard)** - 首页自动发现后端技能与场景，提供可视化能力矩阵与示例提问，支持“直接提问”自动初始化会话。
 - **技能系统 (Skills)** - 动态加载业务领域知识，并支持“领域 skill + 场景 skill”二级披露、场景目录聚合与自动发现，适配固定统计与固定流程场景
 - **代码阅读讲解子智能体** - 新增 code-explainer，用于解释代码架构、技术栈、流程与调用链，帮助快速上手仓库
 - **代码质量审查子智能体** - 新增 code-reviewer，用于在 review 场景下聚焦 bug、回归风险、安全隐患和测试缺口
@@ -313,6 +314,8 @@ rearch_agent/
 | GET    | `/api/chat/sessions/{id}` | 获取单个会话 |
 | PUT    | `/api/chat/sessions/{id}` | 更新会话     |
 | DELETE | `/api/chat/sessions/{id}` | 删除会话     |
+| GET    | `/api/chat/skills`       | 获取后端动态发现的所有技能与场景 |
+
 
 ### 消息管理
 

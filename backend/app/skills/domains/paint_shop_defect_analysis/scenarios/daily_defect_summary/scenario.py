@@ -11,6 +11,11 @@ SCENARIO = {
     "name": "daily_defect_summary",
     "title": "每日缺陷汇总",
     "description": "基于 `mart_vehicle_quality_360` 统计每日缺陷总量、检测次数和车型分布，适合日常质量汇总问题。",
+    "example_questions": [
+        "今天缺陷情况怎么样",
+        "统计昨天的缺陷总量",
+        "查看最近三天的车型缺陷分布"
+    ],
     "triggers": [
         "今天缺陷情况怎么样",
         "按天汇总缺陷",

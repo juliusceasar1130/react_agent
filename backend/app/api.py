@@ -43,6 +43,8 @@ from .chart_artifacts import get_chart_record
 from .export_files import get_export_record
 
 from .services import get_agent_service  # FastAPI 兼容层，内部复用 Agent V2 核心服务
+from .skills.registry import DOMAIN_SKILLS
+import backend.app.skills.registry
 
 router = APIRouter(prefix="/api/chat", tags=["chat"])
 
@@ -51,6 +53,36 @@ def _encode_sse(event: Any) -> str:
     """编码 SSE data 行。"""
     serialized_event = serialize_chat_stream_event(event)
     return f"data: {json.dumps(serialized_event, ensure_ascii=False)}\n\n"
+
+
+@router.get("/skills")
+def get_skills_endpoint():
+    """获取所有已注册的领域和场景技能
+    
+    修改时间: 2026-05-15
+    修改内容: 
+    - 移除硬编码，改由各领域 meta.py 和场景 scenario.py 统一管理展示文案
+    - 优先读取 title 和 example_questions 字段
+    """
+    skills_list = []
+    for domain_name, domain_info in DOMAIN_SKILLS.items():
+        skills_list.append({
+            "name": domain_name,
+            # 优先使用 meta.py 中的 title，缺省则回退到格式化名称
+            "title": domain_info.get("title") or domain_name.replace("_", " ").title(),
+            "description": domain_info["description"],
+            "scenarios": [
+                {
+                    "name": s["name"],
+                    "title": s.get("title", s["name"]),
+                    "description": s.get("description", ""),
+                    # 优先使用 scenario.py 中的 example_questions，缺省则回退到 triggers
+                    "questions": s.get("example_questions") or s.get("triggers", [])[:3]
+                }
+                for s in backend.app.skills.registry.list_scenarios_by_skill(domain_name)
+            ]
+        })
+    return skills_list
 
 
 # ==================== Session API ====================
@@ -518,5 +550,7 @@ async def stream_message_post(
             "Connection": "keep-alive",
             "X-Accel-Buffering": "no",
             "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Methods": "POST, GET, OPTIONS",
+            "Access-Control-Allow-Headers": "Content-Type",
         },
     )

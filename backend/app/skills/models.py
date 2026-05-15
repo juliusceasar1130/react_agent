@@ -51,6 +51,7 @@ class ScenarioSkill(TypedDict):
     name: str
     title: str
     description: str
+    example_questions: list[str]  # 新增：首页展示的示例问题
     triggers: list[str]
     intent_keywords: list[str]
     required_inputs: list[str]
@@ -70,6 +71,7 @@ class DomainSkill(TypedDict):
     """领域级技能定义。"""
 
     name: str
+    title: str  # 新增：首页展示的中文标题
     description: str
     domain_content: str
     scenario_summaries: list[str]

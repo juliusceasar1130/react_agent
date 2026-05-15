@@ -98,7 +98,7 @@
         </div>
 
         <MessageList v-if="currentSession" ref="messageListRef" />
-        <EmptyState v-else />
+        <WelcomeDashboard v-else @submit="handleDashboardSubmit" />
       </div>
 
       <div
@@ -177,11 +177,30 @@ import { useChatStream } from '@/composables/useChatStream'
 import ToggleSwitch from '@/components/ToggleSwitch.vue'
 import SessionList from '@/components/SessionList.vue'
 import MessageList from '@/components/MessageList.vue'
-import EmptyState from '@/components/EmptyState.vue'
+import WelcomeDashboard from '@/components/WelcomeDashboard.vue'
 
 const sessionsStore = useSessionsStore()
 const messagesStore = useMessagesStore()
 const { isSending, streamMode, contextWarning, sendMessage, stopStreaming } = useChatStream()
+
+const inputText = ref('')
+const isSidebarOpen = ref(false)
+const messageListRef = ref<InstanceType<typeof MessageList> | null>(null)
+
+/**
+ * 处理首页直接提问
+ */
+const handleDashboardSubmit = async (prompt: string) => {
+  if (isSending.value) return
+  
+  // 1. 自动创建新会话（使用提问作为标题）
+  const title = prompt.length > 20 ? prompt.substring(0, 20) + '...' : prompt
+  await sessionsStore.createSession({ title })
+  
+  // 2. 填充输入框并发送
+  inputText.value = prompt
+  await handleSendMessage()
+}
 
 const currentSession = computed(() => sessionsStore.currentSession)
 const currentStreamingMessage = computed(() => messagesStore.streamingMessage)
@@ -203,10 +222,7 @@ const streamHeaderClass = computed(() => {
   }
   return 'text-sm text-neutral-500'
 })
-const inputText = ref('')
-const isSidebarOpen = ref(false)
-const messageListRef = ref<InstanceType<typeof MessageList> | null>(null)
-
+// 侧边栏和输入状态
 const openSidebar = () => {
   isSidebarOpen.value = true
 }
