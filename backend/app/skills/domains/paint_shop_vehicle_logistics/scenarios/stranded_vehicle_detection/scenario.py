@@ -36,7 +36,7 @@ SCENARIO = {
         "在制滞留",
     ],
     "required_inputs": [],
-    "optional_inputs": ["platform_filter", "stranded_days"],
+    "optional_inputs": ["platform_filter", "stranded_days", "in_process_stranded_days"],
     "parameters": {
 
         "platform_filter": {
@@ -51,19 +51,29 @@ SCENARIO = {
         },
         "stranded_days": {
             "type": "integer",
-            "description": "最小滞留天数阈值，默认 1 天",
+            "description": "历史滞留天数阈值",
             "required": False,
             "source_column": "last_seen_at, first_seen_at",
             "source_table": "dim.carbody_registry",
-            "example_values": [1, 2, 3, 5, 7],
-            "usage": "替换 SQL 中的 INTERVAL 值。用户说'超过 N 天'时，将 N 填入。默认值为 1。",
+            "example_values": [1, 3, 5],
+            "usage": "仅用于 historical 模板。替换 {stranded_days} 占位符。",
             "sql_fragment": 'AND (cr."last_seen_at" - cr."first_seen_at") > INTERVAL \'{value} days\'',
+        },
+        "in_process_stranded_days": {
+            "type": "integer",
+            "description": "在制滞留天数阈值",
+            "required": False,
+            "source_column": "first_seen_at",
+            "source_table": "dim.carbody_registry",
+            "example_values": [1, 3, 5],
+            "usage": "仅用于 in_process 模板。替换 {in_process_stranded_days} 占位符。必须使用 CURRENT_TIMESTAMP 计算。",
+            "sql_fragment": 'AND (CURRENT_TIMESTAMP - cr."first_seen_at") > INTERVAL \'{value} days\'',
         },
     },
     "workflow": [
         "判断用户意图：如果未明确说明（默认）或指明'在制滞留'，选择 `in_process` 模板；如果明确指明'历史滞留'，选择 `historical` 模板。",
-        "确认是否按平台或滞留天数筛选。",
-        "根据用户表达替换选定模板中的 {platform_filter}, {stranded_days} 两个占位符。",
+        "确认是否按平台或滞留天数筛选。注意：在制车使用 `in_process_stranded_days`，历史车使用 `stranded_days`。",
+        "根据用户表达替换选定模板中的 {platform_filter}, {stranded_days} 或 {in_process_stranded_days} 占位符。",
         "按滞留时长降序输出，同时在自然语言回答中，针对在制车明确合并播报其所在的工艺区域 (current_process_area) 与具体滚床号 (current_rb_code)。",
     ],
     "rules": [
