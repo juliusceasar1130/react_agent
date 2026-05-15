@@ -65,3 +65,10 @@
 ## 依赖管理
 
 新增代码涉及第三方包的话，请更新requirements.txt
+
+## 技能系统 (Skills) 开发约定
+
+- **元数据驱动**：所有领域 (`meta.py`) 和场景 (`scenario.py`) 必须定义 `title` 和 `example_questions`。
+- **目录发现**：场景技能通过 `backend/app/skills/domains/<domain>/scenarios/` 目录结构自动发现并加载，无需手动注册到中心化列表。
+- **视觉标准**：前端仪表盘采用 **Arctic Glass** 风格。所有图标容器应适配 `bg-gradient-to-br` 与 `shadow-glow`。
+- **详细指南**：参考 `docs/skills/guide.md`。

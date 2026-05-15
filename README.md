@@ -20,9 +20,9 @@
 - **状态持久化** - FastAPI 本地模式使用 `AsyncPostgresSaver`，托管模式由 LangGraph 自动管理 Agent 状态
 - **Markdown 结果展示** - 助手完成态消息支持 Markdown 渲染，适合表格、列表、代码块和统计摘要展示
 - **状态持久化** - FastAPI 本地模式使用 `AsyncPostgresSaver`，托管模式由 LangGraph 自动管理 Agent 状态
-- **现代 UI/UX** - 基于 Neural Tones + AI Purple 设计系统，支持毛玻璃效果与流畅动画
+- **现代 UI/UX** - 基于 Neural Tones + AI Purple 设计系统，采用 **Arctic Glass (方案一)** 设计语言，支持毛玻璃效果、渐变光晕与流畅动画
 - **前后端分离** - FastAPI + Vue 3 + TypeScript
-- **动态能力仪表盘 (Dashboard)** - 首页自动发现后端技能与场景，提供可视化能力矩阵与示例提问，支持“直接提问”自动初始化会话。
+- **元数据驱动仪表盘 (Dashboard)** - 首页通过 `GET /api/chat/skills` 自动发现后端技能，并根据 `models.py` 定义的 `title` 和 `example_questions` 动态渲染能力矩阵，支持“直接提问”自动初始化会话。
 - **技能系统 (Skills)** - 动态加载业务领域知识，并支持“领域 skill + 场景 skill”二级披露、场景目录聚合与自动发现，适配固定统计与固定流程场景
 - **代码阅读讲解子智能体** - 新增 code-explainer，用于解释代码架构、技术栈、流程与调用链，帮助快速上手仓库
 - **代码质量审查子智能体** - 新增 code-reviewer，用于在 review 场景下聚焦 bug、回归风险、安全隐患和测试缺口
