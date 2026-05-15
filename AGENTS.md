@@ -95,3 +95,17 @@ Convert requests into verifiable outcomes whenever practical.
 2. 项目文档与仓库规则
 3. MCP 文档与工具结果
 4. 通用知识
+
+## Agent skills
+
+### Issue tracker
+
+本地 Markdown。问题以文件形式存储在 `.scratch/<feature>/`。见 `docs/agents/issue-tracker.md`。
+
+### Triage labels
+
+已映射为中文标签。见 `docs/agents/triage-labels.md`。
+
+### Domain docs
+
+单上下文布局（Single-context）。见 `docs/agents/domain.md`。

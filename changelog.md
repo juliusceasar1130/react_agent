@@ -1,4 +1,34 @@
-## 2026-05-14 优化场景 SQL 模板加载机制 (方案 A)
+## 2026-05-15 08:35 +08:00 - 沉淀 Agent 技能文档化与项目上下文
+ 
+ ### 概述
+ - 正式沉淀 Agent 相关的领域文档、问题追踪机制与标签分诊指南，提升智能体在复杂开发与调试场景下的标准化程度。
+ - 新增项目上下文基座 `CONTEXT.md`，用于统一存储项目特有的领域术语与核心业务逻辑。
+ - 补齐 `prototype` 与 `setup-matt-pocock-skills` 等辅助技能，完善智能体工具链。
+ 
+ ### 变更内容
+ 
+ #### AGENTS.md
+ - 增加对 `docs/agents/` 目录下技能文档的显式引用与工作约定。
+ 
+ #### docs/agents/ [NEW]
+ - 新增 `domain.md`：定义领域文档编写规范与单上下文布局约定。
+ - 新增 `issue-tracker.md`：规范本地 Markdown 问题追踪机制。
+ - 新增 `triage-labels.md`：定义中文标签分诊体系。
+ 
+ #### .agents/skills/ [NEW]
+ - 新增 `prototype`：支持快速构建原型验证逻辑。
+ - 新增 `setup-matt-pocock-skills`：支持技能环境自动化配置。
+ 
+ #### CONTEXT.md [NEW]
+ - 沉淀项目核心领域语言（Agent, Re-arch）与业务逻辑占位，作为 Agent 的全局背景知识。
+ 
+ #### README.md
+ - 同步更新特性说明与项目目录结构，纳入新文档与技能模块。
+ 
+ ### 验证
+ - 已完成本地文件结构验证与 `AGENTS.md` 引用检查。
+ 
+ ## 2026-05-14 优化场景 SQL 模板加载机制 (方案 A)
 
 - **框架级优化**：修改 `backend/app/skills/renderers.py`，将场景技能的 SQL 注入从“仅首个模板”升级为“全量模板注入”。
 - **消除盲区**：彻底解决了 LLM 无法看到非首个 SQL 模板全文的问题，确保多模板场景（如在制/历史滞留车）下的 Text-to-SQL 准确性。

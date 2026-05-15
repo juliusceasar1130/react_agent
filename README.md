@@ -18,6 +18,8 @@
 - **前端安全下载** - 导出结果通过 `file_id` 映射到后端下载接口，前端可直接点击下载 CSV，而不暴露服务器绝对路径
 - **Markdown 结果展示** - 助手完成态消息支持 Markdown 渲染，适合表格、列表、代码块和统计摘要展示
 - **状态持久化** - FastAPI 本地模式使用 `AsyncPostgresSaver`，托管模式由 LangGraph 自动管理 Agent 状态
+- **Markdown 结果展示** - 助手完成态消息支持 Markdown 渲染，适合表格、列表、代码块和统计摘要展示
+- **状态持久化** - FastAPI 本地模式使用 `AsyncPostgresSaver`，托管模式由 LangGraph 自动管理 Agent 状态
 - **现代 UI/UX** - 基于 Neural Tones + AI Purple 设计系统，支持毛玻璃效果与流畅动画
 - **前后端分离** - FastAPI + Vue 3 + TypeScript
 - **技能系统 (Skills)** - 动态加载业务领域知识，并支持“领域 skill + 场景 skill”二级披露、场景目录聚合与自动发现，适配固定统计与固定流程场景
@@ -25,6 +27,8 @@
 - **代码质量审查子智能体** - 新增 code-reviewer，用于在 review 场景下聚焦 bug、回归风险、安全隐患和测试缺口
 - **开发指南提炼技能** - 新增 development-guide-synthesizer，用于把开发实现、讨论结论和踩坑经验沉淀成可复用的手册
 - **RAG 知识增强** - 支持 PGVector / Milvus Hybrid 检索，Milvus 可在 `Ollama` 与 `llama.cpp + Qwen3 Embedding` 之间切换，并可选接入 NVIDIA Rerank 精排
+- **Agent 技能文档化** - 新增技能相关的领域文档、问题追踪与标签分诊手册，提升智能体在特定任务下的标准化执行能力
+- **项目上下文 (CONTEXT.md)** - 沉淀项目特有的领域术语与核心业务逻辑，为 Agent 提供统一的背景知识基座
 
 ## 技术栈
 
@@ -230,6 +234,8 @@ rearch_agent/
 │       └── code-explainer/       # 代码阅读与解释 skill
 │       └── development-guide-synthesizer/ # 开发指南提炼 skill
 │           └── SKILL.md
+│       └── prototype/                    # 快速原型构建 skill
+│       └── setup-matt-pocock-skills/     # 技能环境配置 skill
 ├── backend/                      # 后端应用
 │   ├── app/
 │   │   ├── main.py                # FastAPI 应用入口
@@ -278,6 +284,10 @@ rearch_agent/
 │   ├── backend/                 # 后端技术文档
 │   │   └── rpd/                 # 后端需求与 RAG 方案草稿
 │   ├── todolist/                # 评审记录、优化待办与后续跟踪
+│   ├── agents/                  # Agent 专用文档（领域、问题追踪、标签）
+│   │   ├── domain.md                # 领域文档规范
+│   │   ├── issue-tracker.md         # 问题追踪机制
+│   │   └── triage-labels.md         # 标签分诊指南
 │   └── obsidian/
 │       ├── agent-sql-learning/  # Agent / SQL 相关学习笔记
 │       ├── architecture-learning/ # 架构与部署认知笔记
@@ -286,12 +296,12 @@ rearch_agent/
 │       └── frontend-learning/   # 前端专题学习笔记
 ├── openspec/                    # 规格与变更提案
 ├── .env                         # 当前本地环境变量
+├── CONTEXT.md                    # 项目核心领域知识与背景（Agent 优先阅读）
 ├── changelog.md                 # 项目变更记录
 ├── memory.md                    # 项目长期记忆
 ├── requirements.txt             # Python 依赖
 └── README.md                    # 本文件
 ```
-
 ## API 端点
 
 ### 会话管理
