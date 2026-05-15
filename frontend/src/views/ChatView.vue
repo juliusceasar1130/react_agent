@@ -97,7 +97,7 @@
           </p>
         </div>
 
-        <MessageList v-if="currentSession" ref="messageListRef" />
+        <MessageList v-if="currentSession" ref="messageListRef" @select-scenario="handleSelectScenario" />
         <WelcomeDashboard v-else @submit="handleDashboardSubmit" />
       </div>
 
@@ -198,6 +198,15 @@ const handleDashboardSubmit = async (prompt: string) => {
   await sessionsStore.createSession({ title })
   
   // 2. 填充输入框并发送
+  inputText.value = prompt
+  await handleSendMessage()
+}
+
+/**
+ * 处理引导气泡场景选择
+ */
+const handleSelectScenario = async (prompt: string) => {
+  if (isSending.value) return
   inputText.value = prompt
   await handleSendMessage()
 }
