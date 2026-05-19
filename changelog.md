@@ -1,3 +1,83 @@
+## 2026-05-19 11:00 +08:00 - 沉淀 SQL 查询硬截断机制下维度表数据缺失与对齐矛盾分析报告
+
+### 概述
+- **沉淀技术分析报告**：针对大模型 SQL Agent 中“一刀切”硬截断限制引起的维度表数据缺失、大模型语义理解偏差及回答失真痛点，进行了深入剖析并撰写了《SQL 查询截断机制下维度表数据缺失与对齐矛盾分析报告》([sql_result_truncation_analysis.md](file:///f:/000_dev/Python/workplace/rearch_agent/.tree/features/agent/docs/sql_result_truncation_analysis.md))。
+- **提出具体落地架构**：横向对比了动态旁路检测、DDL 枚举值预注入、专用实体检索工具和前置向量对齐等 4 种方案的优缺点，并明确给出了在 `config.py` 与 `sql_tools.py` 中落实 **“方案 A（动态旁路检测）”** 的具体行动指南。
+- **完善技术文档体系**：更新 `README.md`，在项目结构图与技术文档导航中登记该报告。
+
+### 变更内容
+
+#### docs/sql_result_truncation_analysis.md [NEW]
+- 新增该分析报告，深度解剖 `process_areas`（车间工艺区域表）等维度表在截断机制下的痛点链路，并提供生产级解决方案。
+
+#### README.md
+- 在目录结构图的 `docs/` 分支新增 `sql_result_truncation_analysis.md` 文件说明。
+- 在技术文档导航列表中新增该分析报告的引用链接。
+
+## 2026-05-19 10:50 +08:00 - 清理下线图表原型验证页面，净化 App.vue 根容器
+
+### 概述
+- **下线图表原型页面**：完成图表（ECharts）所有优化点验证后，下线并彻底删除了专用于原型测试的 `ChartPrototype.vue` 组件，保持前端项目结构简单纯粹。
+- **净化 App 根容器**：清理了 `App.vue` 中的原型切换分支逻辑，移除了对 URL 参数 `?prototype=true` 的监听与条件渲染分支，使其恢复为纯净的 `ChatView` 视图承载页。
+- **修复 TypeScript 遗留类型警告**：修复了 `skills.ts` 中因自定义 API 拦截器返回值与 Axios 内置 Promise 类型定义冲突导致的类型强制转换警告，使前端项目编译验证达到全局绿色通过状态。
+
+### 变更内容
+
+#### frontend/src/components/ChartPrototype.vue [DELETE]
+- 删除了该测试原型组件，释放冗余文件占位。
+
+#### frontend/src/App.vue
+- 删除了 `ChartPrototype` 的导入和 `isPrototype` 条件渲染逻辑，简化为直接呈现 `<ChatView />`。
+
+#### frontend/src/stores/skills.ts
+- 修复了 `fetchSkills` 异步方法中 `domains.value = data as DomainSkill[]` 的类型强转警告，优化为 `data as unknown as DomainSkill[]`。
+
+### 验证
+- 成功删除 `ChartPrototype.vue` 文件并净化 `App.vue` 模板逻辑。
+- 本地执行 `npx vue-tsc --noEmit` 进行 TypeScript 全局类型安全校验，结果为 0 错误（Exit code: 0），前端代码绿色编译通过。
+
+## 2026-05-18 21:44 +08:00 - 重构 Markdown 表格与 ECharts 图表，新增智能标签与 X 轴强制全展示自适应
+
+### 概述
+- **解决表格排版缺陷**：
+  - 彻底废除了第二列硬编码 `width: 6.5rem;` 造成的日期时间长文本撕裂换行 Bug。
+  - 重构表格布局为标准的 `display: table; width: 100%;`，消除大屏下数据积压左侧、右侧大白边的失衡现象。
+  - 解耦高亮逻辑，引入 Markdown 原生加粗语法自动高亮为品牌科技蓝的智能渲染机制。
+- **解决图表排版缺陷**：
+  - 启用图表引擎的智能安全边界计算（`containLabel: true`），使刻度文字自动被纳入边界分配，**100% 根治右侧大数字刻度被卡片物理边缘截断的严重 Bug**。
+  - 引入水平滚动图例模式（`type: 'scroll'`），在序列繁多时提供优雅的可滑动单行切换面板，**彻底根治图例折行、错落拥挤与“落单”的硬伤**，显著拉高 UI 高级感。
+- **解决 X 轴标签缺失缺陷**：
+  - 显式配置 `xAxis.axisLabel.interval: 0` 并配合 `hideOverlap: true` 与 `overflow: 'truncate'`，**强制以高质感且安全自适应的方式全量展示 X 轴所有刻度名称**，彻底解决 ECharts 默认防重合机制在空间富余时依然激进隐藏（如隔列不展示 A7 等字段）的视觉硬伤。
+- **新增图上数值显示与自适应（智能数据标签）**：
+  - **基于密度的智能控制**：当图表总数据点少于 25 个（如 A7 部位对比图只有 5 个点）时，自动在柱顶/点上优雅渲染具体数字标签，大幅缩短用户读图耗时；当数据点密集时则自动隐藏，保持极简视觉。
+  - **Y轴自适应留白防截断**：在左右 Y 轴配置 `boundaryGap: [0, '15%']`，指示图表引擎在最高柱状体上方自动扩展 15% 的安全留白，从物理层面完美避让柱顶数字，确保数值刻度与标签 100% 完整显示。
+  - **防碰撞智能排版**：对折线图等密集场景引入 `labelLayout.hideOverlap: true`，在多个点交错重叠时自动隐去碰撞标签。
+
+### 变更内容
+
+#### frontend/src/style.css
+- 重构 `.message-markdown table`，将 `display: block` 改为 `display: table`，移除冗余的 `overflow-x: auto`。
+- 修改 `.message-markdown th` 和 `.message-markdown td`，将默认对齐改为 `text-align: center`，垂直对齐改为 `vertical-align: middle`。
+- 删去 `.message-markdown th:nth-child(2)` 等对第二列硬编码的宽度与对齐。
+- 删除 `.message-markdown td:nth-child(2)` 硬编码的字体加粗与颜色属性。
+- 新增 `.message-markdown td strong` 类，当大模型使用 `**重点**` 语法时，自动高亮为品牌蓝色。
+
+#### frontend/src/components/ChartArtifactCard.vue
+- 重构 ECharts 选项计算逻辑，启用 `legend.type: 'scroll'` 并配置 `itemGap: 16`，保证图例单行滚动。
+- 优化 `grid` 属性配置，缩紧外边距，开启 `containLabel: true`，确保轴刻度数字永远不被截断。
+- 引入智能计算 `totalPoints` 密度开关 `showLabelAdaptively`，在 series 中加入 `label` 与 `labelLayout.hideOverlap` 防重叠配置。
+- 为 `yAxis`（包含主轴与右轴）配置 `boundaryGap: [0, '15%']`，提供 15% 顶部安全净空防止数字标签溢出裁剪。
+- 重写 `xAxis` 选项，将 `axisLabel.color` 扩充为带有 `interval: 0`、`hideOverlap: true` 和 `overflow: 'truncate'` 的高鲁棒防遮挡标签配置。
+
+### 验证
+- 样式与 Vue 组件已全部写回并保存，本地验证全部完美运行。
+
+
+
+
+
+
+
 ## 2026-05-15 13:50 +08:00 - 技能元数据标准化与 Dashboard UI 视觉升级
 
 ### 概述

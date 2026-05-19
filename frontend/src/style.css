@@ -230,9 +230,8 @@
   }
 
   .message-markdown table {
-    display: block;
+    display: table;
     width: 100%;
-    overflow-x: auto;
     border-collapse: separate;
     border-spacing: 0;
     border: 1px solid rgb(219 229 240);
@@ -250,8 +249,8 @@
     min-width: 5rem;
     border-bottom: 1px solid rgb(219 229 240);
     padding: 0.78rem 0.9rem;
-    text-align: left;
-    vertical-align: top;
+    text-align: center;
+    vertical-align: middle;
     white-space: normal;
     line-height: 1.6;
   }
@@ -282,19 +281,18 @@
 
   .message-markdown th:nth-child(2),
   .message-markdown td:nth-child(2) {
-    width: 6.5rem;
-    text-align: right;
     font-variant-numeric: tabular-nums;
-  }
-
-  .message-markdown td:nth-child(2) {
-    font-weight: 700;
-    color: rgb(29 78 216);
   }
 
   .message-markdown th:last-child,
   .message-markdown td:last-child {
     min-width: 12rem;
+  }
+
+  /* 智能数据重点高亮：大模型使用 **加粗** 标记时自动渲染为品牌蓝色 */
+  .message-markdown td strong {
+    color: var(--color-primary);
+    font-weight: 700;
   }
 
   .message-markdown a {

@@ -82,35 +82,51 @@ const option = computed<echarts.EChartsOption | null>(() => {
   const xData = buildXData(rows, artifact.value.x_field)
   const rightSeries = artifact.value.series.filter((item) => item.y_axis === 'right')
 
+  // 智能计算图表的数据密度（X轴点数 * 序列数量）
+  const totalPoints = xData.length * artifact.value.series.length
+  // 当总数据点少于 25 个时，自适应开启数据标签，否则关闭以防重叠拥挤
+  const showLabelAdaptively = totalPoints < 25
+
   return {
     tooltip: {
       trigger: 'axis',
     },
     legend: {
+      type: 'scroll',
       top: 0,
+      itemGap: 16,
+      textStyle: {
+        color: '#475569'
+      }
     },
     grid: {
-      left: 48,
-      right: rightSeries.length > 0 ? 48 : 24,
-      top: 36,
-      bottom: 24,
+      left: 16,
+      right: 16,
+      top: 48,
+      bottom: 12,
+      containLabel: true
     },
     xAxis: {
       type: 'category',
       data: xData,
       axisLabel: {
         color: '#334155',
+        interval: 0,           // 强制显示所有 X 轴标签，不进行自动隐藏
+        hideOverlap: true,     // 若在窄屏下发生真实重叠，自适应隐藏碰撞的字
+        overflow: 'truncate',  // 超出宽度时自动省略号
       },
     },
     yAxis: [
       {
         type: 'value' as const,
+        boundaryGap: [0, '15%'] as any, // 顶部预留 15% 空间，防止顶部标签数字被截断
         axisLabel: { color: '#334155' },
       },
       ...(rightSeries.length > 0
         ? [
             {
               type: 'value' as const,
+              boundaryGap: [0, '15%'] as any, // 右轴也同样留出 15% 安全空间
               axisLabel: { color: '#334155' },
             },
           ]
@@ -122,6 +138,17 @@ const option = computed<echarts.EChartsOption | null>(() => {
       yAxisIndex: seriesItem.y_axis === 'right' ? 1 : 0,
       smooth: artifact.value!.chart_type === 'line',
       data: buildSeriesData(rows, artifact.value!.x_field, seriesItem, xData),
+      label: {
+        show: showLabelAdaptively,
+        position: 'top',
+        formatter: '{c}', // 显示原始数值
+        color: '#475569',
+        fontSize: 10,
+        fontWeight: '600'
+      },
+      labelLayout: {
+        hideOverlap: true // 折线图重叠时，自动隐去碰撞标签，防止交叉拥挤
+      },
       ...(seriesItem.color
         ? {
             color: seriesItem.color,

@@ -282,6 +282,7 @@ rearch_agent/
 │   └── package.json             # 前端依赖
 ├── deploy/                      # 部署文档与辅助配置
 ├── docs/                        # 项目文档总目录
+│   ├── sql_result_truncation_analysis.md # 维度表数据截断与对齐分析报告
 │   ├── backend/                 # 后端技术文档
 │   │   └── rpd/                 # 后端需求与 RAG 方案草稿
 │   ├── todolist/                # 评审记录、优化待办与后续跟踪
@@ -519,6 +520,8 @@ npm run dev
 - [FastAPI 与 SQLAlchemy 知识点](./docs/backend/FastAPI与SQLAlchemy知识点复习.md)
 - [PostgresSaver 集成重构总结](./docs/backend/PostgresSaver集成重构总结.md)
 - [连接池与上下文管理器详解](./docs/backend/连接池与上下文管理器详解.md)
+- [SQL 查询截断机制与维度表对齐矛盾分析报告](./docs/sql_result_truncation_analysis.md)
+
 
 ## 常见问题
 

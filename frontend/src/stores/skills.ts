@@ -37,7 +37,7 @@ export const useSkillsStore = defineStore('skills', () => {
     try {
       // 使用统一的 api 实例，会自动带上 /rearch 前缀并走代理
       const data = await api.get('/api/chat/skills')
-      domains.value = data as DomainSkill[]
+      domains.value = data as unknown as DomainSkill[]
     } catch (err: any) {
       error.value = err.message || '获取技能列表失败'
       console.error('Fetch skills error:', err)
