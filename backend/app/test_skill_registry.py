@@ -41,9 +41,9 @@ def _make_workspace_temp_dir() -> Path:
 
 
 def test_skill_registry_returns_paint_shop_domain() -> None:
-    domain = get_skill_by_name("paint_shop_vehicle_tracking")
+    domain = get_skill_by_name("paint_shop_vehicle_logistics")
     assert domain is not None
-    assert domain["name"] == "paint_shop_vehicle_tracking"
+    assert domain["name"] == "paint_shop_vehicle_logistics"
     assert any("daily_area_body_count" in item for item in domain["scenario_summaries"])
     assert any(
         "realtime_area_body_count" in item for item in domain["scenario_summaries"]
@@ -59,10 +59,10 @@ def test_skill_registry_returns_paint_shop_defect_domain() -> None:
 
 
 def test_scenario_registry_returns_daily_area_body_count() -> None:
-    scenarios = list_scenarios_by_skill("paint_shop_vehicle_tracking")
+    scenarios = list_scenarios_by_skill("paint_shop_vehicle_logistics")
     assert len(scenarios) == 2
     scenario = get_scenario_by_name(
-        "paint_shop_vehicle_tracking",
+        "paint_shop_vehicle_logistics",
         "daily_area_body_count",
     )
     assert scenario is not None
@@ -73,7 +73,7 @@ def test_scenario_registry_returns_daily_area_body_count() -> None:
 
 def test_scenario_registry_returns_realtime_area_body_count() -> None:
     scenario = get_scenario_by_name(
-        "paint_shop_vehicle_tracking",
+        "paint_shop_vehicle_logistics",
         "realtime_area_body_count",
     )
     assert scenario is not None
@@ -92,7 +92,7 @@ def test_scenario_registry_returns_daily_defect_summary() -> None:
 
 
 def test_domain_content_includes_scenario_summary() -> None:
-    content = load_domain_content("paint_shop_vehicle_tracking")
+    content = load_domain_content("paint_shop_vehicle_logistics")
     assert content is not None
     assert "## 可用场景摘要" in content
     assert "daily_area_body_count" in content
@@ -101,7 +101,7 @@ def test_domain_content_includes_scenario_summary() -> None:
 
 def test_scenario_content_includes_sql_template() -> None:
     content = load_scenario_content(
-        "paint_shop_vehicle_tracking",
+        "paint_shop_vehicle_logistics",
         "daily_area_body_count",
     )
     assert content is not None
@@ -111,7 +111,7 @@ def test_scenario_content_includes_sql_template() -> None:
 
 def test_realtime_scenario_content_includes_sql_template() -> None:
     content = load_scenario_content(
-        "paint_shop_vehicle_tracking",
+        "paint_shop_vehicle_logistics",
         "realtime_area_body_count",
     )
     assert content is not None
@@ -149,7 +149,7 @@ def test_model_defect_trend_content_includes_average_metric() -> None:
 
 def test_shared_asset_scope_can_be_resolved() -> None:
     scenario = get_scenario_by_name(
-        "paint_shop_vehicle_tracking",
+        "paint_shop_vehicle_logistics",
         "daily_area_body_count",
     )
     assert scenario is not None
@@ -270,37 +270,37 @@ def test_discovery_rejects_invalid_asset_path() -> None:
 
 def test_legacy_skills_export_is_compatible() -> None:
     assert SKILLS
-    assert any(skill["name"] == "paint_shop_vehicle_tracking" for skill in SKILLS)
+    assert any(skill["name"] == "paint_shop_vehicle_logistics" for skill in SKILLS)
     assert any(skill["name"] == "paint_shop_defect_analysis" for skill in SKILLS)
     assert "content" in SKILLS[0]
 
 
 def test_load_skill_command_updates_state() -> None:
     command = _build_load_skill_command(
-        "paint_shop_vehicle_tracking",
+        "paint_shop_vehicle_logistics",
         _make_runtime(),
     )
-    assert command.update["skills_loaded"] == ["paint_shop_vehicle_tracking"]
-    assert command.update["active_skill"] == "paint_shop_vehicle_tracking"
+    assert command.update["skills_loaded"] == ["paint_shop_vehicle_logistics"]
+    assert command.update["active_skill"] == "paint_shop_vehicle_logistics"
 
 
 def test_load_scenario_requires_loaded_skill() -> None:
     command = _build_load_scenario_command(
-        "paint_shop_vehicle_tracking",
+        "paint_shop_vehicle_logistics",
         "daily_area_body_count",
         _make_runtime(),
     )
     message = command.update["messages"][0].content
-    assert "请先使用 load_skill('paint_shop_vehicle_tracking')" in message
+    assert "请先使用 load_skill('paint_shop_vehicle_logistics')" in message
 
 
 def test_load_scenario_command_updates_state() -> None:
     command = _build_load_scenario_command(
-        "paint_shop_vehicle_tracking",
+        "paint_shop_vehicle_logistics",
         "daily_area_body_count",
-        _make_runtime({"skills_loaded": ["paint_shop_vehicle_tracking"]}),
+        _make_runtime({"skills_loaded": ["paint_shop_vehicle_logistics"]}),
     )
     assert command.update["scenarios_loaded"] == [
-        "paint_shop_vehicle_tracking.daily_area_body_count"
+        "paint_shop_vehicle_logistics.daily_area_body_count"
     ]
     assert command.update["active_scenario"] == "daily_area_body_count"

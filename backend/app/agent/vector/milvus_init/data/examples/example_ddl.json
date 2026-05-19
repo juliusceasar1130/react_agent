@@ -4,7 +4,7 @@
     "metadata": {
       "type": "ddl",
       "table_name": "rb_position_data",
-      "domain": "paint_shop_vehicle_tracking",
+      "domain": "paint_shop_vehicle_logistics",
       "schema": "public",
       "description": "查询：车间有多少个滚床、车间滚床的数量"
     }
@@ -14,7 +14,7 @@
     "metadata": {
       "type": "ddl",
       "table_name": "rb_position_data",
-      "domain": "paint_shop_vehicle_tracking",
+      "domain": "paint_shop_vehicle_logistics",
       "schema": "public",
       "description": "查询：面漆存储线/储存线的滚床数量"
     }

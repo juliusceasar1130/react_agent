@@ -120,7 +120,7 @@ def create_wrapped_query_tool(
         Execute a SQL query against the database and return results.
 
         IMPORTANT: You must specify the 'required_skill' parameter with the exact skill name
-        that this query depends on (e.g., 'paint_shop_vehicle_tracking'). The skill must have been loaded
+        that this query depends on (e.g., 'paint_shop_vehicle_logistics'). The skill must have been loaded
         via load_skill() first. If you are switching to a different business domain,
         call load_skill() for the new domain BEFORE calling this tool.
 

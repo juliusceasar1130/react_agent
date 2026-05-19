@@ -5,7 +5,7 @@
       "type": "sql_example",
       "sql": "SELECT COUNT(DISTINCT (plc || '-' || rb_index)) as total_roller_beds FROM rb_position_data;",
       "complexity": "medium",
-      "domain": "paint_shop_vehicle_tracking",
+      "domain": "paint_shop_vehicle_logistics",
       "description": "查询：车间有多少个滚床、车间滚床的数量"
     }
   },
@@ -15,7 +15,7 @@
       "type": "sql_example",
       "sql": "SELECT COUNT(DISTINCT (plc || '-' || rb_index)) as total_roller_beds FROM rb_position_data WHERE process_area LIKE '%面漆存储%' OR process_area LIKE '%储存线%';",
       "complexity": "medium",
-      "domain": "paint_shop_vehicle_tracking",
+      "domain": "paint_shop_vehicle_logistics",
       "description": "查询：面漆存储线/储存线的滚床数量"
     }
   }

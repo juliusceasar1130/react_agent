@@ -3,7 +3,7 @@
     "document": "存储线与储存线含义相同，均指缓冲区（buffer）区域。",
     "metadata": {
       "type": "documentation",
-      "domain": "paint_shop_vehicle_tracking",
+      "domain": "paint_shop_vehicle_logistics",
       "process": "common",
       "term": "存储线",
       "aliases": [
@@ -16,7 +16,7 @@
     "document": "预处理电泳分为主线与存储线。主线负责生产，存储线负责缓存。预处理电泳主线与存储线各有2条，可称为1线、2线，或L1薄膜线、L2磷化线。",
     "metadata": {
       "type": "documentation",
-      "domain": "paint_shop_vehicle_tracking",
+      "domain": "paint_shop_vehicle_logistics",
       "process": "预处理电泳",
       "term": "产线结构",
       "aliases": []
@@ -26,7 +26,7 @@
     "document": "PVC分为主线与存储线（储存线/buffer）。主线负责生产，存储线负责缓存。PVC主线与存储线各有3条，可称为1线、2线、3线，或L1、L2、L3。",
     "metadata": {
       "type": "documentation",
-      "domain": "paint_shop_vehicle_tracking",
+      "domain": "paint_shop_vehicle_logistics",
       "process": "PVC",
       "term": "产线结构",
       "aliases": []
@@ -36,7 +36,7 @@
     "document": "面漆区域有3条流水线，可称为1线、2线、3线，或L1、L2、L3。每一条生产节拍40JPH(每小时生产40台车)",
     "metadata": {
       "type": "documentation",
-      "domain": "paint_shop_vehicle_tracking",
+      "domain": "paint_shop_vehicle_logistics",
       "process": "面漆",
       "term": "产线结构",
       "aliases": []
@@ -46,7 +46,7 @@
     "document": "面漆区域细分分为：色漆线、中间烘房、清漆线、烘房、储存线/buffer 区域",
     "metadata": {
       "type": "documentation",
-      "domain": "paint_shop_vehicle_tracking",
+      "domain": "paint_shop_vehicle_logistics",
       "process": "面漆",
       "term": "产线结构",
       "aliases": []
@@ -56,7 +56,7 @@
     "document": "注蜡分为主线与存储线（buffer）。主线负责生产，存储线负责缓存。注蜡主线与存储线各有3条，可称为1线、2线、3线，或L1、L2、L3。",
     "metadata": {
       "type": "documentation",
-      "domain": "paint_shop_vehicle_tracking",
+      "domain": "paint_shop_vehicle_logistics",
       "process": "注蜡",
       "term": "产线结构",
       "aliases": []
@@ -66,7 +66,7 @@
     "document": "【滚床类型标识】RB/rb = 滚床（Roller Bed），大小写不敏感，统一按大写RB入库。",
     "metadata": {
       "type": "documentation",
-      "domain": "paint_shop_vehicle_tracking",
+      "domain": "paint_shop_vehicle_logistics",
       "process": "common",
       "term": "滚床类型标识",
       "aliases": [
@@ -80,7 +80,7 @@
     "document": "【完整滚床编号规则】完整编号 = 数据库字段`plc` + `rb_index`；物理滚床唯一映射格式示例：L3F13-1B025RB。",
     "metadata": {
       "type": "documentation",
-      "domain": "paint_shop_vehicle_tracking",
+      "domain": "paint_shop_vehicle_logistics",
       "process": "common",
       "term": "滚床编号规则",
       "aliases": [
@@ -94,7 +94,7 @@
     "document": "滚床编号补充规则：示例1B095RB中，1B为组，095为组内滚床编号；单个PLC下管理多个滚床，不同PLC下滚床编号可能重复，需结合PLC编号形成完整唯一编号。",
     "metadata": {
       "type": "documentation",
-      "domain": "paint_shop_vehicle_tracking",
+      "domain": "paint_shop_vehicle_logistics",
       "process": "common",
       "term": "滚床编号补充规则",
       "aliases": []
@@ -104,7 +104,7 @@
     "document": "滚床上通过雪橇",
     "metadata": {
       "type": "documentation",
-      "domain": "paint_shop_vehicle_tracking",
+      "domain": "paint_shop_vehicle_logistics",
       "process": "common",
       "term": "滚床作用",
       "aliases": []
@@ -114,7 +114,7 @@
     "document": "区域指生产工艺段。油漆车间分为4大工艺段：预处理电泳、PVC、面漆、注蜡。",
     "metadata": {
       "type": "documentation",
-      "domain": "paint_shop_vehicle_tracking",
+      "domain": "paint_shop_vehicle_logistics",
       "process": "common",
       "term": "工艺区域",
       "aliases": []
@@ -124,7 +124,7 @@
     "document": "雪橇、吊架是装载车身的载具，用于承载待加工车身在各工艺区域流转生产。",
     "metadata": {
       "type": "documentation",
-      "domain": "paint_shop_vehicle_tracking",
+      "domain": "paint_shop_vehicle_logistics",
       "process": "common",
       "term": "载具",
       "aliases": [
@@ -137,7 +137,7 @@
     "document": "车身号，也称fis号码，是每一台产品车身的唯一id,以782026开头，如<782026xxxxxxxx>带有id的车身绝大多数是正式的产品车，也有可能是调试车或者项目车",
     "metadata": {
       "type": "documentation",
-      "domain": "paint_shop_vehicle_tracking",
+      "domain": "paint_shop_vehicle_logistics",
       "process": "common",
       "term": "车身号",
       "aliases": [
@@ -150,7 +150,7 @@
     "document": " 异常车辆有2种：第一种：vehicle_id 的前缀不是 '782026'开头 且 carrier_id 不等于 0。第二种：vehicle_id 等于 '--------------'且carrier_id 不等于 0。默认两种分别计算并合并，除非用户指明哪种情景。",
     "metadata": {
       "type": "documentation",
-      "domain": "paint_shop_vehicle_tracking",
+      "domain": "paint_shop_vehicle_logistics",
       "process": "common",
       "term": "异常车",
       "aliases": [
@@ -162,7 +162,7 @@
     "document": "车型是产品的类型，body_type是车型代码，用于生产，type_name是车型的系列名称，一个车型type_name对应多个body_type。常见的body_type有2N54Y、IM186、IM142、YM34K等5个字符构成。常见的type_name有TiguanL， E7， E5， A5， ID3， ID4， A7，TiguanPro，小鹏等。vehicle_body_types表提供详细的定义和明细",
     "metadata": {
       "type": "documentation",
-      "domain": "paint_shop_vehicle_tracking",
+      "domain": "paint_shop_vehicle_logistics",
       "process": "common",
       "term": "车型构成",
       "aliases": [
@@ -174,7 +174,7 @@
     "document": "颜色是产品的外观颜色，常见的颜色代码有：2T2T、0Q0Q、PZPZ等4个字符构成，vehicle_color_codes表提供详细的定义和明细",
     "metadata": {
       "type": "documentation",
-      "domain": "paint_shop_vehicle_tracking",
+      "domain": "paint_shop_vehicle_logistics",
       "process": "common",
       "term": "产品构成",
       "aliases": [
