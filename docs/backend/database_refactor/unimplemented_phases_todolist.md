@@ -44,7 +44,7 @@
 
 已完成内容：
 
-- 更新 `paint_shop_vehicle_tracking/domain.md`
+- 更新 `paint_shop_vehicle_logistics/domain.md`
 - 明确 `mart > fct > ods` 查询优先级
 - 现有 tracking 场景已切到 `mart_position_current_overview`
 - 已明确正式产品车、异常车、现场总览的对象边界
@@ -83,7 +83,7 @@
 - 编写 `meta.py`
 - 编写 `domain.md`
 - 根据高频问题补第一批 correlation 场景
-- 明确它与 `paint_shop_vehicle_tracking`、`paint_shop_defect_analysis` 的职责边界
+- 明确它与 `paint_shop_vehicle_logistics`、`paint_shop_defect_analysis` 的职责边界
 
 ### 4.4 适合承接的问题
 

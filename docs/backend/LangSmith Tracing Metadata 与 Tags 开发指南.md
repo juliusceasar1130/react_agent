@@ -203,7 +203,7 @@ await agent_service.process_stream(message, session_id, config)
 那么才适合这样补充：
 
 ```python
-confirmed_domain = "paint_shop_vehicle_tracking"
+confirmed_domain = "paint_shop_vehicle_logistics"
 
 config = {
     "configurable": {"thread_id": str(session_id)},
@@ -334,7 +334,7 @@ config = {
 
 - `mode:stream`
 - `provider:ollama`
-- `domain:paint_shop_vehicle_tracking`
+- `domain:paint_shop_vehicle_logistics`
 
 这样在 LangSmith 中过滤更直观，也便于后续统一统计。
 

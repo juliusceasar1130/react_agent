@@ -34,7 +34,7 @@ backend/app/skills/
   registry.py
   renderers.py
   domains/
-    paint_shop_vehicle_tracking/
+    paint_shop_vehicle_logistics/
       domain.md
       meta.py
       scenarios/
