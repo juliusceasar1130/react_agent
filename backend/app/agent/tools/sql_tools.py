@@ -18,6 +18,7 @@ import logging
 import re
 from typing import Any, List, Optional, Union
 
+import sqlglot
 from langchain.tools import ToolRuntime, tool as langchain_tool
 
 from backend.app.agent.constants import SQL_ERROR_KEYWORDS
@@ -32,6 +33,41 @@ FORBIDDEN_SQL_PATTERN = re.compile(
     r"\b(INSERT|UPDATE|DELETE|DROP|ALTER|TRUNCATE|GRANT|REVOKE|REPLACE|MERGE|EXEC|EXECUTE)\b",
     re.IGNORECASE
 )
+
+
+def _extract_table_names(query: str) -> set[str]:
+    """
+    使用 sqlglot AST 精确提取 SQL 中涉及的所有表名。
+    能正确处理：CTE、子查询、多表 JOIN、schema 限定名（schema.table）、表别名等。
+    解析失败时返回空集合，调用方应按保守策略处理。
+    """
+    try:
+        tables = set()
+        parsed = sqlglot.parse_one(query, error_level=sqlglot.ErrorLevel.IGNORE)
+        for table in parsed.find_all(sqlglot.exp.Table):
+            tables.add(table.name.lower())
+        return tables
+    except Exception:
+        # AST 解析失败时回退到保守策略
+        return set()
+
+
+def _is_pure_dimension_query(query: str) -> bool:
+    """
+    判断当前查询是否仅涉及维度表/字典表（不含任何事实表）。
+    基于 sqlglot AST 精确提取所有涉及的表名后与白名单比对。
+    """
+    involved_tables = _extract_table_names(query)
+    if not involved_tables:
+        # 解析失败或空查询，回退到保守策略（严格截断）
+        return False
+
+    dim_whitelist = settings.dimension_tables
+    if not dim_whitelist:
+        return False
+
+    # 只有当所有涉及的表都在维度白名单内，才算纯维度查询
+    return involved_tables.issubset(dim_whitelist)
 
 
 def _estimate_row_count(result_text: str) -> int:
@@ -191,7 +227,10 @@ def create_wrapped_query_tool(
         logger.debug("SQL 查询结果已清洗日期格式")
 
         # 5. 智能结果限流：防止数据库返回结果过大撑爆 LLM 上下文
-        hard_limit = settings.sql_result_hard_limit       # 获取系统硬限制（如 1000 行），若超过则截断
+        is_dim = _is_pure_dimension_query(query)
+        hard_limit = (
+            settings.dimension_result_hard_limit if is_dim else settings.sql_result_hard_limit
+        )
         preview_rows = settings.sql_result_preview_rows   # 获取超限时返还给大模型的预览数据行数（如 5 行）
         estimated_rows = _estimate_row_count(cleaned_result) # 通过字符串特征估算查询结果的总行数
 

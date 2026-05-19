@@ -59,10 +59,26 @@ class Settings(BaseSettings):
     sql_agent_top_k: int = int(os.getenv("SQL_AGENT_TOP_K", "1000"))
 
     # SQL 结果硬限制：代码层面对查询结果集的强制截断上限，防止大量数据加载到 LLM 上下文中造成溢出或性能崩溃
-    sql_result_hard_limit: int = int(os.getenv("SQL_RESULT_HARD_LIMIT", "500"))
-    
+    sql_result_hard_limit: int = int(os.getenv("SQL_RESULT_HARD_LIMIT", "30"))
+
     # SQL 结果预览行数：当查询结果触发硬限制被截断时，实际回吐给 LLM 观察的前 N 条数据行数
     sql_result_preview_rows: int = int(os.getenv("SQL_RESULT_PREVIEW_ROWS", "5"))
+
+    # 纯维度表查询时的宽松截断上限
+    dimension_result_hard_limit: int = int(
+        os.getenv("DIMENSION_RESULT_HARD_LIMIT", "300")
+    )
+
+    # 维度表/字典表白名单列表（原始逗号分隔字符串）
+    dimension_tables_raw: str = os.getenv("DIMENSION_TABLES", "")
+
+    @property
+    def dimension_tables(self) -> set[str]:
+        if not self.dimension_tables_raw:
+            return set()
+        return {
+            t.strip().lower() for t in self.dimension_tables_raw.split(",") if t.strip()
+        }
 
     # SQL 导出文件配置：前端下载能力使用的临时导出目录与过期时间
     sql_export_dir: str = os.getenv(
@@ -74,12 +90,8 @@ class Settings(BaseSettings):
         "CHART_ARTIFACT_DIR",
         str(Path(tempfile.gettempdir()) / "sql_agent_charts"),
     )
-    chart_artifact_ttl_hours: int = int(
-        os.getenv("CHART_ARTIFACT_TTL_HOURS", "24")
-    )
-    chart_artifact_max_points: int = int(
-        os.getenv("CHART_ARTIFACT_MAX_POINTS", "100")
-    )
+    chart_artifact_ttl_hours: int = int(os.getenv("CHART_ARTIFACT_TTL_HOURS", "24"))
+    chart_artifact_max_points: int = int(os.getenv("CHART_ARTIFACT_MAX_POINTS", "100"))
 
     # 服务器配置
     debug: bool = _parse_debug_flag(os.getenv("DEBUG", "true"))
@@ -93,12 +105,8 @@ class Settings(BaseSettings):
         os.getenv("LLM_CONTEXT_WARNING_ENABLED", "false").lower() == "true"
     )
     llm_context_window: int = int(os.getenv("LLM_CONTEXT_WINDOW", "16384"))
-    llm_context_warn_tokens: int = int(
-        os.getenv("LLM_CONTEXT_WARN_TOKENS", "12000")
-    )
-    llm_context_safety_buffer: int = int(
-        os.getenv("LLM_CONTEXT_SAFETY_BUFFER", "512")
-    )
+    llm_context_warn_tokens: int = int(os.getenv("LLM_CONTEXT_WARN_TOKENS", "12000"))
+    llm_context_safety_buffer: int = int(os.getenv("LLM_CONTEXT_SAFETY_BUFFER", "512"))
     llama_cpp_tokenize_base_url: str = os.getenv(
         "LLAMA_CPP_TOKENIZE_BASE_URL",
         "http://127.0.0.1:8089",
@@ -106,9 +114,11 @@ class Settings(BaseSettings):
     llm_context_tokenizer_timeout: float = float(
         os.getenv("LLM_CONTEXT_TOKENIZER_TIMEOUT", "5")
     )
-    
+
     # RAG 配置
-    rag_backend: str = os.getenv("RAG_BACKEND", "milvus_hybrid")  # pgvector | milvus_hybrid
+    rag_backend: str = os.getenv(
+        "RAG_BACKEND", "milvus_hybrid"
+    )  # pgvector | milvus_hybrid
     rag_similarity_threshold: Optional[float] = (
         float(os.getenv("RAG_SIMILARITY_THRESHOLD"))
         if os.getenv("RAG_SIMILARITY_THRESHOLD")
@@ -123,7 +133,14 @@ class Settings(BaseSettings):
     milvus_chunk_size: int = int(os.getenv("MILVUS_CHUNK_SIZE", "512"))
     milvus_chunk_overlap: int = int(os.getenv("MILVUS_CHUNK_OVERLAP", "50"))
     # Milvus 初始化配置（数据导入使用）
-    _default_data_dir = str(Path(__file__).resolve().parent / "agent" / "vector" / "milvus_init" / "data" / "examples")
+    _default_data_dir = str(
+        Path(__file__).resolve().parent
+        / "agent"
+        / "vector"
+        / "milvus_init"
+        / "data"
+        / "examples"
+    )
     milvus_data_dir: str = os.getenv("MILVUS_DATA_DIR", _default_data_dir)
     milvus_overwrite: bool = os.getenv("MILVUS_OVERWRITE", "true").lower() == "true"
 
@@ -135,9 +152,7 @@ class Settings(BaseSettings):
     llama_cpp_embed_model: str = os.getenv(
         "LLAMA_CPP_EMBED_MODEL", "Qwen/Qwen3-Embedding-0.6B-GGUF:q8_0"
     )
-    llama_cpp_embed_timeout: float = float(
-        os.getenv("LLAMA_CPP_EMBED_TIMEOUT", "30")
-    )
+    llama_cpp_embed_timeout: float = float(os.getenv("LLAMA_CPP_EMBED_TIMEOUT", "30"))
     qwen_query_instruction_enabled: bool = (
         os.getenv("QWEN_QUERY_INSTRUCTION_ENABLED", "true").lower() == "true"
     )
@@ -161,7 +176,7 @@ class Settings(BaseSettings):
     ollama_model: str = os.getenv("OLLAMA_MODEL", "qwen3:30b")
     ollama_num_ctx: int = int(os.getenv("OLLAMA_NUM_CTX", "32768"))
     ollama_keep_alive: int = int(os.getenv("OLLAMA_KEEP_ALIVE", "-1"))
-    
+
     # Ollama Embedding 配置 (用于本地化 RAG 嵌入)
     ollama_embed_model: str = os.getenv("OLLAMA_EMBED_MODEL", "qwen3-embedding:0.6b")
 
@@ -172,10 +187,7 @@ class Settings(BaseSettings):
     # NVIDIA AI 配置（用于向量库 Embeddings）
     nvidia_api_key: str = os.getenv("NVIDIA_API_KEY", "")
 
-    model_config = SettingsConfigDict(
-        env_file=".env",
-        extra="ignore"
-    )
+    model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
     @field_validator("debug", mode="before")
     @classmethod

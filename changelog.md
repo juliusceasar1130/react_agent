@@ -1,3 +1,27 @@
+## 2026-05-19 13:45 +08:00 - 落实维度表动态旁路截断放开机制
+
+### 概述
+- **实现 AST 精确表名提取**：引入 `sqlglot` 库，基于 SQL 抽象语法树（AST）深度解析技术，提取 SQL 查询中所涉及的物理表名。彻底杜绝了基于子串正则匹配易产生的别名欺骗、子查询混淆与字段名撞车等误判缺陷。
+- **动态结果硬截断控制**：在 `sql_db_query` 工具中设计了智能双轨制硬截断旁路。若检测到查询完全由维度表白名单（例如 `process_areas,car_models,colors`）构成，则自动放宽硬截断限制至 300 行；若涉及任一事实表或解析失败，则自动安全回退至严格的 30 行限制，确保资源安全的同时保留完整的维度信息。
+- **配置与测试全套闭环**：完善 `.env` 环境配置，在 `config.py` 中构建属性验证，并在 `backend/app/test_sql_truncation.py` 中编写并成功通过了多层级、高复杂的 CTE 与子查询 AST 解析单元测试。
+
+### 变更内容
+
+#### .env
+- 新增 `DIMENSION_TABLES` (维度表白名单) 和 `DIMENSION_RESULT_HARD_LIMIT` (纯维度表查询宽松硬截断上限) 环境变量。
+
+#### backend/app/config.py
+- 在 `Settings` 类中扩展 `dimension_result_hard_limit` 与 `dimension_tables_raw` 属性，并实现统一的 `@property def dimension_tables` 转换处理。
+
+#### backend/app/agent/tools/sql_tools.py
+- 引入 `sqlglot`。
+- 实现 `_extract_table_names` 方法：基于 `sqlglot.parse_one` 与 `sqlglot.exp.Table` 进行全量表名提取。
+- 实现 `_is_pure_dimension_query` 方法：计算涉及的全部表名是否是维度表白名单的子集。
+- 重写 `sql_db_query` 逻辑：动态评估 `hard_limit` 取值。
+
+#### backend/app/test_sql_truncation.py [NEW]
+- 针对 `_extract_table_names` 与 `_is_pure_dimension_query` 建立完善的单元测试用例，覆盖简单查询、JOIN 查询、CTE 嵌套、Schema 命名空间等场景。
+
 ## 2026-05-19 11:00 +08:00 - 沉淀 SQL 查询硬截断机制下维度表数据缺失与对齐矛盾分析报告
 
 ### 概述
