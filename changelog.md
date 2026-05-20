@@ -1,3 +1,99 @@
+## 2026-05-20 - 移除数据字典 Mock 降级，白名单改用 .env 配置
+
+### 概述
+- **移除 Mock 降级**：删除 `MOCK_DIMENSION_DATA` 及全部降级逻辑，数据库未配置或连接/查询失败直接返回 503/500，便于人员排查。
+- **白名单来源改为 .env**：`DIMENSION_TABLES` 环境变量（已存在于 `.env`）通过 `settings.dimension_tables` 读取，不再硬编码。
+- **前端同步清理**：移除 `source` 字段（dimensions.ts / DimensionTable.vue / VariantB.vue），删除"仿真"/"实时"徽标及 Mock 警告横幅。
+- **文档对齐**：设计文档、开发计划、memory.md 同步更新。
+
+### 变更内容
+
+#### backend/app/api.py
+- 删除 `DIMENSION_TABLE_WHITELIST` 硬编码和 `MOCK_DIMENSION_DATA`
+- 白名单改用 `settings.dimension_tables`
+- 数据库不可用时返回 503/500 而非降级
+
+#### frontend/src/api/dimensions.ts
+- 移除 `source` 字段
+
+#### frontend/src/components/DimensionTable.vue
+- 移除 `source` prop、来源徽标、Mock 警告横幅
+
+#### frontend/src/components/VariantB.vue
+- 移除 `:source` prop 绑定
+
+#### backend/app/test_dimensions_api.py
+- 移除 `source` 断言
+
+## 2026-05-19 22:15 +08:00 - 数据字典方案 B 定案、双击联动融合与毛玻璃 Spark Toast 上线
+
+### 概述
+- **方案 B Bento 抽屉全面定案**：正式选用“方案 B（Bento 网格 + 侧滑 Drawer 抽屉）”作为智能分析助手的正式数据字典交互架构。将抬头升级为正式的 **RESEARCH 智能分析助手**。
+- **物理清理冗余变体**：外科手术式清理并彻底删除了 VariantA.vue、VariantC.vue 和 PrototypeSwitcher.vue 组件，移除了父组件全部死引用与无用 ref 变量，确保工作区干净清爽。
+- **高阶双击联动注入融合**：完美融合了“双击数据字典单元格与字段名自动平滑提取并注入输入框光标停留处”的极高效率联动，并触发 `.input-glow` 呼吸灯微光聚焦反馈。
+- **✨ Spark Toast 毛玻璃浮动气泡交互**：新增了屏幕底部绝对定位、毛玻璃高拟真 Transition 动画 Toast 交互。双击注入时优雅弹出淡入淡出反馈：`已成功提取 "xxx" 并自动注入输入框！`，WOW 效果直接拉满。
+- **前端 TypeScript 0 编译报错**：物理清理并重构后，全量执行 `npx vue-tsc --noEmit`，结果以 0 错误（Exit code: 0）绿色全线通过。
+
+### 变更内容
+
+#### frontend/src/views/ChatView.vue [MODIFY]
+- 物理卸载 A/C 变体与切换器，唯一挂载并装配 VariantB，收口为单个 `textareaRef`。
+- 精细化声明 `toastVisible`、`toastMessage` 及延时器，在 `@dblclick-cell` 触发时计算光标坐标位置并无缝拼合注入、触发聚焦发光及 Toast Transition 浮动交互。
+- 补全 Transition Toast DOM。
+
+#### frontend/src/components/VariantB.vue [MODIFY]
+- 声明并冒泡 `dblclick-cell` 事件，下线 Variant B 的开发测试用抬头，升级为正式产品化头部。
+
+#### frontend/src/components/VariantA.vue [DELETE]
+- [物理删除] 极简双 Tab 原型组件。
+
+#### frontend/src/components/VariantC.vue [DELETE]
+- [物理删除] 左右对照分屏与联动原型组件。
+
+#### frontend/src/components/PrototypeSwitcher.vue [DELETE]
+- [物理删除] 悬浮切换控制药丸组件。
+
+## 2026-05-19 22:05 +08:00 - 数据字典交互原型开发与 A/B/C 三变体体验集成
+
+### 概述
+- **新增维度表数据加载端点**：在后端 `/api/chat/dimensions/{table_name}` 端点中实现了对五张核心维度表的按需查询，内置白名单拦截（`carrier_types`, `process_areas`, `vehicle_body_types`, `vehicle_color_codes`, `vehicle_platforms`）。
+- **零延迟高仿真 Mock 降级保障**：在 `analytics_database_url` 未配置或连接发生异常时，接口自动秒级捕获并平滑降级为仿真本地 Mock 字典数据，确保离线及演示环境下的 100% 稳定高可用。
+- **全套三变体原型交互方案实现**：
+  - **Variant A (极简 Tab 模式)**: 侧边栏支持“对话”与“数据字典”的经典双 Tab 自由切换。
+  - **Variant B (Bento 网格与 Slide-over Drawer)**: 极富视觉冲击力的 Bento 磁贴卡片，点击一键平滑侧滑拉出毛玻璃拟态抽屉展示高密度数据。
+  - **Variant C (分屏联动工作台)**: 左 55% 聊天对话与右 45% 数据字典实时左右对照，可无缝收缩折叠；双击右侧表格任何单元格，数据自动平滑提取并注入左侧输入框当前光标处，且触发输入框 `.input-glow` 呼吸灯微光聚焦反馈。
+- **原型悬浮控制药丸实现**：开发了 `<PrototypeSwitcher />` 玻璃药丸切换栏，可通过左右方向键盘按键一键极速切屏，并通过 URL `?variant=X` 保持路由同步，完美满足高级原型预览的高要求。
+- **完善单元测试与静态类型**：编写并通过了 `pytest backend/app/test_dimensions_api.py` 的白名单与降级单元测试，且执行前端全量 `npx vue-tsc --noEmit` 达到 0 错误绿色通过状态。
+
+### 变更内容
+
+#### backend/app/api.py
+- 新增 `/api/chat/dimensions/{table_name}` 查询逻辑、高保真本地 Mock 字典数据库与白名单规则校验。
+
+#### backend/app/test_dimensions_api.py [NEW]
+- 新增该测试文件，全方位覆盖非法表请求拦截、合法表返回、以及 Mock 降级机制。
+
+#### frontend/src/api/dimensions.ts [NEW]
+- 封装前端请求桥接并声明表格相关 TypeScript 类型定义。
+
+#### frontend/src/components/PrototypeSwitcher.vue [NEW]
+- 新增开发模式底部悬浮变体控制器，集成 `ArrowLeft` / `ArrowRight` 键盘事件绑定与 URL 参数同步。
+
+#### frontend/src/components/DimensionTable.vue [MODIFY]
+- 改良表格渲染，增加气泡式一键复制、来源微标、以及 `dblclick-cell` 事件抛出以防 TS 检查警告。
+
+#### frontend/src/components/VariantA.vue [NEW]
+- 实现了双栏 Tab 交互容器。
+
+#### frontend/src/components/VariantB.vue [NEW]
+- 实现了 Bento 网格仪表盘与平滑拉出侧滑 Drawer 抽屉的极高观感交互。
+
+#### frontend/src/components/VariantC.vue [NEW]
+- 实现了左右联动分屏、收展拉伸与双击注入事件冒泡。
+
+#### frontend/src/views/ChatView.vue [MODIFY]
+- 重构主页面插槽装配，引入三变体，声明文本框 `ref` 动态选择并拦截双击注入事件追加光标，新增呼吸聚焦微光样式。
+
 ## 2026-05-19 13:45 +08:00 - 落实维度表动态旁路截断放开机制
 
 ### 概述
