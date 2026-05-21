@@ -1,3 +1,18 @@
+## 2026-05-21 21:45 +08:00 - 重构 agent 技能目录，扁平化管理并移除冗余技能
+
+### 概述
+- **目录扁平化**：将 `.agent/skills/superpowers/` 下的核心技能提升至 `.agent/skills/` 根目录。
+- **清理未使用技能**：移除了不再需要的专有格式解析及体验类技能（如 docx, pdf, pptx, xlsx, theme-factory, slack-gif-creator 等），精简智能体的基础能力库。
+
+### 变更内容
+
+#### .agent/skills/ [MODIFY]
+- 移出原 `superpowers/` 下的技能至该目录（如 `brainstorming`, `dispatching-parallel-agents`, `systematic-debugging` 等）。
+- 物理删除了 `brand-guidelines`, `docx`, `internal-comms`, `langchain_expert`, `pdf`, `pptx`, `slack-gif-creator`, `theme-factory`, `web-artifacts-builder`, `webapp-testing`, `xlsx` 及其相关脚本和文档。
+
+### 验证
+- 通过 `git status` 确认了目录结构的正确变更。
+
 ## 2026-05-20 - 移除数据字典 Mock 降级，白名单改用 .env 配置
 
 ### 概述
