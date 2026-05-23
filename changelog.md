@@ -1,3 +1,13 @@
+## 2026-05-23 18:53 +08:00 - 优化前后车缺陷追溯场景 SQL 的输出字段
+
+### 概述
+- **扩展查询结果字段**：在 `vehicle_adjacent_defects` 场景的 SQL 模板中，追加了 `body_type`、`color_code`、`type_name` 以及 `total_defect_count` 字段，以满足更多维度的业务需求分析。
+
+### 变更内容
+#### backend/app/skills/domains/paint_shop_defect_analysis/scenarios/vehicle_adjacent_defects/sql/main.sql [MODIFY]
+- 在 CTE 中补充抽取 `fct_vehicle_defect_enriched` 表的 `body_type`、`color_code` 和 `total_defect_count`。
+- 在最终 `SELECT` 中增加 `LEFT JOIN ods.vehicle_body_types` 以获取对应的 `type_name`。
+
 ## 2026-05-23 18:12 +08:00 - 修复技能渲染器对可选参数的键值异常（KeyError）
 
 ### 概述
