@@ -1,3 +1,21 @@
+## 2026-05-23 19:13 +08:00 - 切换前后车缺陷查询的数据源并新增 black_roof
+
+### 概述
+- **数据源迁移与映射**：在 `vehicle_adjacent_defects` 场景中，将查询缺陷记录的目标表从 `fct.fct_vehicle_defect_enriched` 切换到了 `ods.history_station_defect_summary`。
+- **字段来源变更**：
+  - 将关联条件由 `vehicle_id` 调整为 `serial_number`。
+  - `body_type` 字段现从 `ods.carbody_history` 中的 `BODY_TYPE` 直接获取。
+  - 新增输出字段 `black_roof`，来源于新的 `history_station_defect_summary` 数据源。
+- 同步更新了 `scenario.py` 中的 `output_contract`，强制大模型输出 `black_roof`。
+
+### 变更内容
+#### backend/app/skills/domains/paint_shop_defect_analysis/scenarios/vehicle_adjacent_defects/sql/main.sql [MODIFY]
+- 更新 CTE 语句，改为从 `ods.carbody_history` 抽取 `BODY_TYPE`。
+- 替换 `LEFT JOIN` 的目标表与 ON 约束条件，增加 `black_roof` 字段的抽取与返回。
+
+#### backend/app/skills/domains/paint_shop_defect_analysis/scenarios/vehicle_adjacent_defects/scenario.py [MODIFY]
+- 修改了 `output_contract` 提示词。
+
 ## 2026-05-23 18:53 +08:00 - 优化前后车缺陷追溯场景 SQL 的输出字段
 
 ### 概述
