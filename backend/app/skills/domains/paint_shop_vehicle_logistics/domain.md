@@ -11,10 +11,11 @@
 ## 领域定位与红线
 
 **核心职责**：管“在哪儿（当前）”、“去过哪儿（历史）”、“数量多少（产能/吞吐/堆积）”。
-**绝对红线**：
-1. 本领域**禁止**包含任何与缺陷（defect）、检测工位（station）、缺陷率相关的查询。
+**技能切换**：
+1. 包含任何与缺陷（defect）、检测工位（station）、缺陷率相关的查询推荐使用`paint_shop_defect_analysis`技能。
 2. 遇到需要查询质量/缺陷率的问题，请引导用户或切换至 `paint_shop_defect_analytics` 技能。
 3. `carbody` 数据代表历史事件流水，而 `rb_position_data`（及其派生表）代表滚床当前的传感器截面。严禁在写 SQL 时混用两者的逻辑。
+4. 用户问车身顺序、前后车相关问题，推荐`paint_shop_defect_analysis`技能的`vehicle_adjacent_defects`。
 
 ---
 

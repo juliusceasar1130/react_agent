@@ -9,11 +9,11 @@
 SCENARIO = {
     "skill_name": "paint_shop_defect_analysis",
     "name": "vehicle_adjacent_defects",
-    "title": "前后车身缺陷追溯",
-    "description": "基于车身号和指定读写站，查询该点前后/相邻通过的 N 辆车，并匹配每辆车与过点时间最接近的一条缺陷检测记录。",
-    "example_questions": [
-        "帮我查一下车身 78202612345678 在工位 STATION_A 过点时，前后的车有没有缺陷",
+    "title": "前后车身顺序及缺陷追溯",
+    "description": "基于读写站点位，查询前后/相邻通过的 N 辆车顺序，并匹配每辆车与过点时间最接近的一条缺陷检测记录。",
+    "example_questions": [        
         "查询这辆车和它前后一辆车的缺陷记录"
+        "查询某车的前后车序列"
     ],
     "triggers": [
         "前后车身缺陷",
@@ -70,7 +70,7 @@ SCENARIO = {
         "结果保留无缺陷检测记录的过点车辆，且明确标记 target/before/after 角色。"
     ],
     "gotchas": [],
-    "output_contract": "输出字段必须包含 car_role, BODY_ID, body_type, color_code, black_roof, type_name, pass_time 以及各个station_<x>_defect_count缺陷及total_defect_count统计数量列。不要其他输出",
+    "output_contract": "输出字段必须包含 car_role, BODY_ID, body_type, color_code, black_roof, type_name, pass_time 以及各个station_<x>_defect_count缺陷及total_defect_count（突出）统计数量列。不要其他输出",
     "sql_template_refs": [
         {
             "type": "sql",

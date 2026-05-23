@@ -1,3 +1,18 @@
+## 2026-05-23 20:25 +08:00 - 优化聊天表格排版，解决大表格溢出与列宽度拉伸痛点
+
+### 概述
+- **实现聊天表格响应式滚动**：为 Markdown 渲染的表格自动包裹一层 `.table-container` 容器，并使用 `overflow-x: auto` 支持响应式横向滚动，彻底解决小屏或内容过多时表格物理溢出消息气泡的排版 Bug。
+- **优化表格列宽分布**：移除原本在所有 Markdown 表格中针对 `th:last-child` / `td:last-child` 强加的 `min-width: 12rem` 规则。消除了非必要情况下的无意义列宽拉伸，使表格字段排版更紧凑、协调。
+
+### 变更内容
+
+#### frontend/src/utils/markdown.ts [MODIFY]
+- 扩展 `markdown-it` 渲染规则，重写 `table_open` 和 `table_close` 钩子，自动为渲染生成的 HTML 表格结构包裹具有响应式滚动样式的 `<div class="table-container">` 容器。
+
+#### frontend/src/style.css [MODIFY]
+- 将原表格的边框、边角半径、背景颜色与阴影等属性转移到新包裹 of `.table-container` 容器上，并启用 `overflow-x: auto` 和平滑滚动的 iOS 支持。
+- 移除了对 `th:last-child` 和 `td:last-child` 强制最小宽度为 `12rem` 的 CSS 样式，还原为全局通用的 `5rem` 最小自适应边界。
+
 ## 2026-05-23 19:13 +08:00 - 切换前后车缺陷查询的数据源并新增 black_roof
 
 ### 概述

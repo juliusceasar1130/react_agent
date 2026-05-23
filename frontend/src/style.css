@@ -165,7 +165,7 @@
   .message-markdown ol,
   .message-markdown blockquote,
   .message-markdown pre,
-  .message-markdown table,
+  .message-markdown .table-container,
   .message-markdown h1,
   .message-markdown h2,
   .message-markdown h3,
@@ -229,15 +229,25 @@
     border-radius: 0.9rem;
   }
 
-  .message-markdown table {
-    display: table;
+  .message-markdown .table-container {
     width: 100%;
-    border-collapse: separate;
-    border-spacing: 0;
+    overflow-x: auto;
     border: 1px solid rgb(219 229 240);
     border-radius: 0.95rem;
     background: rgb(255 255 255 / 0.98);
     box-shadow: 0 16px 30px -24px rgb(15 23 42 / 0.4);
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .message-markdown .table-container table {
+    display: table;
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+    border: none;
+    background: transparent;
+    box-shadow: none;
+    margin: 0;
   }
 
   .message-markdown thead {
@@ -284,10 +294,7 @@
     font-variant-numeric: tabular-nums;
   }
 
-  .message-markdown th:last-child,
-  .message-markdown td:last-child {
-    min-width: 12rem;
-  }
+  /* 移除了 th:last-child, td:last-child 的强制 12rem 最小宽度限制，以防止非必要情况下的严重拉伸 */
 
   /* 智能数据重点高亮：大模型使用 **加粗** 标记时自动渲染为品牌蓝色 */
   .message-markdown td strong {
