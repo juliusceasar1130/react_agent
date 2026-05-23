@@ -1,3 +1,4 @@
+-- 步骤1：定位目标车辆在指定读写站的最近一次过点时间
 WITH target_event AS (
     SELECT "BODY_ID", "DATE_EVT", "BODY_TYPE"
     FROM ods.carbody_history
@@ -6,6 +7,7 @@ WITH target_event AS (
     ORDER BY "DATE_EVT" DESC
     LIMIT 1
 ),
+-- 步骤2：根据目标车的过点时间，向前推和向后推，找到前后各 N 辆车，并将目标车一起合并输出
 adjacent_events AS (
     SELECT "BODY_ID", "DATE_EVT", "BODY_TYPE", 'target' AS car_role
     FROM target_event
@@ -30,6 +32,7 @@ adjacent_events AS (
         LIMIT {{n_adjacent}}
     ) a
 ),
+-- 步骤3：将这批相邻车辆（含目标车）与缺陷汇总表关联，并计算缺陷检测时间与过点时间的差值绝对值
 defect_matches AS (
     SELECT 
         a.car_role,
@@ -51,6 +54,7 @@ defect_matches AS (
     LEFT JOIN ods.history_station_defect_summary d 
       ON a."BODY_ID" = d.serial_number
 )
+-- 步骤4：每辆车只保留离过点时间最近的一条缺陷记录（rn = 1），并关联车型字典获取名称
 SELECT 
     dm.car_role,
     dm."BODY_ID",
