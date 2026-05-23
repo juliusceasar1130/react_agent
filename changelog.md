@@ -1,3 +1,17 @@
+## 2026-05-23 17:21 +08:00 - 新增前后车身缺陷追溯场景技能
+
+### 概述
+- **新增 `vehicle_adjacent_defects` 场景**：在涂装缺陷分析（`paint_shop_defect_analysis`）领域下新增“前后车身缺陷追溯”场景。该场景支持基于目标车身号和指定读写站，查询该点前后经过的相邻车辆，并关联获取它们最接近过站时间的缺陷检测记录，极大地方便了追溯现场质量问题时的前后车辆排查。
+
+### 变更内容
+
+#### backend/app/skills/domains/paint_shop_defect_analysis/scenarios/vehicle_adjacent_defects/ [NEW]
+- `scenario.py`: 新增场景元数据、参数声明及工作流规则。
+- `sql/main.sql`: 新增通过 CTE 和 `ROW_NUMBER()` 窗口函数实现的按绝对时间差关联缺陷检测记录的 SQL 逻辑。
+
+### 验证
+- 代码已成功写入。
+
 ## 2026-05-23 10:55 +08:00 - PostgreSQL 时区配置兜底与 datetime 结果字段拦截序列化优化
 
 ### 概述
