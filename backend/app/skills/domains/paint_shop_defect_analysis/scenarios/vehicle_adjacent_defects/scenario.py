@@ -24,8 +24,7 @@ SCENARIO = {
         "前后",
         "相邻",
         "车身",
-        "缺陷",
-        "最近"
+        "缺陷", 
     ],
     "required_inputs": ["vehicle_id", "station_id"],
     "optional_inputs": ["n_adjacent"],
@@ -35,26 +34,35 @@ SCENARIO = {
             "description": "车身唯一标识 ID",
             "required": True,
             "source_column": "BODY_ID",
-            "source_table": "ods.carbody_history"
+            "source_table": "ods.carbody_history",
+            "example_values": ["78202612345678"],
+            "usage": "用于定位目标车辆，作为主查询参数。",
+            "sql_fragment": "WHERE \"BODY_ID\" = '{{vehicle_id}}'"
         },
         "station_id": {
             "type": "string",
             "description": "过点读写站 ID",
             "required": True,
             "source_column": "RW_STATION_ID",
-            "source_table": "ods.carbody_history"
+            "source_table": "ods.carbody_history",
+            "example_values": ["STATION_A"],
+            "usage": "用于确定查询的基准读写站位置。",
+            "sql_fragment": "AND \"RW_STATION_ID\" = '{{station_id}}'"
         },
         "n_adjacent": {
             "type": "integer",
             "description": "前后相邻查询车辆的数量",
             "required": False,
-            "default": 1
+            "default": 1,
+            "example_values": [1, 3, 5],
+            "usage": "控制目标车辆前后查询的数量（例如设置为1代表前1辆和后1辆）。",
+            "sql_fragment": "LIMIT {{n_adjacent}}"
         }
     },
     "workflow": [
         "确认用户提供了具体的 vehicle_id。",
         "如果用户未提供 station_id，建议先使用单车历史轨迹追溯查询车辆经过的读写站，引导用户选择一个。",
-        "将 n_adjacent 默认设置为 1（即前1辆和后1辆）。",
+        "将 n_adjacent 默认设置为 3（即前3辆和后3辆）。",
         "执行查询并返回前后车的缺陷数量记录。"
     ],
     "rules": [

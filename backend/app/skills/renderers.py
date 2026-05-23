@@ -86,7 +86,12 @@ def render_scenario_for_llm(scenario: ScenarioSkill) -> str:
             )
             lines.append(f"- 必填: {'是' if param_def['required'] else '否'}")
             lines.append(f"- 说明: {param_def['description']}")
-            lines.append(f"- 来源表: {param_def['source_table']}.{param_def['source_column']}")
+            
+            if "source_table" in param_def or "source_column" in param_def:
+                table = param_def.get("source_table", "未知表")
+                col = param_def.get("source_column", "未知字段")
+                lines.append(f"- 来源表: {table}.{col}")
+
             lines.append(f"- 示例值: {', '.join(str(v) for v in param_def['example_values'])}")
             lines.append(f"- SQL 片段: {param_def['sql_fragment']}")
             lines.append(f"- 使用方式: {param_def['usage']}")

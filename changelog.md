@@ -1,3 +1,18 @@
+## 2026-05-23 18:12 +08:00 - 修复技能渲染器对可选参数的键值异常（KeyError）
+
+### 概述
+- **修复 `renderers.py` 键值读取缺陷**：修复了在渲染场景技能参数配置时，由于强制读取 `[可选]` 属性 `source_table` 和 `source_column`，而在遇到纯逻辑参数（不对应具体表）时引发 `KeyError` 导致大模型流式响应中断的 Bug。改用健壮的 `.get()` 方法提供默认防呆保护。
+
+### 变更内容
+#### backend/app/skills/renderers.py [MODIFY]
+- 在 `render_scenario_for_llm` 方法中，为 `source_table` 和 `source_column` 的读取增加了判断，仅在参数存在这些键时才进行渲染拼接。
+
+#### backend/app/skills/domains/paint_shop_defect_analysis/scenarios/vehicle_adjacent_defects/scenario.py [MODIFY]
+- 清理移除了上一轮作为临时绕过缺陷方案而添加的 `source_table: "N/A"` 等无意义字段，恢复纯净配置。
+
+### 验证
+- 代码已成功写入，健壮性得到提升。
+
 ## 2026-05-23 17:21 +08:00 - 新增前后车身缺陷追溯场景技能
 
 ### 概述
