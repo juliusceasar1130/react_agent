@@ -48,7 +48,7 @@ defect_matches AS (
         d.station_5_defect_count,
         d.total_defect_count,
         d.color_code,
-        d.black_roof,
+        COALESCE(NULLIF(d.black_roof, ''), '非黑顶') AS black_roof,
         ROW_NUMBER() OVER(PARTITION BY a."BODY_ID" ORDER BY ABS(EXTRACT(EPOCH FROM (d.date_time - a."DATE_EVT"))) ASC) as rn
     FROM adjacent_events a
     LEFT JOIN ods.history_station_defect_summary d 
