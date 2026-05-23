@@ -21,12 +21,25 @@ def build_postgres_search_path_engine_args(search_path: str) -> dict[str, Any]:
         part.strip() for part in search_path.split(",") if part.strip()
     )
     if not cleaned_search_path:
-        return {}
-    return {
-        "connect_args": {
-            "options": f"-csearch_path={cleaned_search_path}",
+        return {
+            "connect_args": {
+                "options": "-ctimezone=Asia/Shanghai"
+            }
         }
-    }
+    
+    import re
+    if re.search(r'-ctimezone\s*=\s*\S+', cleaned_search_path, re.IGNORECASE):
+        return {
+            "connect_args": {
+                "options": f"-csearch_path={cleaned_search_path}",
+            }
+        }
+    else:
+        return {
+            "connect_args": {
+                "options": f"-csearch_path={cleaned_search_path} -ctimezone=Asia/Shanghai",
+            }
+        }
 
 
 class MaterializedViewSQLDatabase(SQLDatabase):
@@ -122,3 +135,47 @@ class MaterializedViewSQLDatabase(SQLDatabase):
     ) -> "MaterializedViewSQLDatabase":
         _engine_args = engine_args or {}
         return cls(create_engine(database_uri, **_engine_args), **kwargs)
+
+    def run(
+        self,
+        command: Any,
+        fetch: str = "all",
+        include_columns: bool = False,
+        *,
+        parameters: Optional[dict] = None,
+        execution_options: Optional[dict] = None,
+    ) -> Any:
+        """Execute a SQL command and return a string representing the results.
+
+        Override the parent class run method to intercept and format raw datetime/date objects.
+        """
+        result = self._execute(
+            command, fetch, parameters=parameters, execution_options=execution_options
+        )
+
+        if fetch == "cursor":
+            return result
+
+        import datetime
+        from langchain_community.utilities.sql_database import truncate_word
+
+        res = []
+        for r in result:
+            row_dict = {}
+            for column, value in r.items():
+                if isinstance(value, datetime.datetime):
+                    formatted_val = value.strftime("%Y-%m-%d %H:%M:%S")
+                elif isinstance(value, datetime.date):
+                    formatted_val = value.strftime("%Y-%m-%d")
+                else:
+                    formatted_val = truncate_word(value, length=self._max_string_length)
+                row_dict[column] = formatted_val
+            res.append(row_dict)
+
+        if not include_columns:
+            res = [tuple(row.values()) for row in res]
+
+        if not res:
+            return ""
+        else:
+            return str(res)

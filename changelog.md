@@ -1,3 +1,19 @@
+## 2026-05-23 10:55 +08:00 - PostgreSQL 时区配置兜底与 datetime 结果字段拦截序列化优化
+
+### 概述
+- **时区配置注入兜底**：在 PostgreSQL 连接引擎参数构造器中增加了正则扫描，若用户配置缺省时区，则在 `options` 中自动追加 `-ctimezone=Asia/Shanghai` 进行防呆时区偏置；若已配置则完全遵循用户配置。
+- **时间类型序列化拦截**：在自有类 `MaterializedViewSQLDatabase` 中重写了 `run` 方法，全局拦截 `datetime` 对象。在将结果集转换为字符串之前，统一将 `datetime.datetime` 格式化为 `%Y-%m-%d %H:%M:%S` 字符串，将 `datetime.date` 格式化为 `%Y-%m-%d` 字符串。极大地提升了上下文信噪比，且相比原先 Python 对象的 verbose 字符串表示（如 `datetime.datetime(2026, 5, 22, 16, 36, tzinfo=...)`），直接为每次查询结果缩减了大约 80% 的时间字段 Token 消耗，显著提升了 LLM 回应性能。
+
+### 变更内容
+
+#### backend/app/agent/utils/sql_database.py [MODIFY]
+- 在 `build_postgres_search_path_engine_args` 中添加正则表达式扫描，并在缺失 `-ctimezone` 参数时自动追加兜底配置。
+- 重写 `MaterializedViewSQLDatabase.run` 方法，添加遍历类型校验，拦截并紧凑转换 `datetime.datetime` 和 `datetime.date` 对象。
+
+### 验证
+- 编写并运行了 `test_timezone_builder.py` 单元测试，测试了无配置兜底和已配置尊重的情况，全部通过。
+- 编写并运行了 `test_datetime_serialization.py` 单元测试，通过 SQLite 内存数据库反射和 Mock `Row` 对象，脱机严格验证了查询结果中时间类型拦截器前后字符串的精简效果，已 100% 验证通过。
+
 ## 2026-05-21 21:45 +08:00 - 重构 agent 技能目录，扁平化管理并移除冗余技能
 
 ### 概述

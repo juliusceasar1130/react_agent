@@ -10,9 +10,8 @@
 from .loaders import load_domain_content, load_scenario_content
 from .models import AssetRef, DomainSkill, ScenarioSkill, Skill
 from .registry import (
-    DOMAIN_SKILLS,
-    SCENARIOS_BY_SKILL,
-    SKILLS,
+    get_all_skills,
+    get_domain_skills,
     get_scenario_by_name,
     get_skill_by_name,
     list_scenarios_by_skill,
@@ -23,9 +22,8 @@ __all__ = [
     "DomainSkill",
     "ScenarioSkill",
     "Skill",
-    "DOMAIN_SKILLS",
-    "SCENARIOS_BY_SKILL",
-    "SKILLS",
+    "get_all_skills",
+    "get_domain_skills",
     "get_skill_by_name",
     "list_scenarios_by_skill",
     "get_scenario_by_name",

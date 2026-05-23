@@ -43,8 +43,7 @@ from .chart_artifacts import get_chart_record
 from .export_files import get_export_record
 
 from .services import get_agent_service  # FastAPI 兼容层，内部复用 Agent V2 核心服务
-from .skills.registry import DOMAIN_SKILLS
-import backend.app.skills.registry
+from backend.app.skills.registry import get_domain_skills, list_scenarios_by_skill, reload_skills
 
 router = APIRouter(prefix="/api/chat", tags=["chat"])
 
@@ -65,7 +64,8 @@ def get_skills_endpoint():
     - 优先读取 title 和 example_questions 字段
     """
     skills_list = []
-    for domain_name, domain_info in DOMAIN_SKILLS.items():
+    domain_skills = get_domain_skills()
+    for domain_name, domain_info in domain_skills.items():
         skills_list.append({
             "name": domain_name,
             # 优先使用 meta.py 中的 title，缺省则回退到格式化名称
@@ -79,10 +79,18 @@ def get_skills_endpoint():
                     # 优先使用 scenario.py 中的 example_questions，缺省则回退到 triggers
                     "questions": s.get("example_questions") or s.get("triggers", [])[:3]
                 }
-                for s in backend.app.skills.registry.list_scenarios_by_skill(domain_name)
+                for s in list_scenarios_by_skill(domain_name)
             ]
         })
     return skills_list
+
+@router.post("/skills/reload")
+def reload_skills_endpoint():
+    """热重载全部技能"""
+    success = reload_skills()
+    if not success:
+        raise HTTPException(status_code=400, detail="Failed to reload skills. Check syntax in skill files.")
+    return {"message": "Skills reloaded successfully"}
 
 
 # ==================== 数据字典维度表 API ====================

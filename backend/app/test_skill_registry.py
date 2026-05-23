@@ -21,7 +21,7 @@ from backend.app.agent.tools.skill_tools import (
 from backend.app.skills.assets import resolve_asset_path
 from backend.app.skills.discovery import discover_domains, discover_scenarios
 from backend.app.skills import (
-    SKILLS,
+    get_all_skills,
     get_scenario_by_name,
     get_skill_by_name,
     list_scenarios_by_skill,
@@ -268,11 +268,12 @@ def test_discovery_rejects_invalid_asset_path() -> None:
         shutil.rmtree(root, ignore_errors=True)
 
 
-def test_legacy_skills_export_is_compatible() -> None:
-    assert SKILLS
-    assert any(skill["name"] == "paint_shop_vehicle_logistics" for skill in SKILLS)
-    assert any(skill["name"] == "paint_shop_defect_analysis" for skill in SKILLS)
-    assert "content" in SKILLS[0]
+def test_get_all_skills() -> None:
+    skills = get_all_skills()
+    assert skills
+    assert any(skill["name"] == "paint_shop_vehicle_logistics" for skill in skills)
+    assert any(skill["name"] == "paint_shop_defect_analysis" for skill in skills)
+    assert "content" in skills[0]
 
 
 def test_load_skill_command_updates_state() -> None:

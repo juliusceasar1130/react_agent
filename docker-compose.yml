@@ -12,6 +12,8 @@ services:
     # 加入已存在的network，与postgres容器通信
     networks:
       - app-network
+    volumes:
+      - ./backend/app/skills/domains:/app/backend/app/skills/domains
     restart: unless-stopped
     # 修改点：删除错误的 extra_hosts
     # 如果你在 Linux 上可能需要 host-gateway，但在 Windows Docker Desktop 上通常不需要。

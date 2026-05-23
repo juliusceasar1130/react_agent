@@ -16,7 +16,7 @@ from langchain.messages import SystemMessage
 
 from backend.app.agent.state import CustomState
 from backend.app.agent.tools.skill_tools import load_scenario, load_skill
-from backend.app.skills import SKILLS
+from backend.app.skills.registry import get_all_skills
 
 logger = logging.getLogger(__name__)
 
@@ -39,13 +39,14 @@ class SkillMiddleware(AgentMiddleware[CustomState]):
     tools = [load_skill, load_scenario]
 
     def __init__(self) -> None:
-        """初始化并生成技能提示词"""
-        self.skills_prompt = _build_skills_prompt(SKILLS)
+        """初始化"""
+        pass
 
     def _modify_request(self, request: ModelRequest) -> ModelRequest:
         """将技能描述（description）注入到系统提示词"""
+        skills_prompt = _build_skills_prompt(get_all_skills())
         skills_addendum = (
-            f"\n\n## Available Skills\n\n{self.skills_prompt}\n\n"
+            f"\n\n## Available Skills\n\n{skills_prompt}\n\n"
             "Use the load_skill tool when you need detailed domain knowledge. "
             "If the loaded domain skill shows a matching fixed scenario, use the "
             "load_scenario tool before composing SQL. For fixed statistics or "

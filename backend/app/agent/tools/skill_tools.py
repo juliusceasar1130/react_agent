@@ -15,7 +15,7 @@ from langgraph.types import Command
 
 from backend.app.agent.utils import emit_stream_status
 from backend.app.skills import (
-    SKILLS,
+    get_all_skills,
     get_scenario_by_name,
     get_skill_by_name,
     load_domain_content,
@@ -31,7 +31,7 @@ def _merge_names(existing: list[str], new_name: str) -> list[str]:
 def _build_load_skill_command(skill_name: str, runtime: ToolRuntime) -> Command:
     skill = get_skill_by_name(skill_name)
     if skill is None:
-        available = ", ".join(s["name"] for s in SKILLS)
+        available = ", ".join(s["name"] for s in get_all_skills())
         return Command(
             update={
                 "messages": [
@@ -69,7 +69,7 @@ def _build_load_scenario_command(
     runtime: ToolRuntime,
 ) -> Command:
     if get_skill_by_name(skill_name) is None:
-        available = ", ".join(s["name"] for s in SKILLS)
+        available = ", ".join(s["name"] for s in get_all_skills())
         return Command(
             update={
                 "messages": [
