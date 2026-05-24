@@ -285,6 +285,8 @@ rearch_agent/
 ├── deploy/                      # 部署文档与辅助配置
 ├── docs/                        # 项目文档总目录
 │   ├── sql_result_truncation_analysis.md # 维度表数据截断与对齐分析报告
+│   ├── vLLM 部署与多系统消息冲突解决方案.md # vLLM 部署下多系统消息冲突解决方案
+│   ├── 本地大模型部署与Agent架构选型技术方案报告.md # 本地大模型部署与Agent架构选型技术方案报告
 │   ├── backend/                 # 后端技术文档
 │   │   └── rpd/                 # 后端需求与 RAG 方案草稿
 │   ├── todolist/                # 评审记录、优化待办与后续跟踪
@@ -523,6 +525,8 @@ npm run dev
 - [PostgresSaver 集成重构总结](./docs/backend/PostgresSaver集成重构总结.md)
 - [连接池与上下文管理器详解](./docs/backend/连接池与上下文管理器详解.md)
 - [SQL 查询截断机制与维度表对齐矛盾分析报告](./docs/sql_result_truncation_analysis.md)
+- [vLLM 部署与多系统消息冲突解决方案](./docs/vLLM%20部署与多系统消息冲突解决方案.md)
+- [本地大模型部署与 Agent 架构选型技术方案报告](./docs/本地大模型部署与Agent架构选型技术方案报告.md)
 
 
 ## 常见问题
