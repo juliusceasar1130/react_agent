@@ -29,6 +29,7 @@ from backend.app.agent.middleware import (
     BusinessRagMiddleware,
     ContextWarningMiddleware,
     SkillMiddleware,
+    SafeMergeSystemMiddleware,
 )
 from backend.app.agent.tools import (
     create_chart_artifact_tool,
@@ -115,15 +116,39 @@ def _create_llm(use_ollama: bool = False) -> Any:
             keep_alive=settings.ollama_keep_alive,
         )
 
-    return ChatOpenAI(
-        model=settings.deepseek_model,
-        temperature=settings.agent_temperature,
-        openai_api_key=settings.deepseek_api_key,
-        openai_api_base=settings.deepseek_base_url,
-        max_tokens=settings.agent_max_tokens,
-        request_timeout=settings.llm_timeout,
-        max_retries=settings.llm_max_retries,
-    )
+    # 1. 组装标准参数
+    kwargs: dict[str, Any] = {
+        "model": settings.deepseek_model,
+        "temperature": settings.agent_temperature,
+        "openai_api_key": settings.deepseek_api_key,
+        "openai_api_base": settings.deepseek_base_url,
+        "max_tokens": settings.agent_max_tokens,
+        "request_timeout": settings.llm_timeout,
+        "max_retries": settings.llm_max_retries,
+    }
+
+    # top_p 和 presence_penalty 属于 OpenAI 官方一级标准参数，直接在顶层参数传递以防触发 UserWarning
+    if settings.llm_top_p is not None:
+        kwargs["top_p"] = settings.llm_top_p
+    if settings.llm_presence_penalty is not None:
+        kwargs["presence_penalty"] = settings.llm_presence_penalty
+
+    # 2. 动态检测并将 vLLM 特有的非标准采样参数安全包裹在 extra_body 中透传，规避 OpenAI SDK 的参数强拦截
+    extra_body: dict[str, Any] = {}
+    if settings.llm_top_k is not None:
+        extra_body["top_k"] = settings.llm_top_k
+    if settings.llm_repetition_penalty is not None:
+        extra_body["repetition_penalty"] = settings.llm_repetition_penalty
+    if settings.llm_min_p is not None:
+        extra_body["min_p"] = settings.llm_min_p
+    if settings.llm_enable_thinking is not None:
+        extra_body["chat_template_kwargs"] = {"enable_thinking": settings.llm_enable_thinking}
+
+    if extra_body:
+        kwargs["extra_body"] = extra_body
+
+    logger.info("Initializing ChatOpenAI with arguments: %s", {k: v for k, v in kwargs.items() if k != "openai_api_key"})
+    return ChatOpenAI(**kwargs)
 
 
 def _get_business_database_url() -> str:
@@ -541,6 +566,7 @@ class SQLAgentService:
                 summarization_middleware,
                 SkillMiddleware(),
                 _create_context_warning_middleware(),
+                SafeMergeSystemMiddleware(),
             ]
             if rag_middleware:
                 middleware_list.insert(0, rag_middleware)
@@ -622,6 +648,7 @@ class SQLAgentService:
                 summarization_middleware,
                 SkillMiddleware(),
                 _create_context_warning_middleware(),
+                SafeMergeSystemMiddleware(),
             ]
             if rag_middleware:
                 middleware_list.insert(0, rag_middleware)

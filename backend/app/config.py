@@ -101,6 +101,30 @@ class Settings(BaseSettings):
     agent_max_tokens: int = int(os.getenv("AGENT_MAX_TOKENS", "2000"))
     llm_timeout: float = float(os.getenv("LLM_TIMEOUT", "120"))
     llm_max_retries: int = int(os.getenv("LLM_MAX_RETRIES", "2"))
+    llm_top_p: Optional[float] = (
+        float(os.getenv("LLM_TOP_P")) if os.getenv("LLM_TOP_P") else None
+    )
+    llm_top_k: Optional[int] = (
+        int(os.getenv("LLM_TOP_K")) if os.getenv("LLM_TOP_K") else None
+    )
+    llm_repetition_penalty: Optional[float] = (
+        float(os.getenv("LLM_REPETITION_PENALTY"))
+        if os.getenv("LLM_REPETITION_PENALTY")
+        else None
+    )
+    llm_presence_penalty: Optional[float] = (
+        float(os.getenv("LLM_PRESENCE_PENALTY"))
+        if os.getenv("LLM_PRESENCE_PENALTY")
+        else None
+    )
+    llm_min_p: Optional[float] = (
+        float(os.getenv("LLM_MIN_P")) if os.getenv("LLM_MIN_P") else None
+    )
+    llm_enable_thinking: Optional[bool] = (
+        os.getenv("LLM_ENABLE_THINKING", "").lower() == "true"
+        if os.getenv("LLM_ENABLE_THINKING")
+        else None
+    )
     llm_context_warning_enabled: bool = (
         os.getenv("LLM_CONTEXT_WARNING_ENABLED", "false").lower() == "true"
     )

@@ -30,6 +30,7 @@
 - **代码质量审查子智能体** - 新增 code-reviewer，用于在 review 场景下聚焦 bug、回归风险、安全隐患和测试缺口
 - **开发指南提炼技能** - 新增 development-guide-synthesizer，用于把开发实现、讨论结论和踩坑经验沉淀成可复用的手册
 - **RAG 知识增强** - 支持 PGVector / Milvus Hybrid 检索，Milvus 可在 `Ollama` 与 `llama.cpp + Qwen3 Embedding` 之间切换，并可选接入 NVIDIA Rerank 精排
+- **多 System 消息终极合并自愈** - 在大模型调用前的临界时机，通过终极安全合并中间件（SafeMergeSystemMiddleware）利用原生的 `merge_message_runs` 自动将核心系统提示词与 RAG 背景知识合并，解决在 strict 模式的本地推理引擎（如 vLLM）中由于非首位 system 消息引发的 400 校验报错，同时提升本地小参数大模型的 Attention 集中度与 Prefix Caching 效率
 - **Agent 技能文档化** - 新增技能相关的领域文档、问题追踪与标签分诊手册，提升智能体在特定任务下的标准化执行能力
 - **项目上下文 (CONTEXT.md)** - 沉淀项目特有的领域术语与核心业务逻辑，为 Agent 提供统一的背景知识基座
 
@@ -258,7 +259,7 @@ rearch_agent/
 │   │       ├── service_llama.cpp.py   # 本地 llama.cpp 适配服务实验入口
 │   │       ├── state.py               # Graph 状态定义
 │   │       ├── constants.py           # 常量定义
-│   │       ├── middleware/            # 中间件
+│   │       ├── middleware/            # 中间件（包含技能、上下文警报、业务 RAG 与安全合并自愈）
 │   │       ├── tools/                 # 专用工具集
 │   │       ├── utils/                 # 底层工具库
 │   │       ├── development/           # 实验与开发模块

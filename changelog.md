@@ -1,4 +1,91 @@
+## 2026-05-25 23:25 +08:00 - 升级 SafeMergeSystemMiddleware 实现多轮 RAG 系统消息全量打捞抽干与自愈合并
+
+### 概述
+- **根治多轮对话多 RAG 逃逸 Bug**：在多轮对话下（如第二个及后续问题），对话历史中会存在多个不同轮次被 PostgresSaver 还原出来的 RAG 系统消息。原有的 `break` 截断机制仅捕获并抽干了第一个 RAG 消息，导致剩余新生成的 SystemMessage 逃过拦截，越界发送给大模型后端，被恢复了严格校验的 vLLM 接口直接报错拦截（报 `System message must be at the beginning.` / HTTP 400）。
+- **重构为线性单次扫描过滤算法 (Global Scan & Strip)**：在 `SafeMergeSystemMiddleware._modify_request` 中彻底重构了合并算法。不再使用存在 index 漂移风险的 `break` 和 `pop`，而是通过一次线性扫描将对话历史中**所有** RAG 消息的纯文本提取暂存，并将它们从原队列中徹底过滤抽干。随后，将收集到的所有 RAG 文本拼合为唯一的置顶纯字符串 `SystemMessage` 发送，彻底自愈了这一隐蔽漏洞。
+- **完善靶向单元测试回归**：在 `test_safe_merge_middleware.py` 中新加了 `test_safe_merge_with_multiple_rag_messages_in_history` 测试用例，严密覆盖了 2 个以上被夹在缝隙中的 RAG 消息的打捞与抹除。6 个单元测试与 3 个集成测试全部完美 100% 通过（`SUCCESS`）。
+
+### 变更内容
+#### backend/app/agent/middleware/safe_merge_middleware.py [MODIFY]
+- 重写 `_modify_request`，应用线性单次过滤打捞算法，全量收集 RAG 系统消息内容并完美过滤抽干。
+
+#### backend/app/test_safe_merge_middleware.py [MODIFY]
+- 新增 `test_safe_merge_with_multiple_rag_messages_in_history` 测试用例。
+
+#### docs/vLLM 部署与多系统消息冲突解决方案.md [MODIFY]
+- 同步更新 Section 3 的方案三代码示例和实现原理，对齐最新升级的高鲁棒性算法。
+
+## 2026-05-25 21:50 +08:00 - 集成 Qwen3.6 MoE 高级采样与思考模式一键切换优化
+
+### 概述
+- **集成 Qwen3.6 MoE 高级采样与思考控制**：成功在 backend/app 中集成了 Qwen 官方推荐的高采样率精确编程/WebDev 模式参数（`temperature=0.6/0.7`, `top_p=0.95`, `top_k=20`, `presence_penalty=0.0`, `repetition_penalty=1.0`, `min_p=0.0`），并**一体化集成了官方推荐的客户端请求级思考模式硬开关控制（`enable_thinking=false`）**，显著提升了本地 RTX 5090 (32GB) vLLM 部署下的 SQL Agent 生成稳定性、速度与代码遵循性。
+- **高兼容性动态过滤设计**：在 `config.py` 的 `Settings` Pydantic 类中将高级采样及思考控制字段声明为 `Optional` 类型，并动态从环境变量装配。将一级标准参数（`top_p`, `presence_penalty`）传递在顶层，规避警告；将自定义非标参数（`top_k`, `repetition_penalty`, `min_p`）以及思考控制（`chat_template_kwargs.enable_thinking`）安全包裹在同一个 `extra_body` 字典体中透传，彻底避开了 OpenAI 官方 SDK 顶层参数校验强拦截（清除 `TypeError` 报错与 `UserWarning` 警告）。在未配置环境变量时完美降级，保持对云端 API 的 100% 完美向后兼容。
+- **验证与稳健性保障**：在 WSL2 Conda 环境下执行了全链路实例化与降级测试，确保了高负载、大上下文等边界场景的稳定调用，无任何 API 参数碰撞与警告报错。
+
+### 变更内容
+#### backend/app/config.py [MODIFY]
+- 在 `Settings` 类中新增可选的 Qwen3.6 优化采样环境变量与思考模式开关声明（`llm_top_p`, `llm_top_k`, `llm_repetition_penalty`, `llm_presence_penalty`, `llm_min_p`, `llm_enable_thinking`）。
+
+#### backend/app/agent/service.py [MODIFY]
+- 重构了 `_create_llm` 的底层实例化机制，将标准参数在一级传递，非标准采样参数与思考模式开关（`enable_thinking`）统一归口安全地过滤并合并且注入到 `extra_body` 中。
+
+#### .env [MODIFY]
+- 追加了 Qwen3.6 MoE 本地优化的五个高级采样控制环境变量，修改了 `AGENT_TEMPERATURE`、`AGENT_MAX_TOKENS`、`LLM_TIMEOUT` 和 `LLM_MAX_RETRIES` 的生产级推荐值。
+
+## 2026-05-25 18:50 +08:00 - 修复合并多 System 消息时 List[Dict] 与 Str 混合导致的 vLLM 400 解析报错
+
+### 概述
+- **修复 vLLM 400 BadRequest 报错**：解决了在进行多 System 消息合并时，由于全局核心 SystemMessage 属于列表块结构（`List[Dict]`，含有 text blocks），而动态注入的 RAG 消息属于纯文本字符串（`str`），导致 LangChain 原生 `merge_message_runs` 合并出了畸形的混合元素列表 `[Dict, Dict, Str]`。此格式引发底层 vLLM 序列化解析抛出 `TypeError: string indices must be integers, not 'str'`，进而以 HTTP 400 格式报错拦截。
+- **引入标准化纯文本规整归并**：在 `SafeMergeSystemMiddleware` 中新增了 `_get_string_content` 辅助函数，升级合并策略。不再依赖不稳定的 `merge_message_runs`，而是优先自动从 `content_blocks` 及 `content` 列表中递归提取原始纯文本，拼合成标准的高兼容性纯字符串 `SystemMessage`。这从根本上杜绝了畸形多模态类型列表的产生。
+- **扩展与优化单元测试**：在 `test_safe_merge_middleware.py` 中新增了 `test_safe_merge_with_mixed_list_and_str_collapses_to_pure_str` 用例精准复现多轮场景测试，且使全量 5 个单元测试和 3 个集成测试全部完美通过，实现完美自愈。
+
+### 变更内容
+#### backend/app/agent/middleware/safe_merge_middleware.py [MODIFY]
+- 新增 `_get_string_content` 辅助方法，健壮兼容各种 `content` 与 `content_blocks` 类型的消息文本提取。
+- 升级 `SafeMergeSystemMiddleware._modify_request`，将合并后的全局 SystemMessage 统一序列化为纯字符串类型构建。
+
+#### backend/app/test_safe_merge_middleware.py [MODIFY]
+- 新增 `test_safe_merge_with_mixed_list_and_str_collapses_to_pure_str` 用例。
+- 优化原有合并拼接断言，适配更规范的 `\n\n` 段落级双换行间距。
+
+#### docs/vLLM 部署与多系统消息冲突解决方案.md [MODIFY]
+- 同步更新第 3 种方案的代码示例及原理描述，确保文档与最新代码架构完全对齐。
+
+## 2026-05-25 17:46 +08:00 - 实现客户端多 System Message 终极安全自愈合并中间件
+
+### 概述
+- **实现客户端多 System 消息终极自愈**：由于智能体在执行时同时触发了业务 RAG 检索（向 `messages` 首位插入 System 消息）以及技能列表披露（向 `ModelRequest.system_message` 追加），造成在发送给 LLM 之前，消息序列中存在多个 `system` 角色消息，从而在严格编译的本地推理后端（如 vLLM）中极易触发 400 BadRequest 位置校验报错。
+- **引入尾部终极合并中间件**：在不破坏任何既有中间件逻辑、不侵入业务图的前提下，开发并挂载了 `SafeMergeSystemMiddleware`，在发送给 LLM 的最后一刻，使用 LangChain 原生 `merge_message_runs` 自动将两者合并，并从历史消息首部剥离 RAG 消息。这不仅彻底规避了推理端的报错，提升了本地小参数模型的指令遵循度与 Attention 集中度，更显著优化了 vLLM Prefix Caching 缓存效率。
+- **完善 TDD 单元测试与安全回归**：新编写了 `test_safe_merge_middleware.py` 单元测试，全方位覆盖常规链路、标准合并及 content_blocks 块合并逻辑；重构优化了原有测试用例的硬编码断言，100% 验证安全通过。
+
+### 变更内容
+#### backend/app/agent/middleware/safe_merge_middleware.py [NEW]
+- 新建合并中间件类 `SafeMergeSystemMiddleware`，支持同步/异步双链路合并处理。
+
+#### backend/app/agent/middleware/__init__.py [MODIFY]
+- 注册并导出新中间件。
+
+#### backend/app/agent/service.py [MODIFY]
+- 在 `SQLAgentService` 同步与异步生命周期的 `middleware_list` 最末尾添加并挂载 `SafeMergeSystemMiddleware()`。
+
+#### backend/app/test_safe_merge_middleware.py [NEW]
+- 新增单元测试文件，覆盖合并机制的核心业务场景。
+
+#### backend/app/test_agent_service_prompt.py [MODIFY]
+- 优化了测试用例中依赖固定索引的断言逻辑，改为更具鲁棒性的存在性断言，实现平滑回归。
+
+## 2026-05-24 23:05 +08:00 - 修复 vLLM 多系统消息校验报错（System message must be at the beginning）的问题
+
+### 概述
+- **修复非首位 System 消息校验报错**：由于智能体框架中包含 `SkillMiddleware` 和 `BusinessRagMiddleware` 等中间件，可能会在对话历史中动态插入额外的 `system` 消息，导致 Qwen3.6 默认/增强版 Chat Template 中严格的 `loop.first` 校验抛出 `System message must be at the beginning.` 异常（返回 HTTP 400 错误）。
+- **优化 Jinja 模板自适应逻辑**：将 `qwen3.6-enhanced.jinja` 模板中的非首位 System 消息校验更改为自适应的时间顺序渲染逻辑，允许在对话流中后期安全输出 System 消息块，完美兼容 LangChain/LangGraph 多中间件架构，杜绝报错。
+
+### 变更内容
+#### docs/qwen36_startup/qwen3.6-enhanced.jinja [MODIFY]
+- 修改第 132-135 行，移除了对非首位 system 消息抛出 `raise_exception` 的硬编码校验，改为按时序安全输出 `<|im_start|>system\n...<|im_end|>\n` 标记。
+
 ## 2026-05-24 17:35 +08:00 - 沉淀本地大模型部署与 Agent 架构选型技术方案报告
+
 
 ### 概述
 - **沉淀技术方案与架构选型报告**：针对本地局域网部署（vLLM 对比 llama.cpp）配套开发 Agent 时所遭遇的接口校验不一致、多系统消息冲突、以及工具调用格式脱轨等重大工程痛点，进行了深入的架构与底层运行机制剖析。

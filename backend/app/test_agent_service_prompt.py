@@ -55,4 +55,4 @@ def test_context_warning_middleware_is_appended_when_enabled(monkeypatch) -> Non
     asyncio.run(service._ainitialize_agent())
 
     middleware = mock_create_agent.call_args.kwargs["middleware"]
-    assert middleware[-1].__class__.__name__ == "ContextWarningMiddleware"
+    assert any(m.__class__.__name__ == "ContextWarningMiddleware" for m in middleware)
