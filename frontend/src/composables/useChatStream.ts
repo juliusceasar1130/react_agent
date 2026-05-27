@@ -31,6 +31,7 @@ export function useChatStream() {
 
   const isSending = ref(false)
   const streamMode = ref(true)  // 流式模式开关状态
+  const enableThinking = ref(false) // 新增：思考模式开关状态，默认关闭
   const activeStreamController = ref<AbortController | null>(null)
   const contextWarning = ref<ContextWarningPayload | null>(null)
 
@@ -187,6 +188,43 @@ export function useChatStream() {
           void syncSessions()
           return
 
+        case 'tool_call':
+          messagesStore.upsertStreamingToolCall({
+            id: event.id,
+            name: event.name,
+            args_text: event.args_text,
+            status: event.status,
+          } satisfies StreamToolCall)
+          return
+
+        case 'tool_result':
+          messagesStore.setStreamingToolResult(event.id, event.content)
+          return
+
+        case 'final':
+          hasTerminalEvent = true
+          messagesStore.completeStreamingMessage({
+            id: event.message_id,
+            created_at: event.created_at,
+            content: event.content,
+            tool_calls: event.tool_calls ? JSON.stringify(event.tool_calls) : null,
+            tool_results: event.tool_results ? JSON.stringify(event.tool_results) : null,
+          })
+          syncMessagesIfCurrent(sessionId)
+          void syncSessions()
+          return
+
+        case 'error':
+          hasTerminalEvent = true
+          messagesStore.finalizeStreamingError({
+            id: event.message_id,
+            created_at: event.created_at,
+            content: event.message,
+          })
+          syncMessagesIfCurrent(sessionId)
+          void syncSessions()
+          return
+
       }
 
       assertNever(event)
@@ -194,7 +232,12 @@ export function useChatStream() {
 
     try {
       await sendChatStream(
-        { message: content, session_id: sessionId, stream: true },
+        { 
+          message: content, 
+          session_id: sessionId, 
+          stream: true,
+          enable_thinking: enableThinking.value // 新增透传
+        },
         handleEvent,
         { signal: controller.signal }
       )
@@ -216,7 +259,8 @@ export function useChatStream() {
     const response = await sendChatMessage({
       message: content,
       session_id: sessionId,
-      stream: false
+      stream: false,
+      enable_thinking: enableThinking.value // 新增透传
     })
     contextWarning.value = response.context_warning ?? null
 
@@ -230,6 +274,7 @@ export function useChatStream() {
   return {
     isSending,
     streamMode,
+    enableThinking, // 新增导出
     contextWarning,
     sendMessage,
     stopStreaming

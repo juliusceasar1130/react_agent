@@ -398,8 +398,10 @@ async def send_message(chat_request: ChatRequest, db: Session = Depends(get_db))
         MessageCreate(session_id=session_id, role="user", content=chat_request.message),
     )
 
-    # ✅ 构建 config（thread_id 对应 session_id）
+    # ✅ 构建 config（thread_id 对应 session_id）并透传 enable_thinking
     config = {"configurable": {"thread_id": str(session_id)}}
+    if chat_request.enable_thinking is not None:
+        config["configurable"]["enable_thinking"] = chat_request.enable_thinking
     agent_service = get_agent_service()
 
     # 使用Agent处理消息
@@ -488,8 +490,10 @@ async def stream_message_post(
         client_disconnected = False
 
         try:
-            # ✅ 构建 config（thread_id 对应 session_id）
+            # ✅ 构建 config（thread_id 对应 session_id）并透传 enable_thinking
             config = {"configurable": {"thread_id": str(session_id)}}
+            if chat_request.enable_thinking is not None:
+                config["configurable"]["enable_thinking"] = chat_request.enable_thinking
 
             full_content = ""
             tool_calls_map: dict[str, dict[str, Any]] = {}

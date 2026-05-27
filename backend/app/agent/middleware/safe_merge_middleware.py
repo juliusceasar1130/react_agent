@@ -11,6 +11,7 @@ from typing import Callable
 
 from langchain.agents.middleware import AgentMiddleware, ModelRequest, ModelResponse
 from langchain_core.messages import SystemMessage
+from langchain_core.runnables.config import ensure_config
 
 from backend.app.agent.state import CustomState
 
@@ -65,7 +66,39 @@ class SafeMergeSystemMiddleware(AgentMiddleware[CustomState]):
 
     state_schema = CustomState
 
+    def _inject_thinking_config(self, request: ModelRequest) -> None:
+        """从当前协程的运行时上下文(ContextVar)中，打捞客户端传过来的思考模式，并动态覆写网络发包参数"""
+        try:
+            # 1. 自动捕获当前协程专属的运行期配置
+            runnable_config = ensure_config()
+            configurable = runnable_config.get("configurable") or {}
+            client_enable_thinking = configurable.get("enable_thinking")
+            
+            # 2. 如果客户端显式指定了参数，我们对当次模型请求参数进行安全改写
+            if client_enable_thinking is not None:
+                if request.model_settings is None:
+                    request.model_settings = {}
+                    
+                if "extra_body" not in request.model_settings:
+                    request.model_settings["extra_body"] = {}
+                    
+                extra_body = request.model_settings["extra_body"]
+                if "chat_template_kwargs" not in extra_body:
+                    extra_body["chat_template_kwargs"] = {}
+                    
+                # 动态改写 chat_template_kwargs，保证在网络包的根层级发出
+                extra_body["chat_template_kwargs"]["enable_thinking"] = client_enable_thinking
+                logger.info(
+                    "🛡️ SafeMergeSystemMiddleware: 成功将客户端运行时思考参数 %s 注入到模型网络调用中", 
+                    client_enable_thinking
+                )
+        except Exception as e:
+            logger.warning("🛡️ SafeMergeSystemMiddleware: 动态注入思考模式参数失败: %s", e)
+
     def _modify_request(self, request: ModelRequest) -> ModelRequest:
+        # 新增首部调用：动态注入客户端思考模式配置
+        self._inject_thinking_config(request)
+        
         messages = list(request.messages)
         if not messages:
             return request

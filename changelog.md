@@ -1,4 +1,50 @@
+## 2026-05-27 16:13 +08:00 - 前端思考模式开关隐藏，切换为 .env 静态全局控制
+
+### 概述
+- **隐藏前端思考模式交互**：响应项目阶段性升级需求，暂时隐藏了前端 Web 主聊天界面 `ChatView.vue` 输入框底部的“思考模式”磨砂玻璃 `ToggleSwitch` 切换开关（使用 `v-if="false"` 进行无损隐藏）。
+- **回退为 .env 全局静态控制**：当前 Qwen3.6 MoE 深度推理（Thinking）功能完全由项目根目录的 `.env` 文件中的 `LLM_ENABLE_THINKING=true/false` 环境变量进行全局控制，极大地保证了系统的稳定性和调试纯净度。
+- **预留升级通道**：前端数据类型定义、composable 协程透传通道和 API 路由传参链路已全部维持原状，为后续通过自定义底层拦截器（Httpx Transport Interceptor）或动态 Model 代理完善实时运行时切换打下了完美的基石。
+
+### 变更内容
+#### frontend/src/views/ChatView.vue [MODIFY]
+- 使用 `v-if="false"` 隐藏了 `<ToggleSwitch v-model="enableThinking" ... />` 组件，实现了视觉零干扰。
+
+#### README.md [MODIFY]
+- 同步微调了特性的描述，确保文档与当前“隐藏阶段”及 `.env 静态控制”的系统行为 100% 契合。
+
+## 2026-05-26 21:35 +08:00 - 实现 Qwen3.6 思考模式客户端动态切换“前后端一体化”集成升级
+
+
+### 概述
+- **前后端一体化动态切换**：成功实现从前端 Web 聊天 UI 到后端 vLLM 核心推理引擎的客户端动态思考模式（Toggle Switch）实时请求级切换，用户可在聊天框底部通过精致的毛玻璃 UI 开关（Toggle Switch）实时开启/关闭 Qwen3.6 的深度推理（Thinking）功能。
+- **高阶协程隔离与标准拦截**：在后端 `schemas.py` 聊天请求模型中增加了 `enable_thinking` 可选参数，在 `api.py` 中将其捕获并自动透传写入 LangGraph 协程的上下文配置中。
+- **中间件动态拦截注入**：在 `SafeMergeSystemMiddleware` 中通过 `ensure_config()` 自动从当前协程 ContextVar 中捕获 `enable_thinking` 配置，并以 Root-level 的形式扁平安全组装进底层的 `extra_body`（`chat_template_kwargs.enable_thinking`） 发送至 vLLM 推理引擎，绕过了 LangChain 内部序列化嵌套字段造成的 vLLM 强校验拦截，保持 100% 协程隔离和向前降级兼容性。
+- **完善单元测试保障**：在 `backend/app/test_safe_merge_middleware.py` 中新加了 `test_dynamic_thinking_mode_injection` 单元测试以断言该动态注入拦截机制，并在 Conda 项目环境下（`py312_agent`）运行 pytest 确保了全量 7 个单元测试 100% 通过（`SUCCESS`）。
+
+### 变更内容
+#### backend/app/schemas.py [MODIFY]
+- `ChatRequest` 新增 `enable_thinking: Optional[bool] = None` 可选属性。
+
+#### backend/app/api.py [MODIFY]
+- `/api/chat` 的 `generate` 流式及非流式处理方法中，动态提取 `chat_request.enable_thinking` 并将其写入 LangGraph 配置字典 `config["configurable"]`。
+
+#### backend/app/agent/middleware/safe_merge_middleware.py [MODIFY]
+- 引入 `ensure_config`，在模型调用拦截方法 `_modify_request` 顶端动态注入运行时思考参数。
+
+#### frontend/src/types/index.ts [MODIFY]
+- 在 `ChatRequest` 接口中添加 `enable_thinking?: boolean` 可选属性定义。
+
+#### frontend/src/composables/useChatStream.ts [MODIFY]
+- 新建并导出 `enableThinking = ref(false)` 状态，在 `handleStreamMessage` 和 `handleNormalMessage` 方法的发包数据体中透传 `enable_thinking: enableThinking.value`。
+
+#### frontend/src/views/ChatView.vue [MODIFY]
+- 引入并解构 `enableThinking` 变量，并在输入框上方追加“思考模式”的磨砂玻璃质感 `ToggleSwitch` 开关组件，并与 `enableThinking` 实现双向绑定。
+
+#### backend/app/test_safe_merge_middleware.py [MODIFY]
+- 新增单元测试 `test_dynamic_thinking_mode_injection`，覆盖中间件拦截及 `chat_template_kwargs` 注入逻辑。
+
 ## 2026-05-25 23:25 +08:00 - 升级 SafeMergeSystemMiddleware 实现多轮 RAG 系统消息全量打捞抽干与自愈合并
+
 
 ### 概述
 - **根治多轮对话多 RAG 逃逸 Bug**：在多轮对话下（如第二个及后续问题），对话历史中会存在多个不同轮次被 PostgresSaver 还原出来的 RAG 系统消息。原有的 `break` 截断机制仅捕获并抽干了第一个 RAG 消息，导致剩余新生成的 SystemMessage 逃过拦截，越界发送给大模型后端，被恢复了严格校验的 vLLM 接口直接报错拦截（报 `System message must be at the beginning.` / HTTP 400）。

@@ -201,3 +201,31 @@ def test_safe_merge_with_multiple_rag_messages_in_history():
     assert isinstance(modified_request.messages[2], HumanMessage)
 
 
+
+def test_dynamic_thinking_mode_injection():
+    """测试在当前运行上下文中包含 enable_thinking 配置时，中间件是否能成功将其捕获并正确注入网络 payload"""
+    from unittest.mock import patch
+    middleware = SafeMergeSystemMiddleware()
+    
+    request = ModelRequest(
+        model=object(),
+        system_message=SystemMessage(content="You are a SQL agent."),
+        messages=[HumanMessage(content="你好")],
+        model_settings={}
+    )
+    
+    mock_config = {
+        "configurable": {
+            "enable_thinking": False
+        }
+    }
+    
+    with patch("backend.app.agent.middleware.safe_merge_middleware.ensure_config", return_value=mock_config):
+        modified_request = middleware._modify_request(request)
+        
+        # 断言动态写入已成功并且层级扁平标准
+        assert modified_request.model_settings is not None
+        assert "extra_body" in modified_request.model_settings
+        extra_body = modified_request.model_settings["extra_body"]
+        assert "chat_template_kwargs" in extra_body
+        assert extra_body["chat_template_kwargs"]["enable_thinking"] is False

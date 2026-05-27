@@ -85,13 +85,24 @@
           >
             <div class="mx-auto w-full max-w-5xl panel p-2.5 sm:p-3">
               <div class="mb-2 flex flex-col gap-1.5 sm:flex-row sm:items-center sm:justify-between">
-                <ToggleSwitch
-                  v-model="streamMode"
-                  label="流式输出"
-                  :show-status="true"
-                  on-label="实时显示"
-                  off-label="等待完整回复"
-                />
+                <div class="flex flex-col gap-1.5 sm:flex-row sm:items-center">
+                  <ToggleSwitch
+                    v-model="streamMode"
+                    label="流式输出"
+                    :show-status="true"
+                    on-label="实时显示"
+                    off-label="等待完整回复"
+                  />
+                  <ToggleSwitch
+                    v-if="false"
+                    v-model="enableThinking"
+                    label="思考模式"
+                    :show-status="true"
+                    on-label="开启深度推理"
+                    off-label="直达最终回答"
+                    class="mt-1.5 sm:mt-0 sm:ml-4"
+                  />
+                </div>
                 <span
                   v-if="isSending"
                   class="inline-flex items-center gap-1.5 self-start rounded-full px-2.5 py-0.5 text-[11px] font-medium sm:self-auto"
@@ -175,7 +186,7 @@ import WelcomeDashboard from '@/components/WelcomeDashboard.vue'
 
 const sessionsStore = useSessionsStore()
 const messagesStore = useMessagesStore()
-const { isSending, streamMode, contextWarning, sendMessage, stopStreaming } = useChatStream()
+const { isSending, streamMode, enableThinking, contextWarning, sendMessage, stopStreaming } = useChatStream()
 
 const inputText = ref('')
 const isSidebarOpen = ref(false)

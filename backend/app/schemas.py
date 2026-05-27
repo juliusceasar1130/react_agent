@@ -57,6 +57,7 @@ class ChatRequest(BaseModel):
     message: str
     session_id: Optional[str] = None
     stream: Optional[bool] = False
+    enable_thinking: Optional[bool] = None  # 新增：支持客户端动态控制思考模式
 
 
 class ContextWarningPayload(BaseModel):
