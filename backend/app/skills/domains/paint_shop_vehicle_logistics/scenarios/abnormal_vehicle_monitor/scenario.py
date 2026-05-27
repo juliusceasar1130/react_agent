@@ -10,7 +10,7 @@ SCENARIO = {
     "skill_name": "paint_shop_vehicle_logistics",
     "name": "abnormal_vehicle_monitor",
     "title": "实时异常车监控",
-    "description": "基于 `mart_abnormal_vehicle_current` 监控当前车间内的异常车辆（如空车身、非产品前缀的调试车）。",
+    "description": "监控当前车间内的异常车辆（如空车身、非产品前缀的调试车）快照。",
     "example_questions": [
         "当前车间内有哪些异常车",
         "找一下当前的空占位",

@@ -16,7 +16,7 @@ SCENARIO = {
     "name": "realtime_area_body_count",
     "title": "实时各区域车身数量统计",
     # 会进入领域技能一级摘要，作为场景说明展示。
-    "description": "基于 `mart_position_current_overview` 当前快照，统计各区域正式产品车数量，支持按区域名称筛选，并输出实时分区域数量口径说明。",
+    "description": "当前快照，统计各区域正式产品车数量，支持按区域名称筛选，并输出实时分区域数量口径说明。",
     "example_questions": [
         "现在每个区域有多少车身",
         "查看各区域实时车身分布",

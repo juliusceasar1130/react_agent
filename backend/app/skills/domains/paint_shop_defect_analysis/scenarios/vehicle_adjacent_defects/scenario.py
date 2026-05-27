@@ -10,10 +10,10 @@ SCENARIO = {
     "skill_name": "paint_shop_defect_analysis",
     "name": "vehicle_adjacent_defects",
     "title": "前后车身顺序及缺陷追溯",
-    "description": "基于读写站点位，查询前后/相邻通过的 N 辆车顺序，并匹配每辆车与过点时间最接近的一条缺陷检测记录。",
+    "description": "基于过点历史信息，查询前后或者相邻车身信息，包括陷检测记录。",
     "example_questions": [        
-        "查询这辆车和它前后一辆车的缺陷记录"
-        "查询某车的前后车序列"
+        "查询这辆车和它前后一辆车的缺陷记录",
+        "查询某车的前后N台车信息"
     ],
     "triggers": [
         "前后车身缺陷",
@@ -60,17 +60,17 @@ SCENARIO = {
         }
     },
     "workflow": [
-        "确认用户提供了具体的 vehicle_id。",
-        "确认用户提供了具体的 station_id，建议从L3ACC21IS01（面漆1线入口）、L3ACC21IS02（面漆2线入口）、L3ACC21IS03（面漆3线入口）三个读写站中选择。或者自定义。",
-        "将 n_adjacent 默认设置为 3（即前3辆和后3辆）。",
+        "必须确认用户提供了具体的 vehicle_id。",
+        "必须确认用户提供了具体的 station_id，建议从L3ACC21IS01（面漆1线入口）、L3ACC21IS02（面漆2线入口）、L3ACC21IS03（面漆3线入口）三个读写站中选择。或者自定义。",
+        "提醒用户将 n_adjacent 默认设置为 3（即前3辆和后3辆）。",
         "执行查询并返回前后车的缺陷数量记录。"
     ],
     "rules": [
-        "必须确保 `station_id` 有值才能进行本查询。",
+        "必须确保 `station_id`和`station_id` 有值才能进行本查询。",
         "结果保留无缺陷检测记录的过点车辆，且明确标记 target/before/after 角色。"
     ],
     "gotchas": [],
-    "output_contract": "输出字段必须包含 car_role, BODY_ID, body_type, color_code, black_roof, type_name, pass_time 以及各个station_<x>_defect_count缺陷及total_defect_count（突出）统计数量列。不要其他输出",
+    "output_contract": "输出字段必须包含 car_role, BODY_ID, body_type, color_code, black_roof, type_name, pass_time 以及各个`station_<x>_defect_count`缺陷及`total_defect_count`（加粗）统计数量列。不要其他输出，除非用户指定。",
     "sql_template_refs": [
         {
             "type": "sql",

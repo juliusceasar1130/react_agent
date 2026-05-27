@@ -10,25 +10,37 @@
     >
       <template #sidebar-header-action>
         <button
+          v-if="isSlim"
           @click="handleCreateSession"
-          class="btn-primary !rounded-2xl !px-4 !py-2 text-sm"
+          class="bg-primary hover:bg-primary-hover text-white !rounded-full w-10 h-10 flex items-center justify-center shadow-glow shrink-0 transition-all duration-200 hover:scale-105 active:scale-95"
+          title="新建会话"
+        >
+          <svg class="h-5 w-5 text-white" fill="none" stroke="white" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 5v14M5 12h14" />
+          </svg>
+        </button>
+        <button
+          v-else
+          @click="handleCreateSession"
+          class="btn-primary !rounded-2xl !px-4 !py-2 text-sm shrink-0"
         >
           新建
         </button>
       </template>
       <template #sidebar-chat-list>
-        <SessionList @selected="closeSidebar" />
+        <SessionList :isSlim="isSlim" @selected="closeSidebar" />
       </template>
       <template #main-chat-area>
         <div class="flex h-full w-full flex-col overflow-hidden">
           <header class="relative z-10 border-b border-neutral-200/70 bg-white/70 backdrop-blur-xl">
             <div class="mx-auto flex w-full max-w-6xl items-center gap-3 px-3 py-3 sm:px-5 lg:px-8">
               <button
-                class="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-neutral-200/90 bg-white text-neutral-600 shadow-sm transition hover:border-neutral-300 hover:text-text lg:hidden"
-                @click="openSidebar"
+                class="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-neutral-200/90 bg-white text-neutral-600 shadow-sm transition hover:border-neutral-300 hover:text-text"
+                @click="isSidebarOpen = !isSidebarOpen"
+                :title="isSidebarOpen ? '收起侧边栏' : '展开侧边栏'"
               >
-                <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M4 6h16M4 12h16M4 18h16" />
+                <svg class="h-5 w-5 transition-transform duration-300" :class="isSidebarOpen ? '' : 'rotate-180'" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M11 19l-7-7 7-7M20 19l-7-7 7-7" />
                 </svg>
               </button>
 
@@ -174,7 +186,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, ref } from 'vue'
+import { computed, nextTick, ref, onMounted } from 'vue'
 import VariantB from '@/components/VariantB.vue'
 import { useSessionsStore } from '@/stores/sessions'
 import { useMessagesStore } from '@/stores/messages'
@@ -191,6 +203,11 @@ const { isSending, streamMode, enableThinking, contextWarning, sendMessage, stop
 const inputText = ref('')
 const isSidebarOpen = ref(false)
 const messageListRef = ref<InstanceType<typeof MessageList> | null>(null)
+
+// 锁死变体 C（微缩侧边栏）下折叠态表现
+const isSlim = computed(() => {
+  return !isSidebarOpen.value
+})
 
 // 数据字典 Bento 控制（通过 props 下传 / emit 上传）
 const showBento = ref(false)
@@ -293,7 +310,10 @@ const openSidebar = () => {
 }
 
 const closeSidebar = () => {
-  isSidebarOpen.value = false
+  // 仅在移动端/小屏幕尺寸下，才在点击列表中会话项时自动收回侧边栏
+  if (window.innerWidth < 1024) {
+    isSidebarOpen.value = false
+  }
 }
 
 const handleCreateSession = async () => {
@@ -320,6 +340,12 @@ const handleStopStreaming = () => {
   if (!isSending.value || !streamMode.value) return
   stopStreaming()
 }
+
+
+onMounted(() => {
+  // 智能适配大屏初始状态下侧边栏的开合状态（大屏默认展开）
+  isSidebarOpen.value = window.innerWidth >= 1024
+})
 </script>
 
 <style scoped>

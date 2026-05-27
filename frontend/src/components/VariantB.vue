@@ -7,19 +7,21 @@
       @click="$emit('closeSidebar')"
     ></div>
 
-    <!-- 侧边栏 (保持纯聊天历史) -->
+    <!-- 侧边栏 (微缩侧边栏/Slim Mini-Bar 响应式布局) -->
     <aside
-      class="fixed inset-y-0 left-0 z-40 flex w-[18.5rem] max-w-[86vw] flex-col border-r border-neutral-200/80 bg-white/95 shadow-2xl backdrop-blur-xl transition-transform duration-200 lg:static lg:z-auto lg:max-w-none lg:translate-x-0 lg:bg-white/80 lg:shadow-none shrink-0"
-      :class="
-        isSidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
-      "
+      class="fixed inset-y-0 left-0 z-40 flex flex-col border-r border-neutral-200/80 bg-white/95 shadow-2xl backdrop-blur-xl transition-all duration-300 ease-in-out shrink-0 lg:static lg:z-auto lg:translate-x-0 lg:bg-white/80 lg:shadow-none lg:opacity-100 lg:overflow-hidden"
+      :class="[
+        isSidebarOpen ? 'translate-x-0 lg:w-[18.5rem]' : '-translate-x-full lg:w-20'
+      ]"
     >
       <div
-        class="flex items-center justify-between border-b border-neutral-200/80 px-4 py-4 sm:px-5 shrink-0"
+        class="flex border-b border-neutral-200/80 shrink-0 transition-all duration-300"
+        :class="isSlim ? 'flex-col items-center gap-4 px-2 py-5 justify-center' : 'items-center justify-between px-4 py-4 sm:px-5'"
       >
-        <div class="flex items-center gap-3">
+        <div class="flex items-center" :class="isSlim ? 'flex-col gap-2' : 'gap-3'">
           <div
-            class="flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-br from-primary to-accent shadow-glow"
+            class="flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-br from-primary to-accent shadow-glow shrink-0"
+            :title="isSlim ? '智造分析专家' : ''"
           >
             <svg
               class="h-5 w-5 text-white"
@@ -35,19 +37,20 @@
               />
             </svg>
           </div>
-          <div>
+          <div v-if="!isSlim" class="transition-opacity duration-300">
             <p
               class="text-xs font-semibold uppercase tracking-[0.22em] text-neutral-400"
             >
-              RESEARCH
+              COPILOT
             </p>
-            <h2 class="text-lg font-bold text-text">智能分析助手</h2>
+            <h2 class="text-lg font-bold text-text">智造分析专家</h2>
           </div>
         </div>
 
-        <div class="flex items-center gap-1.5">
+        <div class="flex items-center gap-1.5" :class="isSlim ? 'w-full justify-center' : ''">
           <slot name="sidebar-header-action"></slot>
           <button
+            v-if="!isSlim"
             class="flex h-10 w-10 items-center justify-center rounded-2xl border border-neutral-200 bg-white text-neutral-500 transition hover:border-neutral-300 hover:text-text lg:hidden"
             @click="$emit('closeSidebar')"
           >
@@ -68,11 +71,6 @@
         </div>
       </div>
 
-      <div
-        class="border-b border-neutral-200/70 px-4 py-3 text-xs text-neutral-500 sm:px-5 shrink-0"
-      >
-        在这里管理您的历史会话。
-      </div>
       <div class="flex-1 overflow-y-auto min-h-0">
         <slot name="sidebar-chat-list"></slot>
       </div>
@@ -449,14 +447,14 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from "vue";
+import { ref, computed } from "vue";
 import {
   getDimensionTableApi,
   type DimensionTableData,
 } from "../api/dimensions";
 import DimensionTable from "./DimensionTable.vue";
 
-defineProps<{
+const props = defineProps<{
   isSidebarOpen: boolean;
   showBento: boolean;
 }>();
@@ -466,6 +464,10 @@ defineEmits<{
   "toggle-bento": [];
   "dblclick-cell": [value: string];
 }>();
+
+const isSlim = computed(() => {
+  return !props.isSidebarOpen;
+});
 
 const TABLE_LABELS: Record<string, string> = {
   carrier_types: "载体类型字典",

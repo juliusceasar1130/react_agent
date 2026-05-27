@@ -10,7 +10,7 @@ SCENARIO = {
     "skill_name": "paint_shop_vehicle_logistics",
     "name": "stranded_vehicle_detection",
     "title": "滞留车检测",
-    "description": "基于 `dim.carbody_registry` 检测涂装车间内的滞留车辆。场景提供多个专用 SQL 模板：`in_process`（默认，带 JOIN，查询在制车辆位置）和 `historical`（查询已出口历史车辆）。请根据用户问题意图选择最匹配的模板进行参数填充。",
+    "description": "滞留车辆信息",
     "example_questions": [
         "有哪些滞留车",
         "查一下滞留超过 3 天的车",
@@ -72,7 +72,7 @@ SCENARIO = {
     },
     "workflow": [
         "判断用户意图：如果未明确说明（默认）或指明'在制滞留'，选择 `in_process` 模板；如果明确指明'历史滞留'，选择 `historical` 模板。",
-        "确认是否按平台或滞留天数筛选。注意：在制车使用 `in_process_stranded_days`，历史车使用 `stranded_days`。",
+        "提醒用户滞留天数选择或者自定义。注意：在制车使用 `in_process_stranded_days`，历史车使用 `stranded_days`。",
         "根据用户表达替换选定模板中的 {platform_filter}, {stranded_days} 或 {in_process_stranded_days} 占位符。",
         "按滞留时长降序输出，同时在自然语言回答中，针对在制车明确合并播报其所在的工艺区域 (current_process_area) 与具体滚床号 (current_rb_code)。",
     ],

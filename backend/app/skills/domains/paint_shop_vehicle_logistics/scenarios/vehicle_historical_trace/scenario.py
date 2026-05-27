@@ -10,7 +10,7 @@ SCENARIO = {
     "skill_name": "paint_shop_vehicle_logistics",
     "name": "vehicle_historical_trace",
     "title": "单车历史轨迹追溯",
-    "description": "基于 `ods.carbody_history` 还原单辆车的完整历史过点路径与时间序列。",
+    "description": "车身历史轨迹和时间序列。",
     "example_questions": [
         "帮我查一下车身 78202612345678 的历史轨迹",
         "这辆车过去都经过了哪些工段",
@@ -47,7 +47,7 @@ SCENARIO = {
         "查询 `ods.carbody_history` 表。",
         "过滤 `BODY_ID` 为用户提供的车身号。",
         "按 `DATE_EVT` 升序排序，以重构时间线。",
-        "输出时间戳序列及对应的工位/节点 (`RW_STATION_ID`)。"
+        "输出时间戳序列及对应的读写站/节点 (`RW_STATION_ID`)。"
     ],
     "rules": [
         "必须使用 `ods.carbody_history` 查历史轨迹，严禁使用实时快照表。",

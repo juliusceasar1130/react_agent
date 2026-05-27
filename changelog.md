@@ -1,3 +1,49 @@
+## 2026-05-27 20:25 +08:00 - 锁定变体 C（微缩侧边栏）为大屏折叠最终版，物理清理其余原型与切换器死代码
+
+### 概述
+- **正式锁定变体 C (微缩侧边栏 - Slim Mini-Bar) 为最终定案**：在大屏下点击折叠，侧栏极具高级感地缩为 80px 微型导航栏，保留 Logo 图标与新建按钮（收折为“+”号圆形），历史卡片收为首字圆形头像，选中带彩色品牌渐变与发光微影（shadow-glow），实现空间最大化利用与极佳极客审美。
+- **100% 物理清理原型测试代码与切换器**：外科手术式清理并删除了变体 A、B 所有冗余样式、`sidebarVariant` 传递变量、以及页面底部集成的 `PrototypeSwitcher` 原型切换控制栏 HTML 结构。
+- **清除所有事件监听与防泄漏自愈**：彻底清除了挂载在 `window` 上的键盘左右方向键切换监听器 `handleKeyDown`、动态 localStorage 属性绑定及生命周期钩子，确保绝无内存泄漏风险。
+- **完美通过打包验证**：在 Conda 隔离环境（`py312_agent`）下执行 Vite 生产打包验证成功，Vite 编译 0 报错，成功输出最终分包，完成全部定案收口。
+
+### 变更内容
+#### frontend/src/components/VariantB.vue [MODIFY]
+- 移除了 Props 中的 `sidebarVariant` 选项，简化了 `isSlim` 的内部计算属性。
+- 精简侧边栏容器大屏自适应样式，将 aside 大屏类名锁定为在大屏下保持流式占位布局，开合自适应 `lg:w-[18.5rem]` 与 `lg:w-20`。
+
+#### frontend/src/views/ChatView.vue [MODIFY]
+- 在模板中完全物理删除底部 `PrototypeSwitcher` 药丸原型控制栏 DOM 元素。
+- 在 `<script setup>` 中彻底剔除 `sidebarVariant` ref, `setSidebarVariant` 变体切换方法，并彻底清除了 `handleKeyDown` 键盘快捷方向键监听和对应的生命周期 `onBeforeUnmount` 钩子。
+- 优化 `onMounted` 里的初始化开合逻辑，只保留大屏设备自适应宽度下的状态赋值。
+
+## 2026-05-27 20:15 +08:00 - 大屏幕侧边栏可交互原型开发，支持三变体平滑折叠切换
+
+### 概述
+- **开发并集成三变体大屏折叠原型**：根据 `/prototype` 原型规范，在智能分析助手大屏幕下设计并实现了三种完全不同的左侧列表折叠/展开高保真交互方案：
+  - **变体 A (挤压自适应 - Flex Squeeze)**：折叠时侧栏宽度缩至 0，右侧对话区域无缝拉伸填满全屏。
+  - **变体 B (悬浮式抽屉 - Floating Drawer)**：采用 fixed 定位配合半透明遮罩层，提供浮动抽屉体验。
+  - **变体 C (微缩侧边栏 - Slim Mini-Bar)**：折叠时收缩为 80px 宽度，侧栏仅留极简 Logo 与圆圈彩虹渐变会话首字徽章，悬浮 hover 浮现完整信息。
+- **高颜值毛玻璃药丸原型切换条**：在页面底部正中央集成高颜值的毛玻璃悬浮药丸控制器，用户可无缝在 A/B/C 三变体中点击切换。同时支持键盘 `←` / `→` 全局方向键的快捷连击切换。
+- **完美的细节优化与自愈**：
+  - **列表项点击联动**：移动端小屏下，点击列表会话项会自动收起侧栏；大屏下点击会话则始终保持展开，符合多任务流利连续切换的习惯。
+  - **前端 100% 绿色零错打包**：物理验证通过了生产环境 Vite 构建打包测试（`npm run build`），TypeScript 类型与 SFC 模板零报错零警告。
+
+### 变更内容
+#### frontend/src/components/VariantB.vue [MODIFY]
+- 去除了大屏强制常显的静态定位限制。
+- 引入过渡动效并绑定动态 class，支持 Variant A、B、C 下的响应式排布和 Slim 模式下的极简自适应标题栏。
+
+#### frontend/src/components/SessionList.vue [MODIFY]
+- 接受 `isSlim` prop，并在 Slim 折叠态下收缩容器内边距。
+
+#### frontend/src/components/SessionItem.vue [MODIFY]
+- 接受 `isSlim` 并实现微缩首字徽章，选中时自带品牌彩色渐变与 shadow-glow 发光投影，未选中时浅灰色极简。
+
+#### frontend/src/views/ChatView.vue [MODIFY]
+- 引入 `sidebarVariant` 并支持 `localStorage` 缓存偏好模式。
+- 将折叠按钮升级为带有 `rotate-180 transition-transform` 3D 微动效的通用展开/收折器。
+- 在页面底部挂载 `PrototypeSwitcher` 高颜值毛玻璃药丸原型控制栏，挂载并解绑全局键盘 `ArrowLeft`/`ArrowRight` 方向键快捷切换监听器。
+
 ## 2026-05-27 16:13 +08:00 - 前端思考模式开关隐藏，切换为 .env 静态全局控制
 
 ### 概述

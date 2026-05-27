@@ -1,15 +1,35 @@
 <!-- 2026-04-19 23:40 Asia/Shanghai - 会话项更新：轻量卡片层级与清晰选中态 -->
 <template>
   <div
-    class="group relative cursor-pointer rounded-[22px] border px-4 py-3.5 transition-all duration-200"
-    :class="isActive ? 'border-primary/20 bg-white/95 shadow-sm' : 'border-transparent bg-white/60 hover:border-neutral-200 hover:bg-white/95'"
+    class="group relative cursor-pointer transition-all duration-300"
+    :class="[
+      isSlim 
+        ? (isActive ? 'bg-gradient-to-br from-primary/10 to-accent/10 border-primary/20 scale-105 shadow-sm rounded-full p-1.5' : 'bg-transparent border-transparent hover:bg-neutral-100 rounded-full p-1.5')
+        : (isActive ? 'border-primary/20 bg-white/95 shadow-sm rounded-[22px] border px-4 py-3.5' : 'border-transparent bg-white/60 hover:border-neutral-200 hover:bg-white/95 rounded-[22px] border px-4 py-3.5')
+    ]"
     @click="handleClick"
+    :title="isSlim ? session.title : ''"
   >
     <div
+      v-if="!isSlim"
       class="absolute inset-y-3 left-0 w-1 rounded-full transition-all duration-200"
       :class="isActive ? 'bg-primary' : 'bg-transparent group-hover:bg-neutral-200'"
     ></div>
-    <div class="flex items-start justify-between gap-3">
+
+    <!-- 极简微缩展示状态 -->
+    <div v-if="isSlim" class="flex items-center justify-center">
+      <div
+        class="h-10 w-10 rounded-full flex items-center justify-center font-black text-sm transition-all duration-300 border shadow-sm select-none"
+        :class="isActive 
+          ? 'bg-gradient-to-br from-primary to-accent text-white border-transparent shadow-glow scale-105' 
+          : 'bg-white text-neutral-600 border-neutral-200/80 hover:bg-neutral-50 hover:text-text'"
+      >
+        {{ session.title ? session.title.trim().charAt(0) : '会' }}
+      </div>
+    </div>
+
+    <!-- 正常展开展示状态 -->
+    <div v-else class="flex items-start justify-between gap-3">
       <div class="min-w-0 flex-1">
         <div class="flex items-center gap-2">
           <div
@@ -56,9 +76,12 @@ import { useConfirmation } from '@/composables/useConfirmation'
 interface Props {
   session: Session
   isActive: boolean
+  isSlim?: boolean
 }
 
-const props = defineProps<Props>()
+const props = withDefaults(defineProps<Props>(), {
+  isSlim: false
+})
 
 const emit = defineEmits<{
   select: [sessionId: string]
