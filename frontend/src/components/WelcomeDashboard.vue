@@ -9,7 +9,7 @@
         </svg>
       </div>
       <h2 class="text-4xl font-extrabold tracking-tight text-text sm:text-5xl">
-        120JPH <span class="bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">AI 助手</span>
+        120JPH涂装车间<span class="bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">AI 助手</span>
       </h2>
       <p class="mt-4 text-lg text-neutral-500">连接车间实时数据，提供物流追踪与缺陷智能分析</p>
       

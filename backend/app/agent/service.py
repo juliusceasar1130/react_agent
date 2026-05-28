@@ -142,12 +142,17 @@ def _create_llm(use_ollama: bool = False) -> Any:
     if settings.llm_min_p is not None:
         extra_body["min_p"] = settings.llm_min_p
     if settings.llm_enable_thinking is not None:
-        extra_body["chat_template_kwargs"] = {"enable_thinking": settings.llm_enable_thinking}
+        extra_body["chat_template_kwargs"] = {
+            "enable_thinking": settings.llm_enable_thinking
+        }
 
     if extra_body:
         kwargs["extra_body"] = extra_body
 
-    logger.info("Initializing ChatOpenAI with arguments: %s", {k: v for k, v in kwargs.items() if k != "openai_api_key"})
+    logger.info(
+        "Initializing ChatOpenAI with arguments: %s",
+        {k: v for k, v in kwargs.items() if k != "openai_api_key"},
+    )
     return ChatOpenAI(**kwargs)
 
 
@@ -409,6 +414,27 @@ def _build_system_prompt(db: MaterializedViewSQLDatabase) -> str:
 - 以实质内容开头，省略问候语和过渡语
 - 若被问"你是谁"或"你好"，简述功能并给出示例，不操作数据库
 - 若问题边界模糊，直接向用户提问，不盲目猜测
+
+# 输出格式
+
+## 常规查询结果
+以Markdown表格呈现，表头使用字段中文名（如skill中定义），后附：
+- 总行数（若被截断，标注"部分结果，共N行"）
+- 关键数据口径说明（如"NV数量=缺陷数×单车缺陷系数"）
+
+## 含SQL时
+SQL代码单独放在```sql代码块中，禁止与解释文字混排。
+
+## 调用工具时
+严格使用工具要求的参数结构。例如build_chart_artifact：
+- series数组内每个对象仅含允许的6个键
+- category_field/category_value成对出现，禁止只填其一
+
+## 多步骤任务
+每完成一步，用单行简要标注当前状态，例如：
+&gt; 已加载paint_shop技能，确认表T_QM_DEFECT存在字段DEFECT_CODE。
+
+禁止在步骤标注中展开详细解释——解释留到最后统一给出。
 
 """
 

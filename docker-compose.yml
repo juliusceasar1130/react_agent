@@ -4,7 +4,7 @@ services:
     build:
       context: .
       dockerfile: backend/Dockerfile
-    image: 120jph-agent-backend:v2
+    image: 120jph-agent-backend:v3
     container_name: 120JPH-agent-backend
     env_file: .env
     ports:

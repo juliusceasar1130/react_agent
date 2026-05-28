@@ -1,3 +1,19 @@
+## 2026-05-28 16:03 +08:00 - 同步与对齐 .env_docker 缺失和未对齐的生产部署环境变量
+
+### 概述
+- **同步并对齐容器化部署配置**：对比本地 `.env` 与容器化部署配置文件 `.env_docker`，将缺失及注释态的重要生产级参数进行全量同步与对齐，保障了 Docker 容器化环境下各个服务的联通性。
+- **防止 Llama.cpp 上下文警告 400 崩溃**：在 `.env_docker` 中同步关闭了 `LLM_CONTEXT_WARNING_ENABLED=false` 警告，并将 `LLM_CONTEXT_WINDOW` 与 `LLM_CONTEXT_WARN_TOKENS` 从 32000 降级调整为与本地一致的 16000，完美防止了容器版 vLLM 在执行 `/tokenize` 时因非标端点报错导致的 HTTP 400 级崩溃。
+- **高阶密钥与数据库路由安全注入**：
+  - 自动将 `DEEPSEEK_API_KEY`、`LANGSMITH_API_KEY` 及 `NVIDIA_API_KEY` 等关键 API Token 进行对齐与注入。
+  - 将 `MYSQL_DATABASE_URL` 修改为使用容器网关 `host.docker.internal` 代替物理宿主机 `localhost` 进行通信，实现了跨服务互联的自愈。
+
+### 变更内容
+#### .env_docker [MODIFY]
+- 补全 `DEEPSEEK_API_KEY` 为 `'sk-no-key-required'`。
+- 将 `LLM_CONTEXT_WARNING_ENABLED` 调整为 `false`，降低上下文限制以契合 vLLM 采样。
+- 将 `MYSQL_DATABASE_URL` 改为 `host.docker.internal` 主机名并取消注释状态。
+- 对齐注入 `LANGSMITH_API_KEY` 及 `NVIDIA_API_KEY` 环境变量。
+
 ## 2026-05-27 20:25 +08:00 - 锁定变体 C（微缩侧边栏）为大屏折叠最终版，物理清理其余原型与切换器死代码
 
 ### 概述
