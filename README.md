@@ -287,6 +287,9 @@ rearch_agent/
 │   └── package.json             # 前端依赖
 ├── deploy/                      # 部署文档与辅助配置
 ├── docs/                        # 项目文档总目录
+│   ├── 120jph_agent_architecture.html # 涂装车间 AI 助手交互式系统架构图
+│   ├── 120jph_agent_architecture.relationship.md # 涂装车间 AI 助手 Excalidraw 完整系统架构图
+│   ├── 120jph_agent_backend_architecture.relationship.md # Agent 核心设计亮点拓扑图
 │   ├── sql_result_truncation_analysis.md # 维度表数据截断与对齐分析报告
 │   ├── vLLM 部署与多系统消息冲突解决方案.md # vLLM 部署下多系统消息冲突解决方案
 │   ├── 本地大模型部署与Agent架构选型技术方案报告.md # 本地大模型部署与Agent架构选型技术方案报告
@@ -530,6 +533,11 @@ npm run dev
 - [SQL 查询截断机制与维度表对齐矛盾分析报告](./docs/sql_result_truncation_analysis.md)
 - [vLLM 部署与多系统消息冲突解决方案](./docs/vLLM%20部署与多系统消息冲突解决方案.md)
 - [本地大模型部署与 Agent 架构选型技术方案报告](./docs/本地大模型部署与Agent架构选型技术方案报告.md)
+- [120JPH 涂装车间 AI 助手系统架构图 HTML 交互网页](./docs/120jph_agent_architecture.html)
+- [120JPH 涂装车间 AI 助手系统架构图 Obsidian Excalidraw 格式](./docs/120jph_agent_architecture.relationship.md)
+- [120JPH 涂装车间 AI 助手 Agent 核心设计亮点拓扑图 Obsidian Excalidraw 格式](./docs/120jph_agent_backend_architecture.relationship.md)
+- [120JPH 涂装车间 AI 助手 Agent 核心 RAG 详细架构图 Obsidian Excalidraw 格式](./docs/120jph_agent_rag_architecture_detailed.relationship.md)
+- [120JPH 涂装车间 AI 助手 Agent 核心 RAG 简明架构图 Obsidian Excalidraw 格式](./docs/120jph_agent_rag_architecture_simplified.relationship.md)
 
 
 ## 常见问题

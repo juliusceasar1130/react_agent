@@ -1,8 +1,9 @@
 # RAG 架构与技术栈总结
 
-更新时间：2026-03-24 15:10 Asia/Shanghai
+更新时间：2026-05-29 13:20 Asia/Shanghai
 
 主要修改内容：
+- 系统化归纳补充 Agent 层的 RAG 三通道注入机制（业务知识自动拦截、DDL/Schema动态按需披露、SQL示例工具化召回）与职责分离设计
 - 对齐当前代码实现，补充 Milvus embedding provider 可在 `ollama` 与 `llama.cpp` 间切换
 - 修正文档中遗留的 `NVIDIA V5` / “仅 Ollama” 等过时描述
 - 补充 `llama.cpp + Qwen3 Embedding` 的 query instruction 与归一化策略
@@ -77,5 +78,56 @@
 4. **合成输出**：将最终存活下来的高质量文本提取出来包裹成上下文 Prompt，连同问题一起递交给 DeepSeek 等主力大语言模型进行 `synthesize`（合成输出）。
 5. **记录观测**：支持接入完整的 `LangSmith` 监控追踪链路（如果 `LANGSMITH_TRACING=true`）。
 
+---
+
+## 4. Agent 层 RAG 融合与三通道注入机制 (Agent-level RAG Fusion)
+
+在应用层，系统并非将 RAG 粗暴地作为单一的“提示词补充”，而是根据业务数据的物理属性和查询规律，推行了**通道隔离与职责分离 (Separation of Concerns)** 的三通道注入设计。这构成了工业级高可用 SQL Agent 的关键壁垒。
+
+```mermaid
+graph TD
+    UserQuery[用户自然语言提问] --> Middleware[BusinessRagMiddleware 拦截]
+    
+    %% 第一通道
+    Middleware -->|doc_type=documentation| RAG1[向量库检索与重排]
+    RAG1 -->|自动前置注入| SystemPrompt[SystemMessage 业务知识库]
+    
+    %% 第二通道
+    UserQuery -->|LLM主动调用| ToolLoad[load_skill 工具]
+    ToolLoad -->|加载本地 Markdown 资产| AssetRead[读取 domains/domain.md]
+    AssetRead -->|动态精准披露| ToolMessage1[表 DDL 与注释说明]
+    
+    %% 第三通道
+    UserQuery -->|LLM主动调用| ToolSearch[search_saved_correct_tool_uses 工具]
+    ToolSearch -->|doc_type=sql_example| RAG3[向量库精准匹配]
+    RAG3 -->|Few-shot 模仿与改写| ToolMessage2[历史成功 SQL 范例]
+    
+    SystemPrompt & ToolMessage1 & ToolMessage2 --> LLM[DeepSeek / Local LLM 推理生成最终 SQL]
+```
+
+### 4.1 业务知识自动注入通道 (Business Knowledge)
+* **内容实体**：车间指标计算口径（如“NV数量=缺陷数×单车缺陷系数”）、常见术语转换、逻辑过滤条件定义。
+* **注入机制**：**被动自动拦截模式 (Passive Interception)**。
+  * `BusinessRagMiddleware` 中间件在会话开启的最前端执行，无需模型显式调用。
+  * 后台检索时强制限定向量数据库条件为 `doc_type="documentation"`（完全过滤掉 SQL 示例与 DDL 信息）。
+  * 通过 **Rerank 精排** 筛选出最高评分的少量节点（默认 Top-3），以 `### 业务术语说明 (Documentation)` 文本块在首位自动注入为当前会话的 `SystemMessage`。
+
+### 4.2 数据表 DDL 及注释动态披露通道 (Schema & Database Comments)
+* **内容实体**：表结构 DDL、主外键关系、各列对应的物理其中文业务注释（如 `station_1_defect_count` 代表右侧）。
+* **注入机制**：**声明式主动加载模式 (Declarative On-Demand Load)**。
+  * **全局屏蔽**：为防范高维数据库海量字段撑爆 LLM 窗口，系统静态提取数据库注释并缓存后，**主动移除了** 默认的 `sql_db_list_tables` 和 `sql_db_schema` 工具，阻断大模型盲目读取全局 Schema。
+  * **按需披露**：模型必须根据当前分析的问题领域主动调用 `load_skill(skill_name)`，此工具在后台直接调用文件加载器读取并确定性地返回 `backend/app/skills/domains/<domain>/domain.md` 中的明文内容。
+  * **优势**：DDL 与注释采用纯文本资产管理，不仅具备 100% 的确定性（不走 RAG 召回，防止错乱），而且把最易出错的“业务字段映射”与表结构动态绑定，提供了极致安全的 Schema 披露。
+
+### 4.3 成功 SQL 示例动态检索通道 (SQL Few-shot Examples)
+* **内容实体**：已被人工校准且在生产环境中成功执行过的 SQL 查询范例。
+* **注入机制**：**工具化主动检索模式 (Active Tool-driven Search)**。
+  * 挂载 `search_saved_correct_tool_uses` 专用检索工具。在系统执行纪律中，强力引导模型在编写 SQL 前根据用户提问主动进行 Few-shot 检索（除非使用了固定的场景技能）。
+  * 检索时强制限定向量条件为 `doc_type="sql_example"`。
+  * 召回高度相似的历史 SQL 模板后，Agent 通过 Local Few-shot 学习机制，直接在范例基础上进行**增量式改写**（例如完美模仿 `STR_TO_DATE` 的非标时间转换），极大提升了复杂 SQL 首次生成的成功率。
+
+---
+
 ## 总结
 整套 RAG 系统立足于业务扩展性与高性能设计。当前支持低成本降级路径（PGVector）与高性能主路径（Milvus Hybrid + RRF 混合搜索 + 可选 Rerank 精排）双轨架构；其中 Milvus 的稠密向量已经统一迁移到本地私有化 `Qwen3-Embedding-0.6B` 方案，并支持在 `Ollama` 与 `llama.cpp` 之间切换，兼顾部署灵活性、离线能力与检索效果。
+同时，在应用层构建了**职责分明的三通道注入机制**，将**自动业务拦截、声明式物理 DDL 披露与主动式 SQL 示例检索**有机结合，在保证高召回率的同时实现了极致的 Token 控制与业务安全红线保护。

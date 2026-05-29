@@ -1,3 +1,62 @@
+## 2026-05-29 13:20 +08:00 - 系统化增补与重构 Agent 层的 RAG 三通道分层注入架构总结文档
+
+### 概述
+- **增补 Agent 层 RAG 融合设计总结**：在技术架构总结文档中系统性沉淀并归纳了 Agent 层面的“三通道注入与职责隔离机制”（业务知识自动拦截、DDL/Schema声明式按需加载、成功SQL示例工具化主动检索）。
+- **梳理各通道底层的代码落地点**：清晰剖析了 `BusinessRagMiddleware` (RAG1), `load_skill` + `domains/domain.md` (RAG2), 以及 `search_saved_correct_tool_uses` + `example_sql_example.json` (RAG3) 的协作与调用时机，画出了高度直观的 Mermaid 架构流向图。
+- **强化技术文档的体系化纯净性**：消除了旧版 DDL 向量检索的不准确定性，明确了纯文本资产在物理表结构披露与中文口径注释注入中的核心作用与极高精准度优势。
+
+### 变更内容
+#### docs/backend/RAG架构与技术总结.md [MODIFY]
+- 系统性增写并插入了 Section 4：'Agent 层 RAG 融合与三通道注入机制 (Agent-level RAG Fusion)'。
+- 更新了文件顶部的修改日志说明与最近更新时间。
+
+## 2026-05-29 10:48 +08:00 - 为 Agent 拓扑图与亮点报告追加“图表生成与 Artifact 缓存管理”功能
+
+### 概述
+- **追加“图表生成与 ECharts Artifact 缓存”亮点**：在 SQL Agent 设计亮点中新增了后端 `build_chart_artifact` 工具的主动调度机制，设计了高速缓存写入与自愈 TTL 生命周期管理。该架构彻底解耦了图表 JSON 大数据与对话历史，有效规避了上下文溢出。
+- **重构 Agent 亮点 Excalidraw 关系拓扑图**：
+  - 在右侧“工具拦截与执行层”新增了 `C4` 智能图表生成组件及其控制线。
+  - 将三大纵向物理背景框高度拉伸至 `610px`，并将底部“图例 Legend”整体平滑下移至 `770px`，确保图形空间在高度扩容后依然保持绝佳的对称美学（Symmetry）与无重叠流畅度。
+- **100% 格式无损及双平台兼容**：生成的 JSON 经过细致过滤，排除了 `frameId`, `index`, `versionNonce` 等易导致解析报错的非标属性，完美支持在 Obsidian 与 Excalidraw.com 双端导入和二次创作。
+
+### 变更内容
+#### docs/120jph_agent_backend_architecture.relationship.md [MODIFY]
+- 在“执行与流控”大框内追加 C4 智能图表组件与连接关系，重排画布布局。
+
+#### README.md [MODIFY]
+- 对齐更新技术文档名称与目录树注册说明。
+
+## 2026-05-29 09:40 +08:00 - 使用 /excalidraw-diagram 生成全新完整的 120JPH 涂装车间系统架构图
+
+### 概述
+- **基于 Obsidian Excalidraw 标准深度建模**：根据 `excalidraw-diagram` 技能标准，精细设计并转换了 “120JPH 涂装车间 AI 数据智能分析助手” 的系统拓扑图。
+- **严格的设计规范契合**：
+  - 全程锁定 `fontFamily: 5` 手写体风格。
+  - 汉字预估宽度自适应算法与 text 元素手动精密坐标居中定位，消除文字偏倚硬伤。
+  - 双引号替换为 `『』`，圆括号替换为 `「」`，确保符合 Obsidian Excalidraw 插件与 Excalidraw.com 官方的解析标准。
+- **精美分层与颜色图例集成**：
+  - 整体划分为 “Vue 3 前端层”、“FastAPI 后端服务层”、“LangGraph 智能体引擎层” 三大核心群组，并采用亮蓝、亮绿、浅紫虚线框及不同透明度的 solid 填充色呈现。
+  - 在左下角集成极具质感的 “颜色图例 「Legend」”，并在底部横排设计了三块大型 “执行纪律 & 约束”、“核心业务场景技能 「Domains」”、“拦截器与高可用配置” 精美说明卡片，WOW 效果显著。
+- **100% 格式无损及双平台兼容**：生成的 JSON 经过细致过滤，排除了 `frameId`, `index`, `versionNonce` 等易导致解析报错的非标属性，完美支持在 Obsidian 与 Excalidraw.com 双端导入和二次创作。
+
+### 变更内容
+#### docs/120jph_agent_architecture.relationship.md [NEW]
+- [全新增加] Obsidian Excalidraw 格式的高保真系统架构图。
+
+#### README.md [MODIFY]
+- 在项目结构树与技术文档列表中注册该 Excalidraw 架构图文档。
+
+## 2026-05-28 22:18 +08:00 - 设计并上线涂装车间 AI 助手系统架构图 HTML 交互网页
+
+### 概述
+- **设计并自动构建全局系统架构图**：为“120JPH涂装车间数据查询 AI 助手”量身定制了极为 Premium 的深色主题（Dark-themed）系统架构图网页，基于前端 Vue 3 + 后端 FastAPI + 认知层 LangGraph + 业务存储层的多物理节点进行了结构化建模设计。
+- **高颜值自包含 HTML+SVG 交付**：架构图采用独立的 HTML 自包含交付形式，内置 JetBrains Mono 字体、脉搏动态发光状态指示器、精确像素排列的 SVG 连线拓扑图、多色语义化分类图例，并在最下方提供了三张大块的“业务执行纪律与技能约束”指南卡片。
+- **一键高清多格式导出集成**：在网页右上方优雅集成了 `⋯` 动态毛玻璃工具栏，通过 jsPDF 和 html2canvas 实现了一键“复制到剪贴板”、“导出高清 PNG 图片”和“导出 PDF 文档”等高阶生产功能。
+
+### 变更内容
+#### docs/120jph_agent_architecture.html [NEW]
+- [全新增加] 全套系统架构图 HTML + SVG 独立可交互设计网页。
+
 ## 2026-05-28 16:03 +08:00 - 同步与对齐 .env_docker 缺失和未对齐的生产部署环境变量
 
 ### 概述
