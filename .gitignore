@@ -37,6 +37,7 @@ htmlcov/
 .vscode/
 .idea/
 .qwen/
+.obsidian/
 *.swp
 *.swo
 *~
