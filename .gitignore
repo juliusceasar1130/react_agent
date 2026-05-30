@@ -41,6 +41,9 @@ htmlcov/
 *.swo
 *~
 
+# Excalidraw drawings
+Excalidraw/
+
 # OS
 .DS_Store
 Thumbs.db
