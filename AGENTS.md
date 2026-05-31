@@ -1,111 +1,135 @@
-# AGENTS.md
+# CLAUDE.md
 
-## Rule Priority
+## 项目概述
 
-Follow rules in this order:
+面向生产数据查询场景的**大模型聊天会话管理系统**（SQL Agent + Skills + RAG），基于 FastAPI + LangChain/LangGraph + Vue 3 构建。
 
-1. Safety rules
-2. Working rules
-3. Preferences
-4. Project context from `memory.md`
+核心能力：多会话聊天 UI、SQL Agent 查询分析、Skills 领域知识加载、PGVector/Milvus 检索增强、结构化 SSE 流式输出、Agent 状态持久化。
 
-## Working Rules
+## 开发环境
 
-- 默认使用中文回复；必要时对关键术语补充英文。
-- 进行代码修改时，优先保持最小改动原则（minimal change）。
-- 不确定项目约定时，先查阅现有文档与代码，再实施修改。
-- 如遇潜在破坏性操作，应先说明风险。
-- 处理涉及项目背景、团队偏好、固定流程的问题时，同时参考 `AGENTS.md` 与 `memory.md`。
-- 新增约定时，采用追加方式，不删除既有内容。
+```bash
+conda activate py312_agent
+```
 
-## File Change Reporting
+常用命令：
 
-- 修改完成后，在回复中明确说明：
-  - 修改时间
-  - 主要修改内容
-- 若变更属于新特性或重要优化，记录到 `changelog.md`。
-- 若涉及项目主要特性或项目文件结构变更，同时更新 `README.md`。
-- 如果 `changelog.md` 不存在，则在项目根目录新建。
-- 仅在适合的文档文件中记录变更；不要在普通代码文件中添加无关修改历史注释。
+```bash
+# 后端
+uvicorn backend.app.main:app --reload --host 0.0.0.0 --port 8000
 
-## Think Before Coding
+# 前端
+cd frontend && npm run dev
 
-- 明确说明假设，不要默认假设成立。
-- 如果存在多种理解，不要静默选择其一，应显式说明。
-- 若有更简单方案，应优先采用，并说明取舍。
-- 如果需求或约定不清晰，应先指出不清晰点，再继续实施。
+# LangGraph Dev
+langgraph dev --allow-blocking
+```
 
-## Simplicity First
+Windows 下可直接运行 `start_langgraph_dev.bat`。
 
-- 只实现当前需求，不额外扩展功能。
-- 不为一次性逻辑引入不必要抽象。
-- 不增加未被请求的灵活性、可配置性或复杂错误处理。
-- 若实现明显过度复杂，应主动简化。
+## 文档索引
 
-## Surgical Changes
+在开始工作前，根据任务类型读取相关文档：
 
-- 仅修改完成任务所必需的内容。
-- 不顺手修改无关代码、注释或格式。
-- 不重构未损坏的部分，除非明确要求。
-- 保持与现有代码风格一致。
-- 只清理因本次修改而产生的无用导入、变量、函数。
-- 若发现既有无关死代码，可以说明，但不要擅自删除。
+- `agent_docs/architecture.md` — 项目架构速览、后端/前端主链路、技术栈、目录结构（修改跨模块代码时读取）
+- `agent_docs/persistence_and_streaming.md` — 持久化双模式与 SSE 流式协议（修改 Agent 持久化或流式逻辑时读取）
+- `agent_docs/skills_guide.md` — Skills 开发约定（开发或修改 Skills 时读取，也参考 `docs/skills/guide.md`）
+- `agent_docs/data_dictionary_guide.md` — 数据字典设计约定（修改数据字典功能时读取）
+- `openspec/project.md` — proposal / spec / plan / 架构性变更时优先查看
 
-## Goal-Driven Execution
+## 开发约定
 
-For multi-step tasks, use a brief plan:
+### 后端
 
+- CRUD 更新操作使用 `model_dump(exclude_unset=True, exclude_none=True)`
+- Response Schema 使用 Pydantic v2 `model_config = ConfigDict(from_attributes=True)`
+- 主键统一使用 UUID 字符串
+- 优先遵循现有模块边界，不随意把逻辑重新塞回单文件
+- 新增第三方包需更新 `requirements.txt`
+
+### 前端
+
+- 使用 `<script setup>` + Pinia Setup Store
+- refs 在 store 中直接使用，不额外加 `.value`
+- 流式阶段与完成态展示职责分离
+
+### 文档维护
+
+- 新特性和重要优化记录到 `changelog.md`，`README.md` 记录特性与目录结构
+- 若修改内容不适合写进源码文件，应在交付说明里给出修改时间与主要变更
+
+## Code Guidelines
+
+### 1. Think Before Coding
+
+**Don't assume. Don't hide confusion. Surface tradeoffs.**
+
+Before implementing:
+
+- State your assumptions explicitly. If uncertain, ask.
+- If multiple interpretations exist, present them - don't pick silently.
+- If a simpler approach exists, say so. Push back when warranted.
+- If something is unclear, stop. Name what's confusing. Ask.
+
+### 2. Simplicity First
+
+**Minimum code that solves the problem. Nothing speculative.**
+
+- No features beyond what was asked.
+- No abstractions for single-use code.
+- No "flexibility" or "configurability" that wasn't requested.
+- No error handling for impossible scenarios.
+- If you write 200 lines and it could be 50, rewrite it.
+
+Ask yourself: "Would a senior engineer say this is overcomplicated?" If yes, simplify.
+
+### 3. Surgical Changes
+
+**Touch only what you must. Clean up only your own mess.**
+
+When editing existing code:
+
+- Don't "improve" adjacent code, comments, or formatting.
+- Don't refactor things that aren't broken.
+- Match existing style, even if you'd do it differently.
+- If you notice unrelated dead code, mention it - don't delete it.
+
+When your changes create orphans:
+
+- Remove imports/variables/functions that YOUR changes made unused.
+- Don't remove pre-existing dead code unless asked.
+
+The test: Every changed line should trace directly to the user's request.
+
+### 4. Goal-Driven Execution
+
+**Define success criteria. Loop until verified.**
+
+Transform tasks into verifiable goals:
+
+- "Add validation" → "Write tests for invalid inputs, then make them pass"
+- "Fix the bug" → "Write a test that reproduces it, then make it pass"
+- "Refactor X" → "Ensure tests pass before and after"
+
+For multi-step tasks, state a brief plan:
+
+```
 1. [Step] → verify: [check]
 2. [Step] → verify: [check]
 3. [Step] → verify: [check]
+```
 
-Convert requests into verifiable outcomes whenever practical.
+## 协作偏好
 
-## Environment
+- 默认使用中文进行协作；必要时对关键术语补充英文。
+- 代码修改优先遵循最小改动原则（minimal change）。
+- 倾向于小步修改、可验证完成。
+- 倾向于保持现有风格，而不是主动统一风格。
+- 若发现无关问题，可提示，但不默认顺手修复。
+- 不确定项目约定时，先查阅现有文档与代码实现。
 
-- 执行项目相关命令时，使用项目环境：`conda activate py312_agent`。
+## MCP
 
-## Disallowed Behaviors
-
-- 不要重构无关代码。
-- 不要无理由引入新依赖。
-- 不要静默修改公共接口或既有行为。
-- 不要在未说明风险的情况下进行潜在破坏性操作。
-
-## Technology Version and Documentation Rules
-
-- 涉及第三方框架、SDK、工具链时，优先以项目当前锁定依赖版本为准。
-- 对于快速迭代的技术（如 LangChain、LangGraph、MCP 相关 SDK 等），优先参考官方文档与项目内既有实现，不默认采用网络上的最新示例。
-- 未明确要求时，不主动执行 major version 升级，也不擅自引入迁移性改写。
-- 若项目代码、锁定依赖版本与外部文档存在差异，应在回复中显式说明。
-- 若已提供文档 MCP，则优先使用其提供的文档资源作为参考上下文。
-
-## MCP Usage Rules
-
-- 涉及第三方库、框架、SDK 的实现或版本差异时，优先使用相关 MCP 查询文档。
-- 涉及 LangChain / LangGraph / LangSmith 时，优先使用 LangChain docs MCP。
-- 涉及其他第三方库时，优先使用 Context7 MCP。
-- 涉及浏览器页面、console、network、DOM、性能问题时，优先使用 chrome-devtools MCP。
-- 项目依赖版本、锁文件和现有实现优先级高于 MCP 返回的最新文档。
-- 未明确要求时，不因 MCP 查询结果主动做 major version 升级或大规模迁移。
-
-## Source Priority
-
-1. 项目代码与锁定依赖
-2. 项目文档与仓库规则
-3. MCP 文档与工具结果
-4. 通用知识
-
-## Agent skills
-
-### Issue tracker
-
-本地 Markdown。问题以文件形式存储在 `.scratch/<feature>/`。见 `docs/agents/issue-tracker.md`。
-
-### Triage labels
-
-已映射为中文标签。见 `docs/agents/triage-labels.md`。
-
-### Domain docs
-
-单上下文布局（Single-context）。见 `docs/agents/domain.md`。
+- LangChain docs MCP — 查询 LangChain 官方文档
+- Context7 MCP — 查询通用第三方库文档
+- chrome-devtools MCP — 浏览器调试与前端问题排查
