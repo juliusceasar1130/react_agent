@@ -43,6 +43,42 @@
           :class="textClass"
           v-html="renderedContent"
         ></div>
+
+        <!-- 一键生成图表的智能快捷 Banner -->
+        <div
+          v-if="chartSuggestionType"
+          class="mt-4 flex flex-col gap-3 rounded-2xl border border-primary/20 bg-gradient-to-r from-primary/5 via-white to-accent/5 p-3.5 shadow-sm sm:flex-row sm:items-center sm:justify-between animate-fade-in"
+        >
+          <div class="flex items-center gap-2.5">
+            <div class="flex h-9 w-9 items-center justify-center rounded-xl bg-primary/10 text-primary shadow-glow">
+              <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 12l3-3 3 3 4-4M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z" />
+              </svg>
+            </div>
+            <div class="text-left">
+              <div class="text-xs font-semibold text-neutral-800">一键生成图表</div>
+              <div class="text-[11px] text-neutral-500 mt-0.5">检测到当前结果适合用图表展示，点击一键绘制</div>
+            </div>
+          </div>
+          <div class="flex gap-2">
+            <button
+              v-if="chartSuggestionType === 'line' || chartSuggestionType === 'auto'"
+              type="button"
+              class="rounded-xl border border-primary/20 bg-white px-3 py-1.5 text-xs font-semibold text-primary shadow-sm transition hover:bg-primary hover:text-white active:scale-95 whitespace-nowrap"
+              @click="handleQuickChart('line')"
+            >
+              📈 生成折线图
+            </button>
+            <button
+              v-if="chartSuggestionType === 'bar' || chartSuggestionType === 'auto'"
+              type="button"
+              class="rounded-xl border border-primary/20 bg-white px-3 py-1.5 text-xs font-semibold text-primary shadow-sm transition hover:bg-primary hover:text-white active:scale-95 whitespace-nowrap"
+              @click="handleQuickChart('bar')"
+            >
+              📊 生成柱状图
+            </button>
+          </div>
+        </div>
       </div>
 
       <div
@@ -210,10 +246,36 @@ const streamingState = computed<StreamingMessage | null>(() => {
 const isStreamingActive = computed(() => Boolean(streamingState.value?.isStreaming))
 const showDebugDetails = CHAT_DEBUG_STREAM
 
+const emit = defineEmits<{
+  (e: 'select-scenario', prompt: string): void
+}>()
+
 const content = computed(() =>
   streamingState.value ? streamingState.value.content : props.message.content
 )
-const renderedContent = computed(() => renderMarkdown(content.value))
+
+const chartSuggestionType = computed<'line' | 'bar' | 'auto' | null>(() => {
+  if (isUser.value || isStreamingActive.value) return null
+  const rawContent = content.value || ''
+  const match = rawContent.match(/\[suggest_chart:(line|bar|auto)\]/)
+  return match ? (match[1] as 'line' | 'bar' | 'auto') : null
+})
+
+const displayContent = computed(() => {
+  const rawContent = content.value || ''
+  return rawContent.replace(/\[suggest_chart:(line|bar|auto)\]/, '')
+})
+
+const renderedContent = computed(() => renderMarkdown(displayContent.value))
+
+const handleQuickChart = (type: 'line' | 'bar' | 'auto') => {
+  const promptMap = {
+    line: '生成折线图',
+    bar: '生成柱状图',
+    auto: '生成图表',
+  }
+  emit('select-scenario', promptMap[type])
+}
 
 const rawToolResults = computed<Record<string, string>>(() => {
   const message = props.message as Message

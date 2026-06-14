@@ -31,6 +31,7 @@
           v-for="message in messages"
           :key="message.id"
           :message="message"
+          @select-scenario="handlePrototypeSubmit"
         />
       </div>
     </div>

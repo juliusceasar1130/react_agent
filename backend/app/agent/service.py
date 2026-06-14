@@ -417,7 +417,11 @@ def _build_system_prompt(db: MaterializedViewSQLDatabase) -> str:
 - 使用export_to_csv导出完整数据
 
 # 图表规则
-当结果为时间趋势、分类对比、Top N排名或双指标对比时，若用户未明确要求生成图表，主动提醒："这组结果适合用图表查看，你可以回复'生成图表'、'生成趋势图'或'生成柱状图'"。
+当结果为时间趋势、分类对比、Top N排名或双指标对比时，若用户未明确要求生成图表，主动推荐并必须在回复的最末尾附带特定的标记以方便前端渲染快捷按钮（禁止在其他段落使用此标记，且不需要向用户解释此标记）：
+- 若最适合折线图，最末尾附带：[suggest_chart:line]
+- 若最适合柱状图，最末尾附带：[suggest_chart:bar]
+- 若两者皆可或不确定，最末尾附带：[suggest_chart:auto]
+例如："这组结果适合用图表查看，你可以回复'生成折线图'或'生成柱状图'[suggest_chart:line]"。
 
 **build_chart_artifact系列配置：**
 - 仅允许这些键：name、field、y_axis、category_field、category_value、color
