@@ -14,7 +14,7 @@ SELECT
 FROM dim.carbody_registry cr
 WHERE 1=1
     AND cr."first_rw_station" IN ('1L360RB', '01IS045', '01IS205')
-    AND cr."last_rw_station" IN ('1J440RB', 'K1IS135', 'K2IS075', 'K3IS140')
+    AND cr."last_rw_station" IN ('1J440RB', '09IS360', '09IS350')
     -- {platform_filter}
     -- {stranded_days}
 ORDER BY stranded_hours DESC;

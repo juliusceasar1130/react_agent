@@ -43,7 +43,7 @@ class SkillMiddleware(AgentMiddleware[CustomState]):
         pass
 
     def _modify_request(self, request: ModelRequest) -> ModelRequest:
-        """将技能描述（description）注入到系统提示词"""
+        """将技能描述及当前激活领域 DDL 注入到系统提示词"""
         skills_prompt = _build_skills_prompt(get_all_skills())
         skills_addendum = (
             f"\n\n## Available Skills\n\n{skills_prompt}\n\n"
@@ -54,9 +54,24 @@ class SkillMiddleware(AgentMiddleware[CustomState]):
             "planning from scratch."
         )
 
+        active_skill = request.state.get("active_skill") if request.state else None
+        active_ddl_addendum = ""
+        if active_skill:
+            from backend.app.skills import load_domain_content
+            skill_content = load_domain_content(active_skill)
+            if skill_content:
+                active_ddl_addendum = (
+                    f"\n\n## Active Domain Knowledge: {active_skill}\n"
+                    "下列是当前激活领域的核心表结构 DDL 以及业务易错规则，请在编写 SQL 时严格遵守：\n\n"
+                    f"{skill_content}\n"
+                )
+
         new_content = list(request.system_message.content_blocks) + [
             {"type": "text", "text": skills_addendum}
         ]
+        if active_ddl_addendum:
+            new_content.append({"type": "text", "text": active_ddl_addendum})
+            
         new_system_message = SystemMessage(content=new_content)
 
         return request.override(system_message=new_system_message)

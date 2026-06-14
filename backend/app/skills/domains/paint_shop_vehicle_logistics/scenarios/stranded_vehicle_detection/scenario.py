@@ -13,8 +13,8 @@ SCENARIO = {
     "description": "滞留车辆信息",
     "example_questions": [
         "有哪些滞留车",
-        "查一下滞留超过 3 天的车",
-        "有哪些 ADP 平台的滞留车"
+        "查一下滞留超过 2 天的车",
+        "有哪些 ADP 平台的滞留车",
     ],
     "triggers": [
         "有哪些滞留车",
@@ -24,7 +24,7 @@ SCENARIO = {
         "在制滞留车",
         "卡在产线上的车",
         "ADP 平台滞留车",
-        "超过 3 天的滞留车",
+        "超过 2 天的滞留车",
     ],
     "intent_keywords": [
         "滞留",
@@ -38,7 +38,6 @@ SCENARIO = {
     "required_inputs": [],
     "optional_inputs": ["platform_filter", "stranded_days", "in_process_stranded_days"],
     "parameters": {
-
         "platform_filter": {
             "type": "string",
             "description": "按平台筛选滞留车",
@@ -55,7 +54,7 @@ SCENARIO = {
             "required": False,
             "source_column": "last_seen_at, first_seen_at",
             "source_table": "dim.carbody_registry",
-            "example_values": [1, 3, 5],
+            "example_values": [1, 2, 5],
             "usage": "仅用于 historical 模板。替换 {stranded_days} 占位符。",
             "sql_fragment": 'AND (cr."last_seen_at" - cr."first_seen_at") > INTERVAL \'{value} days\'',
         },
@@ -65,27 +64,28 @@ SCENARIO = {
             "required": False,
             "source_column": "first_seen_at",
             "source_table": "dim.carbody_registry",
-            "example_values": [1, 3, 5],
+            "example_values": [1, 2, 5],
             "usage": "仅用于 in_process 模板。替换 {in_process_stranded_days} 占位符。必须使用 CURRENT_TIMESTAMP 计算。",
-            "sql_fragment": 'AND (CURRENT_TIMESTAMP - cr."first_seen_at") > INTERVAL \'{value} days\'',
+            "sql_fragment": "AND (CURRENT_TIMESTAMP - cr.\"first_seen_at\") > INTERVAL '{value} days'",
         },
     },
     "workflow": [
-        "判断用户意图：如果未明确说明（默认）或指明'在制滞留'，选择 `in_process` 模板；如果明确指明'历史滞留'，选择 `historical` 模板。",
-        "提醒用户滞留天数选择或者自定义。注意：在制车使用 `in_process_stranded_days`，历史车使用 `stranded_days`。",
-        "根据用户表达替换选定模板中的 {platform_filter}, {stranded_days} 或 {in_process_stranded_days} 占位符。",
-        "按滞留时长降序输出，同时在自然语言回答中，针对在制车明确合并播报其所在的工艺区域 (current_process_area) 与具体滚床号 (current_rb_code)。",
+        "1.断用户意图：如果未明确说明（默认）或指明'在制滞留'，选择 `in_process` 模板；如果明确指明'历史滞留'，选择 `historical` 模板。",
+        "2.提醒用户滞留天数选择或者自定义,默认为**2**天。注意：在制车使用 `in_process_stranded_days`，历史车使用 `stranded_days`。",
+        "3.根据用户表达替换选定模板中的 {platform_filter}, {stranded_days} 或 {in_process_stranded_days} 占位符。",
+        "4.按滞留时长降序输出，同时在自然语言回答中，针对在制车明确合并播报其所在的工艺区域 (current_process_area) 与具体滚床号 (current_rb_code)。",
     ],
     "rules": [
         "默认只查在制滞留（使用 in_process 模板），绝对不要默认查所有类型，以保证效率。",
         "过滤条件应统一应用于主表 `cr` (`dim.carbody_registry`)。",
-        "所有大写列名必须用双引号包裹，带别名时如 `cr.\"last_seen_at\"`。",
+        '所有大写列名必须用双引号包裹，带别名时如 `cr."last_seen_at"`。',
         "场景下方提供了多个 SQL 模板，必须根据用户意图（在制 vs 历史）选择正确的模板，严禁将 in_process 的 JOIN 逻辑强行套用到历史查询中。",
-        "入口/出口过滤和 JOIN 逻辑已内置在各个模板中，直接使用对应模板，不要自行修改这些基础条件。"
+        "入口/出口过滤和 JOIN 逻辑已内置在各个模板中，直接使用对应模板，不要自行修改这些基础条件。",
+        "默认滞留天数为 **2** 天，LLM 应以此作为默认值，除非用户明确指定其他天数。",
     ],
     "gotchas": [
         "部分在制车的 `current_rb_code` 可能为空。此时应说明其最后已知过站为 `last_rw_station`，并告知暂无当前精确滚床数据。",
-        "stranded_type 字段已硬编码在各个模板中，LLM 不需要自行推导。"
+        "stranded_type 字段已硬编码在各个模板中，LLM 不需要自行推导。",
     ],
     "output_contract": "输出字段包含 vehicle_id, platform_code, stranded_type, first_seen_at, last_seen_at, first_rw_station, last_rw_station, stranded_hours, current_process_area, current_rb_code；按滞留时长降序排列。",
     "sql_template_refs": [
@@ -102,7 +102,7 @@ SCENARIO = {
             "scope": "scenario",
             "path": "sql/historical.sql",
             "description": "历史滞留车查询（仅当用户明确要求时使用）。去除了 JOIN 操作，以提升历史记录查询效率。",
-        }
+        },
     ],
     "script_refs": [],
 }

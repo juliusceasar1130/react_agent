@@ -39,6 +39,7 @@ from backend.app.agent.tools import (
 )
 from backend.app.agent.utils import (
     LlamaCppTokenEstimator,
+    VllmTokenEstimator,
     MaterializedViewSQLDatabase,
     build_postgres_search_path_engine_args,
     ensure_windows_selector_loop,
@@ -59,13 +60,30 @@ logger = logging.getLogger(__name__)
 _MANAGED_AGENT_SERVICE: Optional["SQLAgentService"] = None
 
 
-def _create_context_warning_middleware() -> ContextWarningMiddleware:
-    """创建上下文窗口告警中间件。"""
-    return ContextWarningMiddleware(
-        estimator=LlamaCppTokenEstimator(
+def _create_token_estimator() -> Any:
+    """根据配置创建 Token 估算器实例。"""
+    engine = getattr(settings, "token_estimator_engine", "llama_cpp").lower()
+    if engine == "vllm":
+        # 如果 vllm_tokenize_base_url/model 为空字符串，则通过 or 回退到 deepseek 的默认配置
+        base_url = getattr(settings, "vllm_tokenize_base_url", None) or getattr(settings, "deepseek_base_url", "http://127.0.0.1:8089")
+        model_name = getattr(settings, "vllm_tokenize_model", None) or getattr(settings, "deepseek_model", "deepseek-chat")
+                
+        return VllmTokenEstimator(
+            base_url=base_url,
+            model_name=model_name,
+            timeout=settings.llm_context_tokenizer_timeout,
+        )
+    else:
+        return LlamaCppTokenEstimator(
             base_url=settings.llama_cpp_tokenize_base_url,
             timeout=settings.llm_context_tokenizer_timeout,
-        ),
+        )
+
+
+def _create_context_warning_middleware(estimator: Any) -> ContextWarningMiddleware:
+    """创建上下文窗口告警中间件。"""
+    return ContextWarningMiddleware(
+        estimator=estimator,
         enabled=settings.llm_context_warning_enabled,
         context_window=settings.llm_context_window,
         warn_tokens=settings.llm_context_warn_tokens,
@@ -574,16 +592,50 @@ class SQLAgentService:
             tools = _prepare_tools(db, llm, retriever=retriever)
             system_prompt = _build_system_prompt(db)
 
+            token_estimator = _create_token_estimator()
+
+            def exact_token_counter(messages: list) -> int:
+                formatted = []
+                system_contents = []
+                
+                # 借鉴 SafeMergeSystemMiddleware 的思路：物理抽干并合并所有的 system 消息
+                for m in messages:
+                    msg_type = getattr(m, "type", "")
+                    if msg_type == "system":
+                        system_contents.append(str(m.content))
+                    else:
+                        role = "user"
+                        if msg_type == "human":
+                            role = "user"
+                        elif msg_type == "ai":
+                            role = "assistant"
+                        elif msg_type == "tool":
+                            role = "tool"
+                        formatted.append({"role": role, "content": str(m.content)})
+                
+                # 如果收集到了任何 system 消息，将其统一合并成一条，强制放置在最头部 [0] 索引位置
+                if system_contents:
+                    formatted.insert(0, {
+                        "role": "system", 
+                        "content": "\n\n".join(system_contents)
+                    })
+                    
+                if hasattr(token_estimator, "count_messages_tokens"):
+                    return token_estimator.count_messages_tokens(formatted)
+                else:
+                    return token_estimator.count_json_like_tokens(formatted)
+
             summarization_middleware = SummarizationMiddleware(
                 model=llm,
                 trigger=("tokens", 4000),
                 keep=("messages", 5),
+                token_counter=exact_token_counter,
             )
 
             middleware_list = [
                 summarization_middleware,
                 SkillMiddleware(),
-                _create_context_warning_middleware(),
+                _create_context_warning_middleware(token_estimator),
                 SafeMergeSystemMiddleware(),
             ]
             if rag_middleware:
@@ -656,16 +708,50 @@ class SQLAgentService:
             tools = _prepare_tools(db, llm, retriever=retriever)
             system_prompt = _build_system_prompt(db)
 
+            token_estimator = _create_token_estimator()
+
+            def exact_token_counter(messages: list) -> int:
+                formatted = []
+                system_contents = []
+                
+                # 借鉴 SafeMergeSystemMiddleware 的思路：物理抽干并合并所有的 system 消息
+                for m in messages:
+                    msg_type = getattr(m, "type", "")
+                    if msg_type == "system":
+                        system_contents.append(str(m.content))
+                    else:
+                        role = "user"
+                        if msg_type == "human":
+                            role = "user"
+                        elif msg_type == "ai":
+                            role = "assistant"
+                        elif msg_type == "tool":
+                            role = "tool"
+                        formatted.append({"role": role, "content": str(m.content)})
+                
+                # 如果收集到了任何 system 消息，将其统一合并成一条，强制放置在最头部 [0] 索引位置
+                if system_contents:
+                    formatted.insert(0, {
+                        "role": "system", 
+                        "content": "\n\n".join(system_contents)
+                    })
+                    
+                if hasattr(token_estimator, "count_messages_tokens"):
+                    return token_estimator.count_messages_tokens(formatted)
+                else:
+                    return token_estimator.count_json_like_tokens(formatted)
+
             summarization_middleware = SummarizationMiddleware(
                 model=llm,
-                trigger=("tokens", 6000),
+                trigger=("tokens", 24000),
                 keep=("messages", 5),
+                token_counter=exact_token_counter,
             )
 
             middleware_list = [
                 summarization_middleware,
                 SkillMiddleware(),
-                _create_context_warning_middleware(),
+                _create_context_warning_middleware(token_estimator),
                 SafeMergeSystemMiddleware(),
             ]
             if rag_middleware:

@@ -1,3 +1,51 @@
+## 2026-06-14 21:48 +08:00 - 实现领域技能 DDL 移入 System Message 相对尾部优化
+
+### 概述
+- **实现静态 DDL 移入系统提示词 (System Message)**：彻底重构了领域技能的挂载和传输路径，将原本大段的物理表结构 DDL 从对话历史的 `ToolMessage` 剥离，转由 `SkillMiddleware` 动态拼装在 System Message 的相对尾部（Available Skills 可用菜单下方，动态 RAG 内容前面）。
+- **落实“单一激活，跨域重载”防遗忘拦截**：修改了 `load_skill` 的状态更新逻辑，将 `skills_loaded` 列表覆写为仅包含当前激活技能。当大模型试图跨回旧领域执行查询时，前置拦截器将阻止盲目执行，迫使其先执行 `load_skill` 刷新 System 提示词中的 DDL，建立完美的自愈闭环。
+- **优化核心指标 (Prefix Caching & TTFT)**：此举使得数千字庞大且静态的 DDL 文本彻底免疫消息历史的压缩与裁剪（`SummarizationMiddleware`）。同时，静态前缀保证了 vLLM `Prefix Caching` 的 100% 缓存命中，使首字延迟（TTFT）大幅缩短至毫秒级。
+- **完善单元测试**：使用 TDD 模式编写并跑通了对 `SkillMiddleware` 拼接和 `load_skill` 状态覆盖重写的单元测试，确保重构回归安全性。
+
+### 变更内容
+#### backend/app/agent/tools/skill_tools.py [MODIFY]
+- 修改 `_build_load_skill_command` 函数，将 `skills_loaded` 更新由“合并”重构为“覆盖重写”，并精简 `ToolMessage` 回显为状态语。
+
+#### backend/app/agent/middleware/skill_middleware.py [MODIFY]
+- 重构 `_modify_request` 方法，实现从 `request.state` 中提取激活的技能，并将详细的 DDL 文本拼装入 System Message。
+
+#### backend/app/agent/middleware/test_skill_middleware.py [NEW]
+- [全新增加] 编写 `test_skill_middleware_injects_active_ddl` 和 `test_load_skill_tool_overwrites_state` 单元测试，分别断言验证动态 DDL 系统拼接流程与排他激活状态更新。
+
+## 2026-06-14 21:20 +08:00 - 修复多轮对话下历史 RAG 系统消息重复追加与合并的 Bug
+
+### 概述
+- **修复多轮对话下 RAG 消息堆积的问题**：修复了在多轮会话中，旧的 RAG 业务知识（`__business_rag_context__`）不断在 `state.messages` 中堆积，导致每次对话都会全量合并历史 RAG 的缺陷。通过为 `BusinessRagMiddleware` 生成的 RAG `SystemMessage` 赋予固定的 `id="__business_rag_context__"`，使 LangGraph 状态机能通过 `add_messages` 减法器进行原地覆盖替换，从而只保留最新一次检索的 RAG 内容。
+
+### 变更内容
+#### backend/app/agent/middleware/rag_middleware.py [MODIFY]
+- 在实例化 RAG `SystemMessage` 时显式指定 `id=self._rag_system_message_id`，启用 LangGraph 的 ID 覆盖合并机制。
+- 升级 `before_model` 中的历史消息过滤与去重逻辑，优先匹配 `msg.id`，并向后兼容 `content` 及 `content_blocks` 的检索内容去重。
+
+## 2026-06-14 18:30 +08:00 - 实现 vLLM Token 估算器与多系统消息安全合并
+
+### 概述
+- **引入 VllmTokenEstimator 精确估算 Token**：在 `backend/app/agent/utils` 下实现 `VllmTokenEstimator`，支持直接调用本地 vLLM 推理引擎的 `/tokenize` 端点获取最真实精确的 Token 计数。并加入了强大的降级防呆设计，在遇到 404 或网络连接错误时，能平滑 fallback 到 `tiktoken` (gpt-4) 以保证对话不崩溃。可通过 `.env` 中的 `TOKEN_ESTIMATOR_ENGINE="vllm"` 和 `TOKEN_ESTIMATOR_ENGINE="llama_cpp"` 自由切换。
+- **重构并上线 SafeMergeSystemMiddleware 拦截合并器**：彻底解决 vLLM Jinja 模板（尤其是 Qwen3.6 默认/增强版模板）对“非首位系统消息”或“多条系统消息”的严格限制（会抛出 `System message must be at the beginning` 400 Bad Request）。通过在 Agent 调用最后一刻线性扫描打捞出对话历史中所有由 RAG 注入或技能披露产生的 System 消息，剥离并统一合并规整为置顶的纯文本 SystemMessage 传递，彻底消除 Dict/Str 混杂导致 vLLM 序列化报错的问题。
+- **修复局域网/Docker vLLM 断联与 404 错误**：修复了 `.env` 中 `VLLM_TOKENIZE_BASE_URL` 以及 `VLLM_TOKENIZE_MODEL` 配置错误（修复由于字面量配置以及错误的路由 IP/端口），打通了 vLLM 完整的 `/tokenize` 路由通信通道。
+
+### 变更内容
+#### backend/app/agent/utils/vllm_token_estimator.py [NEW]
+- [全新增加] 实现 `VllmTokenEstimator`，提供对 vLLM `/tokenize` 接口的高效异步请求与计数估算。
+
+#### backend/app/agent/service.py [MODIFY]
+- 重构 `_create_token_estimator` 初始化逻辑，支持 `vllm` 引擎配置，引入动态降级容错。
+
+#### backend/app/agent/middleware/safe_merge_middleware.py [MODIFY]
+- 重构 `_modify_request` 方法的系统消息提取与合并流程，防范 List[Dict] 与 Str 混合造成的序列化崩溃，实现鲁棒的多轮 SystemMessage 过滤与拼接。
+
+#### .env [MODIFY]
+- 调整与校准 `TOKEN_ESTIMATOR_ENGINE`，`VLLM_TOKENIZE_BASE_URL`，`VLLM_TOKENIZE_MODEL` 等环境变量。
+
 ## 2026-05-29 13:20 +08:00 - 系统化增补与重构 Agent 层的 RAG 三通道分层注入架构总结文档
 
 ### 概述

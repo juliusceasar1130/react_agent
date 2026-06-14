@@ -131,6 +131,9 @@ class Settings(BaseSettings):
     llm_context_window: int = int(os.getenv("LLM_CONTEXT_WINDOW", "16384"))
     llm_context_warn_tokens: int = int(os.getenv("LLM_CONTEXT_WARN_TOKENS", "12000"))
     llm_context_safety_buffer: int = int(os.getenv("LLM_CONTEXT_SAFETY_BUFFER", "512"))
+    token_estimator_engine: str = os.getenv("TOKEN_ESTIMATOR_ENGINE", "llama_cpp")
+    vllm_tokenize_base_url: str = os.getenv("VLLM_TOKENIZE_BASE_URL", "")
+    vllm_tokenize_model: str = os.getenv("VLLM_TOKENIZE_MODEL", "")
     llama_cpp_tokenize_base_url: str = os.getenv(
         "LLAMA_CPP_TOKENIZE_BASE_URL",
         "http://127.0.0.1:8089",

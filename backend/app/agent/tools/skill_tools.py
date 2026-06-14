@@ -46,14 +46,17 @@ def _build_load_skill_command(skill_name: str, runtime: ToolRuntime) -> Command:
             }
         )
 
-    skill_content = load_domain_content(skill_name)
-    loaded_skills = _merge_names(runtime.state.get("skills_loaded", []), skill_name)
+    loaded_skills = [skill_name]
 
     return Command(
         update={
             "messages": [
                 ToolMessage(
-                    content=f"Loaded skill: {skill_name}\n\n{skill_content}",
+                    content=(
+                        f"Loaded domain skill '{skill_name}' successfully. "
+                        "The database tables DDL and business rules have been dynamically mounted "
+                        "to your System Prompt. You can now compose SQL queries for this domain."
+                    ),
                     tool_call_id=runtime.tool_call_id,
                 )
             ],

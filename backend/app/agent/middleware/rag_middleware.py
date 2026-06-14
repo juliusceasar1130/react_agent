@@ -224,8 +224,11 @@ class BusinessRagMiddleware(AgentMiddleware[CustomState]):
             f"{knowledge_block}\n"
         )
 
-        # 创建系统消息
-        rag_system_message = SystemMessage(content=rag_system_content)
+        # 创建系统消息，显式指定固定 id，以便 LangGraph add_messages reducer 能够原地覆盖替换
+        rag_system_message = SystemMessage(
+            content=rag_system_content,
+            id=self._rag_system_message_id
+        )
 
         # 检查是否已经存在业务知识系统消息，如果存在则替换，否则添加到开头
         new_messages = []
@@ -233,8 +236,16 @@ class BusinessRagMiddleware(AgentMiddleware[CustomState]):
 
         for msg in messages:
             if isinstance(msg, SystemMessage):
+                # 1. 优先通过 id 进行匹配替换
+                if getattr(msg, "id", None) == self._rag_system_message_id:
+                    if not rag_message_added:
+                        new_messages.append(rag_system_message)
+                        rag_message_added = True
+                    # 跳过旧的消息
+                    continue
+
+                # 2. 备选：仍然兼容通过 content 判断，保证多轮历史向下兼容性
                 content = getattr(msg, "content", "")
-                # 如果找到已有的业务知识系统消息，替换它
                 if isinstance(content, str) and self._rag_system_message_id in content:
                     if not rag_message_added:
                         new_messages.append(rag_system_message)
