@@ -130,6 +130,12 @@ class Settings(BaseSettings):
     )
     llm_context_window: int = int(os.getenv("LLM_CONTEXT_WINDOW", "16384"))
     llm_context_warn_tokens: int = int(os.getenv("LLM_CONTEXT_WARN_TOKENS", "12000"))
+    llm_context_summarize_trigger_tokens: int = int(
+        os.getenv("LLM_CONTEXT_SUMMARIZE_TRIGGER_TOKENS", "10000")
+    )
+    llm_context_collapse_protect_turns: int = int(
+        os.getenv("LLM_CONTEXT_COLLAPSE_PROTECT_TURNS", "3")
+    )
     llm_context_safety_buffer: int = int(os.getenv("LLM_CONTEXT_SAFETY_BUFFER", "512"))
     token_estimator_engine: str = os.getenv("TOKEN_ESTIMATOR_ENGINE", "llama_cpp")
     vllm_tokenize_base_url: str = os.getenv("VLLM_TOKENIZE_BASE_URL", "")

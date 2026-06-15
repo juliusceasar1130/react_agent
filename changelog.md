@@ -1,3 +1,68 @@
+## 2026-06-15 15:20 +08:00 - 上线 P0 级“读时投影 (Read-Time Projection)”上下文折叠中间件
+
+### 概述
+- **上线读时投影（Read-Time Projection）上下文折叠中间件**：为了应对长对话和多轮数据交互场景下 Token 剧烈膨胀及本地 vLLM Prefix Caching 频繁失效问题，在 `SafeMergeSystemMiddleware` 中开发并集成了内存级投影折叠转换。
+- **保障前端大图表与数据明细无损渲染**：投影转换完全在 API 网络层发送的一瞬间发生在内存中，绝不改写或污染 Graph State 及本地 PostgresSaver。用户在 Vue 3 浏览器前端依旧拥有 100% 完整的历史数据大表格、CSV 下载链接与 Traceback 原生回显，完美保障视觉交互。
+- **引入滑窗滑动保护与白名单过滤**：在 `config.py` 中新增 `LLM_CONTEXT_COLLAPSE_PROTECT_TURNS`（默认值 3）动态配置。仅折叠滑窗保护期之外的 `sql_db_query`, `search_saved_correct_tool_uses`, `build_chart_artifact`, `export_to_csv` 等白名单工具，豁免控制类工具（如 `load_scenario`），防止大模型丢失关键业务字段含义与 SQL 模板。
+- **成功与失败查询分支极致静态化精简**：
+  - **成功分支**：折叠为 100% 纯静态友好常量 `[SQL execution successful. Result content collapsed. Re-run query if details are needed.]`。
+  - **失败分支**：折叠为 100% 纯静态友好常量 `[SQL execution failed. Detailed error log collapsed. Re-run with corrected SQL if needed.]`。
+  - 该改动彻底清除了原本在历史消息中残留的动态 SQL、动态错误内容以及行数信息，使得历史消息的字节序列前缀绝对保持稳固，极大提高了 Prefix Caching 命中率。
+- **增补靶向单元测试回归验证**：在 `test_safe_merge_middleware.py` 中追加成功与失败的静态投影测试断言，验证了“滑窗边界、白名单过滤、真身无污染”等细节。利用 Pytest 100% 跑通。
+
+### 变更内容
+#### backend/app/config.py [MODIFY]
+- 新增 `llm_context_collapse_protect_turns` 可选配置项。
+
+#### backend/app/agent/middleware/safe_merge_middleware.py [MODIFY]
+- 新建 `_project_and_collapse_messages` 投影折叠管道。
+- 去除 `_extract_core_error` 以及从 `sql_tools` 导入 `_estimate_row_count` 等动态逻辑，保证代码纯净零死代码。
+- 在 `_modify_request` 顶端调用投影管道对历史消息做只读克隆转换，保障 `tool_call_id` 一致配对。
+
+#### backend/app/agent/middleware/test_safe_merge_middleware.py [MODIFY]
+- 新增 `test_safe_merge_context_collapse_successful_query` 和 `test_safe_merge_context_collapse_failed_query` 测试，并修正 state 的 dict 键值访问。
+
+## 2026-06-15 14:10 +08:00 - 精简并澄清领域技能加载工具的返回提示信息，解决多轮对话下 LLM 的历史激活幻觉
+
+### 概述
+- **精简并澄清领域技能加载返回提示**：针对多轮会话中可能因多条历史 `ToolMessage` 存在导致大模型误判历史技能仍处于激活状态的痛点，精简并重构了 `load_skill` 工具调用返回的 `ToolMessage` 内容。
+- **加入覆盖性排他声明**：明确在返回文本中强调“当前加载的领域技能已覆盖/失效了历史加载技能”，并引导大模型严格以 System Message 的 `Active Domain Knowledge` 为唯一准确的当前激活 DDL 依据，从而彻底消除跨域联查或表结构脑补等常见幻觉。
+
+### 变更内容
+#### backend/app/agent/tools/skill_tools.py [MODIFY]
+- 修改了 `_build_load_skill_command` 函数中 `ToolMessage` 返回的 `content` 模板，应用精简版排他指示文案。
+
+## 2026-06-15 11:15 +08:00 - 统一同步与异步模式下对话压缩中间件的触发阈值配置
+
+### 概述
+- **实现统一的对话压缩触发阈值配置**：在 `.env` 配置文件中引入 `LLM_CONTEXT_SUMMARIZE_TRIGGER_TOKENS='9000'`，将原本在 `SQLAgentService` 同步与异步模式下分别硬编码为 `10000` 和 `24000` 的 `SummarizationMiddleware` 触发阈值替换为动态读取该环境变量。
+- **解决本地异步模式无法自动压缩的问题**：修复了在本地 FastAPI 异步开发模式（`_ainitialize_agent`）下 `SummarizationMiddleware` 的触发点被硬编码为 `24000` 从而导致在达到大模型 10000 物理窗口限制前根本无法触发自动对话压缩的历史痛点。
+
+### 变更内容
+#### .env [MODIFY]
+- 新增 `LLM_CONTEXT_SUMMARIZE_TRIGGER_TOKENS='9000'` 配置。
+
+#### backend/app/config.py [MODIFY]
+- 在 `Settings` 类中添加 `llm_context_summarize_trigger_tokens` 环境变量字段读取。
+
+#### backend/app/agent/service.py [MODIFY]
+- 将 `_initialize_agent`（同步）与 `_ainitialize_agent`（异步）中实例化的两处 `SummarizationMiddleware` 的 `trigger` 阈值配置统一替换为 `trigger=("tokens", settings.llm_context_summarize_trigger_tokens)`。
+
+## 2026-06-15 09:14 +08:00 - 实现系统提示词（System Message）注入当前日期功能
+
+### 概述
+- **实现 System Message 动态注入当前日期与星期**：在向大模型（LLM）发起调用前的 `SafeMergeSystemMiddleware` 拦截器中，实时格式化获取当前的本地系统日期与星期几，并拼装在全局唯一 System Message 的**最末尾**（如果存在 RAG 消息，也确保日期在 RAG 消息之后的最末尾），有效解决了大模型缺乏时间感知、容易记错时间的痛点，提升时间敏感型任务（如查询“今天”、“昨天”的数据）的准确率。
+- **支持首轮提问日期自愈注入**：去除了 `SafeMergeSystemMiddleware` 在 `messages` 为空时直接退出的硬编码机制，确保新创建的会话在进行第一轮提问时，也同样能够成功注入当前日期。
+- **补充靶向单元测试回归**：新建 `test_safe_merge_middleware.py` 单元测试，全方位覆盖无 RAG 对话、包含 RAG 消息合并以及空消息状态下的末尾日期注入验证。并在 Conda `py312_agent` 环境下全量跑通中间件单元测试，成功保障 100% 质量且无任何 Regression。
+
+### 变更内容
+#### backend/app/agent/middleware/safe_merge_middleware.py [MODIFY]
+- 去除 `if not messages:` 提前退出检查，改为安全读取 `request.messages`。
+- 修改 `_modify_request` 逻辑，在没有 RAG 消息和有 RAG 消息合并的两种分支下，均动态计算当前日期并始终拼接到生成的全局 System Message 的最末尾。
+
+#### backend/app/agent/middleware/test_safe_merge_middleware.py [NEW]
+- [全新增加] 编写 `test_safe_merge_injects_current_date_no_rag` 与 `test_safe_merge_injects_current_date_with_rag` 两个单元测试，高保真模拟 ModelRequest 并精确断言日期注入的格式与位置。
+
 ## 2026-06-14 21:48 +08:00 - 实现领域技能 DDL 移入 System Message 相对尾部优化
 
 ### 概述

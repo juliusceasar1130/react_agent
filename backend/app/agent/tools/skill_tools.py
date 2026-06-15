@@ -53,9 +53,8 @@ def _build_load_skill_command(skill_name: str, runtime: ToolRuntime) -> Command:
             "messages": [
                 ToolMessage(
                     content=(
-                        f"Loaded domain skill '{skill_name}' successfully. "
-                        "The database tables DDL and business rules have been dynamically mounted "
-                        "to your System Prompt. You can now compose SQL queries for this domain."
+                        f"Loaded domain skill '{skill_name}' successfully (overriding any previously loaded skills). "
+                        "Only the current domain's DDL is active in the System Prompt under 'Active Domain Knowledge'."
                     ),
                     tool_call_id=runtime.tool_call_id,
                 )

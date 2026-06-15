@@ -631,7 +631,7 @@ class SQLAgentService:
 
             summarization_middleware = SummarizationMiddleware(
                 model=llm,
-                trigger=("tokens", 4000),
+                trigger=("tokens", settings.llm_context_summarize_trigger_tokens),
                 keep=("messages", 5),
                 token_counter=exact_token_counter,
             )
@@ -747,7 +747,7 @@ class SQLAgentService:
 
             summarization_middleware = SummarizationMiddleware(
                 model=llm,
-                trigger=("tokens", 24000),
+                trigger=("tokens", settings.llm_context_summarize_trigger_tokens),
                 keep=("messages", 5),
                 token_counter=exact_token_counter,
             )
