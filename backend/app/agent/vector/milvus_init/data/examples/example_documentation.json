@@ -1,6 +1,6 @@
 [
   {
-    "document": "区域指生产工艺段。油漆车间分为4大工艺段：预处理电泳、PVC、面漆（底面漆）、注蜡。每个区域包含主线（生产）和存储线（缓存）两种产线类型。维度表process_areas定义了详细的工艺区域。",
+    "document": "区域指生产工艺段。油漆车间分为4大工艺段：预处理电泳、PVC、面漆（底面漆）、黑车顶、注蜡。每个区域包含主线（生产）和存储线（缓存）两种产线类型。维度表process_areas定义了详细的工艺区域。",
     "metadata": {
       "type": "documentation",
       "domain": "paint_shop_vehicle_logistics",
@@ -334,6 +334,261 @@
       "term": "缺陷检测",
       "aliases": [
         "黑车顶"
+      ]
+    }
+  },
+  {
+    "document": "黑顶线区域主要功能是对车顶进行二次喷涂形成黑车顶。黑顶线区域包含黑顶主线F30和黑顶后处理线F31。F30是主线，承担实际喷涂生产任务；F31是后处理线，负责完成车身的报交、点修、返工等后处理工序。维度表process_areas定义了详细的工艺区域",
+    "metadata": {
+      "type": "documentation",
+      "domain": "paint_shop_vehicle_logistics",
+      "process": "black_roof",
+      "term": "黑顶线区域",
+      "aliases": [
+        "黑车顶区域",
+        "黑顶区域",
+        "black roof area"
+      ]
+    }
+  },
+  {
+    "document": "黑顶主线F30是黑顶线区域的主线，承担实际生产任务。主要工序包括：F30打磨、F30喷房、F30闪干区、F30烘房、F30储存线。F30储存线属于存储线（缓存），仅用于暂存和缓冲，不参与实际加工处理。",
+    "metadata": {
+      "type": "documentation",
+      "domain": "paint_shop_vehicle_logistics",
+      "process": "black_roof",
+      "term": "黑顶主线F30",
+      "aliases": [
+        "F30",
+        "黑顶F30",
+        "black roof main line F30"
+      ]
+    }
+  },
+  {
+    "document": "黑顶后处理线F31是黑顶线区域的后处理线，负责完成车身的报交、点修、返工等工序。F31包含：F31进口、F31_12.7m存储线、F31出口、F31报交、F31点修、F31返工线、F31连接线。其中F31_12.7m存储线属于存储线（缓存），仅用于暂存和缓冲。",
+    "metadata": {
+      "type": "documentation",
+      "domain": "paint_shop_vehicle_logistics",
+      "process": "black_roof",
+      "term": "黑顶后处理线F31",
+      "aliases": [
+        "F31",
+        "黑顶F31",
+        "black roof post-processing line F31"
+      ]
+    }
+  },
+  {
+    "document": "F31_12.7m存储线是黑顶后处理线F31的配套存储线，长度12.7米，仅用于暂存和缓冲车身，不参与实际加工处理。",
+    "metadata": {
+      "type": "documentation",
+      "domain": "paint_shop_vehicle_logistics",
+      "process": "black_roof",
+      "term": "F31_12.7m存储线",
+      "aliases": [
+        "F31存储线",
+        "黑顶F31存储线"
+      ]
+    }
+  },
+  {
+    "document": "F31返工线是黑顶后处理线F31的返工路径。当车身在F31报交或F31点修环节不合格时，通过F31返工线返回重新处理，处理完成后经F31连接线进入注蜡线区域。",
+    "metadata": {
+      "type": "documentation",
+      "domain": "paint_shop_vehicle_logistics",
+      "process": "black_roof",
+      "term": "F31返工线",
+      "aliases": [
+        "黑顶返工线",
+        "F31返工"
+      ]
+    }
+  },
+  {
+    "document": "F31连接线是黑顶后处理线F31与注蜡线区域的连接通道。完成黑顶工艺的车身经F31连接线进入注蜡线F26，再经F28进入注蜡分线。",
+    "metadata": {
+      "type": "documentation",
+      "domain": "paint_shop_vehicle_logistics",
+      "process": "black_roof",
+      "term": "F31连接线",
+      "aliases": [
+        "黑顶连接线",
+        "F31连接"
+      ]
+    }
+  },
+  {
+    "document": "注蜡线区域主要功能是对车身底部进行注蜡防腐工艺，是油漆车间的最后工艺。注蜡线区域包含进线分配线F25、转接缓存线F26、预处理线F27、并线汇合点F28、注蜡分线（注蜡一线、注蜡二线、注蜡三线）以及注蜡出口缓存区。维度表process_areas定义了详细的工艺区域",
+    "metadata": {
+      "type": "documentation",
+      "domain": "paint_shop_vehicle_logistics",
+      "process": "wax_injection",
+      "term": "注蜡线区域",
+      "aliases": [
+        "注蜡区域",
+        "wax injection area",
+        "cavity wax area"
+      ]
+    }
+  },
+  {
+    "document": "注蜡线F25是进线分配线，承担运输车身至注蜡线区域的功能。F25包含F25_1道和F25_2道，两条道均可柔性分配，接入F26转接缓存线或F27预处理线。F25是注蜡线区域的入口。",
+    "metadata": {
+      "type": "documentation",
+      "domain": "paint_shop_vehicle_logistics",
+      "process": "wax_injection",
+      "term": "注蜡线F25",
+      "aliases": [
+        "F25",
+        "进线分配线",
+        "wax injection inlet F25"
+      ]
+    }
+  },
+  {
+    "document": "注蜡线F26是转接缓存线，包含F26_1道至F26_8道共8条道。F26的上游来源包括：黑顶线F31连接线、注蜡线F25直接分配。F26的下游是F28并线汇合点。F26承担缓存和转接功能，将车身暂存后送入F28。",
+    "metadata": {
+      "type": "documentation",
+      "domain": "paint_shop_vehicle_logistics",
+      "process": "wax_injection",
+      "term": "注蜡线F26",
+      "aliases": [
+        "F26",
+        "转接缓存线",
+        "wax injection transfer line F26"
+      ]
+    }
+  },
+  {
+    "document": "注蜡线F27是预处理线，承担车身注蜡前的预处理任务。F27的上游来源包括：注蜡线F25直接分配、注蜡线F26转接。F27的下游是F28并线汇合点。F27与F26并线进入F28。",
+    "metadata": {
+      "type": "documentation",
+      "domain": "paint_shop_vehicle_logistics",
+      "process": "wax_injection",
+      "term": "注蜡线F27",
+      "aliases": [
+        "F27",
+        "预处理线",
+        "wax injection pretreatment line F27"
+      ]
+    }
+  },
+  {
+    "document": "注蜡线F28是并线汇合点，承担F26与F27的并线汇合功能。F28的上游来源包括：注蜡线F26转接缓存线、注蜡线F27预处理线。F28的下游是注蜡分线（注蜡一线、注蜡二线、注蜡三线）。F28是注蜡线区域的统一分配点。",
+    "metadata": {
+      "type": "documentation",
+      "domain": "paint_shop_vehicle_logistics",
+      "process": "wax_injection",
+      "term": "注蜡线F28",
+      "aliases": [
+        "F28",
+        "并线汇合点",
+        "wax injection merging point F28"
+      ]
+    }
+  },
+  {
+    "document": "注蜡一线是注蜡分线之一，包含注蜡一线1.1槽、注蜡一线1.2槽、注蜡一线沥蜡站。注蜡一线承担车身底部注蜡防腐工艺，是油漆车间最后工艺的一部分。注蜡一线的上游是F28并线汇合点，下游是注蜡出口缓存区。",
+    "metadata": {
+      "type": "documentation",
+      "domain": "paint_shop_vehicle_logistics",
+      "process": "wax_injection",
+      "term": "注蜡一线",
+      "aliases": [
+        "wax injection line 1",
+        "注蜡1线"
+      ]
+    }
+  },
+  {
+    "document": "注蜡二线是注蜡分线之一，包含注蜡二线2.1槽、注蜡二线2.2槽、注蜡二线2.3槽。注蜡二线承担车身底部注蜡防腐工艺，是油漆车间最后工艺的一部分。注蜡二线的上游是F28并线汇合点，下游是注蜡出口缓存区。",
+    "metadata": {
+      "type": "documentation",
+      "domain": "paint_shop_vehicle_logistics",
+      "process": "wax_injection",
+      "term": "注蜡二线",
+      "aliases": [
+        "wax injection line 2",
+        "注蜡2线"
+      ]
+    }
+  },
+  {
+    "document": "注蜡三线是注蜡分线之一，包含注蜡三线3.1槽、注蜡三线3.2槽。注蜡三线承担车身底部注蜡防腐工艺，是油漆车间最后工艺的一部分。注蜡三线的上游是F28并线汇合点，下游是注蜡出口缓存区。",
+    "metadata": {
+      "type": "documentation",
+      "domain": "paint_shop_vehicle_logistics",
+      "process": "wax_injection",
+      "term": "注蜡三线",
+      "aliases": [
+        "wax injection line 3",
+        "注蜡3线"
+      ]
+    }
+  },
+  {
+    "document": "注蜡出口缓存区是注蜡线区域的最终出口，包含注蜡出口缓存区Audit、注蜡出口缓存区Audit离线口、注蜡出口缓存区离线口。Audit是质检工位，Audit离线口用于质检不合格车身的离线，离线口用于其他原因（如设备故障）的车身离线。",
+    "metadata": {
+      "type": "documentation",
+      "domain": "paint_shop_vehicle_logistics",
+      "process": "wax_injection",
+      "term": "注蜡出口缓存区",
+      "aliases": [
+        "出口缓存区",
+        "wax injection exit buffer"
+      ]
+    }
+  },
+  {
+    "document": "黑顶线区域的完整工艺路径为：黑顶主线F30打磨→F30喷房→F30闪干区→F30烘房→F30储存线→黑顶后处理线F31进口→F31_12.7m存储线→F31出口→F31报交→F31点修→F31连接线→注蜡线F26→注蜡线F28→注蜡一线或注蜡二线或注蜡三线→注蜡出口缓存区。若F31点修不合格，经F31返工线返回重新处理。",
+    "metadata": {
+      "type": "documentation",
+      "domain": "paint_shop_vehicle_logistics",
+      "process": "black_roof",
+      "term": "黑顶线完整工艺路径",
+      "aliases": [
+        "黑顶工艺路径",
+        "black roof process route"
+      ]
+    }
+  },
+  {
+    "document": "注蜡线区域的完整工艺路径为：进线分配线F25（F25_1道或F25_2道）→转接缓存线F26或预处理线F27→并线汇合点F28→注蜡一线或注蜡二线或注蜡三线→注蜡出口缓存区。其中F25可柔性分配至F26或F27，F26与F27并线进入F28。",
+    "metadata": {
+      "type": "documentation",
+      "domain": "paint_shop_vehicle_logistics",
+      "process": "wax_injection",
+      "term": "注蜡线完整工艺路径",
+      "aliases": [
+        "注蜡工艺路径",
+        "wax injection process route"
+      ]
+    }
+  },
+  {
+    "document": "F25柔性分配是指F25_1道和F25_2道均可根据生产需求接入F26转接缓存线或F27预处理线。分配策略可能基于：车身是否需经过黑顶工艺、F26和F27的当前负载、车型路由规则。F25是注蜡线区域的入口分配线。",
+    "metadata": {
+      "type": "documentation",
+      "domain": "paint_shop_vehicle_logistics",
+      "process": "wax_injection",
+      "term": "F25柔性分配",
+      "aliases": [
+        "F25分配",
+        "进线分配"
+      ]
+    }
+  },
+  {
+    "document": "F26与F27并线进入F28是指转接缓存线F26和预处理线F27在F28并线汇合点汇合，统一分配至注蜡一线、注蜡二线或注蜡三线。F26承担缓存转接功能，F27承担预处理功能，两条线在F28汇合后进入注蜡分线。",
+    "metadata": {
+      "type": "documentation",
+      "domain": "paint_shop_vehicle_logistics",
+      "process": "wax_injection",
+      "term": "F26与F27并线",
+      "aliases": [
+        "并线汇合",
+        "F26F27并线"
       ]
     }
   }

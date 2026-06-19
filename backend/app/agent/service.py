@@ -349,23 +349,15 @@ def _prepare_tools(
             )
 
     try:
-        business_db_url = _get_business_database_url()
-        chart_artifact_tool = create_chart_artifact_tool(
-            business_db_url,
-            engine_args=_get_business_database_engine_args(business_db_url),
-        )
+        chart_artifact_tool = create_chart_artifact_tool(db._engine)
         tools.append(chart_artifact_tool)
         logger.info("已注入图表 artifact 工具：build_chart_artifact")
 
-        business_db_url = _get_business_database_url()
-        csv_export_tool = create_csv_export_tool(
-            business_db_url,
-            engine_args=_get_business_database_engine_args(business_db_url),
-        )
+        csv_export_tool = create_csv_export_tool(db._engine)
         tools.append(csv_export_tool)
         logger.info("已注入 CSV 导出工具：export_to_csv")
     except Exception as exc:
-        logger.warning("注入 CSV 导出工具失败: %s", exc)
+        logger.warning("注入图表/CSV导出工具失败: %s", exc)
 
     return tools
 
@@ -418,18 +410,20 @@ def _build_system_prompt(db: MaterializedViewSQLDatabase) -> str:
 
 # 图表规则
 当结果为时间趋势、分类对比、Top N排名或双指标对比时，若用户未明确要求生成图表，主动推荐并必须在回复的最末尾附带特定的标记以方便前端渲染快捷按钮（禁止在其他段落使用此标记，且不需要向用户解释此标记）：
-- 若最适合折线图，最末尾附带：[suggest_chart:line]
-- 若最适合柱状图，最末尾附带：[suggest_chart:bar]
-- 若两者皆可或不确定，最末尾附带：[suggest_chart:auto]
-例如："这组结果适合用图表查看，你可以回复'生成折线图'或'生成柱状图'[suggest_chart:line]"。
+- 若最适合折线图，最末尾附带：[suggest_chart:line|待绘制图表主要内容的一句话描述]
+- 若最适合柱状图，最末尾附带：[suggest_chart:bar|待绘制图表主要内容的一句话描述]
+- 若两者皆可或不确定，最末尾附带：[suggest_chart:auto|待绘制图表主要内容的一句话描述]
+注意描述内容应当具体且简短（例如：『各车型的合格率趋势』），并用直角单引号『』包裹。
+例如："这组结果适合用图表查看，你可以回复'生成折线图'[suggest_chart:line|『昨日各车型缺陷趋势』]"。
 
 **build_chart_artifact系列配置：**
 - 仅允许这些键：name、field、y_axis、category_field、category_value、color
 - 同一指标按分类拆线时，每条系列必须补充category_field/category_value，或在name中包含可识别分类值（如A7、TiguanL）
 - 返回的是轻量chart_ref，不携带全部rows
+- x轴分类字段排序规则：默认按分类名称 ASCII 升序；支持通过 category_sort 切换为按 y 值升降序，或通过 category_order 显式指定完整顺序。混合 alphanumeric 分类（如"A7"）不启用自然排序，须调用方显式声明
 
 # 示例
-[建议补充1-2个完整示例：用户问题→SQL→图表配置]
+
 
 # 回复规范
 - 使用中文回复

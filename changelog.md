@@ -1,3 +1,58 @@
+## 2026-06-17 20:25 +08:00 - 修复 useChatStream 冗余分支及前端 TypeScript 类型冗余与构建报错
+
+### 概述
+- **修复 useChatStream 中冗余重复的 switch case 分支**：在前端流式聊天逻辑封装 `useChatStream.ts` 的 `handleEvent` 函数中，删除了重复的多余 `case 'tool_call'`, `case 'tool_result'`, `case 'final'`, `case 'error'` 分支，解决了 Vite 打包编译时的 "This case clause will never be evaluated because it duplicates an earlier case clause" 警告，消除了冗余代码。
+- **清理 types/index.ts 的重复类型与语法缺失**：修复了类型定义文件 `types/index.ts` 中 `StreamingMessage` 接口未闭合右括号 `}` 导致的语法错误，并删除了大段冗余重复的类型定义（`StreamStage`, `StreamToolCall`, `StreamEvent` 等），恢复了文件整洁。
+- **移除 ChatView.vue 未使用的方法**：删除了 `ChatView.vue` 中声明了但未被读取/使用的 `openSidebar` 函数，解决了 TypeScript 的 TS6133 构建报错。
+
+### 变更内容
+#### frontend/src/composables/useChatStream.ts [MODIFY]
+- 删除了重复多余的分支代码，保持代码整洁。
+
+#### frontend/src/types/index.ts [MODIFY]
+- 删除了重复冗余的类型声明，并修复了 `StreamingMessage` 的接口闭合语法。
+
+#### frontend/src/views/ChatView.vue [MODIFY]
+- 删除了未使用的方法 `openSidebar`，满足严格的 TypeScript 编译检查。
+
+## 2026-06-16 23:05 +08:00 - 实现图表一键生成 Banner 描述动态展示与图表小数点精度最多2位约束
+
+
+### 概述
+- **实现图表一键生成 Banner 描述动态展示**：升级了前端 `MessageItem.vue` 组件，将原来基于固定格式正则解析 `chartSuggestionType` 升级为支持动态描述的 `chartSuggestion` 解析（提取图表类型与自定义描述）。前端根据大模型返回的 `[suggest_chart:line|图表描述]` 标记，自动提取并在 Banner 中呈现类似于“检测到当前结果适合绘制：XXX，点击一键绘制”的提示信息，引导用户做出更加明确的绘制决策。
+- **约束图表小数点精度最多为 2 位**：重构了 `ChartArtifactCard.vue` 中的数据提取与渲染逻辑。在 `buildSeriesData` 从数据源抓取数据时，如果值为 `number` 类型则在数据层通过 `Number(val.toFixed(2))` 进行强行截断，自动去除了冗余浮点位并剔除尾部零；同时对 `yAxis` 上的 `axisLabel.formatter` 进行了小数点最多 2 位的截断支持，防止 ECharts 自适应产生不规整的多位浮点数刻度，双管齐下提升了图表在各类边界数据下的展现质量与精细度。
+
+### 变更内容
+#### frontend/src/components/MessageItem.vue [MODIFY]
+- 升级 `chartSuggestionType` 为 `chartSuggestion` 计算属性，支持带描述格式（`/\[suggest_chart:(line|bar|auto)(?:\|([^\]]+))?\]/`）的解析。
+- 升级 `displayContent` 正则清理规则，适配任意长度的描述语。
+- 修改模板 UI 中快捷 Banner 提示的文本逻辑和按钮 `v-if` 条件。
+
+#### frontend/src/components/ChartArtifactCard.vue [MODIFY]
+- 在数据提取层 `buildSeriesData` 中限制数值类型最多 2 位小数。
+- 在 `yAxis` 的 `axisLabel` 配置中为双轴配置 `formatter`，规范 Y 轴刻度精度。
+
+## 2026-06-16 22:45 +08:00 - 实现 SQL Agent 工具级数据库连接池复用并修复图表工具静默降级 Bug
+
+### 概述
+- **实现共享 Agent 已有连接池 (方案 A)**：重构了图表生成工具 `build_chart_artifact` 与 CSV 导出工具 `export_to_csv` 的初始化模式。移除了原本每次调用工具均就地销毁和重建连接的逻辑，改为通过依赖注入直接共享 Agent 启动时已创建且温热的数据库连接池 `db._engine`，消除了每次生图和导出时的 TCP 冷启动握手延迟。
+- **修复 MaterializedViewSQLDatabase.engine 属性缺失引发的工具静默降级 Bug**：由于子类 `MaterializedViewSQLDatabase` 重写构造函数且未调用 `super().__init__`，其内部仅存有 `self._engine`。原有装配层在注入工具时，因调用 `db.engine` 会抛出 `AttributeError`，该错误在 `_prepare_tools` 的通用异常捕获块中被静默吞掉降级，导致 `build_chart_artifact` 工具未能进入可用工具列表中。现已修复为直接传递 `db._engine`，彻底根治了该隐藏缺陷。
+- **增补本地模拟与服务加载单元测试验证**：在 scratch 目录下编写并执行了 `test_connection_pool.py` 与 `test_agent_init.py` 脚本，全面跑通了在 Windows 异步事件循环政策（SelectorEventLoop）下的工具运行与服务加载验证。
+
+### 变更内容
+#### backend/app/agent/tools/chart_artifact_tool.py [MODIFY]
+- 修改工厂方法接收 `Engine` 参数，闭包内直接复用该引擎，彻底移除函数内部的 `create_engine` 逻辑及 `finally` 块中的 `engine.dispose()`。
+
+#### backend/app/agent/tools/csv_export_tool.py [MODIFY]
+- 修改工厂方法接收 `Engine` 参数，闭包内直接复用，同样移除函数内部 `create_engine` 与 `finally` 中的 `engine.dispose()`。
+
+#### backend/app/agent/service.py [MODIFY]
+- 在 `_prepare_tools` 方法中，将 `db.engine` 修正为直接传参子类暴露的 `db._engine` 成员。
+- 清理了临时构建 `business_db_url` 的冗余行。
+
+#### docs/backend/图表与CSV工具连接池复用优化总结报告.md [NEW]
+- [全新增加] 编写并保存了《SQL Agent 图表与 CSV 导出工具连接池复用优化总结报告》，归纳了现场表现、根本原因分析、方案设计及经验教训。
+
 ## 2026-06-15 15:20 +08:00 - 上线 P0 级“读时投影 (Read-Time Projection)”上下文折叠中间件
 
 ### 概述

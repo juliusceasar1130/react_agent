@@ -69,7 +69,11 @@ const buildSeriesData = (
 
   const valueByX = new Map<string, string | number | null>()
   for (const row of scopedRows) {
-    valueByX.set(toKey(row[xField]), row[seriesItem.field] ?? null)
+    let val = row[seriesItem.field] ?? null
+    if (typeof val === 'number') {
+      val = Number(val.toFixed(2))
+    }
+    valueByX.set(toKey(row[xField]), val)
   }
 
   return xData.map((xValue) => valueByX.get(toKey(xValue)) ?? null)
@@ -120,14 +124,20 @@ const option = computed<echarts.EChartsOption | null>(() => {
       {
         type: 'value' as const,
         boundaryGap: [0, '15%'] as any, // 顶部预留 15% 空间，防止顶部标签数字被截断
-        axisLabel: { color: '#334155' },
+        axisLabel: {
+          color: '#334155',
+          formatter: (value: number) => Number(value.toFixed(2))
+        },
       },
       ...(rightSeries.length > 0
         ? [
             {
               type: 'value' as const,
               boundaryGap: [0, '15%'] as any, // 右轴也同样留出 15% 安全空间
-              axisLabel: { color: '#334155' },
+              axisLabel: {
+                color: '#334155',
+                formatter: (value: number) => Number(value.toFixed(2))
+              },
             },
           ]
         : []),

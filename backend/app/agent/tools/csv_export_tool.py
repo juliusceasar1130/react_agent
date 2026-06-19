@@ -20,7 +20,8 @@ from datetime import datetime
 from typing import Any
 
 from langchain.tools import ToolRuntime, tool as langchain_tool
-from sqlalchemy import create_engine, text
+from sqlalchemy import text
+from sqlalchemy.engine import Engine
 
 from backend.app.agent.tools.sql_tools import FORBIDDEN_SQL_PATTERN
 from backend.app.agent.utils import emit_stream_status
@@ -30,15 +31,13 @@ logger = logging.getLogger(__name__)
 
 
 def create_csv_export_tool(
-    db_uri: str,
-    engine_args: dict[str, Any] | None = None,
+    engine: Engine,
 ) -> Any:
     """
     创建 CSV 导出工具。
 
     Args:
-        db_uri: 数据库连接 URI
-        engine_args: 可选 SQLAlchemy 引擎参数，例如 PostgreSQL search_path
+        engine: 数据库连接引擎
 
     Returns:
         export_to_csv 工具实例
@@ -74,7 +73,6 @@ def create_csv_export_tool(
                 f"当前已加载的技能: {skills_loaded or '无'}。"
             )
 
-        engine = None
         try:
             emit_stream_status(
                 "正在导出完整 CSV 文件",
@@ -87,7 +85,6 @@ def create_csv_export_tool(
             filename = f"export_{timestamp}.csv"
             filepath = export_dir / filename
 
-            engine = create_engine(db_uri, **(engine_args or {}))
             with engine.connect() as conn:
                 result = conn.execute(text(query))
                 columns = list(result.keys())
@@ -128,8 +125,5 @@ def create_csv_export_tool(
         except Exception as exc:
             logger.error("CSV 导出失败: %s", exc)
             return f"Error: CSV 导出失败 - {exc}"
-        finally:
-            if engine is not None:
-                engine.dispose()
 
     return export_to_csv

@@ -11,7 +11,8 @@ from typing import Any, Literal
 
 from langchain.tools import ToolRuntime, tool as langchain_tool
 from pydantic import BaseModel, ConfigDict, Field, TypeAdapter, ValidationError, model_validator
-from sqlalchemy import create_engine, text
+from sqlalchemy import text
+from sqlalchemy.engine import Engine
 
 from backend.app.agent.tools.sql_tools import FORBIDDEN_SQL_PATTERN
 from backend.app.agent.utils import emit_stream_status
@@ -227,8 +228,7 @@ def _validate_numeric_series_fields(
 
 
 def create_chart_artifact_tool(
-    db_uri: str,
-    engine_args: dict[str, Any] | None = None,
+    engine: Engine,
 ) -> Any:
     """创建图表 artifact 工具。"""
 
@@ -284,9 +284,7 @@ def create_chart_artifact_tool(
             source="build_chart_artifact",
         )
 
-        engine = None
         try:
-            engine = create_engine(db_uri, **(engine_args or {}))
             with engine.connect() as conn:
                 result = conn.execute(text(query))
                 rows = [
@@ -365,8 +363,5 @@ def create_chart_artifact_tool(
         except Exception as exc:
             logger.error("图表 artifact 生成失败: %s", exc)
             return f"Error: 图表生成失败 - {exc}"
-        finally:
-            if engine is not None:
-                engine.dispose()
 
     return build_chart_artifact

@@ -305,9 +305,6 @@ const streamHeaderClass = computed(() => {
 })
 
 // 侧边栏和输入状态
-const openSidebar = () => {
-  isSidebarOpen.value = true
-}
 
 const closeSidebar = () => {
   // 仅在移动端/小屏幕尺寸下，才在点击列表中会话项时自动收回侧边栏

@@ -46,7 +46,7 @@
 
         <!-- 一键生成图表的智能快捷 Banner -->
         <div
-          v-if="chartSuggestionType"
+          v-if="chartSuggestion"
           class="mt-4 flex flex-col gap-3 rounded-2xl border border-primary/20 bg-gradient-to-r from-primary/5 via-white to-accent/5 p-3.5 shadow-sm sm:flex-row sm:items-center sm:justify-between animate-fade-in"
         >
           <div class="flex items-center gap-2.5">
@@ -57,12 +57,14 @@
             </div>
             <div class="text-left">
               <div class="text-xs font-semibold text-neutral-800">一键生成图表</div>
-              <div class="text-[11px] text-neutral-500 mt-0.5">检测到当前结果适合用图表展示，点击一键绘制</div>
+              <div class="text-[11px] text-neutral-500 mt-0.5">
+                {{ chartSuggestion.desc ? `检测到当前结果适合绘制：${chartSuggestion.desc}，点击一键绘制` : '检测到当前结果适合用图表展示，点击一键绘制' }}
+              </div>
             </div>
           </div>
           <div class="flex gap-2">
             <button
-              v-if="chartSuggestionType === 'line' || chartSuggestionType === 'auto'"
+              v-if="chartSuggestion.type === 'line' || chartSuggestion.type === 'auto'"
               type="button"
               class="rounded-xl border border-primary/20 bg-white px-3 py-1.5 text-xs font-semibold text-primary shadow-sm transition hover:bg-primary hover:text-white active:scale-95 whitespace-nowrap"
               @click="handleQuickChart('line')"
@@ -70,7 +72,7 @@
               📈 生成折线图
             </button>
             <button
-              v-if="chartSuggestionType === 'bar' || chartSuggestionType === 'auto'"
+              v-if="chartSuggestion.type === 'bar' || chartSuggestion.type === 'auto'"
               type="button"
               class="rounded-xl border border-primary/20 bg-white px-3 py-1.5 text-xs font-semibold text-primary shadow-sm transition hover:bg-primary hover:text-white active:scale-95 whitespace-nowrap"
               @click="handleQuickChart('bar')"
@@ -254,16 +256,16 @@ const content = computed(() =>
   streamingState.value ? streamingState.value.content : props.message.content
 )
 
-const chartSuggestionType = computed<'line' | 'bar' | 'auto' | null>(() => {
+const chartSuggestion = computed<{ type: 'line' | 'bar' | 'auto'; desc: string | null } | null>(() => {
   if (isUser.value || isStreamingActive.value) return null
   const rawContent = content.value || ''
-  const match = rawContent.match(/\[suggest_chart:(line|bar|auto)\]/)
-  return match ? (match[1] as 'line' | 'bar' | 'auto') : null
+  const match = rawContent.match(/\[suggest_chart:(line|bar|auto)(?:\|([^\]]+))?\]/)
+  return match ? { type: match[1] as 'line' | 'bar' | 'auto', desc: match[2] || null } : null
 })
 
 const displayContent = computed(() => {
   const rawContent = content.value || ''
-  return rawContent.replace(/\[suggest_chart:(line|bar|auto)\]/, '')
+  return rawContent.replace(/\[suggest_chart:(line|bar|auto)(?:\|[^\]]*)?\]/, '')
 })
 
 const renderedContent = computed(() => renderMarkdown(displayContent.value))

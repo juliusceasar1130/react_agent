@@ -187,44 +187,6 @@ export function useChatStream() {
           syncMessagesIfCurrent(sessionId)
           void syncSessions()
           return
-
-        case 'tool_call':
-          messagesStore.upsertStreamingToolCall({
-            id: event.id,
-            name: event.name,
-            args_text: event.args_text,
-            status: event.status,
-          } satisfies StreamToolCall)
-          return
-
-        case 'tool_result':
-          messagesStore.setStreamingToolResult(event.id, event.content)
-          return
-
-        case 'final':
-          hasTerminalEvent = true
-          messagesStore.completeStreamingMessage({
-            id: event.message_id,
-            created_at: event.created_at,
-            content: event.content,
-            tool_calls: event.tool_calls ? JSON.stringify(event.tool_calls) : null,
-            tool_results: event.tool_results ? JSON.stringify(event.tool_results) : null,
-          })
-          syncMessagesIfCurrent(sessionId)
-          void syncSessions()
-          return
-
-        case 'error':
-          hasTerminalEvent = true
-          messagesStore.finalizeStreamingError({
-            id: event.message_id,
-            created_at: event.created_at,
-            content: event.message,
-          })
-          syncMessagesIfCurrent(sessionId)
-          void syncSessions()
-          return
-
       }
 
       assertNever(event)
