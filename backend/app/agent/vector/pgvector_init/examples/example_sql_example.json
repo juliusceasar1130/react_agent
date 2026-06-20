@@ -48,5 +48,35 @@
       "domain": "sales",
       "description": "查询每个商品分类的平均订单金额和订单数量"
     }
+  },
+  {
+    "document": "问题：查询某车型缺陷趋势、每日缺陷变化 SQL：SELECT DATE(mq.detect_time) AS stat_date, mq.defect_type_name, COUNT(*) AS detection_count, AVG(mq.total_defect_count) AS avg_defect_per_detection FROM mart_vehicle_quality_360 mq GROUP BY DATE(mq.detect_time), mq.defect_type_name ORDER BY stat_date DESC;",
+    "metadata": {
+      "type": "sql_example",
+      "sql": "SELECT DATE(mq.detect_time) AS stat_date, mq.defect_type_name, COUNT(*) AS detection_count, AVG(mq.total_defect_count) AS avg_defect_per_detection FROM mart_vehicle_quality_360 mq GROUP BY DATE(mq.detect_time), mq.defect_type_name ORDER BY stat_date DESC;",
+      "complexity": "medium",
+      "domain": "paint_shop_defect_analysis",
+      "description": "按日期 and 车系统计检测次数与单车平均缺陷数"
+    }
+  },
+  {
+    "document": "问题：对比不同检测通道的缺陷差异、通道缺陷对比 SQL：SELECT mq.tunnel, COUNT(*) AS detection_count, AVG(mq.total_defect_count) AS avg_defect_per_detection FROM mart_vehicle_quality_360 mq GROUP BY mq.tunnel ORDER BY mq.tunnel;",
+    "metadata": {
+      "type": "sql_example",
+      "sql": "SELECT mq.tunnel, COUNT(*) AS detection_count, AVG(mq.total_defect_count) AS avg_defect_per_detection FROM mart_vehicle_quality_360 mq GROUP BY mq.tunnel ORDER BY mq.tunnel;",
+      "complexity": "medium",
+      "domain": "paint_shop_defect_analysis",
+      "description": "对比不同检测通道（tunnel）下的检测次数与单车平均缺陷数"
+    }
+  },
+  {
+    "document": "问题：分析不同检测次数下的车型缺陷、不同cycle缺陷对比 SQL：SELECT mq.defect_type_name, mq.cycle, COUNT(*) AS detection_count, AVG(mq.total_defect_count) AS avg_defect_per_detection FROM mart_vehicle_quality_360 mq GROUP BY mq.defect_type_name, mq.cycle ORDER BY mq.defect_type_name, mq.cycle;",
+    "metadata": {
+      "type": "sql_example",
+      "sql": "SELECT mq.defect_type_name, mq.cycle, COUNT(*) AS detection_count, AVG(mq.total_defect_count) AS avg_defect_per_detection FROM mart_vehicle_quality_360 mq GROUP BY mq.defect_type_name, mq.cycle ORDER BY mq.defect_type_name, mq.cycle;",
+      "complexity": "medium",
+      "domain": "paint_shop_defect_analysis",
+      "description": "按车系 and 检测次数（cycle）分组统计检测次数与单车平均缺陷数"
+    }
   }
 ]
