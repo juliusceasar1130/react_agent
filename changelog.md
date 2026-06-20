@@ -1,3 +1,201 @@
+## 2026-06-20 22:56 +08:00 - 优化缺陷分析指标生成，默认聚焦均值与检测次数以防范总数脑补
+
+### 概述
+- **强化大模型缺陷指标统计规则**：在涂装车间质量缺陷分析领域（`paint_shop_defect_analysis`）中，强力约束大模型在编写 SQL 时默认采用“检测次数”（`COUNT(*)`）与“平均单次检测缺陷数”（`AVG(mq.total_defect_count)`）进行统计，防范大模型在未明确指令时脑补并生成无意义的“缺陷总数”（`SUM(...)`）统计语句。
+- **Few-Shot SQL 示例多后端同步注入**：分别在 Milvus 与 PGVector 检索数据源中追加了三个典型的缺陷均值与检测频次的 SQL 查询示例，并成功对向量数据库（Milvus）完成了重建索引，使大模型在检索 Few-Shot 时能够高频召回并模仿标准的均值与频次统计口径。
+
+### 变更内容
+#### backend/app/skills/domains/paint_shop_defect_analysis/domain.md [MODIFY]
+- 在指标（`指标`）小节中全新引入 `[!IMPORTANT]` 级别的“质量缺陷统计核心军规”，强力限定默认指标为频次和均值，澄清了“单车缺陷”的计算公式，并严格限制对 `SUM` 聚合函数的使用。
+
+#### backend/app/agent/vector/milvus_init/data/examples/example_sql_example.json [MODIFY]
+- 在 JSON 数据集中追加三个典型缺陷统计的 SQL 示例（包括按车型趋势、按检测通道、按检测次数对比等），均演示了 `COUNT(*)` 和 `AVG(...)` 组合指标的用法。
+
+#### backend/app/agent/vector/pgvector_init/examples/example_sql_example.json [MODIFY]
+- 对齐更新 PGVector 的 SQL 示例数据集，确保测试环境与生产配置下的向量召回一致性。
+
+## 2026-06-20 21:25 +08:00 - 修复 AskUserQuestion 混合输入澄清场景下用户操作路径断裂
+
+
+### 概述
+- **修复混合提问导致的操作路径断裂**：修复了在触发澄清问答卡片（`AskUserQuestion`）时，大模型抛出混合提问意图（如“同时输入车号和选择读写站”）导致前端由于强互斥逻辑而无法让用户同时完成输入与选择的问题。
+- **引入双端优化与容错**：
+  - **后端**：在 `AskUserQuestionSchema` 和 `QuestionItem` Pydantic 定义中加固了字段描述，并在 System Prompt 中注入了混合模式下的正反面 JSON 拆分示例，强力约束大模型将多参提问拆分为两个 `QuestionItem` 提问项。
+  - **前端**：在 `AskUserQuestionCard.vue` 中移除了单选/多选与 textarea 文本框的强互斥清空，优化了 textarea 提示文本，并在提交 payload 时对两者皆有的场景进行智能拼接（分号连接）回传，保证了历史遗留或脑抽混合场景下的完美兼容和操作闭环。
+
+### 变更内容
+#### backend/app/agent/tools/ask_user_question.py [MODIFY]
+- 升级了 `QuestionItem.question` 以及 `AskUserQuestionSchema.questions` 的 `Field` description 说明，增加了混合澄清拆分的引导与正反面示例。
+
+#### backend/app/agent/service.py [MODIFY]
+- 升级了 `# 澄清与确认规范` 的系统提示词内容，为“3. 混合模式”追加了具体的 questions JSON 代码块说明。
+
+#### frontend/src/components/AskUserQuestionCard.vue [MODIFY]
+- 移除了选项点击和 textarea 输入时的强互斥清空行。
+- 更新了自适应的 textarea label 和 placeholder，提供更好的混合提问输入引导。
+- 升级 `handleSubmit` 逻辑，在选项与文本框同时有值时以 `; 关联输入: ` 无损拼接形式传回后端。
+- 修复了纯填空问答卡片（没有 options 选项列表时）误展示为“单选”徽章的交互缺陷，仅在 options 存在时才渲染该徽章。
+- 支持多问题卡片的提问编号（如“问题 1 / 3”高亮徽章），只有当卡片中包含 2 个及以上问题时才自适应呈现，提升多参提问时界面结构感，防止用户漏答。
+
+## 2026-06-20 20:00 +08:00 - 整理并沉淀 LangGraph 状态持久化与会话记忆技术指南文档
+
+### 概述
+- **整理发布会话记忆与持久化指南**：编写并归纳了项目基于 LangGraph Checkpointer 持久化、动态多 System Message 物理抽干与合并拦截器、以及基于 Token 估算的上下文滑动窗口压缩摘要等全套记忆管理系统的设计与核心实现原理。
+
+### 变更内容
+#### docs/langgraph_memory_and_persistence_guide.md [NEW]
+- [全新增加] 《LangGraph 记忆与状态持久化机制技术指南》，作为项目核心架构与状态持久化部分的重要补充。
+
+## 2026-06-20 17:15 +08:00 - 修复同消息流下多次澄清问答卡片被锁死无法提交的 Bug
+
+### 概述
+- **修复澄清卡片组件复用状态残留问题**：修复了在同一个流式会话生命周期内（即同一个 `streamingMessage` 内）大模型多次触发 `AskUserQuestion` 澄清卡片时，由于 `MessageItem.vue` 组件复用，本地提交控制状态 `isLocalSubmitted` 仍保留第一轮的 `true` 锁死状态，导致第二轮澄清卡片一渲染就被锁死为只读不可编辑且无法提交的 Bug。
+- **引入流式问题包监听自动重置机制**：在 `MessageItem.vue` 中引入 `watch` 指令。对 computed 属性 `questions` 列表进行深度监听，一旦发觉流式响应推入了新的问题包，自动重置 `isLocalSubmitted` 状态为 `false`，解除只读锁定，开启第二轮澄清编辑。
+
+### 变更内容
+#### frontend/src/components/MessageItem.vue [MODIFY]
+- 引入了 `watch` 并编写对 `questions` 列表的深度监听逻辑，在产生新问题时重置 `isLocalSubmitted.value` 状态。
+
+## 2026-06-20 16:58 +08:00 - 修复 AskUserQuestion 澄清事件在开放式文本问答模式下的前端校验拦截 Bug
+
+### 概述
+- **修复前端流式响应终止报错**：修复了在触发纯文本开放式问答（不含 `options` 选项列表的 QuestionItem）时，由于前端 `chat.ts` 内部的 `parseStreamEvent` 对 `interrupt` 事件包进行了过分严苛的属性校验（`!Array.isArray(q.options)` 会在 options 为空/undefined 时抛出错误判定），导致该流式事件被忽略丢弃，从而引发流结束时因检测不到终端事件而抛出“流式响应在收到终止标记前未返回 final 或 error 事件”异常的 Bug。
+- **放宽字段校验机制**：在 `chat.ts` 校验分支中调整了对 `q.options` 的验证逻辑，支持在 `options` 为 `undefined` 或 `null` 时直接跳过子项的数组解析和校验，确保开放式输入与混合输入下的事件均能完美被前端反序列化和激活。
+
+### 变更内容
+#### frontend/src/api/chat.ts [MODIFY]
+- 重构了 `case 'interrupt'` 的属性类型检查管道，使 options 字段可安全地缺省或设置为 null，消除类型误判拦截。
+
+## 2026-06-20 15:58 +08:00 - 优化 Windows 本地数据库连接配置，将 localhost 替换为 127.0.0.1 解决后端冷启动延迟
+
+### 概述
+- **消除 Windows 下 IPv6 TCP 连接超时延迟**：将项目根目录下 `.env` 配置文件中的所有 `localhost` 替换为直连的 IPv4 地址 `127.0.0.1`。解决了由于 Windows 操作系统中 `localhost` 默认优先解析为 IPv6 (`::1`) 导致数据库驱动在无 `connect_timeout` 参数下多次发生 21 秒连接超时的挂起现象，使本地后端开发环境的启动时间由之前的约 **130秒** 直接缩减至 **5秒以内**。
+
+### 变更内容
+#### .env [MODIFY]
+- 将 `DATABASE_URL`、`ROLLERBED_DATABASE_URL` 和 `ANALYTICS_DATABASE_URL` 中的 `localhost` 替换为 `127.0.0.1`。
+- 同步将 `OLLAMA_BASE_URL`、`MILVUS_URI` 和 `MYSQL_DATABASE_URL` 中的 `localhost` 替换为 `127.0.0.1`，消除潜在的连接延迟隐患。
+
+## 2026-06-20 14:06 +08:00 - 增强 AskUserQuestion 系统提示词与工具说明文档以引导大模型精准输出
+
+### 概述
+- **增强工具说明与系统提示词引导**：为了配合新上线的“纯文本开放式问答模式”与“混合模式”，对系统提示词（System Prompt）中的『澄清与确认规范』以及 `AskUserQuestion` 的工具级 `description` 进行了靶向增强。这能引导大模型在需要收集车身号、工序等参数时，自发正确地选择是使用“选择模式”、“开放式问答模式（省略options参数）”还是多问题的“混合模式”来发起澄清。
+- **细化 Schema 字段说明**：对 Pydantic 的 `QuestionItem` 进行了更深度的字段说明（`Field(description=...)`）扩充。明确了 `question` 会作为返回答案 dict 的 key，细化了 `header`、`multiSelect` 以及 `options` 在各种提问模式下的语义，确保不同大模型对 JSON Schema 的绝对对齐和稳定理解。
+
+### 变更内容
+#### backend/app/agent/tools/ask_user_question.py [MODIFY]
+- 更新了 `AskUserQuestion` 类的 `description` 字段，明示工具对备选项及纯文本开放式提问的支持和传参约定。
+- 重构了 `QuestionItem` 中 `question`、`header`、`multiSelect` 和 `options` 字段的 `description` 说明。
+
+#### backend/app/agent/service.py [MODIFY]
+- 升级了 `_build_system_prompt` 中『澄清与确认规范』的规约内容，提供了选择模式、开放式问答模式、混合模式的具体判定场景与传参引导。
+
+## 2026-06-20 14:02 +08:00 - 升级 AskUserQuestion 澄清卡片以支持纯文本问答模式（无选项纯填空）
+
+### 概述
+- **支持纯文本问答模式**：扩展了 `AskUserQuestion` 澄清卡片的功能，使其不仅能处理单选或多选问题，还能原生支持**纯开放式文本提问**（如直接提示用户输入特定车号、时间范围等，且卡片上不显示任何选项网格）。
+- **参数自适应与交互优化**：
+  - 将 `QuestionItem` 的 `options` 字段变更为可选。
+  - 前端模板自适应：如果 `options` 缺省或为空，选项网格会自动隐藏，文本框对应的标题及 placeholder 会自动切换为纯开放问答提示。
+  - 校验自适应：非选项问题时，校验规则（`canSubmit`）将强制要求用户在文本框内完成内容录入，防止空值提交。
+
+### 变更内容
+#### backend/app/agent/tools/ask_user_question.py [MODIFY]
+- 将 `QuestionItem` 结构体中的 `options` 字段类型由必填变更为 `Optional[List[QuestionOption]] = Field(default=None)`。
+
+#### backend/app/agent/tools/test_ask_user_question.py [MODIFY]
+- 新增 `test_ask_user_question_optional_options` 单元测试，验证对无选项（options 为空）参数校验的正确性。
+
+#### frontend/src/types/index.ts [MODIFY]
+- 将 `QuestionItem` 接口中的 `options` 属性声明变更为可选（`options?: QuestionOption[]`）。
+
+#### frontend/src/components/AskUserQuestionCard.vue [MODIFY]
+- 在模板中为选项按钮网格包裹了 `v-if="item.options && item.options.length > 0"`。
+- 根据是否有选项动态切换文本框上方的 `label` 标签（由『其他 / 自定义说明』动态变更为『请输入答案 / 说明』）及 `placeholder` 占位符。
+- 更新了 `canSubmit` 校验计算属性，支持无选项提问时的空值拦截逻辑。
+
+## 2026-06-20 13:52 +08:00 - 移除 AskUserQuestion 问答卡片的 Preview 预览功能以简化非代码应用场景
+
+### 概述
+- **简化问答卡片布局**：鉴于本项目并非面向代码开发的 Code Agent，为了使前端问答交互界面更加简洁、干净、聚焦于选项抉择本身，移除了澄清问答卡片（`AskUserQuestionCard`）右侧的代码/配置对比预览（Preview）侧边面板。
+- **清理前后端冗余字段与状态**：
+  - **后端**：在 `QuestionOption` 结构体中删除了 `preview` 字段，优化了参数解析开销并节省了大模型 Token 输出。
+  - **前端**：删除了 `QuestionOption` 中的 `preview` 类型，物理清理了 `AskUserQuestionCard.vue` 内部的 `hoveredPreview`、`hasCodePreviews`、`displayPreview`、`renderedPreview` 等响应式状态与 Markdown 编译逻辑。
+
+### 变更内容
+#### backend/app/agent/tools/ask_user_question.py [MODIFY]
+- 从 `QuestionOption` 中移除 `preview` 字段声明。
+
+#### backend/app/agent/tools/test_ask_user_question.py [MODIFY]
+- 移除了测试用例 payloads 中的 `"preview"` 字段以对齐最新的 Schema 结构。
+
+#### frontend/src/types/index.ts [MODIFY]
+- 从 `QuestionOption` 接口中移除可选的 `preview` 属性。
+
+#### frontend/src/components/AskUserQuestionCard.vue [MODIFY]
+- 完全移除了右侧预览面板的 HTML/SVG 结构与 `:deep(.markdown-body)` 样式。
+- 删除了所有 hover 事件监听与预览相关的计算属性和 markdown 引用。
+
+## 2026-06-20 13:40 +08:00 - 修复 AskUserQuestion 澄清工具 stringified JSON 传参时的反序列化校验报错
+
+### 概述
+- **修复 AskUserQuestion 澄清工具反序列化报错**：针对大模型在调用澄清问答工具时，可能会将 `questions` 参数误以序列化后的 JSON 字符串（而非直接的 list）格式传递，导致 Pydantic schema 在参数校验阶段抛出 `questions: Input should be a valid list` 的 ValidationError。
+- **引入 Robust Pre-Validator 解析机制**：在 `AskUserQuestionSchema` 内部的 `questions` 字段上引入了 `field_validator(mode="before")`，支持在 Pydantic 进行正式类型验证前自动尝试解析 JSON 格式的字符串，能够健壮处理带 Markdown 围栏（```json）的字符串、标准 JSON 数组字符串以及使用 `ast.literal_eval` 进行单引号的容错解析。
+- **完善单元测试**：在 `test_ask_user_question.py` 中补充了 `test_ask_user_question_string_input` 靶向测试，并在 conda `py312_agent` 环境下通过 pytest 验证了全部单元测试（100% 成功）。
+
+### 变更内容
+#### backend/app/agent/tools/ask_user_question.py [MODIFY]
+- 在 `AskUserQuestionSchema` 增加了 `@field_validator("questions", mode="before")` 预处理方法 `parse_questions`，支持字符串到 List 对象的解析转换。
+
+#### backend/app/agent/tools/test_ask_user_question.py [MODIFY]
+- 新增 `test_ask_user_question_string_input` 单元测试以验证字符串传参的自动解析及成功校验。
+
+## 2026-06-19 21:40 +08:00 - 集成 AskUserQuestion 澄清问答卡片（LangGraph 1.1.8 中断流与前端 Vue 3 交互集成）
+
+### 概述
+- **实现 AskUserQuestion 澄清问答工具**：在 FastAPI 后端引入了基于 LangGraph 1.1.8 原生 `interrupt` 控制流的结构化澄清问答工具 `AskUserQuestion`。支持向前端发送单选/多选/自定义补充等结构化卡片提问，使大模型能在面临需求模糊、技术权衡或危险 SQL 执行时安全暂停流并等待用户拍板。
+- **完善 API Resume 接口与流式恢复**：在 `api.py` 中新增了 `POST /api/chat/resume` 路由与 `ResumeChatRequest` 请求体，支持在 PostgresSaver 状态检查点下使用 `Command(resume=...)` 恢复因 interrupt 挂起的 Graph 并继续流式输出。编写了高保真 Mock API 与中间件单元测试，100% 跑通测试。
+- **打造高交互 Glassmorphism 前端澄清卡片**：前端利用 Pinia Store 和 SSE 事件流捕获 `interrupt` 类型的流式响应，并在聊天气泡下方动态渲染出 `AskUserQuestionCard.vue` 问答卡片。卡片设计完美遵循 "Light Mode Card-based Workspace" 的毛玻璃质感，并支持互斥输入（选项选择与 textarea 互斥）、hover 悬停实时渲染 Markdown 代码对比预览等高级微动效，提交后自动触发 `resumeMessage()` 重启流，并对历史卡片做 disabled 只读锁定处理。
+- **修复 Interrupt 事件流式序列化崩溃 Bug**：在 `schemas.py` 中为 tagged-union `ChatStreamEvent` 补齐注册了新事件类型 `InterruptStreamEvent`，消除了大模型触发澄清中断时 API 序列化报错并强行关流的崩溃隐患。
+
+### 变更内容
+#### backend/app/schemas.py [MODIFY]
+- 引入 `QuestionItem`，正式定义并注册了 `InterruptStreamEvent`，彻底解决 tagged-union 反序列化中断事件校验崩溃的缺陷。
+
+#### backend/app/agent/tools/ask_user_question.py [NEW]
+- 定义 `QuestionOption`, `QuestionItem` 和 `AskUserQuestionSchema`，基于 LangGraph `interrupt()` 编写 `AskUserQuestion` 工具。
+
+#### backend/app/agent/service.py [MODIFY]
+- 在 `_prepare_tools` 中注册并挂载 `AskUserQuestion` 工具，并在 System Prompt 中增加对调用该工具的指导思想和约束原则。
+
+#### backend/app/services.py [MODIFY]
+- 扩展 `SQLAgentService` 实现 `process_stream_resume` 生成器，并在流式响应发射阶段实时从 Graph 的 state 中检测 interrupts 详情并抛出 `'interrupt'` 事件。
+
+#### backend/app/api.py [MODIFY]
+- 引入 Pydantic 的 `BaseModel` 并声明 `ResumeChatRequest` schema。
+- 实现 `POST /api/chat/resume` 流式接口，并在生成结束或异常时进行 assistant 消息的入库持久化。
+
+#### backend/app/test_api_resume.py [NEW/MODIFY]
+- 新写并完善了 `test_api_resume.py` 对 `/resume` 路由成功与 422 失败的 Mock 单元测试。
+
+#### frontend/src/types/index.ts [MODIFY]
+- 新增 `QuestionOption`、`QuestionItem` 类型声明，并在 `Message`、`StreamingMessage` 和 `StreamEvent` 中扩展 `interrupt` 属性与事件格式支持。
+
+#### frontend/src/stores/messages.ts [MODIFY]
+- 在 `useMessagesStore` 中加入 `setStreamingInterrupt` action，支持流式临时消息被挂起的中断状态转换。
+
+#### frontend/src/api/chat.ts [MODIFY]
+- 扩展 `STREAM_EVENT_TYPES` 兼容 `'interrupt'`，在 `parseStreamEvent` 中增加 `'interrupt'` 协议的安全解析与运行时校验，并全新声明并导出了 `sendChatResumeStream` 流式调用 API。
+
+#### frontend/src/composables/useChatStream.ts [MODIFY]
+- 升级 `handleStreamMessage` 以支持 `interrupt` 事件流正常断开；实现并导出 `resumeMessage` 方法，用于发起 resume 接口调用并重新开始流式输出。
+
+#### frontend/src/components/AskUserQuestionCard.vue [NEW]
+- 澄清问答卡片组件，支持单选/多选交互、选项与文本互斥、Hover 触发 Markdown 代码/配置块高亮预览、提交锁定状态和符合系统主题的轻量毛玻璃设计。
+
+#### frontend/src/components/MessageItem.vue [MODIFY]
+- 在模板中引入并动态渲染 `AskUserQuestionCard`，实现 `isQuestionSubmitted` 历史只读计算逻辑，并关联 `@submit` 到 composable 暴露的 `resumeMessage` 执行。
+
 ## 2026-06-17 20:25 +08:00 - 修复 useChatStream 冗余分支及前端 TypeScript 类型冗余与构建报错
 
 ### 概述
