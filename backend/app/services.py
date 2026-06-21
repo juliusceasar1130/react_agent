@@ -23,6 +23,7 @@ from contextlib import suppress
 from typing import Any, AsyncIterator, Dict, Optional
 
 from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
+from langgraph.types import Command
 
 from backend.app.agent.service import SQLAgentService as CoreSQLAgentService
 from backend.app.config import settings
@@ -597,7 +598,28 @@ class SQLAgentService:
             request_mode="stream",
         )
         logger.info("开始流式处理，消息: %s...", message[:100])
+        input_data = {"messages": [HumanMessage(content=message)]}
+        async for event in self._stream_execution_loop(session_id, resolved_config, input_data):
+            yield event
 
+    async def process_stream_resume(
+        self, session_id: str, answers: dict[str, Any], config: dict = None
+    ) -> AsyncIterator[dict[str, Any]]:
+        """从挂起状态恢复流式消息执行。"""
+        resolved_config = self._build_config(
+            session_id,
+            config,
+            request_mode="stream",
+        )
+        logger.info("开始流式恢复处理，session_id: %s, 答复: %s", session_id, answers)
+        input_data = Command(resume=answers)
+        async for event in self._stream_execution_loop(session_id, resolved_config, input_data):
+            yield event
+
+    async def _stream_execution_loop(
+        self, session_id: str, resolved_config: dict, input_data: Any
+    ) -> AsyncIterator[dict[str, Any]]:
+        """核心流式执行循环。"""
         has_stream_tokens = False
         accumulated_tool_calls: dict[str, dict[str, Any]] = {}
         accumulated_tool_results: dict[str, str] = {}
@@ -629,7 +651,7 @@ class SQLAgentService:
                 last_status_signature = self._status_signature(initial_status)
 
                 source_iter = self.agent.astream(
-                    {"messages": [HumanMessage(content=message)]},
+                    input_data,
                     config=resolved_config,
                     stream_mode=["messages", "updates", "custom"],
                     version="v2",
@@ -766,6 +788,31 @@ class SQLAgentService:
                             last_status_signature = status_signature
 
                         await _emit(custom_event)
+
+                # 检查 Graph 是否因 AskUserQuestion 挂起
+                state = await self.agent.aget_state(resolved_config)
+                state_next = state.next if state else []
+                state_tasks = state.tasks if state else []
+                logger.info("[interrupt_check] aget_state 返回: next=%s, tasks=%d, session_id=%s",
+                            list(state_next) if state_next else "[]", len(state_tasks), session_id)
+                if state_next and any("tools" in n or "AskUserQuestion" in n for n in state_next):
+                    if state_tasks and state_tasks[0].interrupts:
+                        interrupt_val = state_tasks[0].interrupts[0].value
+                        logger.info("[interrupt_check] 检测到 interrupt: type=%s, value=%s, session_id=%s",
+                                    type(interrupt_val).__name__, str(interrupt_val)[:200], session_id)
+                        if isinstance(interrupt_val, dict) and interrupt_val.get("type") == "ask_user_question":
+                            questions = interrupt_val.get("questions", [])
+                            logger.info("[interrupt_check] 识别为 AskUserQuestion interrupt: questions=%d, session_id=%s",
+                                        len(questions), session_id)
+                            await _emit({
+                                "type": "interrupt",
+                                "questions": questions,
+                                "session_id": session_id
+                            })
+                            logger.info("[interrupt_check] interrupt 事件已 emit，准备 return, session_id=%s", session_id)
+                            return
+                        else:
+                            logger.info("[interrupt_check] interrupt 值类型不匹配, session_id=%s", session_id)
 
                 final_content = latest_ai_content
                 tool_calls = self._serialize_tool_calls(

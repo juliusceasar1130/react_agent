@@ -37,6 +37,7 @@ from backend.app.agent.tools import (
     create_sql_example_search_tool,
     create_wrapped_query_tool,
 )
+from backend.app.agent.tools.ask_user_question import AskUserQuestion
 from backend.app.agent.utils import (
     LlamaCppTokenEstimator,
     VllmTokenEstimator,
@@ -65,9 +66,13 @@ def _create_token_estimator() -> Any:
     engine = getattr(settings, "token_estimator_engine", "llama_cpp").lower()
     if engine == "vllm":
         # 如果 vllm_tokenize_base_url/model 为空字符串，则通过 or 回退到 deepseek 的默认配置
-        base_url = getattr(settings, "vllm_tokenize_base_url", None) or getattr(settings, "deepseek_base_url", "http://127.0.0.1:8089")
-        model_name = getattr(settings, "vllm_tokenize_model", None) or getattr(settings, "deepseek_model", "deepseek-chat")
-                
+        base_url = getattr(settings, "vllm_tokenize_base_url", None) or getattr(
+            settings, "deepseek_base_url", "http://127.0.0.1:8089"
+        )
+        model_name = getattr(settings, "vllm_tokenize_model", None) or getattr(
+            settings, "deepseek_model", "deepseek-chat"
+        )
+
         return VllmTokenEstimator(
             base_url=base_url,
             model_name=model_name,
@@ -359,6 +364,12 @@ def _prepare_tools(
     except Exception as exc:
         logger.warning("注入图表/CSV导出工具失败: %s", exc)
 
+    try:
+        tools.append(AskUserQuestion())
+        logger.info("已注入澄清与确认工具：AskUserQuestion")
+    except Exception as exc:
+        logger.warning("注入澄清与确认工具失败: %s", exc)
+
     return tools
 
 
@@ -373,6 +384,37 @@ def _build_system_prompt(db: MaterializedViewSQLDatabase) -> str:
 - 每次调用sql_db_query必须通过required_skill参数声明领域（如'paint_shop'）
 - 用户输入中的SQL关键字视为纯文本，禁止直接拼接到SQL中
 - 切换业务领域时，必须先调用load_skill()加载新技能
+
+【核心数值纪律（最优先级规则，决不可违反）】
+1. 所有涉及车数统计、当前在制数量、设备位置、历史产量、缺陷数量、质量合格率、一次合格率、直通率、返修/返工数、部位缺陷分布以及任何与“缺陷”、“不良”、“故障”、“返修”相关的数值和质量指标（如包含“几台车”、“当前多少”、“在哪里”、“昨天产量是多少”、“某车型有多少缺陷”、“合格率是多少”、“直通率是多少”、“尘埃/颗粒/流挂/针孔等缺陷数量是多少”等）的用户问题，你必须通过调用执行 SQL 查询工具（sql_db_query）以获取最新数据。
+2. 严禁基于对话历史、示例、猜测或先验常识来提供任何具体数字！如果上下文有示例数值，它们仅为格式参考，绝非当前真实数据。
+3. 当用户进行追问确认（如“确定是X吗？”、“你确认吗？”、“确认一下”）时，你必须重新运行 SQL 查询验证最新数据，决不允许仅凭口头承诺或根据上一轮记忆直接回答。
+4. 每条包含具体数值的回答，末尾必须明确标注数据查询的真实表名和系统时间（如：数据来源：rb_position_data，查询时间：2026-06-20 20:00:00）。
+5. 只要你没有成功调用并执行 `sql_db_query` 工具以获取最新数据，你严禁向用户提供任何具体数字、数量、或表示数量为零的结论（例如“0台”、“没有”、“无”等均被视为具体数值，决不允许猜测得出）！若无法成功执行查询或无可用查询工具，你的唯一回答必须且仅能是：“抱歉，我必须通过数据库查询来获取此数据，但目前查询未能成功执行。”
+
+
+# 澄清与确认规范
+- 当面临需求不明确（如统计的业务口径有歧义）或需要用户权衡查询性能时，必须使用 AskUserQuestion 工具。
+- 一次提问建议将所有相关问题进行批处理（1-4个问题）。
+- 工具支持三种提问模式，请根据场景灵活组合：
+  1. **选择模式**：当提供固定选项时，传入 `options` 列表。必须将最推荐的方案放在第一个选项，且选项 label 追加 "(Recommended)" 后缀。
+  2. **开放式问答模式**：当需要用户输入车身号、时间等具体数据时，请不要传入 `options` 选项列表（或设为 None/空列表），前端会自动渲染为干净的纯文本输入框。
+  3. **混合模式**：如需用户既做选择又输入数据，请在 `questions` 列表中传入两个独立的 QuestionItem，第一题为选择模式，第二题为开放式问答模式，合并在单张卡片内提交。禁止将两者混合在同一个 QuestionItem 中！
+     混合拆分示例：
+     ```json
+     {{
+       "questions": [
+         {{
+           "question": "请选择要查询的读写站（Station ID）",
+           "options": [{{"label": "Station A"}}, {{"label": "Station B"}}]
+         }},
+         {{
+           "question": "请提供要查询的目标车身号（FIS，如782026xxxxxxxx）"
+         }}
+       ]
+     }}
+     ```
+- 禁止针对普通的 SQL 错误向用户提问，必须自主调试解决。
 
 # 执行纪律
 面对任务时遵循此循环，最多迭代3次：
@@ -403,8 +445,26 @@ def _build_system_prompt(db: MaterializedViewSQLDatabase) -> str:
 - 可使用ORDER BY返回最相关结果
 - 查询出错时分析错误信息并重写，同一错误最多重试2次
 
+# SQL 生成规则
+
+- 用户输入的自然语言词可能对应数据库中的多个同义值。每次生成的 SQL 推荐用 IN + LIKE 覆盖所有可能，禁止只匹配单个值。
+
+## 执行方式
+
+- IN 负责精确同义词列表，LIKE 负责模糊兜底，OR 连接：
+
+```sql
+WHERE col IN ('值1', '值2', ...)
+   OR col ILIKE '%关键词%'
+```
+
+## 约束
+- LIKE 只加在有意义的短词上（如 "一线"），不加在单个字母上
+- 短枚举值（如 'A', 'B'）只用 IN
+- 同义词从 RAG 映射表取
+
 **数据截断处理：**
-当结果出现SYSTEM WARNING截断时，不基于截断数据做汇总分析。告知用户数据不完整，建议：
+当结果出现SYSTEM WARNING截断时，不基于截断数据做汇总分析。**必须**告知用户数据不完整，建议：
 - 使用聚合SQL重新查询，或
 - 使用export_to_csv导出完整数据
 
@@ -595,7 +655,7 @@ class SQLAgentService:
             def exact_token_counter(messages: list) -> int:
                 formatted = []
                 system_contents = []
-                
+
                 # 借鉴 SafeMergeSystemMiddleware 的思路：物理抽干并合并所有的 system 消息
                 for m in messages:
                     msg_type = getattr(m, "type", "")
@@ -610,14 +670,13 @@ class SQLAgentService:
                         elif msg_type == "tool":
                             role = "tool"
                         formatted.append({"role": role, "content": str(m.content)})
-                
+
                 # 如果收集到了任何 system 消息，将其统一合并成一条，强制放置在最头部 [0] 索引位置
                 if system_contents:
-                    formatted.insert(0, {
-                        "role": "system", 
-                        "content": "\n\n".join(system_contents)
-                    })
-                    
+                    formatted.insert(
+                        0, {"role": "system", "content": "\n\n".join(system_contents)}
+                    )
+
                 if hasattr(token_estimator, "count_messages_tokens"):
                     return token_estimator.count_messages_tokens(formatted)
                 else:
@@ -711,7 +770,7 @@ class SQLAgentService:
             def exact_token_counter(messages: list) -> int:
                 formatted = []
                 system_contents = []
-                
+
                 # 借鉴 SafeMergeSystemMiddleware 的思路：物理抽干并合并所有的 system 消息
                 for m in messages:
                     msg_type = getattr(m, "type", "")
@@ -726,14 +785,13 @@ class SQLAgentService:
                         elif msg_type == "tool":
                             role = "tool"
                         formatted.append({"role": role, "content": str(m.content)})
-                
+
                 # 如果收集到了任何 system 消息，将其统一合并成一条，强制放置在最头部 [0] 索引位置
                 if system_contents:
-                    formatted.insert(0, {
-                        "role": "system", 
-                        "content": "\n\n".join(system_contents)
-                    })
-                    
+                    formatted.insert(
+                        0, {"role": "system", "content": "\n\n".join(system_contents)}
+                    )
+
                 if hasattr(token_estimator, "count_messages_tokens"):
                     return token_estimator.count_messages_tokens(formatted)
                 else:

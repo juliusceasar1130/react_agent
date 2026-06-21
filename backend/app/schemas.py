@@ -2,6 +2,7 @@
 from pydantic import BaseModel, ConfigDict, Field, TypeAdapter
 from typing import Annotated, Any, Dict, Literal, Optional, List, Union
 from datetime import datetime
+from backend.app.agent.tools.ask_user_question import QuestionItem
 
 
 # 消息基类
@@ -171,6 +172,12 @@ class ErrorStreamEvent(BaseModel):
     created_at: Optional[datetime] = None
 
 
+class InterruptStreamEvent(BaseModel):
+    type: Literal["interrupt"]
+    questions: List[QuestionItem]
+    session_id: str
+
+
 ChatStreamEvent = Annotated[
     Union[
         TokenStreamEvent,
@@ -179,6 +186,7 @@ ChatStreamEvent = Annotated[
         ToolResultStreamEvent,
         FinalStreamEvent,
         ErrorStreamEvent,
+        InterruptStreamEvent,
     ],
     Field(discriminator="type"),
 ]

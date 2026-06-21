@@ -3,6 +3,7 @@ import asyncio
 import json
 import logging
 from contextlib import suppress
+from pydantic import BaseModel
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.responses import FileResponse, StreamingResponse
 from sqlalchemy.orm import Session
@@ -539,6 +540,13 @@ async def stream_message_post(
 
                 event_type = event.get("type")
 
+                if event_type == "interrupt":
+                    questions = event.get("questions", [])
+                    logger.info("[stream] generate 收到 interrupt: questions=%d, session_id=%s",
+                                len(questions), session_id)
+                    yield _encode_sse(event)
+                    break
+
                 if event_type == "token":
                     token_text = event.get("text", "")
                     if token_text:
@@ -658,7 +666,8 @@ async def stream_message_post(
             # 仅在连接仍有效时发送结束标记
             if not client_disconnected:
                 yield "data: [DONE]\n\n"
-            logger.info("流式响应结束")
+                logger.info("[stream] 流式响应结束, 准备发送 [DONE], session_id=%s, 已持久化=%s, client_disconnected=%s", session_id, assistant_persisted, client_disconnected)
+            logger.info("[stream] 流式响应结束")
 
     return StreamingResponse(
         generate(),
@@ -672,3 +681,225 @@ async def stream_message_post(
             "Access-Control-Allow-Headers": "Content-Type",
         },
     )
+
+
+class ResumeChatRequest(BaseModel):
+    session_id: str
+    answers: dict
+
+
+@router.post("/resume")
+async def stream_message_resume(
+    chat_request: ResumeChatRequest,
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    """恢复挂起的消息流（真正的流式处理）"""
+    logger.info("Received resume chat request via POST")
+    logger.info(f"ResumeChatRequest: {chat_request}")
+
+    session_id = chat_request.session_id
+    if not session_id:
+        raise HTTPException(status_code=400, detail="session_id不能为空")
+
+    session = crud.get_session(db, session_id)
+    if not session:
+        raise HTTPException(status_code=404, detail="会话不存在")
+
+    agent_service = get_agent_service()
+
+    async def generate():
+        logger.info("Starting real resume stream generation")
+        logger.info(f"会话ID: {session_id}")
+
+        stream_iter = None
+        next_event_task: asyncio.Task | None = None
+        client_disconnected = False
+
+        try:
+            config = {"configurable": {"thread_id": str(session_id)}}
+
+            full_content = ""
+            tool_calls_map: dict[str, dict[str, Any]] = {}
+            tool_results_data: dict[str, Any] = {}
+            assistant_persisted = False
+
+            logger.info("开始调用agent_service.process_stream_resume...")
+
+            stream_iter = agent_service.process_stream_resume(
+                session_id,
+                chat_request.answers,
+                config
+            )
+
+            next_event_task = asyncio.create_task(anext(stream_iter))
+
+            while True:
+                done, _ = await asyncio.wait(
+                    {next_event_task},
+                    timeout=0.25,
+                    return_when=asyncio.FIRST_COMPLETED,
+                )
+
+                if next_event_task in done:
+                    try:
+                        event = next_event_task.result()
+                    except StopAsyncIteration:
+                        next_event_task = None
+                        break
+
+                    next_event_task = asyncio.create_task(anext(stream_iter))
+                else:
+                    if await request.is_disconnected():
+                        client_disconnected = True
+                        logger.info("检测到客户端已断开，停止 SSE 生成: session_id=%s", session_id)
+                        if next_event_task is not None:
+                            next_event_task.cancel()
+                            with suppress(asyncio.CancelledError, StopAsyncIteration):
+                                await next_event_task
+                            next_event_task = None
+                        break
+                    continue
+
+                event_type = event.get("type")
+
+                if event_type == "interrupt":
+                    questions = event.get("questions", [])
+                    logger.info("[resume] generate 收到 interrupt: questions=%d, session_id=%s",
+                                len(questions), session_id)
+                    yield _encode_sse(event)
+                    break
+
+                if event_type == "token":
+                    token_text = event.get("text", "")
+                    if token_text:
+                        full_content += token_text
+
+                elif event_type == "tool_call":
+                    tool_id = event.get("id")
+                    if tool_id:
+                        tool_calls_map[tool_id] = {
+                            "id": tool_id,
+                            "name": event.get("name", ""),
+                            "args_text": event.get("args_text", ""),
+                            "status": event.get("status", "streaming"),
+                        }
+
+                elif event_type == "tool_result":
+                    tool_id = event.get("id")
+                    if tool_id and event.get("content") is not None:
+                        tool_results_data[tool_id] = event.get("content")
+
+                elif event_type == "final":
+                    final_content = event.get("content")
+                    if final_content is not None:
+                        full_content = final_content
+
+                    final_tool_calls = event.get("tool_calls") or list(tool_calls_map.values()) or None
+                    final_tool_results = event.get("tool_results") or tool_results_data or None
+                    logger.info(
+                        "收到恢复流的最终事件，tool_calls=%d, tool_results=%d",
+                        len(final_tool_calls or []),
+                        len(final_tool_results or {}),
+                    )
+
+                    assistant_message = crud.create_message(
+                        db,
+                        MessageCreate(
+                            session_id=session_id,
+                            role="assistant",
+                            content=full_content or "回答完成，但未生成可展示的文本内容。",
+                            tool_calls=(
+                                json.dumps(final_tool_calls, ensure_ascii=False)
+                                if final_tool_calls
+                                else None
+                            ),
+                            tool_results=(
+                                json.dumps(final_tool_results, ensure_ascii=False)
+                                if final_tool_results
+                                else None
+                            ),
+                        ),
+                    )
+                    assistant_persisted = True
+                    logger.info("Assistant 消息在恢复流后保存成功，ID: %s", assistant_message.id)
+
+                    final_event = {
+                        **event,
+                        "content": assistant_message.content,
+                        "tool_calls": final_tool_calls,
+                        "tool_results": final_tool_results,
+                        "message_id": assistant_message.id,
+                        "created_at": assistant_message.created_at.isoformat(),
+                    }
+                    yield _encode_sse(final_event)
+                    continue
+
+                elif event_type == "error":
+                    error_message = event.get("message") or "恢复流式处理失败"
+                    if not assistant_persisted:
+                        assistant_message = crud.create_message(
+                            db,
+                            MessageCreate(
+                                session_id=session_id,
+                                role="assistant",
+                                content=error_message,
+                            ),
+                        )
+                        assistant_persisted = True
+                        event = {
+                            **event,
+                            "message_id": assistant_message.id,
+                            "created_at": assistant_message.created_at.isoformat(),
+                        }
+
+                yield _encode_sse(event)
+
+        except asyncio.CancelledError:
+            logger.info("SSE 恢复生成任务被取消: session_id=%s", session_id)
+            raise
+        except Exception as e:
+            logger.error(f"恢复流式处理异常: {e}", exc_info=True)
+            assistant_message = crud.create_message(
+                db,
+                MessageCreate(
+                    session_id=session_id,
+                    role="assistant",
+                    content=f"错误: {str(e)}",
+                ),
+            )
+            error_data = {
+                "type": "error",
+                "message": f"错误: {str(e)}",
+                "retryable": False,
+                "message_id": assistant_message.id,
+                "created_at": assistant_message.created_at.isoformat(),
+            }
+            yield _encode_sse(error_data)
+        finally:
+            if next_event_task is not None:
+                next_event_task.cancel()
+                with suppress(asyncio.CancelledError, StopAsyncIteration):
+                    await next_event_task
+
+            if stream_iter is not None:
+                with suppress(Exception):
+                    await stream_iter.aclose()
+
+            if not client_disconnected:
+                yield "data: [DONE]\n\n"
+            logger.info("[resume] 恢复流式响应结束, session_id=%s, 已持久化=%s, client_disconnected=%s", session_id, assistant_persisted, client_disconnected)
+
+    return StreamingResponse(
+        generate(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Methods": "POST, GET, OPTIONS",
+            "Access-Control-Allow-Headers": "Content-Type",
+        },
+    )
+

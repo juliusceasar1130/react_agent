@@ -12,7 +12,7 @@
 // - 2026-03-31 22:15 Asia/Shanghai: 停止生成后保留已生成片段，并明确落定为本地“已停止生成”消息
 
 import { ref, watch } from 'vue'
-import { sendChatStream, sendChatMessage } from '@/api/chat'
+import { sendChatStream, sendChatMessage, sendChatResumeStream } from '@/api/chat'
 import { useMessagesStore } from '@/stores/messages'
 import { useSessionsStore } from '@/stores/sessions'
 import type { ContextWarningPayload, Message, StreamEvent, StreamToolCall } from '@/types'
@@ -110,6 +110,7 @@ export function useChatStream() {
       }
 
       console.error('发送消息失败:', error)
+      console.error('[diagnose] 流式请求异常类型:', (error as Error)?.constructor?.name, 'message:', (error as Error)?.message)
       // 发送失败时移除临时用户消息 - 2025-01-01
       const index = messagesStore.messages.findIndex(m => m.id === tempUserMessage.id)
       if (index !== -1) {
@@ -187,6 +188,13 @@ export function useChatStream() {
           syncMessagesIfCurrent(sessionId)
           void syncSessions()
           return
+
+        case 'interrupt':
+          hasTerminalEvent = true
+          messagesStore.setStreamingInterrupt(event.questions)
+          syncMessagesIfCurrent(sessionId)
+          void syncSessions()
+          return
       }
 
       assertNever(event)
@@ -233,12 +241,136 @@ export function useChatStream() {
     await syncSessions()
   }
 
+  /**
+   * 恢复挂起的中断消息
+   */
+  const resumeMessage = async (answers: Record<string, string | string[]>) => {
+    const currentSession = sessionsStore.currentSession
+    if (!currentSession) {
+      throw new Error('没有选择会话')
+    }
+
+    isSending.value = true
+    contextWarning.value = null
+
+    // 重新将临时消息的 isStreaming 设为 true，并清除 isInterrupted 状态
+    if (messagesStore.streamingMessage) {
+      messagesStore.streamingMessage.isStreaming = true
+      messagesStore.streamingMessage.isInterrupted = false
+      messagesStore.streamingMessage.statusText = '恢复会话生成中'
+    }
+    messagesStore.isStreaming = true
+
+    let hasTerminalEvent = false
+    const controller = new AbortController()
+    activeStreamController.value = controller
+
+    const handleEvent = (event: StreamEvent) => {
+      switch (event.type) {
+        case 'token':
+          if (event.text) {
+            messagesStore.appendStreamingContent(event.text)
+          }
+          return
+
+        case 'status':
+          if (event.source === 'context_warning' && event.detail) {
+            contextWarning.value = event.detail as unknown as ContextWarningPayload
+            return
+          }
+          messagesStore.updateStreamingStatus(event.stage, event.text)
+          return
+
+        case 'tool_call':
+          messagesStore.upsertStreamingToolCall({
+            id: event.id,
+            name: event.name,
+            args_text: event.args_text,
+            status: event.status,
+          } satisfies StreamToolCall)
+          return
+
+        case 'tool_result':
+          messagesStore.setStreamingToolResult(event.id, event.content)
+          return
+
+        case 'final':
+          hasTerminalEvent = true
+          messagesStore.completeStreamingMessage({
+            id: event.message_id,
+            created_at: event.created_at,
+            content: event.content,
+            tool_calls: event.tool_calls ? JSON.stringify(event.tool_calls) : null,
+            tool_results: event.tool_results ? JSON.stringify(event.tool_results) : null,
+          })
+          syncMessagesIfCurrent(currentSession.id)
+          void syncSessions()
+          return
+
+        case 'error':
+          hasTerminalEvent = true
+          messagesStore.finalizeStreamingError({
+            id: event.message_id,
+            created_at: event.created_at,
+            content: event.message,
+          })
+          syncMessagesIfCurrent(currentSession.id)
+          void syncSessions()
+          return
+
+        case 'interrupt':
+          hasTerminalEvent = true
+          messagesStore.setStreamingInterrupt(event.questions)
+          syncMessagesIfCurrent(currentSession.id)
+          void syncSessions()
+          return
+      }
+
+      assertNever(event)
+    }
+
+    try {
+      await sendChatResumeStream(
+        {
+          session_id: currentSession.id,
+          answers
+        },
+        handleEvent,
+        { signal: controller.signal }
+      )
+
+      if (!hasTerminalEvent) {
+        throw new Error('流式响应未正常结束')
+      }
+    } catch (error) {
+      if (isAbortError(error)) {
+        console.info('恢复流式请求已取消')
+        messagesStore.finalizeStreamingInterrupted()
+        void syncSessions()
+        return
+      }
+
+      console.error('[diagnose] 恢复流式异常:', (error as Error)?.constructor?.name, (error as Error)?.message)
+      console.error('恢复发送消息失败:', error)
+      messagesStore.clearStreamingMessage()
+      syncMessagesIfCurrent(currentSession.id)
+      void syncSessions()
+      throw error
+    } finally {
+      if (activeStreamController.value === controller) {
+        activeStreamController.value = null
+      }
+      isSending.value = false
+    }
+  }
+
   return {
     isSending,
     streamMode,
     enableThinking, // 新增导出
     contextWarning,
     sendMessage,
+    resumeMessage,
     stopStreaming
   }
 }

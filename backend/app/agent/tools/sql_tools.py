@@ -217,7 +217,7 @@ def create_wrapped_query_tool(
             raw_result = original_query_tool.invoke({"query": query})
         result_str = str(raw_result)
 
-        # 4. 对查询结果的日期进行格式转换
+        # 4. 对查询结果的日期进行格式转换与时分秒查询时刻注入
         emit_stream_status(
             "已收到查询结果，正在整理数据",
             stage="writing",
@@ -225,6 +225,10 @@ def create_wrapped_query_tool(
         )
         cleaned_result = normalize_dates_in_text(result_str)
         logger.debug("SQL 查询结果已清洗日期格式")
+
+        from datetime import datetime
+        db_query_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        time_prefix = f"[数据真实查询时刻: {db_query_time}]\n"
 
         # 5. 智能结果限流：防止数据库返回结果过大撑爆 LLM 上下文
         is_dim = _is_pure_dimension_query(query)
@@ -244,6 +248,7 @@ def create_wrapped_query_tool(
             # 这里的返回内容会被 Agent 直接作为观察内容 (Observation)，
             # 注入 SYSTEM WARNING 的目的是通过 Prompt 强力引导模型不要产生错误的汇总逻辑。
             return (
+                f"{time_prefix}"
                 f"⚠️ SYSTEM WARNING: 查询共返回 {estimated_rows} 行结果，达到系统硬限制 ({hard_limit} 行) 并被强制截断。\n"
                 f"以下仅展示前 {preview_rows} 行数据预览，基于此数据进行的汇总分析可能不完整或不准确。\n\n"
                 f"建议操作：\n"
@@ -254,7 +259,7 @@ def create_wrapped_query_tool(
 
         # 情况 A: 未超限 - 说明结果集规模可控，全量返回（适合维度表查询或已聚合后的结果）
         logger.debug("SQL 查询结果未超限 (估算行数=%d), 全量返回", estimated_rows)
-        return cleaned_result
+        return f"{time_prefix}{cleaned_result}"
 
     return sql_db_query
 

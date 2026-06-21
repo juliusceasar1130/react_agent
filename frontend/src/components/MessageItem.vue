@@ -140,6 +140,18 @@
         />
       </div>
 
+      <!-- 问答澄清卡片区域 -->
+      <div
+        v-if="!isUser && hasQuestions"
+        class="px-4 pb-3 animate-fade-in"
+      >
+        <AskUserQuestionCard
+          :questions="questions"
+          :is-submitted="isQuestionSubmitted"
+          @submit="handleQuestionSubmit"
+        />
+      </div>
+
       <div
         v-if="showDebugDetails && !isUser && toolCallList.length > 0"
         class="space-y-2 px-4 pb-3"
@@ -200,8 +212,10 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref, watch } from 'vue'
 import ChartArtifactCard from '@/components/ChartArtifactCard.vue'
+import AskUserQuestionCard from '@/components/AskUserQuestionCard.vue'
+import { useChatStream } from '@/composables/useChatStream'
 import { triggerExportDownload } from '@/api/exports'
 import { CHAT_DEBUG_STREAM } from '@/config/chat'
 import type {
@@ -375,6 +389,43 @@ const chartArtifacts = computed<ChartArtifactRef[]>(() => {
 })
 
 const hasToolResult = (toolId: string) => toolResultEntries.value.some(item => item.id === toolId)
+
+// 澄清卡片相关逻辑
+const questions = computed(() => {
+  if (streamingState.value) {
+    return streamingState.value.questions || []
+  }
+  return (props.message as Message).questions || []
+})
+const hasQuestions = computed(() => questions.value.length > 0)
+const isLocalSubmitted = ref(false)
+
+// 监听澄清问题包的深度变化，一旦有新问题推入（例如下一轮的澄清卡片）自动重置本地提交锁定状态
+watch(
+  () => questions.value,
+  (newQuestions) => {
+    if (newQuestions && newQuestions.length > 0) {
+      isLocalSubmitted.value = false
+    }
+  },
+  { deep: true }
+)
+const isQuestionSubmitted = computed(() => {
+  if (!streamingState.value) {
+    return true
+  }
+  return isLocalSubmitted.value
+})
+const { resumeMessage } = useChatStream()
+const handleQuestionSubmit = async (answers: Record<string, string | string[]>) => {
+  isLocalSubmitted.value = true
+  try {
+    await resumeMessage(answers)
+  } catch (err) {
+    isLocalSubmitted.value = false
+    console.error('回复澄清失败:', err)
+  }
+}
 
 const formatFileSize = (sizeBytes: number) => {
   if (sizeBytes < 1024) {

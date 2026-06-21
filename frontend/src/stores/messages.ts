@@ -8,6 +8,7 @@ import type {
   StreamStage,
   StreamingMessage,
   StreamToolCall,
+  QuestionItem,
 } from '@/types'
 
 export const useMessagesStore = defineStore('messages', () => {
@@ -268,6 +269,19 @@ export const useMessagesStore = defineStore('messages', () => {
   }
 
   /**
+   * 将当前流式消息转为中断挂起状态
+   */
+  const setStreamingInterrupt = (questions: QuestionItem[]) => {
+    if (!streamingMessage.value) return
+    streamingMessage.value.isStreaming = false
+    streamingMessage.value.isInterrupted = true
+    streamingMessage.value.questions = questions
+    streamingMessage.value.statusText = '等待用户确认'
+    streamingMessage.value.stage = null
+    isStreaming.value = false
+  }
+
+  /**
    * 显示消息列表（包含流式临时消息）
    */
   const displayMessages = computed(() => {
@@ -300,6 +314,7 @@ export const useMessagesStore = defineStore('messages', () => {
     finalizeStreamingInterrupted,
     completeStreamingMessage,
     clearStreamingMessage,
+    setStreamingInterrupt,
     displayMessages,  // 包含流式临时消息的列表
   }
 })

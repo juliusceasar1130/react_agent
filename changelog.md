@@ -1,3 +1,60 @@
+## 2026-06-21 15:06 +08:00 - 设计并实现 AskUserQuestion 澄清问答与中断恢复功能，构建前后端闭环交互
+
+### 概述
+- **实现 AskUserQuestion 澄清问答工具**：在 FastAPI 后端引入了基于 LangGraph 原生 `interrupt` 控制流的结构化澄清问答工具 `AskUserQuestion`。支持向前端发送单选/多选/自定义补充等结构化卡片提问，使大模型能在面临需求模糊、技术权衡或危险 SQL 执行时安全暂停流并等待用户确认。
+- **完善 API Resume 接口与流式恢复**：在 `api.py` 中新增了 `POST /api/chat/resume` 路由与 `ResumeChatRequest` 请求体，支持在 PostgresSaver 状态检查点下使用 `Command(resume=...)` 恢复因 interrupt 挂起的 Graph 并继续流式输出。
+- **打造高交互 Glassmorphism 前端澄清卡片**：前端利用 Pinia Store 和 SSE 事件流捕获 `interrupt` 类型的流式响应，并在聊天气泡下方动态渲染出 `AskUserQuestionCard.vue` 问答卡片。卡片设计支持单选/多选/纯填空自定义输入互斥，并在提交后自动触发 `resumeMessage()` 重启流，并对历史卡片做 disabled 只读锁定处理。
+- **强化混合澄清与字符串 JSON 参数预校验**：在 Pydantic 的 `QuestionItem` 和 `AskUserQuestionSchema` 中增加了预处理解析，解决大模型传递 stringified JSON 的 ValidationError，并在前后端对混合提问（选项+文本输入）进行了拼接回传与自适应编号高亮。
+
+### 变更内容
+#### backend/app/schemas.py [MODIFY]
+- 引入 `QuestionItem`，正式定义并注册了 `InterruptStreamEvent`，彻底解决 tagged-union 反序列化中断事件校验崩溃的缺陷。
+
+#### backend/app/agent/tools/ask_user_question.py [NEW]
+- 定义 `QuestionOption`, `QuestionItem` 和 `AskUserQuestionSchema`，基于 LangGraph `interrupt()` 编写 `AskUserQuestion` 工具，并实现了 robust pre-validator。
+
+#### backend/app/agent/tools/test_ask_user_question.py [NEW]
+- 编写测试用例验证 `AskUserQuestion` 工具，支持 optional options、string json inputs 预校验等。
+
+#### backend/app/agent/service.py [MODIFY]
+- 挂载 `AskUserQuestion` 工具，在 System Prompt 中加入详细的“澄清与确认规范”以及混合提问意图拆分引导。
+
+#### backend/app/agent/test_service_interrupt.py [NEW]
+- 编写集成测试，模拟 LangGraph 的 `interrupt` 中断和状态恢复流。
+
+#### backend/app/services.py [MODIFY]
+- 扩展 `SQLAgentService` 实现 `process_stream_resume` 生成器，在流式生成中动态捕获并向前端抛出 `'interrupt'` 事件。
+
+#### backend/app/api.py [MODIFY]
+- 实现并暴露 `POST /api/chat/resume` 路由，接受用户回答后安全唤醒挂起的 Graph。
+
+#### backend/app/test_api_resume.py [NEW]
+- 编写接口测试，模拟并验证 `/api/chat/resume` 请求流程。
+
+#### frontend/src/types/index.ts [MODIFY]
+- 新增 `QuestionOption`、`QuestionItem` 类型，为消息流事件补全 `interrupt` 属性支持。
+
+#### frontend/src/stores/messages.ts [MODIFY]
+- 引入 `setStreamingInterrupt` 来在 store 中标记挂起的中断流状态。
+
+#### frontend/src/api/chat.ts [MODIFY]
+- 增加了 `sendChatResumeStream` 请求函数，并在 `parseStreamEvent` 中对 `'interrupt'` 包放宽 options 校验以兼容纯文本输入。
+
+#### frontend/src/composables/useChatStream.ts [MODIFY]
+- 实现了 `resumeMessage` 方法，用于发起并重新连接流式响应。
+
+#### frontend/src/components/AskUserQuestionCard.vue [NEW]
+- 编写毛玻璃自适应问答卡片组件，支持单选/多选/纯填空/混合模式，具备 questions 列表编号和必填校验。
+
+#### frontend/src/components/MessageItem.vue [MODIFY]
+- 动态嵌入 `AskUserQuestionCard`，实现对 computed `questions` 的 watch 深度监听以自动重置 `isLocalSubmitted` 锁定状态，解决组件复用锁死 Bug。
+
+#### README.md [MODIFY]
+- 补充“澄清问答卡片 (AskUserQuestion)”特性描述及 `/api/chat/resume` 接口。
+
+#### docs/ [NEW]
+- 新增 `docs/ask_user_question_design_pattern.md`、`docs/langgraph_memory_and_persistence_guide.md` 和 `docs/claudecode_docs/05_AskUserQuestion工具设计与使用指南.md`，深度梳理设计模式、状态持久化与工具使用细节。
+
 ## 2026-06-20 22:56 +08:00 - 优化缺陷分析指标生成，默认聚焦均值与检测次数以防范总数脑补
 
 ### 概述

@@ -33,6 +33,7 @@
 - **多 System 消息终极合并自愈** - 在大模型调用前的临界时机，通过终极安全合并中间件（SafeMergeSystemMiddleware）利用原生的 `merge_message_runs` 自动将核心系统提示词与 RAG 背景知识合并，解决在 strict 模式的本地推理引擎（如 vLLM）中由于非首位 system 消息引发 of 400 校验报错，同时提升本地小参数大模型的 Attention 集中度与 Prefix Caching 效率
 - **vLLM 专属精确分词引擎** - 新增 `VllmTokenEstimator` 支持直接调用 vLLM 推理后端的 `/tokenize` 端点获取 100% 精确的 Token 计算结果，根治粗糙估算造成的边界溢出。可在 `.env` 中通过 `TOKEN_ESTIMATOR_ENGINE` 变量实现与 `llama_cpp` 引擎的平滑热切换。
 - **思考模式控制** - 支持 Qwen3.6 MoE 深度推理（Thinking）功能的开关控制。当前处于“隐藏阶段”，由后端 `.env` 中的 `LLM_ENABLE_THINKING=true/false` 静态变量进行全局默认配置，前端已预留磨砂玻璃质态 `ToggleSwitch` 交互组件与 API 协程透传通道，便于后续升级完善运行时动态切换能力
+- **澄清问答卡片 (AskUserQuestion)** - 支持基于 LangGraph 1.1.8 原生 `interrupt` 中断控制流的澄清问答。当大模型遇到需求模糊或执行技术权衡时，挂起流式响应并向下游输出结构化问答卡片；前端以毛玻璃轻量卡片形式渲染，支持单选/多选/自定义输入互斥，并提供 Hover 实时 Markdown 对比预览。用户确认提交后，通过 `/api/chat/resume` 恢复流式生成，并对历史卡片进行 disabled 锁定。
 - **Agent 技能文档化** - 新增技能相关的领域文档、问题追踪与标签分诊手册，提升智能体在特定任务下的标准化执行能力
 
 - **项目上下文 (CONTEXT.md)** - 沉淀项目特有的领域术语与核心业务逻辑，为 Agent 提供统一的背景知识基座
@@ -345,6 +346,7 @@ rearch_agent/
 | ---- | ------------------- | ------------------ |
 | POST | `/api/chat/message` | 发送消息（非流式） |
 | POST | `/api/chat/stream`  | 发送消息（流式，结构化 SSE 事件） |
+| POST | `/api/chat/resume`  | 恢复因 interrupt 挂起的流式生成 |
 | GET  | `/api/chat/files/{file_id}` | 下载 SQL 导出的 CSV 文件 |
 
 #### 示例请求
@@ -540,6 +542,7 @@ npm run dev
 - [120JPH 涂装车间 AI 助手 Agent 核心设计亮点拓扑图 Obsidian Excalidraw 格式](./docs/120jph_agent_backend_architecture.relationship.md)
 - [120JPH 涂装车间 AI 助手 Agent 核心 RAG 详细架构图 Obsidian Excalidraw 格式](./docs/120jph_agent_rag_architecture_detailed.relationship.md)
 - [120JPH 涂装车间 AI 助手 Agent 核心 RAG 简明架构图 Obsidian Excalidraw 格式](./docs/120jph_agent_rag_architecture_simplified.relationship.md)
+- [LangGraph 记忆与状态持久化机制技术指南](./docs/langgraph_memory_and_persistence_guide.md)
 
 
 ## 常见问题

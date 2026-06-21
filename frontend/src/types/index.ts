@@ -1,3 +1,15 @@
+export interface QuestionOption {
+  label: string
+  description?: string
+}
+
+export interface QuestionItem {
+  question: string
+  header?: string
+  multiSelect: boolean
+  options?: QuestionOption[]
+}
+
 // 会话类型
 export interface Session {
   id: string
@@ -26,6 +38,7 @@ export interface Message {
   tool_calls?: string | null
   tool_results?: string | null
   is_interrupted?: boolean
+  questions?: QuestionItem[]
 }
 
 export interface MessageCreate {
@@ -152,6 +165,11 @@ export type StreamEvent =
       message_id?: string
       created_at?: string
     }
+  | {
+      type: 'interrupt'
+      questions: QuestionItem[]
+      session_id: string
+    }
 
 export interface FinalizedStreamingMessage {
   id?: string
@@ -175,6 +193,7 @@ export interface StreamingMessage {
   toolResults: Record<string, string>
   error: string | null
   isInterrupted?: boolean
+  questions?: QuestionItem[]
 }
 
 // 聊天请求类型 - 2025-01-01
