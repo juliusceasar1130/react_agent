@@ -70,7 +70,7 @@
             </div>
             <p
               v-if="opt.description"
-              class="mt-1.5 pl-6.5 text-[11px] leading-relaxed text-slate-500 group-hover:text-slate-600"
+              class="mt-1.5 pl-6-5 text-[11px] leading-relaxed text-slate-500 group-hover:text-slate-600"
             >
               {{ opt.description }}
             </p>
@@ -94,7 +94,14 @@
       </div>
 
       <!-- Submit Panel -->
-      <div class="pt-2 flex justify-end">
+      <div class="pt-2 flex justify-end gap-2.5">
+        <button
+          v-if="!isSubmitted"
+          @click="handleCancel"
+          class="px-5 py-2 text-xs font-bold text-slate-500 bg-slate-100 hover:bg-slate-200 hover:text-slate-700 rounded-xl transition-all duration-200 border border-slate-200"
+        >
+          取消
+        </button>
         <button
           @click="handleSubmit"
           :disabled="!canSubmit || isSubmitted"
@@ -187,12 +194,16 @@ const onOptionClick = (item: QuestionItem, label: string) => {
       answers.value[item.question] = [...current, label]
     }
   } else {
-    answers.value[item.question] = label
+    if (answers.value[item.question] === label) {
+      answers.value[item.question] = ''
+    } else {
+      answers.value[item.question] = label
+    }
   }
 }
 
 // 自定义框输入事件：不再清空选项选中值
-const onTextAreaInput = (item: QuestionItem) => {
+const onTextAreaInput = (_item: QuestionItem) => {
   // 不做操作，保持选项和输入共存
 }
 
@@ -214,6 +225,16 @@ const canSubmit = computed(() => {
     return typeof ans === 'string' && ans !== ''
   })
 })
+
+const handleCancel = () => {
+  if (props.isSubmitted) return
+
+  const payload: Record<string, string | string[]> = {}
+  for (const item of props.questions) {
+    payload[item.question] = '已取消'
+  }
+  emit('submit', payload)
+}
 
 const handleSubmit = () => {
   if (!canSubmit.value) return
@@ -249,7 +270,7 @@ const handleSubmit = () => {
 </script>
 
 <style scoped>
-.pl-6.5 {
+.pl-6-5 {
   padding-left: 1.625rem;
 }
 </style>

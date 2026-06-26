@@ -106,8 +106,9 @@
                   <span>{{ cell === null || cell === undefined ? 'NULL' : cell }}</span>
                   <!-- 点击复制单元格值 -->
                   <button
+                    v-if="showCellCopy(columns[ci])"
                     @click="copyText(String(cell), 'cell-' + ri + '-' + ci)"
-                    class="opacity-0 group-hover:opacity-100 rounded p-0.5 text-neutral-400 hover:bg-neutral-200/70 hover:text-neutral-600 transition"
+                    class="rounded p-0.5 text-neutral-400 hover:bg-neutral-200/70 hover:text-neutral-600 transition"
                     title="复制单元格内容"
                   >
                     <svg
@@ -170,6 +171,12 @@ const emit = defineEmits<{
 const copiedType = ref<string | null>(null)
 const showToast = ref(false)
 let toastTimer: any = null
+
+// 第一列（序号列）和时间相关列不显示复制图标
+const _TIME_PATTERNS = /date|time|_at/i
+function showCellCopy(colName: string): boolean {
+  return !_TIME_PATTERNS.test(colName)
+}
 
 async function copyText(text: string, type: string) {
   try {

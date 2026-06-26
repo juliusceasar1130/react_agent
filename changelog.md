@@ -1,3 +1,35 @@
+## 2026-06-25 22:33 +08:00 - 侧边栏折叠过渡动画性能优化
+
+### 概述
+- **消除折叠过度动画卡顿**：针对侧边栏（VariantB.vue）折叠展开时的反应迟钝现象，将全局过度监听 `transition-all` 替换为精准定位的 `transition-[width,transform]` 属性，并应用 `will-change-[width,transform]` 开启 GPU 硬件加速缓存，从而大幅降低了浏览器的样式计算压力。
+- **清除内部双重容器动画**：删除了内部头部容器 `div` 上冗余的 `transition-all` 类名，消除了由于内边距和排版排列突变带来的二次重绘瓶颈。
+
+### 变更内容
+#### frontend/src/components/VariantB.vue [MODIFY]
+- 对 aside 节点与 header container 的 transition 逻辑进行精细化优化，消除了动画重排抖动并提升了整体折叠动效响应速度。
+
+## 2026-06-25 22:20 +08:00 - 为 AskUserQuestion 交互卡片新增取消按钮及单选项重置能力
+
+### 概述
+- **新增澄清问答取消按钮**：在前端交互卡片 [AskUserQuestionCard.vue](file:///f:/000_dev/Python/workplace/rearch_agent/.tree/features/agent/frontend/src/components/AskUserQuestionCard.vue) 的“确认并恢复生成”按钮左侧增加了“取消”按钮。点击“取消”按钮时，将向后端发送包含 `已取消` 意图的提问答复，确保大模型从中断状态中恢复并以友好形式退出该任务。
+- **优化单选项点击与重置**：优化了单选项的选择交互。用户再次点击已选中的单选项，可以将其重置为未选中状态，方便用户撤销选择而无需被迫选择。
+
+### 变更内容
+#### frontend/src/components/AskUserQuestionCard.vue [MODIFY]
+- 在底部操作区域新增“取消”按钮（Outlined style，优雅适配整体卡片的 Glassmorphism 现代质感）。
+- 编写 `handleCancel` 函数实现“取消”意图的收集并提交。
+- 调整 `onOptionClick` 中针对单选模式（`item.multiSelect === false`）的逻辑：当再次点击已被选中的单选项时，自动将其清空，支持单选项的重置与反选。
+
+## 2026-06-25 10:42 +08:00 - 本地化部署优化：清理前端冗余的外部 Google Fonts 引用
+
+### 概述
+- **移除冗余 Google Fonts 链接**：在 [index.html](file:///f:/000_dev/Python/workplace/rearch_agent/.tree/features/agent/frontend/index.html) 中删除了在本地/内网环境（无公网）下会导致连接超时的 Google Fonts 资源引用。该字体系 `Inter` 字体，在当前的样式定义中并未实际被引用，属于冗余资源。
+- **防止加载超时阻塞与控制台报错**：此举彻底消除了本地化/离线部署时由于向 `fonts.googleapis.com` 发起请求而产生的网络报错与首屏加载可能产生的渲染阻塞。
+
+### 变更内容
+#### frontend/index.html [MODIFY]
+- 清理了引入 `https://fonts.googleapis.com` 域名的三行外部 `<link>` 标签，保留了项目的基础 favicon 与元数据定义。
+
 ## 2026-06-21 15:06 +08:00 - 设计并实现 AskUserQuestion 澄清问答与中断恢复功能，构建前后端闭环交互
 
 ### 概述

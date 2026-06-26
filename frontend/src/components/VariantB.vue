@@ -9,13 +9,13 @@
 
     <!-- 侧边栏 (微缩侧边栏/Slim Mini-Bar 响应式布局) -->
     <aside
-      class="fixed inset-y-0 left-0 z-40 flex flex-col border-r border-neutral-200/80 bg-white/95 shadow-2xl backdrop-blur-xl transition-all duration-300 ease-in-out shrink-0 lg:static lg:z-auto lg:translate-x-0 lg:bg-white/80 lg:shadow-none lg:opacity-100 lg:overflow-hidden"
+      class="fixed inset-y-0 left-0 z-40 flex flex-col border-r border-neutral-200/80 bg-white/95 shadow-2xl backdrop-blur-xl transition-[width,transform] will-change-[width,transform] duration-300 ease-in-out shrink-0 lg:static lg:z-auto lg:translate-x-0 lg:bg-white/80 lg:shadow-none lg:opacity-100 lg:overflow-hidden"
       :class="[
         isSidebarOpen ? 'translate-x-0 lg:w-[18.5rem]' : '-translate-x-full lg:w-20'
       ]"
     >
       <div
-        class="flex border-b border-neutral-200/80 shrink-0 transition-all duration-300"
+        class="flex border-b border-neutral-200/80 shrink-0"
         :class="isSlim ? 'flex-col items-center gap-4 px-2 py-5 justify-center' : 'items-center justify-between px-4 py-4 sm:px-5'"
       >
         <div class="flex items-center" :class="isSlim ? 'flex-col gap-2' : 'gap-3'">

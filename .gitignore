@@ -2,6 +2,8 @@ __pycache__/
 output/
 .langgraph_api/
 frontend/dist/
+.playwright-mcp
+.codex
 
 # Node modules
 node_modules/

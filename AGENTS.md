@@ -58,6 +58,12 @@ Windows 下可直接运行 `start_langgraph_dev.bat`。
 - 新特性和重要优化记录到 `changelog.md`，`README.md` 记录特性与目录结构
 - 若修改内容不适合写进源码文件，应在交付说明里给出修改时间与主要变更
 
+### 本地与离线部署约束
+
+- **禁止直连公网 CDN 资源**：严禁在 `index.html` 或前端代码中直接加载 `fonts.googleapis.com` 等外部公网 CDN 的 JS/CSS/字体。
+- **静态资源本地化**：自定义字体（`.woff2` 等）必须下载并放置在 `public/fonts/` 目录中，在 CSS 里通过 `@font-face` 相对路径加载；三方库/图标需通过 npm 安装本地打包。
+- **验证无外网依赖**：开发与测试时需注意，不得有任何外网 HTTP/HTTPS 请求，以防因 DNS 失败或连接超时（Timeout）导致首屏渲染卡顿或控制台报错。
+
 ## Code Guidelines
 
 ### 1. Think Before Coding
@@ -133,3 +139,6 @@ For multi-step tasks, state a brief plan:
 - LangChain docs MCP — 查询 LangChain 官方文档
 - Context7 MCP — 查询通用第三方库文档
 - chrome-devtools MCP — 浏览器调试与前端问题排查
+
+## 实施原则
+-  对于用户提出问题和现象，先分析根因，得到用户确认后实施

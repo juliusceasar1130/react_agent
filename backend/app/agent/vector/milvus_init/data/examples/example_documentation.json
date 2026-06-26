@@ -591,5 +591,18 @@
         "F26F27并线"
       ]
     }
+  },
+  {
+  "document": "预处理输送流程的完整工艺路径为：MQB一线从预处理MQB 100点出发，经预处理MQB工装检查平台→预处理MQB线锁紧检查站→预处理一线→电泳一线→[电泳烘房 1.1 | 电泳烘房 1.2]→一线预处理储存线→一线预处理雪橇解锁站→一线预处理200点。MEB二线从预处理MEB 100点出发，经预处理MEB工装检查平台→预处理MEB线锁紧检查站→预处理二线→电泳二线→[电泳烘房 2.1 | 电泳烘房 2.2]→二线预处理储存线→二线预处理雪橇解锁站→二线预处理200点。跨线路径：一线预处理储存线→预处理F23干区→预处理F23湿区→预处理F23湿区检查平台→预处理F21储存线→二线预处理储存线。预处理F01输送线贯穿MQB一线和MEB二线。",
+  "metadata": {
+    "type": "documentation",
+    "domain": "paint_shop_pretreatment_conveyance",
+    "process": "pretreatment_conveyance",
+    "term": "预处理输送流程完整工艺路径",
+    "aliases": [
+      "预处理工艺路径",
+      "pretreatment process route"
+    ]
+   }
   }
 ]
