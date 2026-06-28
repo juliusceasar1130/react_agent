@@ -1,3 +1,18 @@
+## 2026-06-28 16:31 +08:00 - 新增“关于系统”弹窗与版本日志展示功能
+
+### 概述
+- **新增“关于系统”弹窗**：在前端增加了一个高颜值、响应式且支持毛玻璃（Glassmorphism）效果的分栏弹窗组件 `VersionChangelogModal.vue`。弹窗左侧为带状态呼吸灯的垂直时间线，右侧卡片式分组呈现新特性（🎉 Features）、性能优化（⚡ Improvements）与问题修复（🐛 Bug Fixes）。
+- **主页面触发与集成**：在 `ChatView.vue` Header 头部右上角集成了“ℹ️ 关于”按钮，用来触发该弹窗。支持点击遮罩层、右上角 "✕" 按钮或按 `Esc` 键进行平滑关闭，并防止了弹窗开启时的背景滚动穿透。
+
+### 变更内容
+#### frontend/src/components/VersionChangelogModal.vue [NEW]
+- 创建了弹窗组件。实现了模态框在打开/关闭时的渐变过渡，支持通过 timeline 切换选中版本，预置了更新日志的 Mock 数据以供用户后续直接修改与填写。
+- 绑定了键盘 `keydown` 监听事件，在按下 `Escape` 键时关闭弹窗，并在弹窗打开时将 `document.body` 锁死以防滚动穿透。
+
+#### frontend/src/views/ChatView.vue [MODIFY]
+- 导入并注册了 `VersionChangelogModal` 组件及 `showChangelog` 状态。
+- 在 Header bar 右侧添加了带有 `ℹ️` 图标和 “关于” 文本的触发按钮。
+
 ## 2026-06-28 13:25 +08:00 - 修复消息持久化机制漏洞与前端工具详情参数展示遗漏
 
 ### 概述

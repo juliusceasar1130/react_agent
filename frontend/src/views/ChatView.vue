@@ -66,6 +66,14 @@
                   {{ isSending ? '处理中' : '就绪' }}
                 </div>
                 <button
+                  @click="showChangelog = true"
+                  class="flex items-center gap-1.5 rounded-full border border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-900 px-3 py-2 text-xs font-semibold text-neutral-600 dark:text-neutral-300 transition-all duration-200 hover:bg-neutral-50 dark:hover:bg-neutral-800 hover:text-text shadow-sm whitespace-nowrap"
+                  title="关于与更新日志"
+                >
+                  <span>ℹ️</span>
+                  <span>关于</span>
+                </button>
+                <button
                   @click="toggleBento()"
                   class="flex items-center gap-1.5 rounded-full border border-primary/20 bg-primary/5 px-3 py-2 text-xs font-bold text-primary transition-all duration-200 hover:bg-primary hover:text-white shadow-glow whitespace-nowrap"
                 >
@@ -172,6 +180,8 @@
       </template>
     </VariantB>
 
+    <VersionChangelogModal v-model:show="showChangelog" />
+
     <!-- 极富设计感的毛玻璃 Toast 提示 -->
     <Transition name="toast-fade">
       <div
@@ -195,6 +205,7 @@ import ToggleSwitch from '@/components/ToggleSwitch.vue'
 import SessionList from '@/components/SessionList.vue'
 import MessageList from '@/components/MessageList.vue'
 import WelcomeDashboard from '@/components/WelcomeDashboard.vue'
+import VersionChangelogModal from '@/components/VersionChangelogModal.vue'
 
 const sessionsStore = useSessionsStore()
 const messagesStore = useMessagesStore()
@@ -211,6 +222,7 @@ const isSlim = computed(() => {
 
 // 数据字典 Bento 控制（通过 props 下传 / emit 上传）
 const showBento = ref(false)
+const showChangelog = ref(false)
 function toggleBento() {
   showBento.value = !showBento.value
 }
