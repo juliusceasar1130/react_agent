@@ -167,8 +167,8 @@
               {{ toolStatusText(tool) }}
             </span>
           </div>
-          <p v-if="tool.args_text" class="mt-1 max-h-24 overflow-hidden whitespace-pre-wrap break-all text-neutral-500">
-            {{ tool.args_text }}
+          <p v-if="getToolArgsText(tool)" class="mt-1 max-h-24 overflow-hidden whitespace-pre-wrap break-all text-neutral-500">
+            {{ getToolArgsText(tool) }}
           </p>
         </div>
       </div>
@@ -183,9 +183,9 @@
           class="rounded-2xl border border-neutral-200 bg-surface/90 px-3 py-2 text-xs text-neutral-600"
         >
           <summary class="cursor-pointer select-none font-medium text-neutral-700">
-            工具结果 {{ toolResult.id }}
+            工具结果: {{ getToolNameById(toolResult.id) }} ({{ toolResult.id }})
           </summary>
-          <pre class="mt-2 max-h-48 overflow-auto whitespace-pre-wrap break-words text-[12px] leading-relaxed text-neutral-500">{{ toolResult.content }}</pre>
+          <pre class="mt-2 max-h-48 overflow-auto whitespace-pre-wrap break-words text-[12px] leading-relaxed text-neutral-500">{{ formatToolResultContent(toolResult.content) }}</pre>
         </details>
       </div>
 
@@ -461,6 +461,37 @@ const toolStatusText = (tool: StreamToolCall) => {
       return '已开始'
     default:
       return '执行中'
+  }
+}
+
+const getToolArgsText = (tool: StreamToolCall): string => {
+  if (tool.args_text) {
+    return tool.args_text
+  }
+  if (tool.args) {
+    if (typeof tool.args === 'object' && tool.args !== null) {
+      const argsObj = tool.args as Record<string, unknown>
+      if (typeof argsObj.query === 'string') {
+        return argsObj.query
+      }
+      return JSON.stringify(tool.args, null, 2)
+    }
+    return String(tool.args)
+  }
+  return ''
+}
+
+const getToolNameById = (id: string): string => {
+  const tool = toolCallList.value.find(t => t.id === id)
+  return tool ? tool.name : id
+}
+
+const formatToolResultContent = (content: string): string => {
+  try {
+    const parsed = JSON.parse(content)
+    return JSON.stringify(parsed, null, 2)
+  } catch {
+    return content
   }
 }
 

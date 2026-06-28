@@ -314,22 +314,35 @@ class SQLAgentService:
 
             block_index = block.get("index", 0)
             actual_id = block.get("id") or ""
-            tool_call_id = (
-                self._find_tool_call_key_by_actual_id(tool_calls, actual_id)
-                or (
-                    f"tool_call_index_{block_index}"
-                    if block.get("index") is not None
-                    else actual_id or f"tool_call_chunk_{len(tool_calls)}"
-                )
-            )
+            message_id = getattr(message, "id", None) or ""
+
+            # 确定这轮调用的唯一标识 tool_call_id
+            tool_call_id = ""
+            if actual_id:
+                tool_call_id = actual_id
+            else:
+                # 后续碎片根据 message_id 和 block_index 查找之前已经绑定的原生 ID
+                for key, item in tool_calls.items():
+                    if item.get("message_id") == message_id and item.get("block_index") == block_index:
+                        tool_call_id = key
+                        break
+                
+                # 如果没有找到绑定的 ID（极端边界情况），fallback 生成唯一键
+                if not tool_call_id:
+                    tool_call_id = f"tool_{message_id}_{block_index}" if message_id else f"tool_call_chunk_{len(tool_calls)}"
+
             is_new = tool_call_id not in tool_calls
             tool_info = self._upsert_tool_call(
                 tool_calls,
                 tool_call_id=tool_call_id,
-                actual_id=actual_id,
+                actual_id=actual_id or tool_call_id,
                 name=block.get("name") or "",
                 args_text_delta=block.get("args") or "",
             )
+            
+            # 在内存中记录其 message_id 和 block_index 用于后续碎片匹配
+            tool_info["message_id"] = message_id
+            tool_info["block_index"] = block_index
 
             if not tool_info.get("name") and not tool_info.get("args_text"):
                 continue

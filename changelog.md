@@ -1,3 +1,25 @@
+## 2026-06-28 13:25 +08:00 - 修复消息持久化机制漏洞与前端工具详情参数展示遗漏
+
+### 概述
+- **修复后端消息持久化漏洞**：补齐了在 Agent 中断澄清挂起（Interrupt）、澄清回复（Resume）、连接中途异常断开以及非流式请求报错场景下的消息持久化保存逻辑，确保了 `chat_messages` 对话历史表中每一步的完整性。
+- **修复前端工具参数展示遗漏**：解决了由于非流式或重新加载历史时缺乏 `args_text` 字段而导致前端调试面板内工具参数和 SQL 语句完全空白的 Bug；增加了对结构化 `args` 的智能兼容和 JSON 格式化输出。
+- **优化工具结果名称关联**：实现了工具返回结果 ID 到工具名称的动态映射，将原本抽象的 `工具结果 tool_0` 转换为如 `工具结果: sql_db_query (tool_0)` 的友好形式，便于直观调试。
+
+### 变更内容
+#### backend/app/api.py [MODIFY]
+- 在 `/stream` 和 `/resume` 生成器中遇到 `interrupt` 事件时，增加将 AI 的澄清卡片问题保存为 `assistant` 消息的逻辑。
+- 在 `/resume` 接口开始处理前，将用户的 `answers` 澄清回答以 `user` 角色消息安全保存入库。
+- 在 `/stream` 和 `/resume` 的生成 `finally` 块中加入连接断开捕获保护，对尚未保存的 partial message 进行补存入库（内容包括 partial content 和 `tool_calls`）。
+- 在 `/message` 非流式接口发生 `Exception` 报错时，在抛出异常前捕获并向数据库记录报错的 `assistant` 消息。
+
+#### backend/app/test_api_persistence.py [NEW]
+- 创建独立的测试文件，编写并验证了中断挂起保存、回答恢复保存、连接中途断开保存、非流式异常保存 4 个 TDD 测试场景，确认全部通过。
+
+#### frontend/src/components/MessageItem.vue [MODIFY]
+- 新增 `getToolArgsText`、`getToolNameById` 和 `formatToolResultContent` 助手函数。
+- 更新模板逻辑，即使在无 `args_text` 字段的情况下，也支持读取 `args` 字典（并针对 SQL 语句直接提取 `query` 渲染，对其他复杂参数 pretty print 展示）。
+- 支持将工具结果的 `id` 还原为工具名称并缩进格式化 JSON 内容。
+
 ## 2026-06-25 22:33 +08:00 - 侧边栏折叠过渡动画性能优化
 
 ### 概述

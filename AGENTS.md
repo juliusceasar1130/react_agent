@@ -142,3 +142,4 @@ For multi-step tasks, state a brief plan:
 
 ## 实施原则
 -  对于用户提出问题和现象，先分析根因，得到用户确认后实施
+- 不要自主提交，必须得到我允许

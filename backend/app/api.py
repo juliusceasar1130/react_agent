@@ -415,6 +415,15 @@ async def send_message(chat_request: ChatRequest, db: Session = Depends(get_db))
         )
     except Exception as exc:
         logger.error("非流式 Agent 处理失败: %s", exc, exc_info=True)
+        # 保存报错消息到数据库
+        crud.create_message(
+            db,
+            MessageCreate(
+                session_id=session_id,
+                role="assistant",
+                content=f"错误: {str(exc)}",
+            ),
+        )
         raise HTTPException(
             status_code=500,
             detail="Agent 处理失败，请稍后重试",
@@ -544,6 +553,21 @@ async def stream_message_post(
                     questions = event.get("questions", [])
                     logger.info("[stream] generate 收到 interrupt: questions=%d, session_id=%s",
                                 len(questions), session_id)
+                    # 持久化保存 AI 澄清提问
+                    question_texts = [f"- {q.get('question')} (选项: {q.get('options')})" for q in questions]
+                    clarify_content = "我们需要您的进一步确认：\n" + "\n".join(question_texts)
+                    crud.create_message(
+                        db,
+                        MessageCreate(
+                            session_id=session_id,
+                            role="assistant",
+                            content=clarify_content,
+                            tool_calls=json.dumps([{
+                                "name": "AskUserQuestion",
+                                "args": {"questions": questions}
+                            }], ensure_ascii=False)
+                        )
+                    )
                     yield _encode_sse(event)
                     break
 
@@ -663,6 +687,31 @@ async def stream_message_post(
                 with suppress(Exception):
                     await stream_iter.aclose()
 
+            # 针对连接断开场景，持久化保存已生成的 partial 消息
+            if client_disconnected and not assistant_persisted and (full_content or tool_calls_map):
+                try:
+                    crud.create_message(
+                        db,
+                        MessageCreate(
+                            session_id=session_id,
+                            role="assistant",
+                            content=full_content or "流式生成中途由于客户端断开而被中止。",
+                            tool_calls=(
+                                json.dumps(list(tool_calls_map.values()), ensure_ascii=False)
+                                if tool_calls_map
+                                else None
+                            ),
+                            tool_results=(
+                                json.dumps(tool_results_data, ensure_ascii=False)
+                                if tool_results_data
+                                else None
+                            ),
+                        ),
+                    )
+                    logger.info("已成功补存客户端断开时的部分消息回复")
+                except Exception as persist_err:
+                    logger.error(f"补存断开消息失败: {persist_err}")
+
             # 仅在连接仍有效时发送结束标记
             if not client_disconnected:
                 yield "data: [DONE]\n\n"
@@ -705,6 +754,18 @@ async def stream_message_resume(
     session = crud.get_session(db, session_id)
     if not session:
         raise HTTPException(status_code=404, detail="会话不存在")
+
+    # 持久化保存用户的澄清回答
+    user_answer_text = "; ".join([f"{k}: {v}" for k, v in chat_request.answers.items()])
+    crud.create_message(
+        db,
+        MessageCreate(
+            session_id=session_id,
+            role="user",
+            content=f"[澄清回答] {user_answer_text}",
+            tool_results=json.dumps(chat_request.answers, ensure_ascii=False)
+        )
+    )
 
     agent_service = get_agent_service()
 
@@ -767,6 +828,21 @@ async def stream_message_resume(
                     questions = event.get("questions", [])
                     logger.info("[resume] generate 收到 interrupt: questions=%d, session_id=%s",
                                 len(questions), session_id)
+                    # 持久化保存 AI 澄清提问
+                    question_texts = [f"- {q.get('question')} (选项: {q.get('options')})" for q in questions]
+                    clarify_content = "我们需要您的进一步确认：\n" + "\n".join(question_texts)
+                    crud.create_message(
+                        db,
+                        MessageCreate(
+                            session_id=session_id,
+                            role="assistant",
+                            content=clarify_content,
+                            tool_calls=json.dumps([{
+                                "name": "AskUserQuestion",
+                                "args": {"questions": questions}
+                            }], ensure_ascii=False)
+                        )
+                    )
                     yield _encode_sse(event)
                     break
 
@@ -885,6 +961,31 @@ async def stream_message_resume(
             if stream_iter is not None:
                 with suppress(Exception):
                     await stream_iter.aclose()
+
+            # 针对连接断开场景，持久化保存已生成的 partial 消息
+            if client_disconnected and not assistant_persisted and (full_content or tool_calls_map):
+                try:
+                    crud.create_message(
+                        db,
+                        MessageCreate(
+                            session_id=session_id,
+                            role="assistant",
+                            content=full_content or "流式生成中途由于客户端断开而被中止。",
+                            tool_calls=(
+                                json.dumps(list(tool_calls_map.values()), ensure_ascii=False)
+                                if tool_calls_map
+                                else None
+                            ),
+                            tool_results=(
+                                json.dumps(tool_results_data, ensure_ascii=False)
+                                if tool_results_data
+                                else None
+                            ),
+                        ),
+                    )
+                    logger.info("已成功补存客户端断开时的部分消息回复")
+                except Exception as persist_err:
+                    logger.error(f"补存断开消息失败: {persist_err}")
 
             if not client_disconnected:
                 yield "data: [DONE]\n\n"
