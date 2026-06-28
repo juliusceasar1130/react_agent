@@ -1,3 +1,26 @@
+## 2026-06-28 22:36 +08:00 - 修复流式中断挂起场景工具调用完整持久化存储
+
+### 概述
+- **修复流式中断工具调用丢失漏洞**：在 `/stream` 和 `/resume` 生成器遇到 `interrupt` 事件（澄清提问）时，系统不再使用单一硬编码的 `AskUserQuestion` 覆盖已有的工具列表，而是将内存 `tool_calls_map` 缓存的所有已执行工具调用（如 `load_skill`, `load_scenario` 以及带原生 ID 的 `AskUserQuestion` 等）一并序列化并保存，保障了中断状态消息中工具调用数据链的完整性。
+
+### 变更内容
+#### backend/app/api.py [MODIFY]
+- 修改流式（`/stream`）和恢复流（`/resume`）的 `interrupt` 中断事件持久化逻辑，从内存 `tool_calls_map` 中合并获取全部已调用的工具记录，并进行 JSON 序列化存储。
+
+#### backend/app/test_api_persistence.py [MODIFY]
+- 在 `test_stream_interrupt_saves_clarification` 单元测试中添加了 `load_skill` 前置调用模拟，并断言其能够与 `AskUserQuestion` 合并成功保存到数据库中。
+
+## 2026-06-28 21:52 +08:00 - 修复流式澄清提问处理中的 AttributeError 与 JSON 序列化异常
+
+### 概述
+- **修复 AttributeError 报错**：在 `api.py` 的流式响应生成器（`generate`）中，当收到 `interrupt`（澄清提问）事件时，列表中的 `questions` 元素为 Pydantic 模型（`QuestionItem`）而非原生字典，从而导致调用 `q.get('question')` 时发生 `'QuestionItem' object has no attribute 'get'` 报错。对此增加了 Pydantic 模型的识别与 `.model_dump()` 字典化转换兼容。
+- **修复潜在的 JSON 序列化失败**：由于 `questions` 原本为 Pydantic 对象列表，直接传给 `json.dumps` 写入消息的 `tool_calls` 会在数据库持久化时导致 `TypeError`。此次修改使用字典化后的 `questions_dump` 进行序列化，消除了序列化失败隐患。
+
+### 变更内容
+#### backend/app/api.py [MODIFY]
+- 对 `interrupt` 事件处理逻辑进行健壮性兼容优化。遍历 `questions` 时，自动检测并对 Pydantic 模型执行 `model_dump()` 转换为原生字典，保证了对属性字段（如 `question` 和 `options`）的安全读取。
+- 传入转换后的原生字典列表 `questions_dump` 以供 `json.dumps()` 成功序列化并持久化至 `MessageCreate` 消息数据库表。
+
 ## 2026-06-28 16:31 +08:00 - 新增“关于系统”弹窗与版本日志展示功能
 
 ### 概述

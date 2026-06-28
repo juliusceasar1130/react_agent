@@ -554,18 +554,32 @@ async def stream_message_post(
                     logger.info("[stream] generate 收到 interrupt: questions=%d, session_id=%s",
                                 len(questions), session_id)
                     # 持久化保存 AI 澄清提问
-                    question_texts = [f"- {q.get('question')} (选项: {q.get('options')})" for q in questions]
+                    questions_dump = []
+                    question_texts = []
+                    for q in questions:
+                        q_dict = q.model_dump() if hasattr(q, "model_dump") else q
+                        questions_dump.append(q_dict)
+                        question_texts.append(f"- {q_dict.get('question')} (选项: {q_dict.get('options')})")
                     clarify_content = "我们需要您的进一步确认：\n" + "\n".join(question_texts)
+                    
+                    # 完整保存当前收到的工具调用记录（如 load_skill、load_scenario 以及带原生 ID 的 AskUserQuestion）
+                    interrupt_tool_calls = list(tool_calls_map.values())
+                    has_ask_user = any(tc.get("name") == "AskUserQuestion" for tc in interrupt_tool_calls)
+                    if not has_ask_user:
+                        interrupt_tool_calls.append({
+                            "id": f"ask_user_{session_id}",
+                            "name": "AskUserQuestion",
+                            "args": {"questions": questions_dump},
+                            "status": "completed"
+                        })
+                    
                     crud.create_message(
                         db,
                         MessageCreate(
                             session_id=session_id,
                             role="assistant",
                             content=clarify_content,
-                            tool_calls=json.dumps([{
-                                "name": "AskUserQuestion",
-                                "args": {"questions": questions}
-                            }], ensure_ascii=False)
+                            tool_calls=json.dumps(interrupt_tool_calls, ensure_ascii=False)
                         )
                     )
                     yield _encode_sse(event)
@@ -829,18 +843,32 @@ async def stream_message_resume(
                     logger.info("[resume] generate 收到 interrupt: questions=%d, session_id=%s",
                                 len(questions), session_id)
                     # 持久化保存 AI 澄清提问
-                    question_texts = [f"- {q.get('question')} (选项: {q.get('options')})" for q in questions]
+                    questions_dump = []
+                    question_texts = []
+                    for q in questions:
+                        q_dict = q.model_dump() if hasattr(q, "model_dump") else q
+                        questions_dump.append(q_dict)
+                        question_texts.append(f"- {q_dict.get('question')} (选项: {q_dict.get('options')})")
                     clarify_content = "我们需要您的进一步确认：\n" + "\n".join(question_texts)
+                    
+                    # 完整保存当前收到的工具调用记录（如 load_skill、load_scenario 以及带原生 ID 的 AskUserQuestion）
+                    interrupt_tool_calls = list(tool_calls_map.values())
+                    has_ask_user = any(tc.get("name") == "AskUserQuestion" for tc in interrupt_tool_calls)
+                    if not has_ask_user:
+                        interrupt_tool_calls.append({
+                            "id": f"ask_user_{session_id}",
+                            "name": "AskUserQuestion",
+                            "args": {"questions": questions_dump},
+                            "status": "completed"
+                        })
+                    
                     crud.create_message(
                         db,
                         MessageCreate(
                             session_id=session_id,
                             role="assistant",
                             content=clarify_content,
-                            tool_calls=json.dumps([{
-                                "name": "AskUserQuestion",
-                                "args": {"questions": questions}
-                            }], ensure_ascii=False)
+                            tool_calls=json.dumps(interrupt_tool_calls, ensure_ascii=False)
                         )
                     )
                     yield _encode_sse(event)

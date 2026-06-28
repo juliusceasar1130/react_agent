@@ -28,6 +28,13 @@ def test_stream_interrupt_saves_clarification(mock_get_agent_service, mock_creat
     mock_service = MagicMock()
     async def mock_process_stream(*args, **kwargs):
         yield {
+            "type": "tool_call",
+            "id": "tool_load_skill",
+            "name": "load_skill",
+            "args_text": '{"skill": "paint_shop_defect_analysis"}',
+            "status": "completed"
+        }
+        yield {
             "type": "interrupt",
             "questions": [
                 {
@@ -59,6 +66,7 @@ def test_stream_interrupt_saves_clarification(mock_get_agent_service, mock_creat
     assistant_creates = [c for c in called_args if c.role == "assistant"]
     assert len(assistant_creates) == 1
     assert "AskUserQuestion" in assistant_creates[0].tool_calls
+    assert "load_skill" in assistant_creates[0].tool_calls
     assert "确认产线？" in assistant_creates[0].content
 
 @patch("backend.app.api.crud.get_session")
