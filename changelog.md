@@ -1,3 +1,17 @@
+## 2026-06-28 23:12 +08:00 - 优化澄清会话数据链系统化完整关联存储
+
+### 概述
+- **实现澄清数据链条闭环**：重构了流式中断与恢复挂起的消息持久化逻辑，解决工具调用和返回结果的丢失与错位问题。在 `interrupt` 写入消息时补全 `tool_results` 保存；在用户回答落库时倒序查询历史消息以匹配 `AskUserQuestion` 调用 ID 并以此 ID 序列化存储回答；同时在最终结果输出中主动拦截隔离历史澄清提问的返回结果。
+
+### 变更内容
+#### backend/app/api.py [MODIFY]
+- 在 `/stream` 与 `/resume` 路由的中断处理分支中加入 `tool_results` 持久化，补齐 `load_skill` 与 `load_scenario` 的返回数据存储。
+- 在 `/resume` 路由中，通过 `get_messages_by_session` 追溯最近一次 Assistant 的 `AskUserQuestion` 调用 ID，以 `{ask_user_tool_call_id: answers}` 格式保存 User 消息。
+- 在恢复流式循环的 `tool_result` 监听及 `final` 事件中，过滤排除对应的 `ask_user_tool_call_id`，防止其泄露至最终消息。
+
+#### backend/app/test_api_persistence.py [MODIFY]
+- 扩充单元测试，对 `test_stream_interrupt_saves_clarification` 增加 `tool_result` 返回值保存的校验；重构 `test_resume_saves_user_answers` 支持 mock 历史消息并断言 ID 强对齐配对。
+
 ## 2026-06-28 22:36 +08:00 - 修复流式中断挂起场景工具调用完整持久化存储
 
 ### 概述

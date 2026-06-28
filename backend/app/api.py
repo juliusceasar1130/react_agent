@@ -564,6 +564,8 @@ async def stream_message_post(
                     
                     # 完整保存当前收到的工具调用记录（如 load_skill、load_scenario 以及带原生 ID 的 AskUserQuestion）
                     interrupt_tool_calls = list(tool_calls_map.values())
+                    for tc in interrupt_tool_calls:
+                        tc["status"] = "completed"
                     has_ask_user = any(tc.get("name") == "AskUserQuestion" for tc in interrupt_tool_calls)
                     if not has_ask_user:
                         interrupt_tool_calls.append({
@@ -579,7 +581,8 @@ async def stream_message_post(
                             session_id=session_id,
                             role="assistant",
                             content=clarify_content,
-                            tool_calls=json.dumps(interrupt_tool_calls, ensure_ascii=False)
+                            tool_calls=json.dumps(interrupt_tool_calls, ensure_ascii=False),
+                            tool_results=json.dumps(tool_results_data, ensure_ascii=False) if tool_results_data else None
                         )
                     )
                     yield _encode_sse(event)
@@ -769,7 +772,31 @@ async def stream_message_resume(
     if not session:
         raise HTTPException(status_code=404, detail="会话不存在")
 
-    # 持久化保存用户的澄清回答
+    # 查找上一个澄清工具的 ID
+    messages = crud.get_messages_by_session(db, session_id)
+    ask_user_tool_call_id = None
+    for msg in reversed(messages):
+        if msg.role == "assistant" and msg.tool_calls:
+            try:
+                tcs = json.loads(msg.tool_calls)
+                for tc in tcs:
+                    if tc.get("name") == "AskUserQuestion":
+                        ask_user_tool_call_id = tc.get("id")
+                        break
+            except Exception:
+                pass
+        if ask_user_tool_call_id:
+            break
+
+    # 规范保存用户在澄清交互中给出的回答，关联对应的 tool_call_id
+    user_tool_results = None
+    if ask_user_tool_call_id:
+        user_tool_results = json.dumps({
+            ask_user_tool_call_id: json.dumps(chat_request.answers, ensure_ascii=False)
+        }, ensure_ascii=False)
+    else:
+        user_tool_results = json.dumps(chat_request.answers, ensure_ascii=False)
+
     user_answer_text = "; ".join([f"{k}: {v}" for k, v in chat_request.answers.items()])
     crud.create_message(
         db,
@@ -777,7 +804,7 @@ async def stream_message_resume(
             session_id=session_id,
             role="user",
             content=f"[澄清回答] {user_answer_text}",
-            tool_results=json.dumps(chat_request.answers, ensure_ascii=False)
+            tool_results=user_tool_results
         )
     )
 
@@ -853,6 +880,8 @@ async def stream_message_resume(
                     
                     # 完整保存当前收到的工具调用记录（如 load_skill、load_scenario 以及带原生 ID 的 AskUserQuestion）
                     interrupt_tool_calls = list(tool_calls_map.values())
+                    for tc in interrupt_tool_calls:
+                        tc["status"] = "completed"
                     has_ask_user = any(tc.get("name") == "AskUserQuestion" for tc in interrupt_tool_calls)
                     if not has_ask_user:
                         interrupt_tool_calls.append({
@@ -868,7 +897,8 @@ async def stream_message_resume(
                             session_id=session_id,
                             role="assistant",
                             content=clarify_content,
-                            tool_calls=json.dumps(interrupt_tool_calls, ensure_ascii=False)
+                            tool_calls=json.dumps(interrupt_tool_calls, ensure_ascii=False),
+                            tool_results=json.dumps(tool_results_data, ensure_ascii=False) if tool_results_data else None
                         )
                     )
                     yield _encode_sse(event)
@@ -891,7 +921,8 @@ async def stream_message_resume(
 
                 elif event_type == "tool_result":
                     tool_id = event.get("id")
-                    if tool_id and event.get("content") is not None:
+                    # 过滤掉属于上一个澄清提问的 tool_call_id，避免泄漏到最终 Assistant 消息中
+                    if tool_id and tool_id != ask_user_tool_call_id and event.get("content") is not None:
                         tool_results_data[tool_id] = event.get("content")
 
                 elif event_type == "final":
@@ -901,6 +932,11 @@ async def stream_message_resume(
 
                     final_tool_calls = event.get("tool_calls") or list(tool_calls_map.values()) or None
                     final_tool_results = event.get("tool_results") or tool_results_data or None
+                    if final_tool_results and ask_user_tool_call_id:
+                        if isinstance(final_tool_results, dict):
+                            final_tool_results = dict(final_tool_results)
+                            final_tool_results.pop(ask_user_tool_call_id, None)
+
                     logger.info(
                         "收到恢复流的最终事件，tool_calls=%d, tool_results=%d",
                         len(final_tool_calls or []),

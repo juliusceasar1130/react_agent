@@ -35,6 +35,11 @@ def test_stream_interrupt_saves_clarification(mock_get_agent_service, mock_creat
             "status": "completed"
         }
         yield {
+            "type": "tool_result",
+            "id": "tool_load_skill",
+            "content": "skill loaded successfully"
+        }
+        yield {
             "type": "interrupt",
             "questions": [
                 {
@@ -67,14 +72,23 @@ def test_stream_interrupt_saves_clarification(mock_get_agent_service, mock_creat
     assert len(assistant_creates) == 1
     assert "AskUserQuestion" in assistant_creates[0].tool_calls
     assert "load_skill" in assistant_creates[0].tool_calls
+    assert "tool_load_skill" in assistant_creates[0].tool_results
+    assert "skill loaded successfully" in assistant_creates[0].tool_results
     assert "确认产线？" in assistant_creates[0].content
 
+@patch("backend.app.api.crud.get_messages_by_session")
 @patch("backend.app.api.crud.get_session")
 @patch("backend.app.api.crud.create_message")
 @patch("backend.app.api.get_agent_service")
-def test_resume_saves_user_answers(mock_get_agent_service, mock_create_message, mock_get_session):
+def test_resume_saves_user_answers(mock_get_agent_service, mock_create_message, mock_get_session, mock_get_messages_by_session):
     """测试恢复挂起流时，正确将用户的回答保存为 user 消息"""
     mock_get_session.return_value = MagicMock()
+    
+    # 模拟历史澄清消息，以便提取 AskUserQuestion 的 tool_call_id
+    mock_prev_msg = MagicMock()
+    mock_prev_msg.role = "assistant"
+    mock_prev_msg.tool_calls = json.dumps([{"id": "ask_user_call_1", "name": "AskUserQuestion"}])
+    mock_get_messages_by_session.return_value = [mock_prev_msg]
     
     mock_msg = MagicMock()
     mock_msg.id = "resume-msg-id"
@@ -103,6 +117,8 @@ def test_resume_saves_user_answers(mock_get_agent_service, mock_create_message, 
     # 必须保存了用户的回答消息
     assert len(user_creates) == 1
     assert "q1: a1" in user_creates[0].content
+    # 必须以 AskUserQuestion 的 tool_call_id 作为键名序列化保存
+    assert "ask_user_call_1" in user_creates[0].tool_results
     assert "q1" in user_creates[0].tool_results
 
 @patch("backend.app.api.crud.get_session")
