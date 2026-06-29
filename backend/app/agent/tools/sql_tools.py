@@ -323,7 +323,7 @@ def create_sql_example_search_tool(
                 query=question,
                 k=top_k,
                 doc_type="sql_example",
-                domain=None,
+                domain=required_skill,
             )
         except Exception as exc:
             logger.error(

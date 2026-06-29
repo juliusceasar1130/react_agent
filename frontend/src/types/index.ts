@@ -39,6 +39,8 @@ export interface Message {
   tool_results?: string | null
   is_interrupted?: boolean
   questions?: QuestionItem[]
+  feedback?: 'none' | 'like' | 'dislike' | 'collected' | 'approved'
+  refined_payload?: string | null  // LLM 预提纯草稿 JSON 字符串
 }
 
 export interface MessageCreate {
@@ -194,6 +196,7 @@ export interface StreamingMessage {
   error: string | null
   isInterrupted?: boolean
   questions?: QuestionItem[]
+  feedback?: 'none' | 'like' | 'dislike' | 'collected' | 'approved'
 }
 
 // 聊天请求类型 - 2025-01-01

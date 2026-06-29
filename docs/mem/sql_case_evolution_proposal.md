@@ -21,7 +21,7 @@
 
 ## 3. 技术架构设计
 
-本系统将深度复用项目现有的 `FastAPI + LangGraph + PGVector / Milvus` 技术栈，采用**异步解耦**的方案实施，对现有核心对话主链路的侵入降到最低。
+本系统将深度复用项目现有的 `FastAPI + LangGraph + Milvus` 技术栈，采用**异步解耦**的方案实施，对现有核心对话主链路的侵入降到最低。
 
 ### 3.1 总体业务时序图
 
@@ -29,6 +29,7 @@
 sequenceDiagram
     autonumber
     actor User as 用户
+    actor Admin as 管理员
     participant Front as 前端 UI (Vue 3)
     participant Agent as SQL Agent (FastAPI/LangGraph)
     participant Saver as PostgresSaver / DB
@@ -46,16 +47,22 @@ sequenceDiagram
     deactivate Agent
 
     User->>Front: 点击 ⭐ (收藏) 按钮
-    Front->>Agent: POST /api/chat/messages/{id}/feedback (status='collected')
-    Agent->>Saver: 更新 ChatMessage 的 feedback 状态
-    Agent->>MQ: 抛出异步提炼任务 (BackgroundTasks)
+    Front->>Agent: POST /api/chat/messages/{id}/feedback (feedback='collected')
+    Agent->>Saver: 更新 ChatMessage 的 feedback 状态为 'collected'
+
+    Note over Admin, Front: 管理员在审核终端查看待审核案例 (feedback='collected')
+    Admin->>Front: 点击 "批准并入库"
+    Front->>Agent: POST /api/admin/messages/{id}/approve
+    Agent->>Saver: 更新 ChatMessage 的 feedback 状态为 'approved'
+    Agent->>MQ: 抛出异步提炼与写入任务 (BackgroundTasks)
     
     activate MQ
-    MQ->>MQ: 规则初筛 (拦截报错、空集、安全拦截 SQL)
+    MQ->>MQ: 规则初筛 (过滤报错、空结果、安全拦截 SQL)
+    MQ->>Saver: 拓扑回溯获取精准澄清上下文 (基于 tool_call_id 配对)
     MQ->>LLM: 输入多轮上下文、原始 SQL 及 DDL 结构
     LLM->>LLM: 意图重写 (消解指代)、SQL 占位符脱敏
     LLM-->>MQ: 输出标准化案例 (sql_example)
-    MQ->>RAG: 写入向量表 (langchain_pg_embedding, type='sql_example')
+    MQ->>RAG: 通过统一写入适配器写入向量表 (写入 Milvus 向量表)
     deactivate MQ
 ```
 
@@ -66,18 +73,20 @@ sequenceDiagram
 ### 4.1 后端改动清单 (Python/FastAPI)
 
 1.  **模型层** `backend/app/models.py`
-    *   `ChatMessage` 表新增 `feedback` 字段（类型：`String(50)`，默认：`none`，可选值：`none` / `like` / `dislike` / `collected`）。
+    *   `ChatMessage` 表新增 `feedback` 字段（类型：`String(50)`，默认：`none`，可选值：`none` / `like` / `dislike` / `collected` / `approved`）。
 2.  **Schema 层** `backend/app/schemas.py`
-    *   新增 `MessageFeedbackRequest` Pydantic 规范模型，用于接收前端回传的赞踩状态。
+    *   新增 `MessageFeedbackRequest` Pydantic 规范模型，用于接收前端回传的赞踩/收藏状态。
 3.  **CRUD 层** `backend/app/crud.py`
     *   新增 `update_message_feedback(db, message_id, feedback)` 方法。
-    *   新增 `collect_sql_example(db, message_id)` 方法：
-        *   根据消息 ID 获取当前轮前后的 `ChatMessage`（平铺读取，无需解析二进制 checkpoint）。
+    *   新增 `collect_and_save_sql_example(db, message_id)` 方法：
+        *   基于已修复的持久化数据链（`tool_call_id`）精准拓扑回溯，平铺抓取当前轮前后的 `ChatMessage` 上下文。
         *   调用**规则提取器**和**LLM提炼服务**加工数据。
 4.  **API 接口层** `backend/app/api.py`
-    *   新增 `POST /api/chat/messages/{id}/feedback` 路由，更新状态并在响应返回后，通过 `BackgroundTasks` 异步调用 `collect_sql_example`。
-5.  **检索器适配层** `backend/app/agent/vector/pgvector/pgvector_retriever.py`
-    *   放开对 `doc_type` 过滤的硬编码限制（目前强行过滤为 `documentation`），支持在检索 `sql_example` 时精准传递 `doc_type` 参数。
+    *   新增 `POST /api/chat/messages/{id}/feedback` 路由，支持用户更改赞踩或将状态标记为 `'collected'`。
+    *   新增管理员接口 `POST /api/admin/messages/{id}/approve`，批准通过后，更新状态为 `'approved'`，并在响应返回后，通过 `BackgroundTasks` 异步调用 `collect_and_save_sql_example`。
+5.  **检索器与向量写入适配层** (factory.py / milvus_retriever.py)
+    *   放开检索器对 `doc_type` 过滤的硬编码限制，支持检索 `sql_example`。
+    *   新增向量写入辅助函数 `add_document_to_store`，将提炼后的数据序列化并写入 Milvus 向量库，与现有 Milvus Hybrid 检索器保持完全一致。
 
 ### 4.2 前端改动清单 (Vue 3 / Vite)
 
@@ -102,15 +111,19 @@ sequenceDiagram
 
 ### 5.2 场景二：LLM 分多步骤查询并给出最终结论
 *   **问题**：大模型需要执行两次以上的不同查询才能凑齐最终结论（例如：步骤 A 先生成 SQL 查到特定车身的位置 ID，步骤 B 再生成 SQL 查询该位置的具体工艺配置）。
-*   **对策（多步组合收集规则）**：提取器收集当前交互回合内所有成功执行的 `tool_calls` 及其结果，组合成一个有序的 `steps` 列表打包给后台。LLM 提炼 Agent 会将其整合并沉淀为一个“多步骤 Few-shot 案例”，指导智能体进行链式推理。如果追求极简，也可以在检测到多步 SQL 时直接丢弃，仅保留简单单步案例。
+*   **对策（极简舍弃策略）**：多步链式推理的 Few-shot 构造及大模型检索引用复杂度极高。本系统在第一阶段采用**极简舍弃策略**，规则提取器在检测到单个交互回合内成功执行了多次不同的 `sql_db_query` 时，直接判定为多步场景并舍弃该回合，不予以沉淀。系统将 100% 的精力专注于沉淀和提炼**单表/多表复杂关联的单步黄金查询案例**，这已能覆盖 95% 以上的长尾生产问题。
 
 ### 5.3 场景三：用户的一个意图需要多轮对话完成（澄清与补充提问）
 *   **问题**：
     *   *澄清交互*：用户问“昨天出了多少台流挂车”，Agent 澄清“请问是一产线还是二产线？”，用户回答“二产线”，Agent 最终查数回答。
     *   *补充提问*：用户问“昨天一产线有多少流挂车”，Agent 回答后，用户接着追问“那二产线呢？”。
-*   **对策（会话上下文回溯与 LLM 改写规则）**：
-    1.  **规则回溯**：当提取器逆向遍历发现本轮包含澄清交互（如调用了 `AskUserQuestion`）或用户最新提问过短时，自动向上多抓取 2-3 轮的完整对话消息链进行打包。
-    2.  **LLM 意图重写**：后台 LLM 接收到多轮原始数据后，执行“指代消解与意图重写”，将碎片化的多轮提问，融合改写为语义完整、可供检索的独立标准意图（例如“查询昨天二产线面漆段流挂缺陷的车辆总数”）。
+*   **对策（基于结构化 ID 的精准拓扑回溯与 LLM 改写）**：
+    1.  **精准拓扑回溯**：由于系统已修复流式中断的持久化机制（澄清工具 `AskUserQuestion` 的原生 ID 会完整写入 Assistant 的 `tool_calls`，且用户答案会以该 ID 为键存储在 User 消息的 `tool_results` 中），提取器可实现 100% 精准的拓扑回溯：
+        *   从当前成功的 Assistant 消息出发，向上寻找最近的 User 消息；
+        *   解析 User 消息的 `tool_results`，若包含 `AskUserQuestion` 的 ID，则追溯到上一个 Assistant 澄清消息；
+        *   继续向上追溯到触发澄清的原始 User 提问。
+        这形成了极其干净、逻辑完备的多轮上下文链条，工作效率大幅提升。
+    2.  **LLM 意图重写**：后台 LLM 接收到结构化链条数据后，执行“指代消解与意图重写”，将碎片化的提问与澄清融合改写为语义完整、可供单次语义检索的独立标准意图（例如“查询昨天二产线面漆段流挂缺陷的车辆总数”）。
 
 ### 5.4 场景四：SQL 执行成功，但数据库返回空结果 (Empty ResultSet)
 *   **问题**：生成的 SQL 语法完全正确且执行成功，但因为数据库里没有该车身数据或昨天没有发生该缺陷，导致返回空集 `[]`。空案例的 Few-shot 参考价值极低。
@@ -135,36 +148,30 @@ sequenceDiagram
 
 为了防止脏 SQL 和劣质数据灌入库中，系统提供**“半自动沉淀（人机协同）”**的安全缓冲机制：
 
-*   **待审核暂存表** `pending_cases`：
-    当用户在前台点击 ⭐（收藏）时，后端通过规则抓取并由后台 LLM 提炼出的 JSON 数据，不直接写入 `PGVector` 向量库，而是先写入普通 PostgreSQL 数据库表 `pending_cases` 中，其状态设为 `pending`。
-*   **人机审核终端**：
-    可在系统管理端界面中提供一个轻量级面板，展示：“用户原始提问”、“LLM 提炼意图”、“生成的 SQL”、“执行的数据结果”。管理员可以一键点击“审核通过并入库”（此时触发 `PGVector.add_documents()` 动作并把状态标为 `approved`），或者在输入框中对 SQL/意图进行微调后再入库。这能确保向量案例库的准确度保持在 100%。
+*   **复用 `ChatMessage` 表作为审核队列**：
+    不新建独立的 `pending_cases` 暂存表。当用户在前台点击 ⭐（收藏）时，后端仅更新该消息的 `feedback` 字段为 `'collected'`。
+*   **前置异步初筛与预提炼**：
+    收藏动作触发后，后台立即拉起异步任务运行规则过滤和 LLM 提炼（指代消解与 SQL 脱敏），将合格案例的重写文本和参数化 SQL 草稿保存至 `refined_payload`；如果规则过滤器拦截，自动将状态退回为 `'none'` 移出队列。
+*   **轻量化审核终端**：
+    管理端提供一个轻量级面板，拉取所有 `feedback == 'collected'` 的消息，直接展示 LLM 预先提炼好的“意图草稿”和“脱敏 SQL 模板”。管理员确认无误或轻微订正后，点击“确认入库”，后端同步 0 延迟写入 Milvus 并将消息状态置为 `'approved'`。这保证了高安全性的同时也极大地减轻了管理员的人工编写负担。
 
 ---
 
-## 7. 数据失效与 DDL 漂移应对方案
-
-当系统更新、数据库表结构（DDL）发生变化时，旧案例可能会变成“毒药”。
-*   **例行校验机制**：设计一个每天深夜执行的异步巡检脚本，遍历向量库中的所有 `sql_example`。
-*   **自动化测试**：对每个案例运行 `EXPLAIN SELECT ...`：
-    *   若执行成功，说明该案例依然有效。
-    *   若执行失败（报错如表不存在、列不存在），则说明该案例因 DDL 漂移而过时，自动将其状态标记为 `inactive`（下线）并向管理员发出告警。
-
----
-
-## 8. 分阶段实施路线图 (Phased Implementation Roadmap)
+## 7. 分阶段实施路线图 (Phased Implementation Roadmap)
 
 为了不对现有系统的稳定性造成冲击，建议采取“渐进式开发”：
 
-*   **第一阶段（数据准备与提取，第 1-2 周）**：
-    *   修改后端模型 `models.py`（新增 `feedback` 字段），开发 `POST /api/chat/messages/{id}/feedback` 路由。
+*   **第一阶段（反馈收集基础建设与落库，已完成）**：
+    *   修改后端模型 `models.py`（新增 `feedback` 字段状态 `'collected'` / `'approved'`），开发 `POST /api/chat/messages/{id}/feedback` 反馈保存接口。
     *   在前端 `MessageItem.vue` 中渲染 👍 / 👎 / ⭐ 按钮，并打通前端到后端的反馈保存逻辑。
-    *   开发后台的**规则过滤提取器**，将用户点击 ⭐ 的对话内容整理成原始 JSON 数据暂存，进行质量和吞吐量观察。
-*   **第二阶段（审核页面与自动提炼，第 3 周）**：
-    *   开发后台 LLM 提炼 Agent（意图改写、SQL脱敏参数替换）。
-    *   建立暂存表 `pending_cases`，完成“点击收藏 ➔ LLM提炼 ➔ 暂存待审核”的整条链路。
-    *   在系统管理端提供极简的“案例审核列表”页面，支持开发和业务骨干手动确认或微调 SQL。
-*   **第三阶段（向量入库与在线检索，第 4 周）**：
-    *   重构 `PgVectorDocumentationRetriever` 对 `sql_example` 的硬编码限制。
-    *   打通“审核通过 ➔ 写入 PGVector”链路。
-    *   在 Agent 执行图里启用 `FewShotMiddleware`，在生成 SQL 前动态加载 Top-2 相似案例作为 reference，跑通闭环。
+*   **第二阶段（规则提取器管道与拓扑精准回溯，已完成）**：
+    *   开发后台的**规则过滤提取器**，验证在用户点击 ⭐ 时能够基于 `tool_call_id` 正确地进行多轮拓扑回溯。
+*   **第三阶段（管理员审批、LLM 意图提炼与 Milvus 写入，已完成）**：
+    *   新增 `refined_payload` 字段，用于临时存储提纯草稿。
+    *   重构反馈接口在 collected 时拉起前置异步提炼任务，并重构审批接口支持同步 0 延迟落库 Milvus。
+    *   在 `factory.py` 中开发 `add_document_to_store` 向量写入适配器，负责写入到 Milvus 向量库。
+*   **第四阶段（管理端审核终端与接口配套，已完成）**：
+    *   新增后端接口 `GET /api/chat/admin/messages/pending` 拉取待审核案例。
+    *   开发前端 `AdminReviewPanel.vue` 组件与 `ChatView.vue` 头部切换按钮，实现管理员对案例草稿的可视化订正和一键导入。
+*   **第五阶段（大模型自主案例检索工具优化，未开始）**：
+    *   优化 `search_saved_correct_tool_uses` 检索工具定义，将 `required_skill` 透传给检索器执行业务域硬隔离。

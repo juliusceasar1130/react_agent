@@ -1,3 +1,84 @@
+## 2026-06-29 16:30 +08:00 - 优化 DomainFilter 业务域提取与管道过滤拦截日志
+
+### 概述
+- **过滤管道拦截日志增强**：
+  在规则过滤管道 `PipelineManager` 中引入了结构化的拦截警告日志。当案例提纯初筛未通过任一过滤器原则时，后台日志将精准打印出具体的过滤器类名（如 `SafetyWarningFilter` / `SingleSqlFilter`）和不符合原则的 reject 详情原因，极大地方便了开发和运维人员定位和审计提炼失败的根本原因。
+- **业务域提取管道过滤优化**：
+  优化了规则提取管道中的业务域提取器 `DomainFilter`。针对在真实环境中 `load_skill` 参数键名为 `skill_name` 导致的 `domain` 丢失为 `None` 的问题，重新设计了优先顺序级联抓取策略。
+  1. 优先从 `sql_db_query` 工具调用的 `required_skill` 字段进行直接精准提取（直咬合 SQL 执行生命周期）。
+  2. 若无 SQL 动作，则退而求其次寻找 `load_skill` 调用，双重兼容并提取 `skill_name` 或 `skill` 参数。
+  3. 最终提供 `"general"` 作为默认降级保护，全面根治了 Milvus 向量入库时 `domain` 出现 `None` 值的缺陷。
+- **补齐提取测试断言**：在 `test_rule_extractor.py` 中对 `test_domain_filter` 增加了多渠道（`required_skill` 与 `skill_name`）覆盖测试用例，全方位验证提取逻辑的高保真与兼容性。
+
+### 变更内容
+#### backend/app/agent/vector/rule_extractor.py [MODIFY]
+- 重构 `DomainFilter.execute` 成员函数，编写级联抽取逻辑并添加健壮性 JSON 字典解析及类型保障，完美防护空域与 `None` 值。
+
+#### backend/app/agent/vector/test_rule_extractor.py [MODIFY]
+- 扩展 `test_domain_filter` 单元测试用例，覆盖 `sql_db_query.required_skill` 提取分支以及 `load_skill.skill_name` 提取分支。
+
+## 2026-06-29 12:30 +08:00 - 实现管理员审批接口、后台异步 LLM 意图提炼与 Milvus 写入
+
+### 概述
+- **第三阶段：管理员审批、LLM 意图提炼与 Milvus 写入**：
+  实现了管理员审批入库接口，支持管理员可选进行意图与 SQL 的微调纠错；集成了后台异步处理管道，通过 FastAPI `BackgroundTasks` 拉起 LLM 重写与脱敏服务；设计了后台 LLM 提炼模型（`llm_refiner.py`）进行多轮会话指代消解与字面值占位符脱敏，并配置了安全降级退回策略；在 `factory.py` 中实现了 `add_document_to_store` 向量写入适配层，支持 LlamaIndex 写入 Milvus Hybrid Collection。
+
+### 变更内容
+#### backend/app/schemas.py [MODIFY]
+- 新增 `MessageApproveRequest` 请求 Schema，以支持管理员的可选改写参数。
+
+#### backend/app/api.py [MODIFY]
+- 新增 `POST /api/chat/admin/messages/{message_id}/approve` 审批接口。
+- 实现 `process_collected_message_async` 异步处理管道，整合规则初筛、LLM 提纯和向量写入。
+
+#### backend/app/agent/vector/llm_refiner.py [NEW]
+- 实现大模型意图消解重写与 SQL 字面值脱敏函数 `refine_sql_case_with_llm`，具备防崩溃自动回退机制。
+
+#### backend/app/agent/vector/test_llm_refiner.py [NEW]
+- 编写提炼服务测试，验证大模型正常提炼以及异常连接时的平稳降级行为。
+
+#### backend/app/agent/vector/factory.py [MODIFY]
+- 新增统一向量存储适配器函数 `add_document_to_store`，完美支持 Milvus 及 PgVector。
+
+#### backend/app/test_api_persistence.py [MODIFY]
+- 新增审批路由 API 测试以及异步提炼写入全集成联调测试 `test_process_collected_message_async_integration`。
+
+## 2026-06-29 11:39 +08:00 - 实现用户反馈收集基建与规则提取过滤器管道和拓扑精准回溯
+
+### 概述
+- **第一阶段：用户反馈收集基础建设与落库**：
+  在后端 `ChatMessage` 模型中扩展了 `feedback` 列，提供 `MessageFeedbackRequest` 反馈打标校验并在 API 中开放了状态同步路由；在前端 Vue 消息卡片底端集成了“赞/踩/收藏”高亮操作按钮并打通了实时状态落库逻辑。修复了脱机运行下 `test_api_resume.py` 对 `get_messages_by_session` 的 Mock 缺失问题，保证测试全绿。
+- **第二阶段：规则提取器与拓扑精准回溯**：
+  新增了基于 Pipeline-Filter 设计模式的规则过滤器模块，定义了任务上下文与管道管理器，依次实现四大静态规则过滤器（安全检测、空结果判定、多步/报错 SQL 单步拦截舍弃以及业务域隔离）；特别实现了 `TopologyBacktrackFilter` 基于原生 `tool_call_id` 自动咬合还原包含澄清问答历史的多轮对话意图；编写了 8 项独立 TDD 测试用例全面覆盖各过滤分支与链路集成校验。
+
+### 变更内容
+#### backend/app/models.py [MODIFY]
+- 为 `ChatMessage` 实体模型追加 `feedback` 字段。
+
+#### backend/app/schemas.py [MODIFY]
+- 在消息响应基类中注入 `feedback` 序列化结构，并提供 `MessageFeedbackRequest`。
+
+#### backend/app/crud.py [MODIFY]
+- 实现 `update_message_feedback` 数据状态持久化修改方法。
+
+#### backend/app/api.py [MODIFY]
+- 发布 `POST /api/chat/messages/{message_id}/feedback` 路由响应用户点击反馈。
+
+#### backend/app/test_api_persistence.py & test_api_resume.py [MODIFY]
+- 补齐反馈 API 的 TDD 测试案例。为 `test_resume_endpoint_success` 修复 offline 状态下 missing mock 导致的 db 连接失败问题。
+
+#### backend/app/agent/vector/rule_extractor.py [NEW]
+- 创建规则提取上下文、管道控制器及五大过滤器校验器（`SafetyWarningFilter`, `EmptyResultFilter`, `SingleSqlFilter`, `TopologyBacktrackFilter`, `DomainFilter`），定义 `DEFAULT_EXTRACTOR_PIPELINE`。
+
+#### backend/app/agent/vector/test_rule_extractor.py [NEW]
+- 编写 8 个测试用例，覆盖过滤器的校验和拓扑回溯意图合成的完整链路。
+
+#### frontend/src/types/index.ts, src/api/messages.ts, src/stores/messages.ts [MODIFY]
+- 注入 `feedback` 可选属性，导出 axios 交互 API，并在 Pinia store 中新增 `submitMessageFeedback` action 驱动。
+
+#### frontend/src/components/MessageItem.vue [MODIFY]
+- 为 AI 消息卡片集成了 👍、👎、⭐ 高亮交互按钮，成功通过 `vue-tsc` 的强类型编译及打包检查。
+
 ## 2026-06-28 23:12 +08:00 - 优化澄清会话数据链系统化完整关联存储
 
 ### 概述

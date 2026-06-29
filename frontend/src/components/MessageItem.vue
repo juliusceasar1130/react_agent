@@ -198,7 +198,46 @@
         </div>
       </div>
 
+      <!-- 反馈操作按钮与时间状态展示行 -->
       <div
+        v-if="!isUser && !isStreamingActive && props.message.id && !props.message.id.startsWith('temp-')"
+        class="flex items-center justify-between px-5 pb-3.5 pt-0 text-neutral-400 border-t border-neutral-100/50 mt-1"
+      >
+        <div class="flex items-center gap-4 mt-2">
+          <button
+            type="button"
+            class="transition-colors duration-150 hover:text-primary active:scale-95 flex items-center gap-1.5 text-xs text-neutral-500 font-medium bg-transparent border-none cursor-pointer"
+            :class="{ 'text-primary !font-semibold': props.message.feedback === 'like' }"
+            @click="handleFeedback('like')"
+          >
+            👍 <span class="hidden sm:inline">赞</span>
+          </button>
+          <button
+            type="button"
+            class="transition-colors duration-150 hover:text-rose-500 active:scale-95 flex items-center gap-1.5 text-xs text-neutral-500 font-medium bg-transparent border-none cursor-pointer"
+            :class="{ 'text-rose-500 !font-semibold': props.message.feedback === 'dislike' }"
+            @click="handleFeedback('dislike')"
+          >
+            👎 <span class="hidden sm:inline">踩</span>
+          </button>
+          <button
+            type="button"
+            class="transition-colors duration-150 hover:text-amber-500 active:scale-95 flex items-center gap-1.5 text-xs text-neutral-500 font-medium bg-transparent border-none cursor-pointer"
+            :class="{ 'text-amber-500 !font-semibold': props.message.feedback === 'collected' || props.message.feedback === 'approved' }"
+            @click="handleFeedback(props.message.feedback === 'collected' || props.message.feedback === 'approved' ? 'none' : 'collected')"
+          >
+            ⭐ <span class="hidden sm:inline">{{ props.message.feedback === 'collected' || props.message.feedback === 'approved' ? '已收藏' : '收藏' }}</span>
+          </button>
+        </div>
+        <div class="flex items-center gap-1 mt-2" :class="timeClass">
+          <svg class="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+          <span class="text-xs">{{ formattedTime }}</span>
+        </div>
+      </div>
+      <div
+        v-else
         class="flex items-center justify-end gap-1.5 px-4 pb-2.5 pt-0"
         :class="timeClass"
       >
@@ -218,6 +257,7 @@ import AskUserQuestionCard from '@/components/AskUserQuestionCard.vue'
 import { useChatStream } from '@/composables/useChatStream'
 import { triggerExportDownload } from '@/api/exports'
 import { CHAT_DEBUG_STREAM } from '@/config/chat'
+import { useMessagesStore } from '@/stores/messages'
 import type {
   ChartArtifactRef,
   ExportArtifact,
@@ -551,4 +591,15 @@ const formattedTime = computed(() => {
   if (isStreamingActive.value) return '正在生成...'
   return formatTime(props.message.created_at)
 })
+
+const messagesStore = useMessagesStore()
+
+const handleFeedback = async (feedbackType: 'none' | 'like' | 'dislike' | 'collected' | 'approved') => {
+  if (!props.message.id) return
+  try {
+    await messagesStore.submitMessageFeedback(props.message.id, feedbackType)
+  } catch (err) {
+    console.error('Submit feedback failed:', err)
+  }
+}
 </script>

@@ -128,6 +128,26 @@ def get_message(db: Session, message_id: str) -> Optional[ChatMessage]:
     return db.query(ChatMessage).filter(ChatMessage.id == message_id).first()
 
 
+def update_message_feedback(db: Session, message_id: str, feedback: str) -> Optional[ChatMessage]:
+    """更新指定消息的反馈状态"""
+    db_message = get_message(db, message_id)
+    if db_message:
+        db_message.feedback = feedback
+        db.commit()
+        db.refresh(db_message)
+    return db_message
+
+
+def update_message_refined_payload(db: Session, message_id: str, payload: str) -> Optional[ChatMessage]:
+    """更新指定消息的提纯草稿数据"""
+    db_message = get_message(db, message_id)
+    if db_message:
+        db_message.refined_payload = payload
+        db.commit()
+        db.refresh(db_message)
+    return db_message
+
+
 def get_messages_by_session(db: Session, session_id: str) -> List[ChatMessage]:
     """获取指定会话的所有消息"""
     return (
@@ -155,3 +175,13 @@ def delete_messages_by_session(db: Session, session_id: str) -> int:
     )
     db.commit()
     return deleted_count
+
+
+def get_collected_messages(db: Session) -> List[ChatMessage]:
+    """获取所有标记为 collected 待审核状态的消息，按创建时间倒序"""
+    return (
+        db.query(ChatMessage)
+        .filter(ChatMessage.feedback == "collected")
+        .order_by(ChatMessage.created_at.desc())
+        .all()
+    )

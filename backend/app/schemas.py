@@ -12,6 +12,8 @@ class MessageBase(BaseModel):
     session_id: str
     tool_calls: Optional[str] = None  # JSON字符串
     tool_results: Optional[str] = None  # JSON字符串
+    feedback: str = "none"
+    refined_payload: Optional[str] = None  # LLM 预提纯后的 json 字符串
 
     # 允许从 ORM 实例（SQLAlchemy 模型）创建 Pydantic 模型
     model_config = ConfigDict(from_attributes=True)
@@ -198,3 +200,14 @@ def serialize_chat_stream_event(event: Any) -> Dict[str, Any]:
     """校验并序列化项目统一的结构化流式事件。"""
     validated_event = _chat_stream_event_adapter.validate_python(event)
     return validated_event.model_dump(mode="json", exclude_none=True)
+
+
+class MessageFeedbackRequest(BaseModel):
+    """客户端提交赞/踩/收藏状态的请求体"""
+    feedback: str  # none, like, dislike, collected, approved
+
+
+class MessageApproveRequest(BaseModel):
+    """管理员审批并入库黄金案例的请求体"""
+    custom_query: Optional[str] = None
+    custom_sql: Optional[str] = None

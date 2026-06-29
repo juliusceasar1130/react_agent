@@ -13,13 +13,15 @@ def test_resume_endpoint_not_found():
     response = client.post("/api/chat/resume", json={})
     assert response.status_code == 422
 
+@patch("backend.app.api.crud.get_messages_by_session")
 @patch("backend.app.api.crud.get_session")
 @patch("backend.app.api.crud.create_message")
 @patch("backend.app.api.get_agent_service")
-def test_resume_endpoint_success(mock_get_agent_service, mock_create_message, mock_get_session):
+def test_resume_endpoint_success(mock_get_agent_service, mock_create_message, mock_get_session, mock_get_messages_by_session):
     # Mock get_session 返回非空
     mock_session = MagicMock()
     mock_get_session.return_value = mock_session
+    mock_get_messages_by_session.return_value = []
     
     # Mock create_message 避免外键约束报错
     mock_msg = MagicMock()

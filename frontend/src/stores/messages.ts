@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import { getMessagesBySessionApi, createMessageApi, deleteMessageApi } from '@/api/messages'
+import { getMessagesBySessionApi, createMessageApi, deleteMessageApi, submitMessageFeedbackApi } from '@/api/messages'
 import type {
   FinalizedStreamingMessage,
   Message,
@@ -78,6 +78,19 @@ export const useMessagesStore = defineStore('messages', () => {
       throw err
     } finally {
       loading.value = false
+    }
+  }
+
+  const submitMessageFeedback = async (messageId: string, feedback: 'none' | 'like' | 'dislike' | 'collected' | 'approved') => {
+    try {
+      const updatedMessage = await submitMessageFeedbackApi(messageId, feedback)
+      const index = messages.value.findIndex(m => m.id === messageId)
+      if (index !== -1) {
+        messages.value[index] = { ...messages.value[index], feedback: updatedMessage.feedback }
+      }
+    } catch (err) {
+      console.error('提交消息反馈失败', err)
+      throw err
     }
   }
 
@@ -302,6 +315,7 @@ export const useMessagesStore = defineStore('messages', () => {
     fetchMessages,
     createMessage,
     deleteMessage,
+    submitMessageFeedback,
     clearMessages,
     // 流式消息管理 - 2025-01-01
     startStreamingMessage,

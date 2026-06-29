@@ -191,3 +191,215 @@ def test_non_stream_exception_saves_error_message(mock_get_agent_service, mock_c
     called_args = [args[0][1] for args in mock_create_message.call_args_list]
     error_creates = [c for c in called_args if c.role == "assistant" and "错误: Database Timeout" in c.content]
     assert len(error_creates) == 1
+
+def test_message_feedback_schema_and_model():
+    """测试反馈相关的 Pydantic 校验和 SQLAlchemy 模型字段定义"""
+    from backend.app.schemas import MessageResponse, MessageFeedbackRequest
+    from backend.app.models import ChatMessage
+
+    # 1. 验证 MessageFeedbackRequest 能够正确实例化
+    req = MessageFeedbackRequest(feedback="collected")
+    assert req.feedback == "collected"
+
+    # 2. 验证 MessageResponse 支持 feedback 属性且默认值为 "none"
+    res = MessageResponse(
+        id="msg-1",
+        role="assistant",
+        content="hello",
+        session_id="sess-1",
+        feedback="collected",
+        refined_payload='{"rewritten_query": "q"}',
+        created_at=datetime.now() if "datetime" in globals() else MagicMock()
+    )
+    assert res.feedback == "collected"
+    assert res.refined_payload == '{"rewritten_query": "q"}'
+
+    # 3. 验证 SQLAlchemy ChatMessage 模型具备 feedback 字段定义
+    msg = ChatMessage(role="assistant", content="hello", session_id="sess-1")
+    assert hasattr(msg, "feedback")
+    assert hasattr(msg, "refined_payload")
+
+@patch("backend.app.crud.get_message")
+def test_update_message_feedback_crud(mock_get_message):
+    """测试 crud.update_message_feedback 方法"""
+    from backend.app.crud import update_message_feedback
+    
+    mock_msg = MagicMock()
+    mock_msg.feedback = "none"
+    mock_get_message.return_value = mock_msg
+    
+    mock_db = MagicMock()
+    result = update_message_feedback(mock_db, "msg-123", "like")
+    
+    assert result.feedback == "like"
+    mock_get_message.assert_called_once_with(mock_db, "msg-123")
+    mock_db.commit.assert_called_once()
+    mock_db.refresh.assert_called_once_with(mock_msg)
+
+
+@patch("backend.app.crud.get_message")
+def test_update_message_refined_payload_crud(mock_get_message):
+    """测试 crud.update_message_refined_payload 方法"""
+    from backend.app.crud import update_message_refined_payload
+    
+    mock_msg = MagicMock()
+    mock_msg.refined_payload = None
+    mock_get_message.return_value = mock_msg
+    
+    mock_db = MagicMock()
+    result = update_message_refined_payload(mock_db, "msg-123", '{"rewritten_query": "q"}')
+    
+    assert result.refined_payload == '{"rewritten_query": "q"}'
+    mock_get_message.assert_called_once_with(mock_db, "msg-123")
+    mock_db.commit.assert_called_once()
+    mock_db.refresh.assert_called_once_with(mock_msg)
+
+from datetime import datetime
+
+@patch("backend.app.api.process_collected_message_async")
+@patch("backend.app.api.crud.update_message_feedback")
+def test_post_message_feedback_endpoint(mock_update_message_feedback, mock_bg_task):
+    """测试 POST /api/chat/messages/{id}/feedback 接口"""
+    mock_msg = MagicMock()
+    mock_msg.id = "msg-123"
+    mock_msg.role = "assistant"
+    mock_msg.content = "hello"
+    mock_msg.session_id = "sess-1"
+    mock_msg.feedback = "collected"
+    mock_msg.refined_payload = None
+    mock_msg.tool_calls = None
+    mock_msg.tool_results = None
+    mock_msg.created_at = datetime.now()
+    mock_update_message_feedback.return_value = mock_msg
+
+    client = TestClient(app)
+    response = client.post(
+        "/api/chat/messages/msg-123/feedback",
+        json={"feedback": "collected"}
+    )
+    assert response.status_code == 200
+    assert response.json()["feedback"] == "collected"
+    mock_update_message_feedback.assert_called_once()
+    mock_bg_task.assert_called_once_with(message_id="msg-123")
+
+
+def test_approve_message_endpoint():
+    """测试管理员批准消息接口，直接读取草稿/微调数据同步落库"""
+    from unittest.mock import patch, MagicMock
+    from fastapi.testclient import TestClient
+    from backend.app.main import app
+    import json
+    
+    # Mock 数据库查询返回带有 refined_payload 的 collected 状态消息
+    mock_msg = MagicMock()
+    mock_msg.id = "msg-collected-1"
+    mock_msg.feedback = "collected"
+    mock_msg.refined_payload = json.dumps({
+        "rewritten_query": "默认提炼的问题",
+        "desensitized_sql": "SELECT * FROM users",
+        "domain": "general"
+    })
+    
+    # Mock crud 中的 get_message 与 update_message_feedback
+    with patch("backend.app.api.crud.get_message", return_value=mock_msg), \
+         patch("backend.app.api.crud.update_message_feedback") as mock_update_feedback, \
+         patch("backend.app.agent.vector.factory.add_document_to_store") as mock_add_doc:
+         
+        client = TestClient(app)
+        response = client.post(
+            "/api/chat/admin/messages/msg-collected-1/approve",
+            json={"custom_query": "改写的问题", "custom_sql": "SELECT 1"}
+        )
+        
+        assert response.status_code == 200
+        assert response.json()["status"] == "success"
+        mock_update_feedback.assert_called_once()
+        _, kwargs = mock_update_feedback.call_args
+        assert kwargs["message_id"] == "msg-collected-1"
+        assert kwargs["feedback"] == "approved"
+        
+        # 验证写入向量库的是管理员微调订正后的最终版本
+        mock_add_doc.assert_called_once_with(
+            text="改写的问题",
+            metadata={
+                "type": "sql_example",
+                "sql": "SELECT 1",
+                "domain": "general"
+            }
+        )
+
+
+@patch("backend.app.crud.update_message_refined_payload")
+@patch("backend.app.agent.vector.llm_refiner.refine_sql_case_with_llm")
+def test_process_collected_message_async_integration(mock_refine, mock_update_payload):
+    """测试异步提取、提纯并将草稿保存到数据库的流程"""
+    from backend.app.api import process_collected_message_async
+    from unittest.mock import MagicMock, patch
+    import json
+    
+    # Mock 数据库查询返回目标消息
+    m_target = MagicMock()
+    m_target.id = "m_target"
+    m_target.session_id = "sess-1"
+    m_target.tool_calls = json.dumps([
+        {"id": "sql-1", "name": "sql_db_query", "args": {"query": "SELECT * FROM users"}}
+    ])
+    m_target.tool_results = json.dumps({"sql-1": "[{'id': 1}]"})
+    
+    m_user = MagicMock()
+    m_user.id = "m_user"
+    m_user.role = "user"
+    m_user.content = "查用户"
+    
+    # Mock 数据库拉取会话历史
+    mock_history = [m_user, m_target]
+    
+    # Mock LLM 返回
+    mock_refine.return_value = ("提炼的问题", "SELECT * FROM users")
+    
+    with patch("backend.app.api.crud.get_message", return_value=m_target), \
+         patch("backend.app.agent.vector.rule_extractor.get_messages_by_session", return_value=mock_history), \
+         patch("backend.app.api.crud.update_message_feedback") as mock_update_feedback:
+         
+         process_collected_message_async("m_target")
+         
+         # 断言 LLM 提炼被调用
+         mock_refine.assert_called_once_with("查用户", "SELECT * FROM users")
+         # 断言更新草稿被调用，且不调用 add_document_to_store
+         mock_update_payload.assert_called_once()
+         
+         # 检查草稿的 json 内容
+         args, kwargs = mock_update_payload.call_args
+         payload_str = kwargs.get("payload") or args[2]
+         payload_data = json.loads(payload_str)
+         assert payload_data["rewritten_query"] == "提炼的问题"
+         assert payload_data["desensitized_sql"] == "SELECT * FROM users"
+         assert payload_data["domain"] == "general"
+         
+         # 断言没有发生状态退回
+         mock_update_feedback.assert_not_called()
+
+
+@patch("backend.app.api.crud.get_collected_messages")
+def test_get_pending_messages_endpoint(mock_get_collected):
+    """测试 GET /api/chat/admin/messages/pending 接口"""
+    from datetime import datetime
+    mock_msg = MagicMock()
+    mock_msg.id = "msg-collected-1"
+    mock_msg.role = "assistant"
+    mock_msg.content = "hello"
+    mock_msg.session_id = "sess-1"
+    mock_msg.feedback = "collected"
+    mock_msg.refined_payload = '{"rewritten_query": "q", "desensitized_sql": "s"}'
+    mock_msg.tool_calls = None
+    mock_msg.tool_results = None
+    mock_msg.created_at = datetime.now()
+
+    mock_get_collected.return_value = [mock_msg]
+
+    client = TestClient(app)
+    response = client.get("/api/chat/admin/messages/pending")
+    assert response.status_code == 200
+    assert len(response.json()) == 1
+    assert response.json()[0]["feedback"] == "collected"
+    assert response.json()[0]["refined_payload"] == '{"rewritten_query": "q", "desensitized_sql": "s"}'

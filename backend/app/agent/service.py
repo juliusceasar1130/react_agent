@@ -431,7 +431,7 @@ def _build_system_prompt(db: MaterializedViewSQLDatabase) -> str:
 # 工作流程
 1. 使用load_skill加载相关业务领域技能
 2. 若属于固定统计/报表/流程场景，优先使用load_scenario加载场景技能
-3. 若未加载场景技能，使用search_saved_correct_tool_uses检索相似历史SQL示例（已加载场景技能时不推荐此步骤）
+3. 若未加载场景技能，推荐使用search_saved_correct_tool_uses检索相似历史SQL示例（已加载场景技能时不推荐此步骤）
 4. 结合skill信息、场景信息和历史示例，编写SQL查询
 5. 使用sql_db_query执行查询（自动语法检查）
 6. 验证结果是否符合用户请求，必要时迭代（最多3次）

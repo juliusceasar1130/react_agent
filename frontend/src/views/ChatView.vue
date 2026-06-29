@@ -74,6 +74,14 @@
                   <span>关于</span>
                 </button>
                 <button
+                  @click="toggleAdminReview()"
+                  class="flex items-center gap-1.5 rounded-full border border-neutral-200 bg-white px-3 py-2 text-xs font-semibold text-neutral-600 shadow-sm transition-all duration-200 whitespace-nowrap"
+                  :class="showAdminReview ? 'border-amber-300 bg-amber-50 text-amber-700' : 'hover:bg-neutral-50'"
+                >
+                  <span>⚙️</span>
+                  <span>{{ showAdminReview ? '返回对话' : '审核终端' }}</span>
+                </button>
+                <button
                   @click="toggleBento()"
                   class="flex items-center gap-1.5 rounded-full border border-primary/20 bg-primary/5 px-3 py-2 text-xs font-bold text-primary transition-all duration-200 hover:bg-primary hover:text-white shadow-glow whitespace-nowrap"
                 >
@@ -84,7 +92,10 @@
             </div>
           </header>
 
-          <div class="relative flex min-h-0 flex-1 flex-col px-3 pb-3 pt-3 sm:px-5 lg:px-8 lg:pb-6">
+          <!-- 管理员审核终端：showAdminReview 时全屏展示 -->
+          <AdminReviewPanel v-if="showAdminReview" class="flex-1 min-h-0" />
+
+          <div v-else class="relative flex min-h-0 flex-1 flex-col px-3 pb-3 pt-3 sm:px-5 lg:px-8 lg:pb-6">
             <div
               v-if="currentSession && contextWarning"
               class="animate-fade-in mx-auto mb-3 w-full max-w-5xl rounded-[22px] border border-amber-200/80 bg-amber-50/95 px-4 py-3 text-sm text-amber-900 shadow-sm"
@@ -206,6 +217,7 @@ import SessionList from '@/components/SessionList.vue'
 import MessageList from '@/components/MessageList.vue'
 import WelcomeDashboard from '@/components/WelcomeDashboard.vue'
 import VersionChangelogModal from '@/components/VersionChangelogModal.vue'
+import AdminReviewPanel from '@/components/AdminReviewPanel.vue'
 
 const sessionsStore = useSessionsStore()
 const messagesStore = useMessagesStore()
@@ -223,8 +235,14 @@ const isSlim = computed(() => {
 // 数据字典 Bento 控制（通过 props 下传 / emit 上传）
 const showBento = ref(false)
 const showChangelog = ref(false)
+const showAdminReview = ref(false)
 function toggleBento() {
   showBento.value = !showBento.value
+  if (showAdminReview.value) showAdminReview.value = false
+}
+function toggleAdminReview() {
+  showAdminReview.value = !showAdminReview.value
+  if (showBento.value) showBento.value = false
 }
 
 // 联动注入状态

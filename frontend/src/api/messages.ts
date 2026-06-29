@@ -16,3 +16,7 @@ export const getMessagesBySessionApi = (sessionId: string): Promise<Message[]> =
 export const deleteMessageApi = (id: string): Promise<{ message: string }> => {
   return api.delete(`/api/chat/messages/${id}`)
 }
+
+export const submitMessageFeedbackApi = (id: string, feedback: string): Promise<Message> => {
+  return api.post(`/api/chat/messages/${id}/feedback`, { feedback })
+}

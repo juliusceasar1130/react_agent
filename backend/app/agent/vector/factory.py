@@ -139,3 +139,54 @@ def create_business_retriever_and_reranker() -> Tuple[BaseRetriever, Optional[Ba
         logger.info("Rerank 未启用，将仅使用检索结果")
 
     return retriever, reranker
+
+
+def add_document_to_store(
+    text: str,
+    metadata: dict,
+) -> None:
+    """将提炼后的自然语言意图和 SQL 案例写入向量库"""
+    rag_backend = (getattr(settings, "rag_backend", "pgvector") or "pgvector").strip().lower()
+    
+    if rag_backend == "milvus_hybrid":
+        from llama_index.core import Document as LlamaIndexDocument
+        from backend.app.agent.vector.embedding_provider import configure_llama_index_settings
+        from backend.app.agent.vector.milvus_hybrid.milvus_store import (
+            create_milvus_hybrid_store,
+            create_milvus_hybrid_index,
+        )
+        
+        configure_llama_index_settings(settings)
+        
+        uri = getattr(settings, "milvus_uri", "http://localhost:19530")
+        collection_name = getattr(settings, "milvus_collection_name", "rag_store")
+        embed_dim = getattr(settings, "milvus_embed_dim", 1024)
+        rrf_k = getattr(settings, "milvus_rrf_k", 60)
+        
+        store = create_milvus_hybrid_store(
+            uri=uri,
+            collection_name=collection_name,
+            embed_dim=embed_dim,
+            rrf_k=rrf_k,
+            overwrite=False,
+        )
+        index = create_milvus_hybrid_index(store)
+        
+        doc = LlamaIndexDocument(
+            text=text,
+            metadata=metadata,
+        )
+        index.insert(doc)
+        logger.info("成功插入文档到 Milvus: text=%s, metadata=%s", text[:50], metadata)
+    else:
+        # pgvector 后端路径
+        from backend.app.agent.vector.pgvector.vector_store import create_business_vector_store
+        from langchain_core.documents import Document as LangChainDocument
+        
+        vector_store = create_business_vector_store(
+            collection_name="rag_store",
+            embedding_model="baai/bge-m3",
+            pg_connection_string=settings.database_url,
+        )
+        vector_store.add_documents([LangChainDocument(page_content=text, metadata=metadata)])
+        logger.info("成功插入文档到 PgVector: text=%s, metadata=%s", text[:50], metadata)
