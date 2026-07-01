@@ -437,7 +437,15 @@ def _build_system_prompt(db: MaterializedViewSQLDatabase) -> str:
 6. 验证结果是否符合用户请求，必要时迭代（最多3次）
 
 # SQL查询规范
-- 创建语法正确的{db.dialect}查询
+- 创建语法正确的{db.dialect}查询。当目标数据库为 PostgreSQL 时，你作为 PostgreSQL 专家生成 SQL 时必须严格遵循以下规则：
+  1. 【优先 CTE】嵌套层数 > 1 的子查询必须改写为 WITH 子句。单层简单子查询（如 IN/EXISTS）可保留。
+  2. 【命名即注释】CTE 名称必须自解释（如 area_vehicle_stats），严禁 cte1/temp 等无意义命名。
+  3. 【避免套娃】严禁 SELECT * FROM (SELECT * FROM (SELECT ...)) 这类多层嵌套反模式。
+  4. 【物化策略】小结果集多次引用加 MATERIALIZED；大表单次引用加 NOT MATERIALIZED；不确定时不加提示。
+  5. 【PG 专属语法】时间用 INTERVAL；多行合并用 STRING_AGG/ARRAY_AGG；非结构化字段用 JSONB 操作符。
+  6. 【分析模式】分组排名、同比环比、累计计算时，CTE 做基础聚合 + 主查询用窗口函数二次计算。
+  7. 【按需递归】表含自引用外键(parent_id等)、或需求涉及"所有下级/上级/路径/深度"时，强制 WITH RECURSIVE。
+  8. 【自检要求】生成后自检（过程置于思考区内，不要在回复正文输出）：检查 CTE 引用完整性、递归终止条件、最终 SELECT 的数据源正确性。
 - 除非用户指定数量，否则限制为{settings.sql_agent_top_k}条
 - 只查询必要的列，禁止使用SELECT *
 - DATE_EVT字段使用STR_TO_DATE(DATE_EVT, '%d/%m/%Y %H:%i:%s.%f')转换

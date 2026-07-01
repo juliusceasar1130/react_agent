@@ -220,6 +220,50 @@ class Settings(BaseSettings):
     # NVIDIA AI 配置（用于向量库 Embeddings）
     nvidia_api_key: str = os.getenv("NVIDIA_API_KEY", "")
 
+    # Rule Extractor 配置
+    rule_extractor_safety_enabled: bool = (
+        os.getenv("RULE_EXTRACTOR_SAFETY_ENABLED", "true").lower() == "true"
+    )
+    rule_extractor_safety_blocked_keywords: str = os.getenv(
+        "RULE_EXTRACTOR_SAFETY_BLOCKED_KEYWORDS", "DROP,DELETE,TRUNCATE,UPDATE,INSERT,GRANT"
+    )
+    rule_extractor_safety_warning_markers: str = os.getenv(
+        "RULE_EXTRACTOR_SAFETY_WARNING_MARKERS", "SAFETY WARNING,BLOCKED BY SECURITY FILTER,PERMISSION DENIED"
+    )
+    rule_extractor_empty_result_enabled: bool = (
+        os.getenv("RULE_EXTRACTOR_EMPTY_RESULT_ENABLED", "true").lower() == "true"
+    )
+    rule_extractor_single_sql_enabled: bool = (
+        os.getenv("RULE_EXTRACTOR_SINGLE_SQL_ENABLED", "true").lower() == "true"
+    )
+    rule_extractor_backtrack_enabled: bool = (
+        os.getenv("RULE_EXTRACTOR_BACKTRACK_ENABLED", "true").lower() == "true"
+    )
+    rule_extractor_backtrack_max_turns: int = int(os.getenv("RULE_EXTRACTOR_BACKTRACK_MAX_TURNS", "3"))
+    rule_extractor_domain_enabled: bool = (
+        os.getenv("RULE_EXTRACTOR_DOMAIN_ENABLED", "true").lower() == "true"
+    )
+
+    @property
+    def rule_extractor_blocked_keywords(self) -> list[str]:
+        if not self.rule_extractor_safety_blocked_keywords:
+            return []
+        return [
+            kw.strip().upper()
+            for kw in self.rule_extractor_safety_blocked_keywords.split(",")
+            if kw.strip()
+        ]
+
+    @property
+    def rule_extractor_warning_markers(self) -> list[str]:
+        if not self.rule_extractor_safety_warning_markers:
+            return []
+        return [
+            marker.strip().upper()
+            for marker in self.rule_extractor_safety_warning_markers.split(",")
+            if marker.strip()
+        ]
+
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
     @field_validator("debug", mode="before")

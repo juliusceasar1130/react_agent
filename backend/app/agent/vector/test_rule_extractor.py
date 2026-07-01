@@ -274,3 +274,68 @@ def test_pipeline_integration(mock_get_messages):
         assert payload["tool_result"] == "[{'id': 1}]"
         assert payload["domain"] == "paint_shop"
         assert payload["raw_user_query"] == "查2产线的出车数"
+
+
+def test_safety_warning_filter_disabled():
+    """测试安全过滤器在被禁用时直接通过"""
+    from backend.app.agent.vector.rule_extractor import SafetyWarningFilter, ExtractionContext
+    from backend.app.config import settings
+
+    ctx = ExtractionContext("m1", MagicMock())
+    ctx.tool_result = "SUCCESS"
+    msg_mock = MagicMock()
+    msg_mock.content = "SQL: DROP TABLE chat_messages"
+    ctx.target_message = msg_mock
+    
+    f = SafetyWarningFilter()
+    
+    # 用 patch 修改配置，模拟被禁用
+    with patch.object(settings, "rule_extractor_safety_enabled", False):
+        assert f.execute(ctx) is True
+
+
+@patch("backend.app.agent.vector.rule_extractor.get_messages_by_session")
+def test_topology_backtrack_filter_disabled(mock_get_messages):
+    """测试拓扑回溯在被禁用时，仅回退 1 轮"""
+    from backend.app.agent.vector.rule_extractor import TopologyBacktrackFilter, ExtractionContext
+    from backend.app.config import settings
+    import json
+
+    m1 = MagicMock()
+    m1.id = "m1"
+    m1.role = "user"
+    m1.content = "查2产线的出车数"
+    
+    m2 = MagicMock()
+    m2.id = "m2"
+    m2.role = "assistant"
+    m2.content = "我们想和您确认哪天？"
+    m2.tool_calls = json.dumps([{"id": "ask-1", "name": "AskUserQuestion", "args": {}}])
+    
+    m3 = MagicMock()
+    m3.id = "m3"
+    m3.role = "user"
+    m3.content = "[澄清回答] 今天"
+    m3.tool_results = json.dumps({"ask-1": "今天"})
+    
+    m4 = MagicMock()
+    m4.id = "m4"
+    m4.role = "assistant"
+    m4.content = "数据结果..."
+    m4.tool_calls = json.dumps([{"id": "sql-1", "name": "sql_db_query", "args": {"query": "SELECT 1"}}])
+    m4.tool_results = json.dumps({"sql-1": "[{'val': 1}]"})
+    
+    mock_get_messages.return_value = [m1, m2, m3, m4]
+    
+    ctx = ExtractionContext("m4", MagicMock())
+    ctx.target_message = m4
+    
+    f = TopologyBacktrackFilter()
+    
+    # 模拟 backtracking 禁用，仅回溯 1 轮（此时 history 应该只有 m3 和 m4）
+    with patch.object(settings, "rule_extractor_backtrack_enabled", False):
+        assert f.execute(ctx) is True
+        assert len(ctx.history_messages) == 2
+        assert ctx.history_messages[0].id == "m3"
+        assert ctx.history_messages[1].id == "m4"
+        assert ctx.raw_user_query == "[澄清回答] 今天"

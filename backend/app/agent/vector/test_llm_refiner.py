@@ -1,18 +1,26 @@
 import pytest
 from unittest.mock import patch, MagicMock
-from backend.app.agent.vector.llm_refiner import refine_sql_case_with_llm
+from backend.app.agent.vector.llm_refiner import refine_sql_case_with_llm, RefinedSQLCase
 
 @patch("backend.app.agent.vector.llm_refiner._create_llm")
 def test_refine_sql_case_with_llm_success(mock_get_llm):
     """测试 LLM 成功解析意图并对 SQL 中的车身号/日期脱敏"""
     mock_llm_instance = MagicMock()
-    # 模拟大模型返回符合 JSON 协议的字符串
-    mock_llm_instance.invoke.return_value = MagicMock(content="""
-    {
-        "rewritten_query": "查询昨天二号线的出车数",
-        "desensitized_sql": "SELECT count(*) FROM paint_vehicle WHERE line_id = 2 AND production_date = <日期>"
+    mock_structured_llm = MagicMock()
+    
+    # 模拟 with_structured_output 返回结构化模型
+    mock_llm_instance.with_structured_output.return_value = mock_structured_llm
+    
+    # 模拟 invoke 返回合法的结构化输出字典
+    mock_structured_llm.invoke.return_value = {
+        "raw": MagicMock(),
+        "parsed": RefinedSQLCase(
+            rewritten_query="查询昨天二号线的出车数",
+            desensitized_sql="SELECT count(*) FROM paint_vehicle WHERE line_id = 2 AND production_date = {{日期}}"
+        ),
+        "parsing_error": None
     }
-    """)
+    
     mock_get_llm.return_value = mock_llm_instance
     
     query = "查2号线的出车数 [澄清提问: 我们想和您确认哪天？ -> 澄清回答: 昨天]"
@@ -21,15 +29,43 @@ def test_refine_sql_case_with_llm_success(mock_get_llm):
     res_query, res_sql = refine_sql_case_with_llm(query, sql)
     
     assert res_query == "查询昨天二号线的出车数"
-    assert "<日期>" in res_sql
+    assert "{{日期}}" in res_sql
     assert "2026-06-28" not in res_sql
 
 
 @patch("backend.app.agent.vector.llm_refiner._create_llm")
-def test_refine_sql_case_with_llm_fallback(mock_get_llm):
-    """测试 LLM 提炼报错时，能够安全降级回退到原始数据"""
+def test_refine_sql_case_with_llm_parsing_error(mock_get_llm):
+    """测试 LLM 返回的结果校验失败时，能够安全降级回退到原始数据"""
     mock_llm_instance = MagicMock()
-    mock_llm_instance.invoke.side_effect = Exception("LLM connection error")
+    mock_structured_llm = MagicMock()
+    
+    mock_llm_instance.with_structured_output.return_value = mock_structured_llm
+    
+    # 模拟返回包含 parsing_error 的输出字典
+    mock_structured_llm.invoke.return_value = {
+        "raw": MagicMock(),
+        "parsed": None,
+        "parsing_error": ValueError("Schema validation failed")
+    }
+    mock_get_llm.return_value = mock_llm_instance
+    
+    query = "查2号线的出车数"
+    sql = "SELECT 1"
+    
+    res_query, res_sql = refine_sql_case_with_llm(query, sql)
+    
+    assert res_query == "查2号线的出车数"
+    assert res_sql == "SELECT 1"
+
+
+@patch("backend.app.agent.vector.llm_refiner._create_llm")
+def test_refine_sql_case_with_llm_fallback(mock_get_llm):
+    """测试 LLM 提炼连接报错时，能够安全降级回退到原始数据"""
+    mock_llm_instance = MagicMock()
+    mock_structured_llm = MagicMock()
+    
+    mock_llm_instance.with_structured_output.return_value = mock_structured_llm
+    mock_structured_llm.invoke.side_effect = Exception("LLM connection error")
     mock_get_llm.return_value = mock_llm_instance
     
     query = "查2号线的出车数"

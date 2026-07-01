@@ -34,18 +34,22 @@ class BaseFilter:
 class SafetyWarningFilter(BaseFilter):
     """安全过滤器：阻止恶意 DDL/DML 或带安全警告拦截的 SQL 存入"""
     def execute(self, context: ExtractionContext) -> bool:
+        from backend.app.config import settings
+        if not settings.rule_extractor_safety_enabled:
+            return True
+
         target_content = (context.target_message.content or "").upper() if context.target_message else ""
         tool_res = (context.tool_result or "").upper()
         
         # 1. 检查 SQL 关键字拦截
-        blocked_keywords = ["DROP", "DELETE", "TRUNCATE", "UPDATE", "INSERT", "GRANT"]
+        blocked_keywords = settings.rule_extractor_blocked_keywords
         for kw in blocked_keywords:
             if kw in target_content:
                 context.reject_reason = f"SafetyWarningFilter: 含有违规关键字 {kw}"
                 return False
                 
         # 2. 检查结果返回的拦截器标记
-        warning_markers = ["SAFETY WARNING", "BLOCKED BY SECURITY FILTER", "PERMISSION DENIED"]
+        warning_markers = settings.rule_extractor_warning_markers
         for marker in warning_markers:
             if marker in tool_res:
                 context.reject_reason = f"SafetyWarningFilter: 包含安全警告标记: {marker}"
@@ -57,6 +61,10 @@ class SafetyWarningFilter(BaseFilter):
 class EmptyResultFilter(BaseFilter):
     """空结果集过滤器：丢弃执行成功但没有返回任何实质数据的 SQL 案例"""
     def execute(self, context: ExtractionContext) -> bool:
+        from backend.app.config import settings
+        if not settings.rule_extractor_empty_result_enabled:
+            return True
+
         res_str = (context.tool_result or "").strip()
         if not res_str:
             context.reject_reason = "EmptyResultFilter: 结果为空白文本"
@@ -83,6 +91,10 @@ class EmptyResultFilter(BaseFilter):
 class SingleSqlFilter(BaseFilter):
     """单步 SQL 校验器：确保智能体仅执行了一步且执行成功的 SQL"""
     def execute(self, context: ExtractionContext) -> bool:
+        from backend.app.config import settings
+        if not settings.rule_extractor_single_sql_enabled:
+            return True
+
         msg = context.target_message
         if not msg or not msg.tool_calls:
             context.reject_reason = "SingleSqlFilter: 目标消息没有工具调用"
@@ -144,6 +156,8 @@ from backend.app.crud import get_messages_by_session
 class TopologyBacktrackFilter(BaseFilter):
     """精准拓扑回溯过滤器：还原多轮对话并拼装完整意图"""
     def execute(self, context: ExtractionContext) -> bool:
+        from backend.app.config import settings
+
         target = context.target_message
         if not target:
             context.reject_reason = "TopologyBacktrackFilter: 上下文中目标消息为空"
@@ -192,46 +206,48 @@ class TopologyBacktrackFilter(BaseFilter):
         history.insert(0, prev_msg)
         
         # 4. 判断 prev_msg（紧邻的 User 消息）是否是对澄清提问（AskUserQuestion）的回复
-        if prev_msg.role == "user" and prev_msg.tool_results:
-            try:
-                results = json.loads(prev_msg.tool_results)
-            except Exception:
-                results = {}
+        # 仅当 backtrack_enabled 且 max_turns >= 2 时才尝试进行澄清链回溯
+        if settings.rule_extractor_backtrack_enabled and settings.rule_extractor_backtrack_max_turns >= 2:
+            if prev_msg.role == "user" and prev_msg.tool_results:
+                try:
+                    results = json.loads(prev_msg.tool_results)
+                except Exception:
+                    results = {}
+                    
+                # 检查 results 中是否含有 AskUserQuestion 的 key
+                # 拓扑咬合：如果包含这个 key，说明该 user 答案是回复上级澄清问答卡片的
+                ask_user_ids = list(results.keys())
                 
-            # 检查 results 中是否含有 AskUserQuestion 的 key
-            # 拓扑咬合：如果包含这个 key，说明该 user 答案是回复上级澄清问答卡片的
-            ask_user_ids = list(results.keys())
-            
-            if ask_user_ids:
-                # 进一步向上寻找产生该 ask_user_id 的 Assistant 澄清消息卡片
-                clarify_idx = curr_idx - 1
-                found_clarify = False
-                
-                while clarify_idx >= 0:
-                    potential_clarify = all_messages[clarify_idx]
-                    if potential_clarify.role == "assistant" and potential_clarify.tool_calls:
-                        try:
-                            calls = json.loads(potential_clarify.tool_calls)
-                        except Exception:
-                            calls = []
-                        
-                        # 匹配 tool call id
-                        if any(c.get("id") == ask_user_ids[0] for c in calls):
-                            # 找到了澄清卡片，插入追踪链中
-                            history.insert(0, potential_clarify)
-                            found_clarify = True
+                if ask_user_ids:
+                    # 进一步向上寻找产生该 ask_user_id 的 Assistant 澄清消息卡片
+                    clarify_idx = curr_idx - 1
+                    found_clarify = False
+                    
+                    while clarify_idx >= 0:
+                        potential_clarify = all_messages[clarify_idx]
+                        if potential_clarify.role == "assistant" and potential_clarify.tool_calls:
+                            try:
+                                calls = json.loads(potential_clarify.tool_calls)
+                            except Exception:
+                                calls = []
                             
-                            # 接着再向上抓取触发该澄清提问的“原始 User 提问”
-                            orig_user_idx = clarify_idx - 1
-                            if orig_user_idx >= 0:
-                                history.insert(0, all_messages[orig_user_idx])
-                            break
-                    clarify_idx -= 1
-                    
-                if not found_clarify:
-                    # 拓扑链断层，退回到普通单轮
-                    pass
-                    
+                            # 匹配 tool call id
+                            if any(c.get("id") == ask_user_ids[0] for c in calls):
+                                # 找到了澄清卡片，插入追踪链中
+                                history.insert(0, potential_clarify)
+                                found_clarify = True
+                                
+                                # 接着再向上抓取触发该澄清提问的“原始 User 提问”
+                                orig_user_idx = clarify_idx - 1
+                                if orig_user_idx >= 0:
+                                    history.insert(0, all_messages[orig_user_idx])
+                                break
+                        clarify_idx -= 1
+                        
+                    if not found_clarify:
+                        # 拓扑链断层，退回到普通单轮
+                        pass
+                        
         # 保存消息历史链
         context.history_messages = history
         
@@ -254,6 +270,11 @@ class TopologyBacktrackFilter(BaseFilter):
 class DomainFilter(BaseFilter):
     """业务域提取器：读取 load_skill 或 tool metadata，定位所属业务技能域进行硬性隔离"""
     def execute(self, context: ExtractionContext) -> bool:
+        from backend.app.config import settings
+        if not settings.rule_extractor_domain_enabled:
+            context.domain = "general"
+            return True
+
         msg = context.target_message
         if not msg or not msg.tool_calls:
             context.domain = "general"

@@ -1,4 +1,42 @@
+## 2026-06-30 16:30 +08:00 - 实现规则提取器配置驱动与 LangChain 1.0 结构化输出重构
+
+### 概述
+- **实现规则提取器配置驱动（Option A）**：
+  将规则提取器的关键检测参数与控制开关从代码硬编码中剥离，转由 Pydantic Settings 加载，并在 `.env` 中提供了一系列开箱即用的默认环境变量控制。支持管理员与运维人员无需修改任何核心过滤逻辑代码，通过配置文件热插拔与灵活参数化控制过滤器（安全审查开关、安全关键字与警告标记、空结果校验开关、单步 SQL 检查开关、回溯开关与最大回溯轮数等）。
+- **完成大模型意图与 SQL 提炼的结构化输出重构**：
+  在 `llm_refiner.py` 中引入了基于 Pydantic 的 `RefinedSQLCase` 模型，利用 LangChain 1.0+ 标准推荐的 `with_structured_output(..., include_raw=True)` 机制重构了提纯算子。彻底消除了传统正则表达式与手工 JSON 清洗方式的不稳定性，通过 Constrained Decoding 强制保证了模型输出的 Schema 合规性，并结合 `parsing_error` 实现了健壮的生产级安全降级与审计。
+
+### 变更内容
+#### backend/app/config.py [MODIFY]
+- 在 `Settings` 类中增加了 Rule Extractor 相关的环境变量配置项，并声明了对关键字与警告标记进行大小写清洗、拆分逗号的助手 properties 属性。
+
+#### backend/app/agent/vector/rule_extractor.py [MODIFY]
+- 对 `SafetyWarningFilter`、`EmptyResultFilter`、`SingleSqlFilter`、`TopologyBacktrackFilter` 及 `DomainFilter` 引入开关校验逻辑与外部配置参数读取。其中回溯过滤器在禁用或配置轮数过小时支持向下安全降级为单轮处理。
+
+#### backend/app/agent/vector/llm_refiner.py [MODIFY]
+- 定义 `RefinedSQLCase` 模型，并使用 `with_structured_output(..., include_raw=True)` 重塑提炼流程，实现异常数据优雅判定与自适应策略选择。
+
+#### backend/app/agent/vector/test_rule_extractor.py [MODIFY]
+- 新增 `test_safety_warning_filter_disabled` 和 `test_topology_backtrack_filter_disabled` 两个测试用例，在 Mock 环境中模拟配置变动，全方位验证配置驱动逻辑的正确性与向后兼容性。
+
+#### backend/app/agent/vector/test_llm_refiner.py [MODIFY]
+- 全面重构测试用例以匹配 `include_raw=True` 结构化字典响应 Mock，新增解析错误与底层接口连接崩溃等分支测试。
+
+#### .env [MODIFY]
+- 追加规则提取器（Rule Extractor）的各种默认控制配置，支持热拔插配置。
+
+## 2026-06-29 21:38 +08:00 - 增强 SQL Agent 系统提示词以提升 PostgreSQL 生成质量
+
+### 概述
+- **合并 PostgreSQL 专家规则至系统提示词**：
+  在主系统提示词中合并了一组精细化的 PostgreSQL 编写最佳实践，明确声明当目标数据库为 PostgreSQL 时，生成 SQL 需遵循以下 8 项核心准则：优先使用 CTE 替换嵌套层数 > 1 的子查询以消除作用域混乱 Bug、使用自解释的 CTE 命名、避免俄罗斯套娃式嵌套反模式、智能物化（MATERIALIZED）策略、采用 PG 专属的高效语法、支持分析模式的分层计算（CTE 基础聚合 + 主查询窗口函数二次计算）、按需且有条件地引入递归（WITH RECURSIVE），以及在思考区（thinking）执行生成后自检。该规则在强化 PostgreSQL 复杂关联生成质量的同时，仍保证了系统对其他异构数据库（如 MySQL）在多方连接时的兼容性。
+
+### 变更内容
+#### backend/app/agent/service.py [MODIFY]
+- 在系统提示词构建函数 `_build_system_prompt` 的 `# SQL查询规范` 章节中嵌入了结构化的 PostgreSQL 规范提示规则。
+
 ## 2026-06-29 16:30 +08:00 - 优化 DomainFilter 业务域提取与管道过滤拦截日志
+
 
 ### 概述
 - **过滤管道拦截日志增强**：
