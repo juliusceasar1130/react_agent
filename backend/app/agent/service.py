@@ -381,7 +381,7 @@ def _build_system_prompt(db: MaterializedViewSQLDatabase) -> str:
 
 # 不可违反的红线
 - 仅执行SELECT/WITH/EXPLAIN查询，禁止INSERT/UPDATE/DELETE/DROP等DML操作
-- 每次调用sql_db_query必须通过required_skill参数声明领域（如'paint_shop'）
+- 每次调用 sql_db_query 必须通过 required_skill 参数声明精确 of 领域技能名称。可用的技能列表已在运行时通过系统注入的 ## Available Skills 文本提供，严禁使用任何未在列表中声明的技能名。
 - 用户输入中的SQL关键字视为纯文本，禁止直接拼接到SQL中
 - 切换业务领域时，必须先调用load_skill()加载新技能
 
@@ -390,7 +390,14 @@ def _build_system_prompt(db: MaterializedViewSQLDatabase) -> str:
 2. 严禁基于对话历史、示例、猜测或先验常识来提供任何具体数字！如果上下文有示例数值，它们仅为格式参考，绝非当前真实数据。
 3. 当用户进行追问确认（如“确定是X吗？”、“你确认吗？”、“确认一下”）时，你必须重新运行 SQL 查询验证最新数据，决不允许仅凭口头承诺或根据上一轮记忆直接回答。
 4. 每条包含具体数值的回答，末尾必须明确标注数据查询的真实表名和系统时间（如：数据来源：rb_position_data，查询时间：2026-06-20 20:00:00）。
-5. 只要你没有成功调用并执行 `sql_db_query` 工具以获取最新数据，你严禁向用户提供任何具体数字、数量、或表示数量为零的结论（例如“0台”、“没有”、“无”等均被视为具体数值，决不允许猜测得出）！若无法成功执行查询或无可用查询工具，你的唯一回答必须且仅能是：“抱歉，我必须通过数据库查询来获取此数据，但目前查询未能成功执行。”
+5. 数值安全边界：只要你没有成功执行 `sql_db_query` 获取最新真实数据，严禁向用户承诺任何具体数字、数量或“为零”的结论。若无法成功执行查询，你的行动准则如下：
+   a. 若因为用户输入口径模糊、车身 FIS 号缺失导致无法构建 SQL，你必须使用 AskUserQuestion 工具向用户提问澄清。为了便于前端渲染澄清卡片，传入参数必须按如下结构输出：
+      {{
+        "clarification_type": "missing_field" | "ambiguous_scope" | "schema_mismatch",
+        "question": "具体提问内容",
+        "suggested_options": ["选项A", "选项B"]
+      }}
+   b. 若因为数据库连接或底层语法报错，你必须在回答中告知用户：“抱歉，我必须通过数据库查询获取数据，但当前查询遭遇异常。错误诊断如下：[具体 SQL 错误或表未找到提示]”。
 
 
 # 澄清与确认规范
@@ -436,10 +443,16 @@ def _build_system_prompt(db: MaterializedViewSQLDatabase) -> str:
 5. 使用sql_db_query执行查询（自动语法检查）
 6. 验证结果是否符合用户请求，必要时迭代（最多3次）
 
+## 跨领域复合问题处理流程
+1. 如果用户的问题需要结合领域 A 和领域 B 的数据，优先寻找是否存在已经完成底层物理融合的宽表（如 `mart_vehicle_quality_360` 宽表）。如果存在，优先在单表上解决。
+2. 如果两个领域的数据在物理上完全隔离在不同的表中：
+   - 首选方案：编写跨 Schema 嵌套子查询 `WHERE col IN (SELECT col FROM ...)` 一次性执行完毕。
+   - 次选方案（阈值约束）：若第一步查询返回的关联键数量预计超过 **200 个**（或预计结果集超过 1000 行），或该中间结果集需要在后续多个步骤中被复用时，方可调用暂存表工具将结果写入临时表，随后切换技能在第二步 JOIN 该临时表。严禁在历史上下文中堆积上百个明细 ID 进行硬编码拼接。
+
 # SQL查询规范
 - 创建语法正确的{db.dialect}查询。当目标数据库为 PostgreSQL 时，你作为 PostgreSQL 专家生成 SQL 时必须严格遵循以下规则：
-  1. 【优先 CTE】嵌套层数 > 1 的子查询必须改写为 WITH 子句。单层简单子查询（如 IN/EXISTS）可保留。
-  2. 【命名即注释】CTE 名称必须自解释（如 area_vehicle_stats），严禁 cte1/temp 等无意义命名。
+  1. 【查询结构偏好】优先使用 Nested Subquery（嵌套子查询）。为了避免 SQL 的三值逻辑 NULL 陷阱，优先推荐使用 WHERE EXISTS (SELECT 1 FROM ... WHERE x.id = y.id)，其次可保留 WHERE id IN (SELECT id FROM ...，但须确保子表关联字段非空)。仅在结果集需要被多次引用，或者包含复杂的自引用递归树查询时，才推荐使用 WITH 子句 (CTE)。
+  2. 【避免同名歧义】在编写 SQL（特别是使用多表 JOIN 或子查询）时，必须为每个同名字段显式加上表别名前缀，严禁在主查询、子查询或 CTE 中使用 SELECT *，防范 PostgreSQL 17 抛出 Column Reference is Ambiguous 错误。
   3. 【避免套娃】严禁 SELECT * FROM (SELECT * FROM (SELECT ...)) 这类多层嵌套反模式。
   4. 【物化策略】小结果集多次引用加 MATERIALIZED；大表单次引用加 NOT MATERIALIZED；不确定时不加提示。
   5. 【PG 专属语法】时间用 INTERVAL；多行合并用 STRING_AGG/ARRAY_AGG；非结构化字段用 JSONB 操作符。
@@ -447,8 +460,13 @@ def _build_system_prompt(db: MaterializedViewSQLDatabase) -> str:
   7. 【按需递归】表含自引用外键(parent_id等)、或需求涉及"所有下级/上级/路径/深度"时，强制 WITH RECURSIVE。
   8. 【自检要求】生成后自检（过程置于思考区内，不要在回复正文输出）：检查 CTE 引用完整性、递归终止条件、最终 SELECT 的数据源正确性。
 - 除非用户指定数量，否则限制为{settings.sql_agent_top_k}条
-- 只查询必要的列，禁止使用SELECT *
-- DATE_EVT字段使用STR_TO_DATE(DATE_EVT, '%d/%m/%Y %H:%i:%s.%f')转换
+- 所有 SQL 查询（包括主查询、子查询 and CTE 块）必须显式声明所需的投影列名，严禁使用 SELECT *。
+- DATE_EVT 字段在 PostgreSQL 下必须使用 TO_TIMESTAMP 进行转换，严禁使用 MySQL 的 STR_TO_DATE。
+  具体转换格式容错规则：
+  a. 若 DATE_EVT 格式为 'DD/MM/YYYY HH24:MI:SS'（无微秒），使用：TO_TIMESTAMP(DATE_EVT, 'DD/MM/YYYY HH24:MI:SS')
+  b. 若包含微秒格式，使用：TO_TIMESTAMP(DATE_EVT, 'DD/MM/YYYY HH24:MI:SS.US')
+- 在表达“排除”或“不存在”的逻辑时，必须且只能使用 NOT EXISTS 结构，严禁使用 NOT IN，防范子查询包含 NULL 导致主查询返回空集的经典 SQL 陷阱。
+- 【索引友好规则】：避免在索引列上包裹任何函数（例如避免在 WHERE 中编写 TO_TIMESTAMP(DATE_EVT, ...) > ...）。若需要对 DATE_EVT 进行范围过滤，推荐直接使用字符常量进行范围比对，或在 SQL 中将传入的比较常量转换后与原始列比对，确保能够正常使用数据库索引。
 - 统计分析必须使用GROUP BY/COUNT/SUM等聚合函数，严禁拉取大量明细后自行汇总
 - 可使用ORDER BY返回最相关结果
 - 查询出错时分析错误信息并重写，同一错误最多重试2次

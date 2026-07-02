@@ -243,6 +243,7 @@ class Settings(BaseSettings):
     rule_extractor_domain_enabled: bool = (
         os.getenv("RULE_EXTRACTOR_DOMAIN_ENABLED", "true").lower() == "true"
     )
+    rule_extractor_max_sql_steps: int = int(os.getenv("RULE_EXTRACTOR_MAX_SQL_STEPS", "3"))
 
     @property
     def rule_extractor_blocked_keywords(self) -> list[str]:

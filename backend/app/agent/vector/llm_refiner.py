@@ -28,7 +28,7 @@ def refine_sql_case_with_llm(
 
 输入案例包含：
 1. 用户的原始查询与澄清问答历史（格式为：原始提问 [澄清提问: xxx -> 澄清回答: yyy]）。
-2. 执行成功的 SQL 语句。
+2. 执行成功的 SQL 语句（可能是单步 SQL，也可能是包含多个 `-- Step N` 注释分割的多步 SQL 序列）。
 
 你需要根据以下规则完成提炼：
 - 对于 rewritten_query：你必须把 `[澄清提问: ... -> 澄清回答: ...]` 里的补充约束条件融入到重写意图中。
@@ -37,8 +37,10 @@ def refine_sql_case_with_llm(
   
 - 对于 desensitized_sql：
   1. 仅将表示具体动态过滤条件的值（如特定日期、具体车身号、序列号、具体工号、具体车型的代码字面值）替换为双大括号占位符，例如 `line_id = {{{{产线ID}}}}`。
-  2. 严禁改变 SQL 的表名、列名、JOIN 关联条件或任何 SQL 关键字。
-  3. 严禁脱敏业务常量、状态码或枚举值。例如：`status = 1` 中的 `1`，`is_deleted = 0` 中的 `0`，`is_history = 'N'` 中的 `'N'`，`line_type = 'paint'` 中的 `'paint'`，布尔值 `true`/`false` 必须原样保留。
+  2. 如果 SQL 中存在前后步骤的动态参数依赖关系（例如 Step 2 使用了 Step 1 查询返回的 ID 值），请务必将该依赖值 parameterize 为指向性的占位符，例如 `position_id = {{{{Step1.id}}}}` 或 `position_id = {{{{第一步查询返回的ID}}}}`。
+  3. 如果输入是多步 SQL，必须保留所有以 `-- Step N` 开头的步骤注释，不能将其删减或合一，且需依次对各步 SQL 执行脱敏。
+  4. 严禁改变 SQL 的表名、列名、JOIN 关联条件或任何 SQL 关键字。
+  5. 严禁脱敏业务常量、状态码或枚举值。例如：`status = 1` 中的 `1`，`is_deleted = 0` 中的 `0`，`is_history = 'N'` 中的 `'N'`，`line_type = 'paint'` 中的 `'paint'`，布尔值 `true`/`false` 必须原样保留。
 
 输入案例：
 User Query: {raw_query}

@@ -59,7 +59,7 @@ class SafetyWarningFilter(BaseFilter):
 
 
 class EmptyResultFilter(BaseFilter):
-    """空结果集过滤器：丢弃执行成功但没有返回任何实质数据的 SQL 案例"""
+    """空结果集过滤器：丢弃最终执行成功但没有返回任何实质数据的 SQL 案例"""
     def execute(self, context: ExtractionContext) -> bool:
         from backend.app.config import settings
         if not settings.rule_extractor_empty_result_enabled:
@@ -69,85 +69,120 @@ class EmptyResultFilter(BaseFilter):
         if not res_str:
             context.reject_reason = "EmptyResultFilter: 结果为空白文本"
             return False
-            
+
+        # 如果包含多步结果标识，仅检验最后一步的结果
+        if "[Step " in res_str:
+            steps = res_str.split("[Step ")
+            last_step = steps[-1].strip()
+            # 去除类似 "N Result]\n" 的行头
+            lines = last_step.split("\n", 1)
+            if len(lines) > 1:
+                res_str = lines[1].strip()
+            else:
+                res_str = ""
+
+        if not res_str:
+            context.reject_reason = "EmptyResultFilter: 最后一步结果为空白文本"
+            return False
+
         try:
-            # 解析为 Python 对象校验
             data = json.loads(res_str)
             if isinstance(data, list) and len(data) == 0:
-                context.reject_reason = "EmptyResultFilter: 结果为结构化空列表 []"
+                context.reject_reason = "EmptyResultFilter: 最后一步结果为结构化空列表 []"
                 return False
             if isinstance(data, dict) and len(data) == 0:
-                context.reject_reason = "EmptyResultFilter: 结果为结构化空字典 {}"
+                context.reject_reason = "EmptyResultFilter: 最后一步结果为结构化空字典 {}"
                 return False
         except Exception:
-            # 无法解析为 JSON，若只是普通文本且内容过短，也视为空
             if len(res_str) < 2:
-                context.reject_reason = "EmptyResultFilter: 结果为非结构化无意义短文本"
+                context.reject_reason = "EmptyResultFilter: 最后一步结果为非结构化无意义短文本"
                 return False
-                
+
         return True
 
 
-class SingleSqlFilter(BaseFilter):
-    """单步 SQL 校验器：确保智能体仅执行了一步且执行成功的 SQL"""
+class SqlStepFilter(BaseFilter):
+    """SQL 步骤校验器：提取单步或多步执行成功的 SQL 序列"""
     def execute(self, context: ExtractionContext) -> bool:
         from backend.app.config import settings
-        if not settings.rule_extractor_single_sql_enabled:
-            return True
 
         msg = context.target_message
         if not msg or not msg.tool_calls:
-            context.reject_reason = "SingleSqlFilter: 目标消息没有工具调用"
+            context.reject_reason = "SqlStepFilter: 目标消息没有工具调用"
             return False
-            
+
         try:
             tool_calls = json.loads(msg.tool_calls)
             tool_results = json.loads(msg.tool_results) if msg.tool_results else {}
         except Exception as e:
-            context.reject_reason = f"SingleSqlFilter: 序列化解析错误 {e}"
+            context.reject_reason = f"SqlStepFilter: 序列化解析错误 {e}"
             return False
-            
+
         # 过滤并找出所有 sql_db_query 工具调用
         sql_calls = [tc for tc in tool_calls if tc.get("name") == "sql_db_query"]
-        
+
         if not sql_calls:
-            context.reject_reason = "SingleSqlFilter: 没有调用 sql_db_query 工具"
+            context.reject_reason = "SqlStepFilter: 没有调用 sql_db_query 工具"
             return False
-            
-        # 💡 极简丢弃策略：如果有多个不同的 SQL 执行记录，说明是复杂的多步查询，直接丢弃
-        if len(sql_calls) > 1:
-            context.reject_reason = "SingleSqlFilter: 包含多个 SQL 工具调用（属于多步查询，舍弃）"
+
+        # 计算最大步数：单步模式启用时强制为 1，否则使用配置上限
+        max_steps = 1 if settings.rule_extractor_single_sql_enabled else settings.rule_extractor_max_sql_steps
+
+        # 过滤出执行成功的 SQL 调用记录（过滤掉结果包含 ERROR 或 EXCEPTION 的调用）
+        valid_sql_calls = []
+        for sc in sql_calls:
+            call_id = sc.get("id")
+            result_content = tool_results.get(call_id) or ""
+
+            if not result_content:
+                continue
+            if "ERROR:" in result_content.upper() or "EXCEPTION:" in result_content.upper():
+                # 属于执行失败或报错步骤，跳过
+                continue
+            valid_sql_calls.append((sc, result_content))
+
+        if not valid_sql_calls:
+            context.reject_reason = "SqlStepFilter: 没有执行成功的 SQL 工具调用"
             return False
-            
-        sql_call = sql_calls[0]
-        call_id = sql_call.get("id")
-        
-        # 检查执行结果
-        result_content = tool_results.get(call_id)
-        if not result_content:
-            context.reject_reason = f"SingleSqlFilter: 未找到工具 ID {call_id} 的对应执行结果"
+
+        if len(valid_sql_calls) > max_steps:
+            context.reject_reason = f"SqlStepFilter: 包含多个 SQL 工具调用 (成功次数 {len(valid_sql_calls)} 超过上限 {max_steps}，舍弃)"
             return False
-            
-        # 如果结果包含 Error / Exception 报错，说明执行失败，直接过滤丢弃
-        if "ERROR:" in result_content.upper() or "EXCEPTION:" in result_content.upper():
-            context.reject_reason = f"SingleSqlFilter: SQL 执行报错 ({result_content})"
-            return False
-            
-        # 提取 SQL 及结果赋予 context
-        args = sql_call.get("args") or {}
-        if isinstance(args, str):
-            try:
-                args = json.loads(args)
-            except Exception:
-                pass
-                
-        sql_query = args.get("query") if isinstance(args, dict) else ""
-        if not sql_query:
-            context.reject_reason = "SingleSqlFilter: 未能成功解析 query 参数"
-            return False
-            
-        context.extracted_sql = sql_query
-        context.tool_result = result_content
+
+        # 提取 SQL 文本并拼装
+        extracted_sqls = []
+        extracted_results = []
+
+        for idx, (call, res_content) in enumerate(valid_sql_calls):
+            args = call.get("args") or {}
+            if isinstance(args, str):
+                try:
+                    args = json.loads(args)
+                except Exception:
+                    pass
+
+            sql_query = args.get("query") if isinstance(args, dict) else ""
+            if not sql_query:
+                context.reject_reason = f"SqlStepFilter: 无法解析第 {idx + 1} 步的 query 参数"
+                return False
+
+            extracted_sqls.append(sql_query)
+            extracted_results.append(res_content)
+
+        # 组装存储格式
+        if len(extracted_sqls) == 1:
+            context.extracted_sql = extracted_sqls[0]
+            context.tool_result = extracted_results[0]
+        else:
+            # 多步拼接
+            joined_sql = []
+            joined_res = []
+            for idx, (sql, res) in enumerate(zip(extracted_sqls, extracted_results)):
+                joined_sql.append(f"-- Step {idx + 1}\n{sql.strip()};")
+                joined_res.append(f"[Step {idx + 1} Result]\n{res.strip()}")
+            context.extracted_sql = "\n\n".join(joined_sql)
+            context.tool_result = "\n\n".join(joined_res)
+
         return True
 
 
@@ -354,9 +389,9 @@ class PipelineManager:
 
 # 默认的过滤器校验管道，按业务边界顺序链斯执行
 DEFAULT_EXTRACTOR_PIPELINE = PipelineManager(filters=[
-    SafetyWarningFilter(),
-    SingleSqlFilter(),
-    EmptyResultFilter(),
+    SqlStepFilter(),           # 首先提取并填充 SQL 与执行结果
+    SafetyWarningFilter(),     # 安全读取已填充的 context.tool_result 和 context.extracted_sql
+    EmptyResultFilter(),       # 校验 context.tool_result
     TopologyBacktrackFilter(),
     DomainFilter()
 ])

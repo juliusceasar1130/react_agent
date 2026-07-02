@@ -141,5 +141,5 @@ For multi-step tasks, state a brief plan:
 - chrome-devtools MCP — 浏览器调试与前端问题排查
 
 ## 实施原则
--  对于用户提出问题和现象，先分析根因，得到用户确认后实施
-- 不要自主提交，必须得到我允许
+- 对于用户提出问题和现象，先分析根因，得到用户确认后实施
+- 不要自主提交git commit，必须得到我允许

@@ -75,3 +75,32 @@ def test_refine_sql_case_with_llm_fallback(mock_get_llm):
     
     assert res_query == "查2号线的出车数"
     assert res_sql == "SELECT 1"
+
+
+@patch("backend.app.agent.vector.llm_refiner._create_llm")
+def test_refine_multi_sql_case_success(mock_get_llm):
+    """测试 LLM 能够成功提取和脱敏多步拼接的 SQL 模板，并保持步骤结构"""
+    mock_llm_instance = MagicMock()
+    mock_structured_llm = MagicMock()
+
+    mock_llm_instance.with_structured_output.return_value = mock_structured_llm
+
+    mock_structured_llm.invoke.return_value = {
+        "raw": MagicMock(),
+        "parsed": RefinedSQLCase(
+            rewritten_query="查询昨天流挂缺陷车辆的配置",
+            desensitized_sql="-- Step 1\nSELECT id FROM position WHERE name = {{产线名称}};\n\n-- Step 2\nSELECT config FROM process WHERE position_id = {{Step1.id}}"
+        ),
+        "parsing_error": None
+    }
+    mock_get_llm.return_value = mock_llm_instance
+
+    raw_query = "查昨天缺陷车的配置"
+    raw_sql = "-- Step 1\nSELECT id FROM position WHERE name = 'paint_shop';\n\n-- Step 2\nSELECT config FROM process WHERE position_id = 42"
+
+    res_query, res_sql = refine_sql_case_with_llm(raw_query, raw_sql)
+
+    assert "Step 1" in res_sql
+    assert "Step 2" in res_sql
+    assert "{{产线名称}}" in res_sql
+    assert "{{Step1.id}}" in res_sql

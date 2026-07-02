@@ -30,6 +30,7 @@
 - **代码质量审查子智能体** - 新增 code-reviewer，用于在 review 场景下聚焦 bug、回归风险、安全隐患和测试缺口
 - **开发指南提炼技能** - 新增 development-guide-synthesizer，用于把开发实现、讨论结论和踩坑经验沉淀成可复用的手册
 - **RAG 知识增强** - 支持 PGVector / Milvus Hybrid 检索，Milvus 可在 `Ollama` 与 `llama.cpp + Qwen3 Embedding` 之间切换，并可选接入 NVIDIA Rerank 精排
+- **反馈驱动型自演进 Few-Shot 案例库** - 前端支持用户对 AI 消息进行 👍 / 👎 / ⭐（收藏），管理员在审核面板对收藏的案例进行同步/异步审核。通过规则提取器（包括安全拦截、单步/多步 SQL 提取、空结果集过滤、澄清链路精准拓扑回溯和业务技能域隔离）及 LLM 提炼层（意图重写与 SQL 脱敏参数化），自动沉淀黄金案例入库，实现智能体在运行中自我学习与持续进化。
 - **多 System 消息终极合并自愈** - 在大模型调用前的临界时机，通过终极安全合并中间件（SafeMergeSystemMiddleware）利用原生的 `merge_message_runs` 自动将核心系统提示词与 RAG 背景知识合并，解决在 strict 模式的本地推理引擎（如 vLLM）中由于非首位 system 消息引发 of 400 校验报错，同时提升本地小参数大模型的 Attention 集中度与 Prefix Caching 效率
 - **vLLM 专属精确分词引擎** - 新增 `VllmTokenEstimator` 支持直接调用 vLLM 推理后端的 `/tokenize` 端点获取 100% 精确的 Token 计算结果，根治粗糙估算造成的边界溢出。可在 `.env` 中通过 `TOKEN_ESTIMATOR_ENGINE` 变量实现与 `llama_cpp` 引擎的平滑热切换。
 - **思考模式控制** - 支持 Qwen3.6 MoE 深度推理（Thinking）功能的开关控制。当前处于“隐藏阶段”，由后端 `.env` 中的 `LLM_ENABLE_THINKING=true/false` 静态变量进行全局默认配置，前端已预留磨砂玻璃质态 `ToggleSwitch` 交互组件与 API 协程透传通道，便于后续升级完善运行时动态切换能力

@@ -203,10 +203,14 @@ function parseOriginalSql(item: Message): string {
   if (item.tool_calls) {
     try {
       const calls = JSON.parse(item.tool_calls)
-      for (const tc of calls) {
-        if (tc.name === 'sql_db_query' && tc.args?.query) {
-          return tc.args.query
-        }
+      const sqlCalls = calls.filter((tc: any) => tc.name === 'sql_db_query' && tc.args?.query)
+
+      if (sqlCalls.length === 1) {
+        return sqlCalls[0].args.query
+      } else if (sqlCalls.length > 1) {
+        return sqlCalls.map((tc: any, idx: number) => {
+          return `-- Step ${idx + 1}\n${tc.args.query.trim()};`
+        }).join('\n\n')
       }
     } catch (_) {}
   }

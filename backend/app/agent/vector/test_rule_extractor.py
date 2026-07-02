@@ -86,13 +86,15 @@ def test_empty_result_filter():
     assert f.execute(ctx3) is True
 
 def test_single_sql_filter():
-    """测试单步 SQL 过滤规则"""
-    from backend.app.agent.vector.rule_extractor import SingleSqlFilter, ExtractionContext
+    """测试单步 SQL 过滤规则（单步模式启用时，多步被拒绝）"""
+    from backend.app.agent.vector.rule_extractor import SqlStepFilter, ExtractionContext
+    from backend.app.config import settings
     import json
     
-    f = SingleSqlFilter()
+    f = SqlStepFilter()
     
     # 1. 模拟存在多个 sql_db_query 的多步骤查询（包含两个 SQL 调用）
+    # 单步模式默认启用，max_steps=1，2 个成功调用超过上限被拒绝
     ctx1 = ExtractionContext("m1", MagicMock())
     mock_msg1 = MagicMock()
     mock_msg1.tool_calls = json.dumps([
@@ -104,10 +106,11 @@ def test_single_sql_filter():
         "t2": "res2"
     })
     ctx1.target_message = mock_msg1
-    assert f.execute(ctx1) is False
-    assert "多步查询" in ctx1.reject_reason or "多个" in ctx1.reject_reason
+    with patch.object(settings, "rule_extractor_single_sql_enabled", True):
+        assert f.execute(ctx1) is False
+        assert "超过上限" in ctx1.reject_reason
     
-    # 2. 模拟 SQL 执行报错的消息
+    # 2. 模拟 SQL 执行报错的消息（报错步骤被跳过，无成功调用被拒绝）
     ctx2 = ExtractionContext("m2", MagicMock())
     mock_msg2 = MagicMock()
     mock_msg2.tool_calls = json.dumps([
@@ -117,8 +120,9 @@ def test_single_sql_filter():
         "t1": "Error: column 'x' does not exist"
     })
     ctx2.target_message = mock_msg2
-    assert f.execute(ctx2) is False
-    assert "报错" in ctx2.reject_reason or "Error" in ctx2.reject_reason
+    with patch.object(settings, "rule_extractor_single_sql_enabled", True):
+        assert f.execute(ctx2) is False
+        assert "没有执行成功" in ctx2.reject_reason
     
     # 3. 正常单步成功 SQL
     ctx3 = ExtractionContext("m3", MagicMock())
@@ -130,9 +134,68 @@ def test_single_sql_filter():
         "t1": "[{'id': 1}]"
     })
     ctx3.target_message = mock_msg3
-    assert f.execute(ctx3) is True
-    assert ctx3.extracted_sql == "SELECT * FROM users"
-    assert ctx3.tool_result == "[{'id': 1}]"
+    with patch.object(settings, "rule_extractor_single_sql_enabled", True):
+        assert f.execute(ctx3) is True
+        assert ctx3.extracted_sql == "SELECT * FROM users"
+        assert ctx3.tool_result == "[{'id': 1}]"
+
+
+def test_multi_sql_filter_success():
+    """测试当单步模式禁用时，能成功提取和拼接多步 SQL"""
+    from backend.app.agent.vector.rule_extractor import SqlStepFilter, ExtractionContext
+    from backend.app.config import settings
+    import json
+    
+    f = SqlStepFilter()
+    ctx = ExtractionContext("m_multi", MagicMock())
+    
+    mock_msg = MagicMock()
+    mock_msg.tool_calls = json.dumps([
+        {"id": "t1", "name": "sql_db_query", "args": {"query": "SELECT id FROM position WHERE name = 'paint_shop'"}},
+        {"id": "t2", "name": "sql_db_query", "args": {"query": "SELECT count(*) FROM paint_defect WHERE position_id = 42"}}
+    ])
+    mock_msg.tool_results = json.dumps({
+        "t1": "[{'id': 42}]",
+        "t2": "[{'count': 10}]"
+    })
+    ctx.target_message = mock_msg
+    
+    with patch.object(settings, "rule_extractor_single_sql_enabled", False):
+        with patch.object(settings, "rule_extractor_max_sql_steps", 3):
+            assert f.execute(ctx) is True
+            assert "-- Step 1" in ctx.extracted_sql
+            assert "-- Step 2" in ctx.extracted_sql
+            assert "[Step 1 Result]" in ctx.tool_result
+            assert "[Step 2 Result]" in ctx.tool_result
+            assert "SELECT count(*)" in ctx.extracted_sql
+
+
+def test_multi_sql_filter_exceeds_limit():
+    """测试多步 SQL 步数超出上限时被丢弃"""
+    from backend.app.agent.vector.rule_extractor import SqlStepFilter, ExtractionContext
+    from backend.app.config import settings
+    import json
+    
+    f = SqlStepFilter()
+    ctx = ExtractionContext("m_multi_exceed", MagicMock())
+    
+    mock_msg = MagicMock()
+    mock_msg.tool_calls = json.dumps([
+        {"id": "t1", "name": "sql_db_query", "args": {"query": "SELECT 1"}},
+        {"id": "t2", "name": "sql_db_query", "args": {"query": "SELECT 2"}},
+        {"id": "t3", "name": "sql_db_query", "args": {"query": "SELECT 3"}}
+    ])
+    mock_msg.tool_results = json.dumps({
+        "t1": "res1",
+        "t2": "res2",
+        "t3": "res3"
+    })
+    ctx.target_message = mock_msg
+    
+    with patch.object(settings, "rule_extractor_single_sql_enabled", False):
+        with patch.object(settings, "rule_extractor_max_sql_steps", 2):
+            assert f.execute(ctx) is False
+            assert "超过上限" in ctx.reject_reason
 
 @patch("backend.app.agent.vector.rule_extractor.get_messages_by_session")
 def test_topology_backtrack_filter(mock_get_messages):

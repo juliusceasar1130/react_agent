@@ -133,3 +133,21 @@ For multi-step tasks, state a brief plan:
 - LangChain docs MCP — 查询 LangChain 官方文档
 - Context7 MCP — 查询通用第三方库文档
 - chrome-devtools MCP — 浏览器调试与前端问题排查
+
+## 实施原则
+- 对于用户提出问题和现象，先分析根因，得到用户确认后实施
+- 不要自主提交git commit，必须得到我允许
+
+## Agent skills
+
+### Issue tracker
+
+问题采用本地 Markdown 文件进行追踪。详见 `docs/agents/issue-tracker.md`。
+
+### Triage labels
+
+使用中文标签进行问题分拣。详见 `docs/agents/triage-labels.md`。
+
+### Domain docs
+
+采用单上下文（Single-context）布局。详见 `docs/agents/domain.md`。

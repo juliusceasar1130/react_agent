@@ -4,6 +4,7 @@ output/
 frontend/dist/
 .playwright-mcp
 .codex
+.qoder
 
 # Node modules
 node_modules/

@@ -1,3 +1,41 @@
+## 2026-07-01 20:45 +08:00 - 实现多步 SQL 案例提取与过滤管道顺序 Bug 修复
+
+### 概述
+- **实现多步 SQL 案例提取与存储**：
+  扩展了原有规则提取器，使其在允许的步数限制内（通过 `RULE_EXTRACTOR_MAX_SQL_STEPS` 控制）支持抓取多步 `sql_db_query` 成功调用的查询语句。多步 SQL 查询在提取时使用 `-- Step N` 注释行进行格式化拼接，执行结果则通过 `[Step N Result]` 进行分隔对齐，无需修改底层数据库与向量元数据 Schema。
+- **重构并修复过滤管道执行顺序 Bug**：
+  排查并修复了原系统中 `SafetyWarningFilter` 执行早于 `SingleSqlFilter` 导致其始终无法在生产环境下校验 SQL 执行结果 `tool_result` 的逻辑漏洞。将 SQL 提取与数据填充算子（重命名为 `SqlStepFilter`）移至校验过滤管道的最首位，确保先填充上下文状态，再行安全过滤与空值校验。
+- **优化多步场景下的“空结果校验”**：
+  针对多步查询特征，升级了 `EmptyResultFilter`，使其仅对多步调用链中的最后一步返回数据进行实质性的空列表/空字典阻断，避免因中间步骤无结果而导致高价值的复杂关联案例被硬性拦截丢弃。
+- **LLM 提炼层多步适配**：
+  在 `llm_refiner.py` 中更新了黄金案例意图重写与脱敏 prompt，引导大模型识别多步执行中前后步骤的变量依赖（如 `position_id = {{Step1.id}}`），并强制保证在参数化脱敏时保留 `-- Step N` 步骤说明结构。
+- **前端多步 fallback 支持**：
+  在 `AdminReviewPanel.vue` 审核面板中，对 `parseOriginalSql` 进行了多步提取适配，确保在后台提纯草稿未生成或报错时，前端依然能够拼接显示完整的多步 SQL。
+
+### 变更内容
+#### backend/app/config.py [MODIFY]
+- 增加 `rule_extractor_max_sql_steps` 配置选项（默认值为 3）。
+
+#### backend/app/agent/vector/rule_extractor.py [MODIFY]
+- 将 `SingleSqlFilter` 重构并更名为 `SqlStepFilter`，支持跳过错误语句、步数阈值校验与拼接；
+- 调整 `DEFAULT_EXTRACTOR_PIPELINE` 执行顺序，将 `SqlStepFilter()` 移至最首位；
+- 优化 `EmptyResultFilter` 以在多步场景下仅对最后一步的执行结果进行有效空值拦截。
+
+#### backend/app/agent/vector/llm_refiner.py [MODIFY]
+- 更新提纯 prompt，指导 LLM 识别多步级联数据依赖并维持 `-- Step N` 结构。
+
+#### backend/app/agent/vector/test_rule_extractor.py [MODIFY]
+- 新增 `test_multi_sql_filter_success` 和 `test_multi_sql_filter_exceeds_limit` 测试用例，更新已有断言以适配 `SqlStepFilter` 命名和管道执行新顺序。
+
+#### backend/app/agent/vector/test_llm_refiner.py [MODIFY]
+- 新增 `test_refine_multi_sql_case_success` 用例，模拟验证多步 SQL 结构在 LLM 提纯时的脱敏表现。
+
+#### frontend/src/components/AdminReviewPanel.vue [MODIFY]
+- 升级 `parseOriginalSql` 助手函数，当存在多步 SQL 调用时自动返回带 `-- Step N` 拼接的原始代码块。
+
+#### .env [MODIFY]
+- 显式声明 `RULE_EXTRACTOR_MAX_SQL_STEPS="3"` 控制多步 SQL 抓取限制。
+
 ## 2026-06-30 16:30 +08:00 - 实现规则提取器配置驱动与 LangChain 1.0 结构化输出重构
 
 ### 概述
