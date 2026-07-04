@@ -26,8 +26,8 @@ def test_build_system_prompt_pg17_compatibility():
     assert "三值逻辑" in prompt
     
     # 5. Assert AskUserQuestion structured format is enforced
-    assert "clarification_type" in prompt
-    assert "suggested_options" in prompt
+    assert "multiSelect" in prompt
+    assert "questions" in prompt
     
     # 6. Assert global SELECT * ban and Ambiguous Column warnings are present
     assert "SELECT *" in prompt
@@ -40,3 +40,7 @@ def test_build_system_prompt_pg17_compatibility():
     # 8. Assert index-friendly rules on DATE_EVT columns
     assert "索引" in prompt
     assert "DATE_EVT" in prompt
+
+    # 9. Assert Phase 1 Cascade query rules
+    assert "嵌套子查询" in prompt
+    assert "表别名前缀" in prompt

@@ -1,12 +1,11 @@
 # 涂装车间车身物流与追踪系统架构
 
-修改时间：2026-05-13 Asia/Shanghai
+修改时间：2026-07-04 Asia/Shanghai
 
 主要修改内容：
-- 重构领域知识，严格剥离缺陷/质量数据，专攻物流与追踪。
-- 将对象划分为“实时在制层（WIP）”与“历史生命周期层（History）”。
-- 新增 `ods.carbody_history` 和 `dim.carbody_registry` 的查询口径说明。
-- 明确历史吞吐量计算与实时截面总览的边界。
+- **画像表与物化视图字段同步**：对齐了 `dim.dim_vehicle_profile` 画像表扩展后的 9 个车身历史及状态新字段；同步对齐 `dim.carbody_registry` 的 MDS 列及其他属性字段。
+- **注释术语统一**：将过站物理位置/工位的描述规范纠正对齐为“过站读写站”，以契合现场读写站（Read-Write Station）设备的实际业务术语。
+- 历史修改（2026-05-13）：重构领域知识，严格剥离缺陷数据，专攻物流与追踪；新增 `ods.carbody_history` 和 `dim.carbody_registry` 查询口径说明。
 
 ## 领域定位与红线
 
@@ -100,12 +99,20 @@ Agent 在编写查询时应参考本章节获取准确的字段名称和数据�
 - **描述**：聚合自历史流水的车身维度表，用于查询车辆静态属性和生命周期。
 - **字段说明**：
   - `"vehicle_id"` (PK): 车身号唯一标识
-  - `"first_seen_at"`: 首次进入车间的时间（出生时间）
-  - `"last_seen_at"`: 最后离开车间的时间（离线时间）
-  - `"first_rw_station"`: 首次过站的位置
-  - `"last_rw_station"`: 最后过站的位置
-  - `"station_pass_count"` (INT): 历史累计过站总次数
-  - `"body_type"`, `"platform_code"`, `"color_code"`: 从底层同步的车辆属性
+  - `"first_seen_at"`: 首次过站读写站时间（出生时间）
+  - `"last_seen_at"`: 末次过站读写站时间（离线时间）
+  - `"first_rw_station"`: 首次过站读写站编码
+  - `"last_rw_station"`: 末次过站读写站编码
+  - `"first_body_type"`: 入口车身类型
+  - `"last_body_type"`: 出口车身类型
+  - `"station_pass_count"` (INT): 历史累计过站总频次
+  - `"body_type"`: 车型代码
+  - `"platform_code"`: 平台代码
+  - `"color_code"`: 颜色代码
+  - `"black_roof_flag"`: 黑顶标记 (1/Y表示黑顶)
+  - `"rework_flag"`: 返修车标记 (1/Y表示返修车)
+  - `"reserved_1"`: 车身 MDS 备用字段 1
+  - `"reserved_2"`: 车身 MDS 备用字段 2
 
 **4. `mart.mart_position_current_overview` (当前现场总览)**
 - **描述**：经过清洗的实时快照，包含异常车和载体类型翻译。
@@ -126,7 +133,27 @@ Agent 在编写查询时应参考本章节获取准确的字段名称和数据�
   - `carrier_id`: 当前载体号
   - `full_rb_code`: 完整的滚床编号（逻辑索引）
 
-### 3.2 辅助维度表 Schema
+### 3.2 辅助及主维度表 Schema
+
+- **`dim.dim_vehicle_profile` (车辆主画像维度表 - 核心！)**
+  - `vehicle_id` (PK): 车辆唯一识别码
+  - `body_type`: 车型代码（优先滚床，其次车身）
+  - `tracking_type_name`: 车型中文名
+  - `defect_model`: 最新缺陷检测型号
+  - `defect_type_name`: 最新缺陷检测类型名
+  - `platform_code`, `platform_name`: 平台代码与中文名
+  - `color_code`, `color_name`: 颜色代码与中文名
+  - `is_black_roof`: 是否双色车顶 (滚床黑顶或缺陷包含“黑”或车身黑顶)
+  - `is_rework`: 是否重工车 (根据车身重工标记 rework_flag 计算)
+  - `has_defect_record`: 是否存在缺陷检测记录
+  - `black_roof_raw_tracking`: 滚床原始黑车顶标记
+  - `black_roof_raw_defect`: 缺陷系统原始黑车顶标记
+  - `tracking_last_seen_at`: 滚床系统最后看到时间
+  - `defect_last_seen_at`: 缺陷系统最后检测时间
+  - `carbody_first_seen_at`, `carbody_last_seen_at`: 首次/末次过站读写站时间
+  - `carbody_first_rw_station`, `carbody_last_rw_station`: 首次/末次过站读写站编码
+  - `carbody_station_pass_count`: 累计过站读写站总频次
+  - `current_position_id`, `current_carrier_id`, `current_process_area`, `current_full_rb_code`, `current_position_updated_at`: 当前最新在制位置追踪及载具快照信息
 
 - **`dim.dim_process_area` (区域字典)**
   - `process_area_name` (PK): 区域名称

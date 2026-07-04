@@ -41,14 +41,14 @@ SCENARIO = {
         "当前分析库没有单独的日汇总 mart，趋势问题需要在 `mart_vehicle_quality_360` 上做日聚合。",
         "如果用户要求按唯一车身统计，需要显式说明去重口径。",
     ],
-    "output_contract": "输出字段至少包含 stat_date、total_defect_count、detection_count；必要时补充车型过滤或 tunnel 过滤口径。",
+    "output_contract": "输出字段至少包含 stat_date、total_defect_count、detection_count、avg_defect_per_detection；必要时补充车型过滤或 tunnel 过滤口径。",
     "sql_template_refs": [
         {
             "type": "sql",
             "name": "main",
             "scope": "scenario",
             "path": "sql/main.sql",
-            "description": "按天汇总缺陷总量和检测次数的 SQL 模板。",
+            "description": "按天汇总缺陷总量、检测次数和平均单次检测缺陷数的 SQL 模板。",
         }
     ],
     "script_refs": [],

@@ -34,10 +34,10 @@ class CustomState(AgentState):
         context_warning: 当前会话最近一次模型调用的上下文预警 payload
     """
 
-    skills_loaded: NotRequired[List[str]]
-    scenarios_loaded: NotRequired[List[str]]
-    active_skill: NotRequired[str]
-    active_scenario: NotRequired[str]
+    skills_loaded: NotRequired[Annotated[List[str], _last_wins]]
+    scenarios_loaded: NotRequired[Annotated[List[str], _last_wins]]
+    active_skill: NotRequired[Annotated[str | None, _last_wins]]
+    active_scenario: NotRequired[Annotated[str | None, _last_wins]]
     rag_context: NotRequired[List[Document]]
     rag_query: NotRequired[str]
     context_warning: NotRequired[Annotated[dict[str, Any] | None, _last_wins]]

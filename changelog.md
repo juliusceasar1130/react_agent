@@ -1,3 +1,112 @@
+## 2026-07-04 18:10 +08:00 - 集成漏检车监控新场景并同步文档与场景模板对齐数仓升级
+
+### 概述
+- **新增漏检与未检测车辆监控场景 (`leak_detection`)**：
+  - 设计并集成了全新的 `leak_detection` 场景，通过面漆 3 条生产线的入口读写站（`L3ACC21IS01`/`02`/`03`）过车事件锁定车辆已到达检测线，全局 `LEFT JOIN fct.fct_vehicle_defect_detection` 来精准检测没有产生对应任何通道缺陷流水的漏检车或检测失败车，输出包含车辆当前最新工艺区域（`current_process_area`）和载具（`current_carrier_id`）以便现场召回补检，且此全局关联连接策略巧妙地避免了因为改道/跨线分流导致的假阳性误报。
+- **重构并同步物流追踪与质量缺陷分析领域文档**：
+  - 对齐了 `dim.dim_vehicle_profile` 画像表扩展的 9 个物理车身及状态新字段，同步更新了 `dim.carbody_registry` 和 `mart.mart_vehicle_quality_360` 的字段列表；统一了车身注册表相关的“过站读写站”业务术语注释说明。
+  - 重构了 `paint_shop_defect_analysis/domain.md` 的架构体系，使其与 `paint_shop_vehicle_logistics/domain.md` 的结构完全对齐，并新增了关于漏检监控场景的提示。
+- **修复质量分析场景 SQL 模板由于数仓升级导致的数据虚高与 NULL 组 Bug**：
+  - 因 `mart.mart_vehicle_quality_360` 的驱动表改为了包含在产未检车辆与漏检车辆的 `fct.fct_vehicle_defect_enriched`，这会导致原有场景 SQL 在做 COUNT/SUM 等聚合时，把未检出车辆计算在内，产生空值组并使检测频次统计翻倍虚高。
+  - 修复了 `daily_defect_summary`、`black_roof_defect_comparison`、`defect_station_distribution`、`model_defect_trend`、`tunnel_cycle_defect_comparison` 这 5 个质量缺陷场景 SQL 模板，在 `FROM mart_vehicle_quality_360` 中均追加了 `WHERE mq.history_id IS NOT NULL` 强制过滤规则，确保只统计已上线检测的有效缺陷事实。
+
+### 变更内容
+#### backend/app/skills/domains/paint_shop_vehicle_logistics/domain.md [MODIFY]
+- 对齐并补充 `dim.carbody_registry` 和 `dim.dim_vehicle_profile` 的全部新物理车身过站、MDS 字段，更新 `rw_station` 相关的中文注释为“过站读写站编码”。
+
+#### backend/app/skills/domains/paint_shop_defect_analysis/domain.md [MODIFY]
+- 重新设计文档结构，划分为 WIP 实时层与 History 历史事实层；补充 `fct_vehicle_defect_detection` 及 `fct_vehicle_defect_enriched` 字段详情；补全并对齐 `mart_vehicle_quality_360` 的 38 个字段中文说明；追加 `2.3 漏检与未检测车辆监控` 引导。
+
+#### backend/app/skills/domains/paint_shop_defect_analysis/scenarios/* [MODIFY]
+- 修复 5 个已有场景的 `sql/main.sql` 模板，增加 `WHERE mq.history_id IS NOT NULL` 过滤。
+- **[NEW]** 新增 `leak_detection` 场景，创建 `scenario.py` 元数据以及编写 `sql/main.sql` 精准的漏检全局 LEFT JOIN 查询逻辑。
+
+## 2026-07-04 13:11 +08:00 - 增强 SQL Agent 系统提示词防范 PostgreSQL 数据库名前缀错误
+
+
+### 概述
+- **新增 PostgreSQL 数据库名前缀反向约束**：
+  在 `backend/app/agent/service.py` 里的 `_build_system_prompt` 中，针对 PostgreSQL 查询规范新增了一条针对表名前缀的强制防范规则，严禁大模型生成类似 `analytics_db.schema.table` 的三段式表名，以防 PostgreSQL 报错 `UndefinedTable`。
+
+### 变更内容
+#### backend/app/agent/service.py [MODIFY]
+- 在 `_build_system_prompt` 中加入限制规则 `1. 【禁止使用数据库名前缀】` 并调整其他规则的数字索引。
+
+## 2026-07-03 17:05 +08:00 - 重构 SkeletonService 归档迁移与 LangGraph 状态通道并发写修复
+
+### 概述
+- **将 SkeletonService 移入 utils/ 工具类包**：
+  为保持代码目录的一致性与职责内聚，撤销了原有的单文件子目录 `services/`。将 `skeleton_service.py` 及其测试文件 `test_skeleton_service.py` 完美迁移归档至已有的 `backend/app/agent/utils/` 包下，消除了冗余目录，并将反射 DDL 逻辑划入数据库元数据工具大类。
+- **修复 LangGraph 状态通道并发写异常 (INVALID_CONCURRENT_GRAPH_UPDATE)**：
+  针对在同一步/Tick 中对 `skills_loaded` 和 `active_skill` 并发更新导致流式中断崩溃的问题，在 `state.py` 状态实体中，正式为 `skills_loaded`、`scenarios_loaded`、`active_skill` 与 `active_scenario` 声明挂载了 `_last_wins` Reducer 装饰，利用“后写覆盖前值”策略完美实现了状态流转的并发写容错。
+- **物理剔除 DDL 骨架中的 VARCHAR(N) 长度限制**：
+  在 `SkeletonService` 提取拼装骨架 DDL 时，引入正则表达式自动裁剪剥离类似 `VARCHAR(50)`、`VARCHAR(255)` 中的长度数值修饰符，统一还原为极简 `VARCHAR` 类型，为大模型 Prompt 进行了二次瘦身，减少了无效 Token 的消耗。
+- **同步更新全局引用与实施文档**：
+  全面修改了 `skill_middleware.py` 等文件中对 `SkeletonService` 的包导入语句，并同步重构了详细设计手册 `phase_1_cascade_query_design.md` 和一期实施计划中的文档测试路径指南。
+
+### 变更内容
+#### backend/app/agent/utils/skeleton_service.py [NEW]
+- 从 `services/` 目录中迁移过来，并追加正则自动剔除 `VARCHAR(N)` 类型修饰符逻辑。
+
+#### backend/app/agent/utils/test_skeleton_service.py [NEW]
+- 从 `services/` 目录中迁移过来，将 DDL 模拟类型断言修正为通用 `VARCHAR`，修复 `_custom_table_info` 私有属性 Mock。
+
+#### backend/app/agent/services/ [DELETE]
+- 物理删除原单文件临时目录及内部的原有代码文件。
+
+#### backend/app/agent/state.py [MODIFY]
+- 对状态属性 `skills_loaded`、`scenarios_loaded`、`active_skill` 及 `active_scenario` 使用 `Annotated[..., _last_wins]` 修饰，提供并发写 Reducer。
+
+#### backend/app/agent/middleware/skill_middleware.py [MODIFY]
+- 修改导入语句，改从 `backend.app.agent.utils.skeleton_service` 导入。
+
+#### docs/crossdomin/phase_1_cascade_query_design.md [MODIFY]
+- 同步修正代码示例展示里的类文件路径。
+
+#### docs/crossdomin/2026-07-03-phase_1_cascade_query.md [MODIFY]
+- 修改 Task 2、Task 4 中的测试路径，对齐 `utils/` 物理目录，并将 `custom_table_info` 全局替换为私有属性 `_custom_table_info`。
+
+## 2026-07-03 15:37 +08:00 - 实现 Phase 1 跨域子查询直连与状态清理中间件重构
+
+### 概述
+- **实现技能元数据 associated_tables 声明**：在物流追踪和缺陷分析技能的 `meta.py` 描述中，完成了物理表关联声明。
+- **免物理连库的内存骨架 DDL 反射 (SkeletonService)**：新建 `SkeletonService`，复用系统初始化常驻于内存中的 `db.custom_table_info` 缓存，实现 0 物理读库开销。引入正则表达式物理剔除 DDL 尾部的样例数据行（`-- 1. { ... }`），规避了大模型在长上下文下的数据偏见与 Token 膨胀。
+- **重构 load_skill 工具为去重追加与上限截断模式**：修改 `_build_load_skill_command` 函数，将原有覆盖模式升级为去重追加，并强制堆积截断上限为 3，激活了 `skills_loaded` 列表的多值级联状态。
+- **基于 before_agent 原生钩子的零侵入单步重置**：重写 `SkillMiddleware.before_agent` 生周期钩子。每次新提问到来时，自动在框架层拦截，清空多余辅助技能，仅保留当前激活主技能，实现完美的“用完即弃”Prompt 瘦身。
+- **级联 Prompt 拼接与子查询规训微调**：改造 `_modify_request` 级联生成 `## Secondary Domain Knowledge` 辅助块。同时更新 `service.py` 中的提示词军规，强制推行 EXISTS 子查询替代 `IN` 常量列表，并强制规定表别名前缀规范，全面防范 PostgreSQL 17 抛出 ambiguous 列引用报错。
+
+### 变更内容
+#### backend/app/skills/domains/paint_shop_vehicle_logistics/meta.py [MODIFY]
+- 在元数据中注册关联物理表 `fct.fct_vehicle_position_current`, `ods.carbody_history`, `dim.carbody_registry`。
+
+#### backend/app/skills/domains/paint_shop_defect_analysis/meta.py [MODIFY]
+- 在元数据中注册关联物理表 `mart_vehicle_quality_360`, `fct_vehicle_defect_detection`。
+
+#### backend/app/agent/services/skeleton_service.py [NEW]
+- 实现 `SkeletonService` 类以提取 DDL 并使用正则剥离样本行。
+
+#### backend/app/agent/services/test_skeleton_service.py [NEW]
+- 针对样本数据剥离和 DDL 反射编写独立单元测试。
+
+#### backend/app/agent/tools/skill_tools.py [MODIFY]
+- 重构 `_build_load_skill_command`，加入去重追加和上限为 3 的截断逻辑。
+
+#### backend/app/agent/middleware/skill_middleware.py [MODIFY]
+- 重写 `SkillMiddleware.__init__` 以支持全局 `db` 注入。
+- 重写 `before_agent` 实现单步自愈清空状态。
+- 重改 `_modify_request` 实现一主多辅 DDL 极简骨架的动态拼装。
+
+#### backend/app/agent/middleware/test_skill_middleware.py [MODIFY]
+- 添加 `test_before_agent_resets_loaded_skills` 单元测试。
+- 添加 `test_skill_middleware_injects_secondary_skeleton` 级联注入断言。
+- 升级 `test_load_skill_tool_appends_state` 验证去重新增和堆积截断。
+
+#### backend/app/agent/service.py [MODIFY]
+- 微调系统提示词，更新 `## 跨领域复合问题处理流程 (一期子查询军规)`，强化 EXISTS 和表别名纪律。
+
+#### backend/app/agent/test_service_prompt.py [MODIFY]
+- 新增对一期子查询军规与表别名约束的提示词测试断言。
+
 ## 2026-07-01 20:45 +08:00 - 实现多步 SQL 案例提取与过滤管道顺序 Bug 修复
 
 ### 概述

@@ -5,4 +5,5 @@ SELECT
     SUM(mq.station_4_defect_count) AS hood_defect_count,
     SUM(mq.station_5_defect_count) AS tailgate_defect_count,
     SUM(mq.total_defect_count) AS total_defect_count
-FROM mart_vehicle_quality_360 mq;
+FROM mart_vehicle_quality_360 mq
+WHERE mq.history_id IS NOT NULL;

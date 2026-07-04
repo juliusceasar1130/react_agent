@@ -46,20 +46,31 @@ def _build_load_skill_command(skill_name: str, runtime: ToolRuntime) -> Command:
             }
         )
 
-    loaded_skills = [skill_name]
+    # 1. 追加并保留已加载历史
+    current_loaded = runtime.state.get("skills_loaded", [])
+    new_loaded = list(current_loaded)
+    if skill_name not in new_loaded:
+        new_loaded.append(skill_name)
+
+    # 2. 限制辅助技能堆积上限为 3 个，超出截断最先进入的
+    if len(new_loaded) > 3:
+        for s in list(new_loaded):
+            if s != skill_name:
+                new_loaded.remove(s)
+                break
 
     return Command(
         update={
             "messages": [
                 ToolMessage(
                     content=(
-                        f"Loaded domain skill '{skill_name}' successfully (overriding any previously loaded skills). "
-                        "Only the current domain's DDL is active in the System Prompt under 'Active Domain Knowledge'."
+                        f"已成功将当前主技能激活为 '{skill_name}'。\n"
+                        f"历史加载过的技能 {new_loaded} 仍处于内存辅助参考状态，大模型可以直接跨表关联。"
                     ),
                     tool_call_id=runtime.tool_call_id,
                 )
             ],
-            "skills_loaded": loaded_skills,
+            "skills_loaded": new_loaded,
             "active_skill": skill_name,
         }
     )
