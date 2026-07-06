@@ -1,4 +1,53 @@
+## 2026-07-05 18:28 +08:00 - 跨域关联路径防护体系系统性审查与研究文档
+
+### 概述
+- **跨域关联路径声明全面审查**：
+  - 修复 `paint_shop_defect_analysis/meta.py` 中两条 N:1 关系的 `join_safety` 标注不一致（unsafe→safe），移除冗余 `pre_aggregate_hint`。
+  - 修复 `paint_shop_vehicle_logistics/meta.py` 中 relationship 4 的 from/to 方向错误（dim_process_area→position_current 翻转），基数 1:N→N:1。
+  - 统一所有 note 术语：弃用"主→辅"角色描述，改用固定的"N侧/1侧"基数描述。
+- **骨架关系渲染改为紧凑格式**：
+  - 将 `skeleton_service.py` 的 `_build_relationship_block` 从"聚焦式关系图"重写为紧凑箭头式（`[`基数`安全标记`] from_key -> to_key + note + 💡 模板）
+  - Token 消耗减少约 3.2x（每条~160→~50 tokens），两个技能 7 条关系共节省 ~770 tokens。
+  - 同步更新 `service.py` 规则 3.3 提示词对齐 `⚠️`/`💡` 标记。
+  - 清除文件头过时描述。
+- **PK 反射替代手动声明分析与研究文档**：
+  - 验证 `db_utils.py` 已通过 `inspector.get_pk_constraint()` 自动反射物理表 PK。
+  - 验证 PK 规则（JOIN 目标列非 PK → 需预聚合）等价于当前 7 条 relationships 声明（7/7 正确）。
+  - 从行业最佳实践角度完整评审：当前系统"重提示词、轻执行"，缺失执行前 AST 检查和运行时膨胀检测。
+  - 创建系统性研究文档 `docs/fanout/README.md`，含现象/分析/行业实践/推荐方案/进度/计划六维度总结。
+
+### 变更内容
+#### backend/app/skills/domains/paint_shop_defect_analysis/meta.py [MODIFY]
+- relationship 1: `join_safety` unsafe→safe，移除 `pre_aggregate_hint`，更新 note
+- relationship 2 & 3: note 术语统一为 N侧/1侧
+
+#### backend/app/skills/domains/paint_shop_vehicle_logistics/meta.py [MODIFY]
+- relationship 4: 翻转 from/to 方向（dim_process_area→position_current → position_current→dim_process_area），cardinality 1:N→N:1
+
+#### backend/app/agent/utils/skeleton_service.py [MODIFY]
+- `_build_relationship_block` 重写为紧凑箭头式输出
+- PK 标注正则 `^  `→`^\s+`，增强健壮性
+- 文件头过时描述清理
+
+#### backend/app/agent/service.py [MODIFY]
+- 规则 3.3 对齐新格式，`⚠️`/`💡` 标记替代旧文本
+
+#### docs/fanout/README.md [NEW]
+- 跨域关联路径防护体系系统性总结研究文档
+- 含现象、分析、行业最佳实践（附参考文献）、推荐方案、进度、后续计划
+
+## 2026-07-04 22:08 +08:00 - 系统提示词整合自主案例检索与场景加载工作流
+
+### 概述
+- **整合系统提示词工作流**：
+  在 `backend/app/agent/service.py` 的系统提示词 `## 3.1 总体工作流与重试机制` 中，显式整合了包含 `load_skill`、`load_scenario`、`search_saved_correct_tool_uses` 以及 `AskUserQuestion` 在内的 6 步标准闭环执行流程，明确了在输入口径模糊、关键参数（如车身号 FIS）缺失时提问澄清的判定，同时强化了大模型在非场景任务下通过案例检索的自适应查询规范。
+
+### 变更内容
+#### backend/app/agent/service.py [MODIFY]
+- 更新提示词工作流程小节，明确大模型对于澄清反馈、场景优先及案例检索工具的互斥、依存使用策略。
+
 ## 2026-07-04 18:10 +08:00 - 集成漏检车监控新场景并同步文档与场景模板对齐数仓升级
+
 
 ### 概述
 - **新增漏检与未检测车辆监控场景 (`leak_detection`)**：

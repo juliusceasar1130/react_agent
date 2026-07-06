@@ -61,9 +61,9 @@ def _get_column_comment_mysql(
 
 
 def _build_column_definition(
-    col: ReflectedColumn, col_comment: str | None
+    col: ReflectedColumn, col_comment: str | None, pk_cols: list[str] | None = None
 ) -> str:
-    """构建单个列的 DDL 定义"""
+    """构建单个列的 DDL 定义，可选标注主键列"""
     col_name = col["name"]
     col_type = str(col["type"])
 
@@ -72,6 +72,11 @@ def _build_column_definition(
         col_line += " NOT NULL"
     if col.get("default") is not None:
         col_line += f" DEFAULT {col['default']}"
+
+    # 🔑 主键标注：在主键列后追加 PRIMARY KEY
+    if pk_cols and col_name in pk_cols:
+        col_line += " PRIMARY KEY"
+
     if col_comment:
         col_line += f"  -- {col_comment}"
 
@@ -97,7 +102,7 @@ def _get_sample_rows(conn, table: str, limit: int = 3) -> list[str]:
 def _process_single_table(
     conn, inspector, table: str, db_dialect: str
 ) -> str | None:
-    """处理单个表，返回表定义字符串"""
+    """处理单个表，返回表定义字符串（含主键标注）"""
     try:
         # 获取表注释
         table_comment_obj = inspector.get_table_comment(table)
@@ -107,6 +112,17 @@ def _process_single_table(
 
         # 获取列信息
         columns = inspector.get_columns(table)
+
+        # 🔑 获取主键约束列名
+        pk_cols: list[str] = []
+        try:
+            pk_constraint = inspector.get_pk_constraint(table)
+            if pk_constraint:
+                pk_cols = pk_constraint.get("constrained_columns", [])
+                if pk_cols:
+                    logger.debug(f"表 {table} 主键列: {pk_cols}")
+        except Exception as pk_err:
+            logger.debug(f"获取表 {table} 主键约束失败（可能无物理主键）: {pk_err}")
 
         # 构建表定义
         definition_lines = [f"-- Table: {table}"]
@@ -131,7 +147,7 @@ def _process_single_table(
                         conn, table, col_name
                     )
 
-            col_texts.append(_build_column_definition(col, col_comment))
+            col_texts.append(_build_column_definition(col, col_comment, pk_cols))
 
         definition_lines.append(",\n".join(col_texts))
         definition_lines.append(");")
