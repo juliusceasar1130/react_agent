@@ -461,25 +461,45 @@ def _build_system_prompt(db: MaterializedViewSQLDatabase) -> str:
 - 可使用ORDER BY返回最相关结果。
 
 ## 3.3 跨表与跨领域关联查询规范 (子查询军规)
-1. **单 DDL 限制防范**：注意，系统对辅助技能仅提供了纯表结构骨架（排在主技能下方）。你必须以此骨架为参考，在一句 SQL 里完成跨域查询。
-2. **确定性子查询直连**：
-   - 表达“存在关联”时，必须使用：`WHERE EXISTS (SELECT 1 FROM 辅助表 WHERE 关联条件)`。
-   - 表达“排除/不存在”时，必须使用：`WHERE NOT EXISTS (SELECT 1 FROM 辅助表 WHERE 关联条件)`。
-   - 严禁在大段 SQL 中手工拼写 `IN ('FIS001', 'FIS002')` 巨型明细列表。
-3. **关联基数评估与防膨胀规则**：
-   - 编写跨域 JOIN 前，必须先检查辅助骨架末尾的「跨域关联路径」声明，确认关联键的基数（1:1 / 1:N / N:M）。
-   - 当关联路径标记为 `⚠️` 时（即从 1 侧 JOIN 到 N 侧），**严禁直接 JOIN 未聚合的对端表**，否则会触发数据扇出效应（Fan-out），导致行数和统计指标膨胀。
-   - **必须先对 N 侧表执行预聚合子查询**，保证关联键唯一，再 JOIN 到 1 侧表。模板：
+
+1. **单 DDL 限制防范**：
+   - 系统对辅助技能仅提供了纯表结构骨架。你必须以此骨架为参考，在一句 SQL 里完成跨域查询。
+   - 严禁跨域 JOIN 未聚合的明细表，必须通过子查询隔离逻辑。
+
+2. **确定性子查询直连（存在性判断）**：
+   - **表达“存在关联”时**：必须使用 `EXISTS`，禁止使用 `IN`（除非确定子查询无 NULL 且列数少）。
      ```sql
-     LEFT JOIN (
-       SELECT 关联键, 聚合函数(指标) AS 别名
-       FROM N侧表
-       WHERE 过滤条件
-       GROUP BY 关联键
-     ) t ON t.关联键 = 1侧表.关联键
+     WHERE EXISTS (SELECT 1 FROM 辅助表 t WHERE t.关联键 = 主表.关联键)
      ```
-   - 若关系行下方提供了 `💡` 预聚合模板，优先复用该模板。
-4. **跨域 `required_skill` 声明规则**：跨域查询时，`required_skill` 声明**主技能**名称（查询的主体领域）。辅助技能通过其骨架 DDL 直接引用，但两个技能都必须已 `load_skill` 加载。
+   - **表达“排除/不存在”时**：必须使用 `NOT EXISTS`。
+     - **严禁使用 `NOT IN`**：因为如果子查询返回任何 `NULL` 值，`NOT IN` 会导致整个主查询返回空集（三值逻辑陷阱）。
+     ```sql
+     WHERE NOT EXISTS (SELECT 1 FROM 辅助表 t WHERE t.关联键 = 主表.关联键)
+     ```
+
+3. **关联基数评估与防膨胀规则（核心！）**：
+   - **预判基数**：编写跨域 JOIN 前，必须判断 N 侧表的行数是否多于 M 侧表。如果 N 侧表是“明细/流水/记录表”，它通常是 N 侧。
+   - **严禁直接 JOIN 未聚合表**：如果 N 侧表一行可能对应 M 侧表的 K 行（K>1），**直接 JOIN 会导致数据扇出（Fan-out），导致 COUNT/SUM 等聚合指标膨胀 N 倍。**
+   - **强制预聚合模板**：必须先对 N 侧表执行子查询聚合，保证关联键唯一，再 LEFT JOIN 到主表。
+
+     **✅ 正确写法：**
+     ```sql
+     SELECT m.*, agg.col_sum
+     FROM 主表 m
+     LEFT JOIN (
+         SELECT 关联键,
+                COUNT(*) AS col_count,  -- 或 SUM/AVG 等
+                MIN(col) AS col_min
+         FROM N侧表 n
+         WHERE n.过滤条件
+         GROUP BY 关联键  -- 必须显式分组以保证唯一性
+     ) agg ON agg.关联键 = m.关联键
+     ```
+
+4. **跨域 `required_skill` 声明规则**:
+   - 跨域查询时，`required_skill` 必须声明**主技能**名称（即查询的主体领域）。
+   - 辅助技能必须已通过 `load_skill` 加载，否则无法访问其骨架 DDL。
+
 5. **结果行数 Fan out 自检**：若跨域 JOIN 查询返回的行数明显超过主表预期行数，必须怀疑 fan out，立即改用预聚合子查询重写。
 
 ## 3.4 模糊词与同义词处理

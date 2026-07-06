@@ -1,3 +1,69 @@
+## 2026-07-06 22:30 +08:00 - DDL 粒度标注体系与唯一键自动反射
+
+### 概述
+- **唯一键自动反射**：在 `db_utils.py` 中新增 UNIQUE CONSTRAINT + UNIQUE INDEX 双重反射机制，自动标注 DDL 中的 `UNIQUE` 列，解决 `fct_vehicle_position_current` 等仅有唯一索引（UNIQUE INDEX）而无唯一约束（UNIQUE CONSTRAINT）表的标注遗漏。
+  - 修复表达式索引（如 `COALESCE(history_id, '-1'::integer)`）导致列名为 None 的 crash。
+- **DDL 粒度标注体系（P1）**：
+  - 新增 `_parse_grain_info()` 函数，解析表注释中 `Grain:` 前缀，输出结构化 `-- Grain:` + `-- ⚠️` 警告行。
+  - 无 `Grain:` 前缀的注释仍走原 `-- Description:` 渲染，向后兼容。
+- **样本数据行展示**：新增 `_get_sample_rows()` 函数，在 DDL 尾部附加 3 行样本数据，帮助 LLM 理解列值格式。
+- **创建粒度标注规范文档**：`docs/fanout/grain_template.md`，含模板格式、表分类示例、DDL 渲染效果、实施要求。
+
+### 变更内容
+#### backend/app/agent/utils/db_utils.py [MODIFY]
+- `_build_column_definition()`: 新增 `unique_cols` 参数，在主键列之外标注 `UNIQUE`
+- `_process_single_table()`: 新增 UNIQUE CONSTRAINT + UNIQUE INDEX 反射逻辑（双通道合并去重）
+- 新增 `_parse_grain_info()`: 解析 `Grain:` 前缀注释为 `(grain_desc, warnings)`
+- 新增 `_get_sample_rows()`: 获取 3 行样本数据追加到 DDL 尾部
+- 注释渲染分支：有 `Grain:` 前缀 → 结构化 Grain + ⚠️；无前缀 → 原 Description
+- 更新模块 docstring，反映唯一键反射和粒度标注能力
+- 新增 `import re`
+
+#### docs/fanout/grain_template.md [NEW]
+- 粒度标注模板格式 `COMMENT ON TABLE ... IS 'Grain:...,...'`
+- 流水表、快照表、维度表、异常表四类场景示例 SQL
+- DDL 渲染效果对比
+- 实施要求与代码实现映射
+
+## 2026-07-05 22:30 +08:00 - P0: 冗余关系声明移除与提示词规则强化
+
+### 概述
+- **移除手动关系声明**：从两个技能的 `meta.py` 中彻底删除 `table_primary_keys` 和 `relationships` 声明（7 条关系 + 6 个 PK 定义），PK/UNIQUE 信息改由 `db_utils.py` 自动反射注入 DDL。
+- **移除骨架关系渲染**：删除 `skeleton_service.py` 的 `_build_relationship_block()` 方法（~60 行）和 `skill_middleware.py` 的 `_split_skeleton()` 方法（~18 行），骨架生成简化为纯 DDL 块。
+- **重写提示词规则 3.3**：
+  - EXISTS/NOT EXISTS 替换 IN/NOT IN，增加三值逻辑陷阱专项警告。
+  - 新增"关联基数预判与防膨胀"规则，含强制预聚合 SQL 模板。
+  - 新增"结果行数 Fan out 自检"规则。
+  - 移除过时的 `💡` 模板引用标记。
+- **清理验证**：7 个关键词全文搜索确认零残留引用，共删除 ~230 行代码，每轮交互节省约 350 tokens。
+
+### 变更内容
+#### backend/app/skills/domains/paint_shop_defect_analysis/meta.py [MODIFY]
+- 移除 `table_primary_keys`（3 个表）
+- 移除 `relationships`（3 条关系）
+- 更新文件头，说明 PK 信息改由数据库自动反射
+
+#### backend/app/skills/domains/paint_shop_vehicle_logistics/meta.py [MODIFY]
+- 移除 `table_primary_keys`（3 个表）
+- 移除 `relationships`（4 条关系）
+- 更新文件头，说明 PK 信息改由数据库自动反射
+
+#### backend/app/agent/utils/skeleton_service.py [MODIFY]
+- 删除 `_build_relationship_block()` 方法（~60 行）
+- `_build_ddl_blocks()` 简化为纯 DDL 清理和返回
+- 文件头注释更新，移除关系声明相关描述
+
+#### backend/app/agent/middleware/skill_middleware.py [MODIFY]
+- 删除 `_split_skeleton()` 静态方法（~18 行）
+- 辅助技能处理简化为直接使用 `get_skeleton_ddl()` 输出
+
+#### backend/app/agent/service.py [MODIFY]
+- 规则 3.3 重写：EXISTS/NOT EXISTS 替换 IN/NOT IN，三值逻辑陷阱警告
+- 新增关联基数预判与防膨胀规则（含预聚合 SQL 模板）
+- 新增结果行数 Fan out 自检规则
+- 移除 `💡` 模板引用标记
+- 保留运行时自检检查项
+
 ## 2026-07-05 18:28 +08:00 - 跨域关联路径防护体系系统性审查与研究文档
 
 ### 概述

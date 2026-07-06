@@ -89,13 +89,7 @@ class SkillMiddleware(AgentMiddleware[CustomState]):
         for sec_skill in secondary_skills:
             sec_skeleton = self.skeleton_service.get_skeleton_ddl(sec_skill)
             if sec_skeleton:
-                # 分离 DDL 骨架和跨域关系声明块
-                ddl_part, rel_part = self._split_skeleton(sec_skeleton)
-                block = f"### 辅助关联技能表结构: {sec_skill}\n"
-                if ddl_part:
-                    block += f"```sql\n{ddl_part}\n```"
-                if rel_part:
-                    block += f"\n\n{rel_part}"
+                block = f"### 辅助关联技能表结构: {sec_skill}\n```sql\n{sec_skeleton}\n```"
                 secondary_ddl_blocks.append(block)
         secondary_prompt = "\n\n".join(secondary_ddl_blocks) if secondary_ddl_blocks else ""
 
@@ -111,26 +105,6 @@ class SkillMiddleware(AgentMiddleware[CustomState]):
         new_system_message = SystemMessage(content=new_content)
 
         return request.override(system_message=new_system_message)
-
-    @staticmethod
-    def _split_skeleton(skeleton_text: str) -> tuple[str, str]:
-        """
-        将 SkeletonService 的输出拆分为 DDL 骨架部分和跨域关系声明部分。
-
-        SkeletonService 的输出格式：
-          1. DDL 骨架块（纯 SQL，用 CREATE TABLE 开头）
-          2. 「## 跨域关联路径」Markdown 块
-
-        返回:
-            (ddl_part, relationship_part)
-        """
-        rel_marker = "## 跨域关联路径"
-        idx = skeleton_text.find(rel_marker)
-        if idx == -1:
-            return skeleton_text, ""
-        ddl_part = skeleton_text[:idx].rstrip()
-        rel_part = skeleton_text[idx:]
-        return ddl_part, rel_part
 
     def wrap_model_call(
         self,

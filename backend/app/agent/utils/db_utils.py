@@ -4,9 +4,13 @@
 
 提供从数据库提取表结构和注释信息的功能。
 支持 PostgreSQL 和 MySQL 数据库。
+- 自动反射主键（PRIMARY KEY）标注
+- 自动反射唯一约束（UNIQUE CONSTRAINT）和唯一索引（UNIQUE INDEX）标注
+- 自动解析表注释中 `Grain:` 粒度标注，渲染为结构化的 `-- Grain:` + `-- ⚠️` 警告
 """
 
 import logging
+import re
 from typing import Dict
 
 from sqlalchemy import create_engine, inspect, text
@@ -61,9 +65,12 @@ def _get_column_comment_mysql(
 
 
 def _build_column_definition(
-    col: ReflectedColumn, col_comment: str | None, pk_cols: list[str] | None = None
+    col: ReflectedColumn,
+    col_comment: str | None,
+    pk_cols: list[str] | None = None,
+    unique_cols: set[str] | None = None,
 ) -> str:
-    """构建单个列的 DDL 定义，可选标注主键列"""
+    """构建单个列的 DDL 定义，可选标注主键列和唯一约束列"""
     col_name = col["name"]
     col_type = str(col["type"])
 
@@ -76,6 +83,10 @@ def _build_column_definition(
     # 🔑 主键标注：在主键列后追加 PRIMARY KEY
     if pk_cols and col_name in pk_cols:
         col_line += " PRIMARY KEY"
+
+    # 🏷️ 唯一约束/唯一索引标注（主键本身已保证唯一，不需要额外标注）
+    if unique_cols and col_name in unique_cols and not (pk_cols and col_name in pk_cols):
+        col_line += " UNIQUE"
 
     if col_comment:
         col_line += f"  -- {col_comment}"
@@ -97,6 +108,30 @@ def _get_sample_rows(conn, table: str, limit: int = 3) -> list[str]:
     except Exception as sample_err:
         logger.debug(f"无法获取表 {table} 的样本数据: {sample_err}")
     return sample_lines
+
+
+def _parse_grain_info(table_comment: str) -> tuple[str | None, list[str]]:
+    """
+    解析表注释中的粒度信息。
+
+    支持的注释格式：
+      Grain:一次检测事件(history_id),vehicle_id可能重复,统计车数需用COUNT(DISTINCT vehicle_id)
+
+    Returns:
+        (grain_description, warnings)
+        - grain_description: 粒度描述文本，无 Grain: 标记时返回 None
+        - warnings: 粒度相关的警告行列表
+    """
+    grain_match = re.match(r"^Grain:([^，,]+)(?:[，,]\s*(.*))?$", table_comment.strip(), re.DOTALL)
+    if not grain_match:
+        return None, []
+
+    grain_desc = grain_match.group(1).strip()
+    extra = grain_match.group(2)
+    warnings = []
+    if extra and extra.strip():
+        warnings.append(extra.strip())
+    return grain_desc, warnings
 
 
 def _process_single_table(
@@ -124,10 +159,40 @@ def _process_single_table(
         except Exception as pk_err:
             logger.debug(f"获取表 {table} 主键约束失败（可能无物理主键）: {pk_err}")
 
+        # 🏷️ 获取唯一约束 / 唯一索引列名（合并去重）
+        unique_cols: set[str] = set()
+        try:
+            # 唯一约束（UNIQUE CONSTRAINT）
+            unique_constraints = inspector.get_unique_constraints(table)
+            for constraint in unique_constraints:
+                for col in constraint.get("column_names", []):
+                    if col is not None:
+                        unique_cols.add(col)
+            # 唯一索引（UNIQUE INDEX），覆盖 get_unique_constraints 抓不到的场景
+            # 需排除表达式索引（列名为 None），表达式索引无法标注 UNIQUE
+            indexes = inspector.get_indexes(table)
+            for idx in indexes:
+                if idx.get("unique", False):
+                    for col in idx.get("column_names", []):
+                        if col is not None:
+                            unique_cols.add(col)
+            if unique_cols:
+                logger.debug(f"表 {table} 唯一列: {sorted(unique_cols)}")
+        except Exception as uniq_err:
+            logger.debug(f"获取表 {table} 唯一约束/索引失败: {uniq_err}")
+
         # 构建表定义
         definition_lines = [f"-- Table: {table}"]
         if table_comment:
-            definition_lines.append(f"-- Description: {table_comment}")
+            grain_desc, grain_warnings = _parse_grain_info(table_comment)
+            if grain_desc:
+                # 结构化粒度标注
+                definition_lines.append(f"-- Grain: {grain_desc}")
+                for w in grain_warnings:
+                    definition_lines.append(f"-- ⚠️ {w}")
+            else:
+                # 普通描述注释
+                definition_lines.append(f"-- Description: {table_comment}")
 
         definition_lines.append(f"CREATE TABLE {table} (")
 
@@ -147,7 +212,7 @@ def _process_single_table(
                         conn, table, col_name
                     )
 
-            col_texts.append(_build_column_definition(col, col_comment, pk_cols))
+            col_texts.append(_build_column_definition(col, col_comment, pk_cols, unique_cols))
 
         definition_lines.append(",\n".join(col_texts))
         definition_lines.append(");")
