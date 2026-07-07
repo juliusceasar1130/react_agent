@@ -20,6 +20,14 @@ from typing import Any, List, Optional, Union
 
 import sqlglot
 from langchain.tools import ToolRuntime, tool as langchain_tool
+from langchain_core.tools import ToolException
+
+from backend.app.agent.utils.sql_linter import (
+    SQLLinter, _build_lint_context, DMLSecurityRule, MultiStatementRule,
+    DatabasePrefixRule, StarSelectRule, AliasPrefixRule, SubqueryDepthRule,
+    CteCountRule, JoinUniquenessRule, CountDistinctRule, ScalarSubqueryRule,
+    NotInSubqueryRule, LintViolation, LintResult
+)
 
 from backend.app.agent.constants import SQL_ERROR_KEYWORDS
 from backend.app.agent.utils import emit_stream_status, normalize_dates_in_text
@@ -133,18 +141,21 @@ def _extract_preview_rows(result_text: str, n: int) -> str:
 def create_wrapped_query_tool(
     original_query_tool: Any,
     original_checker_tool: Optional[Any] = None,
+    custom_table_info: Optional[dict] = None,
 ) -> Any:
     """
     创建包装后的 SQL 查询工具
 
     将原始的 sql_db_query 工具包装，添加以下功能：
     1. 检查是否已加载相关业务技能
-    2. 自动执行 SQL 语法检查（如果 checker 工具可用）
-    3. 对查询结果进行日期格式标准化
+    2. 执行 SQL Linter 静态/语义校验并使用 ToolException 拦截
+    3. 自动执行 SQL 语法检查（如果 checker 工具可用）
+    4. 对查询结果进行日期格式标准化
 
     Args:
         original_query_tool: 原始的 sql_db_query 工具
         original_checker_tool: 可选的 sql_db_query_checker 工具
+        custom_table_info: 可选的表定义注释字典
 
     Returns:
         包装后的 sql_db_query 工具
@@ -167,15 +178,6 @@ def create_wrapped_query_tool(
             query: A valid SQL query string.
             required_skill: The name of the skill/domain this query belongs to.
         """
-        # 0. 安全性拦截：检查是否包含非法的 DML/DDL 关键字
-        if FORBIDDEN_SQL_PATTERN.search(query):
-            logger.warning(f"安全审计拦截：检测到危险 SQL 关键字。Query: {query}")
-            return (
-                "Error: 严重安全警告 - 该操作已被系统拦截。\n"
-                "SQL Agent 仅允许执行只读查询 (SELECT)，禁止执行任何涉及修改数据 (INSERT, UPDATE, DELETE) "
-                "或修改结构 (DROP, ALTER, TRUNCATE) 的指令。"
-            )
-
         # 1. 精确技能加载校验：确认当前查询所需的特定技能已被加载
         skills_loaded = runtime.state.get("skills_loaded", [])
         if required_skill not in skills_loaded:
@@ -185,7 +187,77 @@ def create_wrapped_query_tool(
                 "可用技能请查看系统提示中的 Available Skills 部分。"
             )
 
-        # 2. 自动执行 SQL 语法检查（如果 checker 工具可用）
+        # 2. SQL Linter 安全合规校验
+        if settings.sql_linter_enabled:
+            emit_stream_status(
+                "正在执行 SQL 合规检查",
+                stage="querying",
+                source="sql_db_query",
+            )
+            # 获取 DDL 字典
+            db_custom_info = custom_table_info
+            if not db_custom_info and hasattr(original_query_tool, "db"):
+                db_custom_info = getattr(original_query_tool.db, "_custom_table_info", None) or {}
+            
+            # 构建校验上下文
+            context = _build_lint_context(db_custom_info)
+            
+            # 实例化 Linter
+            linter = SQLLinter(rules_severity_override=settings.sql_linter_rules_severity_override)
+            
+            # 注册安全拦截规则集
+            linter.register(DMLSecurityRule())
+            linter.register(MultiStatementRule())
+            linter.register(DatabasePrefixRule(allowed_schemas=settings.sql_linter_allowed_schemas))
+            
+            # 注册结构合规规则集
+            linter.register(StarSelectRule())
+            linter.register(AliasPrefixRule())
+            linter.register(SubqueryDepthRule(max_depth=settings.sql_linter_max_subquery_depth))
+            linter.register(CteCountRule(max_cte=settings.sql_linter_max_cte_count))
+            
+            # 注册语义校验规则集
+            linter.register(JoinUniquenessRule())
+            linter.register(CountDistinctRule())
+            linter.register(ScalarSubqueryRule())
+            linter.register(NotInSubqueryRule())
+            
+            # 执行解析与校验
+            try:
+                parsed = sqlglot.parse_one(query)
+            except Exception as parse_error:
+                # 解析失败，退避到正则安全拦截与 MultiStatement 校验
+                logger.warning(f"sqlglot 解析 SQL 失败，执行正则/多语句退避校验: {parse_error}")
+                raw_violations = []
+                if FORBIDDEN_SQL_PATTERN.search(query):
+                    raw_violations.append(LintViolation(
+                        rule_id="SEC-001",
+                        severity="ERROR",
+                        message="SQL 仅允许 SELECT 只读查询，禁止任何写操作 (DML/DDL)。",
+                        detail=query,
+                        fix_suggestion="删除写入或更改表结构的指令。"
+                    ))
+                raw_violations.extend(MultiStatementRule().check_raw_sql(query, context))
+                
+                errors = [v for v in raw_violations if v.severity == "ERROR"]
+                if errors:
+                    dummy_result = LintResult(passed=False, errors=errors, warnings=[])
+                    err_msg = dummy_result.format_error_message()
+                    logger.warning(f"Linter 校验拦截 (退避模式):\n{err_msg}")
+                    raise ToolException(err_msg)
+                parsed = None
+            
+            if parsed is not None:
+                result = linter.lint(parsed, context, raw_sql=query)
+                for warn in result.warnings:
+                    logger.warning(f"Linter 警告 [{warn.rule_id}]: {warn.message} (Detail: {warn.detail})")
+                
+                if not result.passed:
+                    err_msg = result.format_error_message()
+                    logger.warning(f"Linter 校验拦截:\n{err_msg}")
+                    raise ToolException(err_msg)
+
+        # 3. 自动执行 SQL 语法检查（如果 checker 工具可用）
         if original_checker_tool is not None:
             emit_stream_status(
                 "正在检查 SQL 语法",
@@ -195,14 +267,13 @@ def create_wrapped_query_tool(
             check_result = original_checker_tool.invoke({"query": query})
             check_result_str = str(check_result).lower()
 
-            # 检查是否有错误指示
             if any(err in check_result_str for err in SQL_ERROR_KEYWORDS):
                 logger.warning("SQL 语法检查失败: %s", check_result)
                 return f"SQL 语法检查失败:\n{check_result}\n请修正查询后重试。"
 
             logger.debug("SQL 语法检查通过")
 
-        # 3. 执行查询
+        # 4. 执行查询
         emit_stream_status(
             "正在执行 SQL 查询",
             stage="querying",
@@ -261,6 +332,7 @@ def create_wrapped_query_tool(
         logger.debug("SQL 查询结果未超限 (估算行数=%d), 全量返回", estimated_rows)
         return f"{time_prefix}{cleaned_result}"
 
+    sql_db_query.handle_tool_error = True
     return sql_db_query
 
 

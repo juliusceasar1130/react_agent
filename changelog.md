@@ -1,3 +1,43 @@
+## 2026-07-07 15:10 +08:00 - SQL 执行前硬拦截 Linter 与自愈机制 (含 PG 深度去重优化)
+
+### 概述
+- **SQL Linter 静态/语义多级安全合规检查（P2）**：实现了用于 SQL Agent 执行 SQL 前硬防守拦截的 SQL Linter 架构，分三层进行校验：
+  - 安全过滤层（SEC-001 DML 写操作拦截、SEC-002 堆叠多语句注入检测、SEC-003 数据库别名前缀/非法 schema 拦截）。
+  - 结构合规层（STR-001 `SELECT *` 通配符拦截、STR-002 JOIN 强制别名前缀、STR-003 子查询深度限制、STR-004 CTE 数量警告）。
+  - 语义校验层（SEM-001 关联列唯一性、SEM-002 事实表非去重 `COUNT` 告警、SEM-003 标量子查询 limit 限制警告、SEM-004 `NOT IN` 子查询 NULL 穿透漏洞拦截）。
+- **PostgreSQL 专用去重关联优化**：深度优化了 `JoinUniquenessRule` (SEM-001) 规则，智能识别并安全放行以下三类去重关联模式，解决常见“取最新检测记录”时的拦截误杀：
+  - `MAX`/`MIN` 极值标量子查询过滤条件。
+  - `ROW_NUMBER() OVER (...) = 1` 窗口去重子查询条件。
+  - `LIMIT 1` 子查询全局条件。
+- **标量子查询误判修复**：在 `ScalarSubqueryRule` (SEM-003) 中引入 AST 上下文路径判定逻辑，有效过滤掉 FROM/JOIN 数据源中的表子查询（Table Subquery），防止对正常子查询进行误拦截。
+- **DDL 语义上下文提取**：编写了从 `custom_table_info` 表 DDL 描述中自动解析提取主键、唯一键和 Grain 信息构建 `LintContext` 上下文的引擎。
+- **LangChain 工具层集成与自愈**：将 `sql_linter` 接入 `create_wrapped_query_tool` 包装查询工具。对于拦截的 ERROR 问题，通过抛出 `ToolException` 结合 `handle_tool_error=True` 属性触发 SQL Agent 的自我修复能力。
+- **完全可配置支持**：提供全局开关、严重度覆盖重载、子查询深度限制、CTE 数量限制等配置项，支持环境变量在测试时动态映射重载。
+
+### 变更内容
+#### backend/app/config.py [MODIFY]
+- 新增 `sql_linter_enabled`、`sql_linter_max_subquery_depth`、`sql_linter_max_cte_count`、`sql_linter_allowed_schemas_raw`、`sql_linter_rules_severity_raw` 等配置字段与别名环境变量映射。
+
+#### backend/app/agent/utils/sql_linter.py [NEW]
+- 实现 `LintViolation`, `LintContext`, `LintResult` 数据模型。
+- 实现 `BaseLintRule` 抽象规则基类与编排器 `SQLLinter`。
+- 实现安全层（`DMLSecurityRule`, `MultiStatementRule`, `DatabasePrefixRule`）、结构层（`StarSelectRule`, `AliasPrefixRule`, `SubqueryDepthRule`, `CteCountRule`）和语义层（`JoinUniquenessRule`, `CountDistinctRule`, `ScalarSubqueryRule`, `NotInSubqueryRule`）共 11 个规则类。
+  - 特别优化 `JoinUniquenessRule` 支持 `MAX`/`MIN`、`ROW_NUMBER`、`LIMIT 1` 判定。
+  - 特别优化 `ScalarSubqueryRule` 支持 FROM/JOIN 父类排除。
+- 实现从 DDL 中提取上下文元数据的 `_build_lint_context` 引擎。
+
+#### backend/app/agent/tools/sql_tools.py [MODIFY]
+- 集成 `sql_linter` 到 `create_wrapped_query_tool`，并在合规校验拦截时抛出 `ToolException`，将 `handle_tool_error = True` 绑定到包装后的工具实例，启用 Agent 的自我修复机制。
+
+#### backend/app/test_config.py [NEW]
+- 新增 Linter 配置解析与环境变量重写覆盖的相关单元测试。
+
+#### backend/app/test_sql_linter.py [NEW]
+- 覆盖 Linter 骨架、安全拦截、结构合规、DDL 上下文提取、语义校验和工具集成的完整 pytest 用例（共 6 个大用例，覆盖所有规则分支）。
+
+#### docs/fanout/sql_linter_proposal.md [MODIFY]
+- 覆写更新方案文档，反映配置别名映射、By-pass 设计及最新自愈切入路径实现细节。
+
 ## 2026-07-06 22:30 +08:00 - DDL 粒度标注体系与唯一键自动反射
 
 ### 概述

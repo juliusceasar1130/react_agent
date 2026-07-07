@@ -99,7 +99,6 @@ Fan-out（扇出/行膨胀）是指 JOIN 后结果行数大于驱动表行数的
 | Few-shot 示例 | 提供正反 SQL 示例 | ❌ **无** | **关键缺口** |
 
 > **来源**：BIRD Benchmark 论文显示，few-shot 是提升 Text-to-SQL 准确率最有效的手段之一[^1]；DIN-SQL (NeurIPS 2023) 通过分解 + 自我修正 + few-shot 达到 SOTA[^5]
-| 执行前检查 | AST 检查 COUNT(*) 场景 | ❌ **无** | **关键缺口** |
 
 ### 3.4 执行层防护（最薄弱环节）
 
@@ -188,65 +187,32 @@ Fan-out（扇出/行膨胀）是指 JOIN 后结果行数大于驱动表行数的
 
 | 任务 | 状态 | 说明 |
 |---|---|---|
-| relationships 标注一致性审查 | ✅ | 修复了 7 条关系中的方向和安全标注错误 |
-| note 术语统一 | ✅ | 全部改为 N侧/1侧 描述，消除"主/辅"歧义 |
-| 关系渲染紧凑格式 | ✅ | 从"聚焦式关系图"改为紧凑箭头式，节省 ~3.2x tokens |
-| service.py 提示词对齐 | ✅ | 规则 3.3 对齐新格式（`⚠️`/`💡` 标记） |
-| skeleton_service.py 文件头清理 | ✅ | 移除过时描述 |
-| PK 反射验证 | ✅ | 确认 `db_utils.py` 已自动反射所有物理表 PK |
-| PK 规则等价性验证 | ✅ | 验证 PK 规则等价于当前 relationships 声明（7/7 正确） |
+| relationships 标注一致性审查 | ✅ | 修复了关系表的方向与安全状态。 |
+| 移除 relationships + table_primary_keys | ✅ | 已从 `meta.py` 领域配置文件中彻底删除。 |
+| 清理 skeleton_service.py 关系渲染逻辑 | ✅ | 已删除 `_build_relationship_block` 及相关渲染代码。 |
+| 清理 skill_middleware.py 关系拆分逻辑 | ✅ | 简化了关系部分处理。 |
+| DDL 注入粒度标注 | ✅ | 已实现 DDL 注释中 Grain 元数据的反射和提取。 |
+| SQL 执行前 AST 检查 | ✅ | 实现了完整的 SQL Linter 静态/语义硬性拦截和 ToolException 自愈机制。 |
+| 极值、窗口函数、LIMIT 1 去重放行判定 | ✅ | 在 `JoinUniquenessRule` (SEM-001) 中实现了智能安全放行。 |
 
 ### 5.2 待实施
 
 | 任务 | 优先级 | 说明 |
 |---|---|---|
-| 移除 relationships + table_primary_keys | P0 | 从两个 meta.py 中删除 |
-| 清理 skeleton_service.py 关系渲染逻辑 | P0 | 删除 `_build_relationship_block` 及相关代码 |
-| 清理 skill_middleware.py 关系拆分逻辑 | P0 | 简化 `_split_skeleton` 或直接移除 |
-| service.py 提示词替换为 PK 军规 | P0 | 一条通用规则替代 5 条具体规则 |
-| DDL 注入粒度标注 | P1 | 在 `db_utils.py` 或 `skeleton_service.py` 中实现 |
-| SQL 执行前 AST 检查 | P2 | 新增校验模块 |
-| 运行时膨胀检测 | P3 | 新增监控模块 |
-| Few-shot 示例积累 | P3 | 长期数据积累 |
+| 运行时膨胀检测 | P3 | 未来接入 EXPLAIN / 运行时行数评估。 |
+| Few-shot 示例积累 | P3 | 长期对正确/错误 SQL 案例进行搜集。 |
 
 ---
 
 ## 6. 后续计划
 
-### 6.1 立即实施（本周）
+### 6.1 运行时膨胀检测 (P3)
+- 集成 EXPLAIN 行数预估。
+- 异常膨胀时抛出警告并由 Agent 自动重试。
 
-1. **移除冗余声明**
-   - `paint_shop_defect_analysis/meta.py`：删除 `table_primary_keys` 和 `relationships`
-   - `paint_shop_vehicle_logistics/meta.py`：删除 `table_primary_keys` 和 `relationships`
-   - `skeleton_service.py`：删除 `_build_relationship_block` 及相关调用
-   - `skill_middleware.py`：简化 `_split_skeleton`（移除 relationship 部分处理）
-
-2. **替换提示词**
-   - `service.py` 规则 3.3：用 PK 军规替代现有 relationships 相关规则
-
-### 6.2 近期实施（本月）
-
-1. **DDL 粒度标注**
-   - 在 `db_utils.py` 或 `skeleton_service.py` 中，为每张表注入粒度警告注释
-   - 测试 LLM 对粒度警告的理解和遵守情况
-
-2. **SQL 执行前 AST 检查（原型）**
-   - 实现简单的 AST 解析（可用 sqlparse 或正则）
-   - 先实现 `COUNT(*)` 检查和 JOIN PK 检查两个核心规则
-
-### 6.3 远期规划（未来季度）
-
-1. **运行时膨胀检测**
-   - 集成 EXPLAIN 行数预估
-   - 异常膨胀时自动重试
-
-2. **Few-shot 示例驱动**
-   - 收集生产环境中的正确/错误 SQL 对
-   - 动态注入 prompt 作为参考
-
-3. **多技能扩展**
-   - 验证 PK 规则在其他技能域中的适用性
-   - 评估是否需要补充逻辑（如 composite PK、unique index 等）
+### 6.2 Few-shot 示例驱动 (P3)
+- 收集生产环境中的正确/错误 SQL 对。
+- 动态注入 Prompt 作为参考。
 
 ---
 
@@ -256,12 +222,13 @@ Fan-out（扇出/行膨胀）是指 JOIN 后结果行数大于驱动表行数的
 
 | 文件 | 作用 | 改动状态 |
 |---|---|---|
-| `backend/app/skills/domains/paint_shop_defect_analysis/meta.py` | 领域元数据 | 待删除 relationships/table_primary_keys |
-| `backend/app/skills/domains/paint_shop_vehicle_logistics/meta.py` | 领域元数据 | 待删除 relationships/table_primary_keys |
-| `backend/app/agent/utils/skeleton_service.py` | 辅助技能骨架 DDL 服务 | 待删除关系渲染逻辑 |
-| `backend/app/agent/middleware/skill_middleware.py` | 技能中间件 | 待简化关系拆分逻辑 |
-| `backend/app/agent/service.py` | Agent 系统提示词 | 待替换规则 3.3 |
-| `backend/app/agent/utils/db_utils.py` | 数据库元数据工具 | 已完成 PK 反射 ✅ |
+| `backend/app/skills/domains/paint_shop_defect_analysis/meta.py` | 领域元数据 | 已删除 relationships/table_primary_keys ✅ |
+| `backend/app/skills/domains/paint_shop_vehicle_logistics/meta.py` | 领域元数据 | 已删除 relationships/table_primary_keys ✅ |
+| `backend/app/agent/utils/skeleton_service.py` | 辅助技能骨架 DDL 服务 | 已删除关系渲染逻辑 ✅ |
+| `backend/app/agent/middleware/skill_middleware.py` | 技能中间件 | 已简化关系拆分逻辑 ✅ |
+| `backend/app/agent/service.py` | Agent 系统提示词 | 已简化并注入 Linter 五大规约规则 ✅ |
+| `backend/app/agent/utils/db_utils.py` | 数据库元数据工具 | 已完成 PK 反射与 DDL 字段结构解析 ✅ |
+| `backend/app/agent/utils/sql_linter.py` | SQL Linter 校验核心及规则 | 新增模块，包含安全、结构、语义及 PG 优化规则 ✅ |
 
 ### B. PK 规则等价性验证表
 

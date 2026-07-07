@@ -2,7 +2,7 @@ import os
 import tempfile
 from pathlib import Path
 from typing import Optional
-from pydantic import field_validator
+from pydantic import field_validator, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from dotenv import load_dotenv
 
@@ -80,6 +80,35 @@ class Settings(BaseSettings):
             t.strip().lower() for t in self.dimension_tables_raw.split(",") if t.strip()
         }
 
+    # === SQL Linter 配置 ===
+    sql_linter_enabled: bool = False
+    sql_linter_max_subquery_depth: int = 3
+    sql_linter_max_cte_count: int = 3
+    sql_linter_allowed_schemas_raw: str = Field(
+        default="mart,fct,dim,ods,meta,public",
+        validation_alias="sql_linter_allowed_schemas"
+    )
+    sql_linter_rules_severity_raw: str = Field(
+        default="",
+        validation_alias="sql_linter_rules_severity_override"
+    )
+
+    @property
+    def sql_linter_allowed_schemas(self) -> list[str]:
+        return [s.strip().lower() for s in self.sql_linter_allowed_schemas_raw.split(",") if s.strip()]
+
+    @property
+    def sql_linter_rules_severity_override(self) -> dict[str, str]:
+        result = {}
+        if not self.sql_linter_rules_severity_raw:
+            return result
+        for pair in self.sql_linter_rules_severity_raw.split(","):
+            if ":" in pair:
+                rule_id, severity = pair.split(":", 1)
+                result[rule_id.strip().upper()] = severity.strip().upper()
+        return result
+
+
     # SQL 导出文件配置：前端下载能力使用的临时导出目录与过期时间
     sql_export_dir: str = os.getenv(
         "SQL_EXPORT_DIR",
@@ -101,6 +130,14 @@ class Settings(BaseSettings):
     agent_max_tokens: int = int(os.getenv("AGENT_MAX_TOKENS", "2000"))
     llm_timeout: float = float(os.getenv("LLM_TIMEOUT", "120"))
     llm_max_retries: int = int(os.getenv("LLM_MAX_RETRIES", "2"))
+
+    # Agent调用限制配置：防止Agent无限调用工具无法跳出
+    # ModelCallLimitMiddleware: 限制单次对话中模型调用总次数（含推理+工具响应后的再推理）
+    agent_model_call_run_limit: int = int(os.getenv("AGENT_MODEL_CALL_RUN_LIMIT", "15"))
+    # ToolCallLimitMiddleware: 限制单次对话中工具调用总次数
+    agent_tool_call_run_limit: int = int(os.getenv("AGENT_TOOL_CALL_RUN_LIMIT", "10"))
+    # 超限后行为: 'end' = 优雅结束并总结已知信息, 'error' = 抛出异常
+    agent_call_limit_exit_behavior: str = os.getenv("AGENT_CALL_LIMIT_EXIT_BEHAVIOR", "end")
     llm_top_p: Optional[float] = (
         float(os.getenv("LLM_TOP_P")) if os.getenv("LLM_TOP_P") else None
     )

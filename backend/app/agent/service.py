@@ -20,7 +20,11 @@ import os
 from typing import TYPE_CHECKING, Any, Optional
 
 from langchain.agents import create_agent
-from langchain.agents.middleware import SummarizationMiddleware
+from langchain.agents.middleware import (
+    ModelCallLimitMiddleware,
+    SummarizationMiddleware,
+    ToolCallLimitMiddleware,
+)
 from langchain_community.agent_toolkits import SQLDatabaseToolkit
 from langchain_openai import ChatOpenAI
 
@@ -443,7 +447,14 @@ def _build_system_prompt(db: MaterializedViewSQLDatabase) -> str:
 - 创建语法正确的{db.dialect}查询。当目标数据库为 PostgreSQL 时，你作为 PostgreSQL 专家生成 SQL 时必须严格遵循以下规则：
   1. 【禁止使用数据库名前缀】在 PostgreSQL 下，生成 SQL 时严禁在表名前添加数据库名称作为前缀（例如：绝对不要写 `analytics_db.fct.fct_vehicle_position_current` 或 `analytics_db.fct_vehicle_position_current`）。必须且仅能使用 `schema.table` 格式（如 `fct.fct_vehicle_position_current`、`mart.mart_vehicle_quality_360`），否则 PostgreSQL 会因无法识别该 Schema 而报错。
   2. 【查询结构偏好】优先使用 Nested Subquery（嵌套子查询）。为了避免 SQL 的三值逻辑 NULL 陷阱，优先推荐使用 WHERE EXISTS (SELECT 1 FROM ... WHERE x.id = y.id)，其次可保留 WHERE id IN (SELECT id FROM ...，但须确保子表关联字段非空)。仅在结果集需要被多次引用，或者包含复杂的自引用递归树查询时，才推荐使用 WITH 子句 (CTE)。
-  3. 【避免同名歧义与 SELECT *】在编写 SQL（特别是使用多表 JOIN 或子查询）时，每一个投影字段与条件字段必须加上显式的表别名前缀（例如必须编写 `mq.vehicle_id = vp.vehicle_id`）。所有 SQL 查询（包括主查询、子查询与 CTE 块）必须显式声明所需的投影列名，严禁使用 SELECT *，防范 PostgreSQL 17 抛出 Column Reference is Ambiguous 错误。
+  3. 【Linter 规约与前缀约束】生成 SQL 时必须严格满足 Linter 硬拦截规则，否则查询将直接失败：
+     - **强制表别名前缀**：若 SQL 中存在 `JOIN`，任何地方引用的任何列（SELECT、ON、WHERE、GROUP BY、HAVING、ORDER BY 等）**都必须**带上表别名前缀（如 `t.vehicle_id`）。
+       - ✅ 正例：`SELECT t.vehicle_id, d.total_defect_count FROM vehicles t JOIN defects d ON t.id = d.vehicle_id`
+       - ❌ 反例：`SELECT vehicle_id, total_defect_count FROM vehicles JOIN defects ON ...`
+     - **关联唯一性保障**：JOIN 事实明细表且有外层聚合时，右侧表必须唯一，强制使用 `ROW_NUMBER() = 1` 窗口去重、`LIMIT 1` 或 `MAX/MIN 极值子查询` 确保关联唯一性（或首行添加 `-- linter-bypass: SEM-001`）。
+     - **禁止 SELECT ***：严禁使用 `SELECT *` 或 `t.*`（`COUNT(*)` 聚合及窗口函数内部除外），必须列出所需投影列，防范 Column Reference is Ambiguous 错误。
+     - **禁止 NOT IN 子查询**：表达排除逻辑必须用 `NOT EXISTS` 或 `LEFT JOIN ... WHERE ... IS NULL`，严禁 `NOT IN <Subquery>`（允许 NOT IN 常量列表）。
+     - **嵌套与 CTE 限制**：子查询嵌套深度不得超过 3 层，同一个 SQL 中定义的 CTE 数量不得超过 3 个。
   4. 【避免套娃】严禁 SELECT * FROM (SELECT * FROM (SELECT ...)) 这类多层嵌套反模式。
   5. 【物化策略】小结果集多次引用加 MATERIALIZED；大表单次引用加 NOT MATERIALIZED；不确定时不加提示。
   6. 【PG 专属语法】时间用 INTERVAL；多行合并用 STRING_AGG/ARRAY_AGG；非结构化字段用 JSONB 操作符。
@@ -455,7 +466,6 @@ def _build_system_prompt(db: MaterializedViewSQLDatabase) -> str:
   具体转换格式容错规则：
   a. 若 DATE_EVT 格式为 'DD/MM/YYYY HH24:MI:SS'（无微秒），使用：TO_TIMESTAMP(DATE_EVT, 'DD/MM/YYYY HH24:MI:SS')
   b. 若包含微秒格式，使用：TO_TIMESTAMP(DATE_EVT, 'DD/MM/YYYY HH24:MI:SS.US')
-- 在表达“排除”或“不存在”的逻辑时，必须且只能使用 NOT EXISTS 结构，严禁使用 NOT IN，防范子查询包含 NULL 导致主查询返回空集的经典 SQL 陷阱。
 - 【索引友好规则】：避免在索引列上包裹任何函数（例如避免在 WHERE 中编写 TO_TIMESTAMP(DATE_EVT, ...) > ...）。若需要对 DATE_EVT 进行范围过滤，推荐直接使用字符常量进行范围比对，或在 SQL 中将传入的比较常量转换后与原始列比对，确保能够正常使用数据库索引。
 - 统计分析必须使用GROUP BY/COUNT/SUM等聚合函数，严禁拉取大量明细后自行汇总。
 - 可使用ORDER BY返回最相关结果。
@@ -723,7 +733,25 @@ class SQLAgentService:
                 token_counter=exact_token_counter,
             )
 
+            # 构建调用限制中间件（防止Agent无限调用工具无法跳出）
+            call_limit_middlewares: list[Any] = []
+            if settings.agent_model_call_run_limit > 0:
+                call_limit_middlewares.append(
+                    ModelCallLimitMiddleware(
+                        run_limit=settings.agent_model_call_run_limit,
+                        exit_behavior=settings.agent_call_limit_exit_behavior,  # type: ignore[arg-type]
+                    )
+                )
+            if settings.agent_tool_call_run_limit > 0:
+                call_limit_middlewares.append(
+                    ToolCallLimitMiddleware(
+                        run_limit=settings.agent_tool_call_run_limit,
+                        exit_behavior=settings.agent_call_limit_exit_behavior,  # type: ignore[arg-type]
+                    )
+                )
+
             middleware_list = [
+                *call_limit_middlewares,
                 summarization_middleware,
                 SkillMiddleware(db),
                 _create_context_warning_middleware(token_estimator),
@@ -838,7 +866,25 @@ class SQLAgentService:
                 token_counter=exact_token_counter,
             )
 
+            # 构建调用限制中间件（防止Agent无限调用工具无法跳出）
+            call_limit_middlewares: list[Any] = []
+            if settings.agent_model_call_run_limit > 0:
+                call_limit_middlewares.append(
+                    ModelCallLimitMiddleware(
+                        run_limit=settings.agent_model_call_run_limit,
+                        exit_behavior=settings.agent_call_limit_exit_behavior,  # type: ignore[arg-type]
+                    )
+                )
+            if settings.agent_tool_call_run_limit > 0:
+                call_limit_middlewares.append(
+                    ToolCallLimitMiddleware(
+                        run_limit=settings.agent_tool_call_run_limit,
+                        exit_behavior=settings.agent_call_limit_exit_behavior,  # type: ignore[arg-type]
+                    )
+                )
+
             middleware_list = [
+                *call_limit_middlewares,
                 summarization_middleware,
                 SkillMiddleware(db),
                 _create_context_warning_middleware(token_estimator),
