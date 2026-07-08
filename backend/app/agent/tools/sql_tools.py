@@ -203,7 +203,10 @@ def create_wrapped_query_tool(
             context = _build_lint_context(db_custom_info)
             
             # 实例化 Linter
-            linter = SQLLinter(rules_severity_override=settings.sql_linter_rules_severity_override)
+            linter = SQLLinter(
+                rules_severity_override=settings.sql_linter_rules_severity_override,
+                disabled_rules=settings.sql_linter_disabled_rules
+            )
             
             # 注册安全拦截规则集
             linter.register(DMLSecurityRule())

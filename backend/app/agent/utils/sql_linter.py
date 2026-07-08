@@ -51,11 +51,15 @@ class BaseLintRule(ABC):
 
 
 class SQLLinter:
-    def __init__(self, rules_severity_override: dict = None):
+    def __init__(self, rules_severity_override: dict = None, disabled_rules: set[str] = None):
         self._rules: List[BaseLintRule] = []
         self._severity_override = rules_severity_override or {}
+        self._disabled_rules = disabled_rules or set()
 
     def register(self, rule: BaseLintRule) -> None:
+        if rule.rule_id in self._disabled_rules:
+            logger.info(f"SQL Linter Rule {rule.rule_id} is disabled by configuration.")
+            return
         self._rules.append(rule)
 
     def lint(self, parsed: Expression, context: LintContext, raw_sql: Optional[str] = None) -> LintResult:

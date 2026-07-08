@@ -58,6 +58,12 @@ class Settings(BaseSettings):
     # SQL Agent 软限制：用于 System Prompt 引导 LLM 生成 SQL 时自带 LIMIT 子句的数量，默认为 2000
     sql_agent_top_k: int = int(os.getenv("SQL_AGENT_TOP_K", "1000"))
 
+    # 系统提示词模板文件路径
+    system_prompt_path: str = os.getenv(
+        "SYSTEM_PROMPT_PATH",
+        str(Path(__file__).resolve().parent / "agent" / "prompts" / "base_system_prompt.md"),
+    )
+
     # SQL 结果硬限制：代码层面对查询结果集的强制截断上限，防止大量数据加载到 LLM 上下文中造成溢出或性能崩溃
     sql_result_hard_limit: int = int(os.getenv("SQL_RESULT_HARD_LIMIT", "30"))
 
@@ -92,6 +98,10 @@ class Settings(BaseSettings):
         default="",
         validation_alias="sql_linter_rules_severity_override"
     )
+    sql_linter_disabled_rules_raw: str = Field(
+        default="",
+        validation_alias="sql_linter_disabled_rules"
+    )
 
     @property
     def sql_linter_allowed_schemas(self) -> list[str]:
@@ -107,6 +117,14 @@ class Settings(BaseSettings):
                 rule_id, severity = pair.split(":", 1)
                 result[rule_id.strip().upper()] = severity.strip().upper()
         return result
+
+    @property
+    def sql_linter_disabled_rules(self) -> set[str]:
+        if not self.sql_linter_disabled_rules_raw:
+            return set()
+        return {
+            r.strip().upper() for r in self.sql_linter_disabled_rules_raw.split(",") if r.strip()
+        }
 
 
     # SQL 导出文件配置：前端下载能力使用的临时导出目录与过期时间

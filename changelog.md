@@ -1,3 +1,25 @@
+## 2026-07-08 20:20 +08:00 - 增加 SQL Linter 规则禁用配置
+
+### 概述
+- **SQL Linter 规则禁用配置（STR-002 屏蔽）**：为了解决在多表关联查询中，频繁拦截 `STR-002` (表别名前缀缺少) 导致工具调用超时的问题，我们新增了 `SQL_LINTER_DISABLED_RULES` 配置项。
+- **配置与拦截逻辑解耦**：用户只需在环境变量或配置中添加 `SQL_LINTER_DISABLED_RULES=STR-002` 即可实现屏蔽，系统底层仍保留该规则的完整校验逻辑，以便后续恢复。
+
+### 变更内容
+#### backend/app/config.py [MODIFY]
+- 新增 `sql_linter_disabled_rules_raw` 属性与 `sql_linter_disabled_rules` 解析属性，从环境变量 `SQL_LINTER_DISABLED_RULES` 自动反射。
+
+#### backend/app/agent/utils/sql_linter.py [MODIFY]
+- 修改 `SQLLinter` 初始化参数，使其在注册规则时根据 `disabled_rules` 集合过滤不予注册的规则。
+
+#### backend/app/agent/tools/sql_tools.py [MODIFY]
+- 实例化 `SQLLinter` 时将 `settings.sql_linter_disabled_rules` 传入，从而应用用户禁用的规则。
+
+#### backend/app/test_config.py [MODIFY]
+- 增加对 `SQL_LINTER_DISABLED_RULES` 配置解析和清理的单元测试。
+
+#### backend/app/test_sql_linter.py [MODIFY]
+- 增加针对禁用规则功能的单体测试和工具集成测试。
+
 ## 2026-07-07 15:10 +08:00 - SQL 执行前硬拦截 Linter 与自愈机制 (含 PG 深度去重优化)
 
 ### 概述

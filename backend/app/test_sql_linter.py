@@ -252,3 +252,44 @@ def test_tool_linter_integration(monkeypatch):
         "runtime": DummyRuntime()
     })
     assert "STR-001" in res
+
+
+def test_disabled_rules():
+    linter = SQLLinter(disabled_rules={"STR-001"})
+    linter.register(StarSelectRule())
+    
+    context = LintContext(table_pk_map={}, table_unique_map={}, table_grain_map={}, is_event_table={})
+    parsed = sqlglot.parse_one("SELECT * FROM t")
+    assert linter.lint(parsed, context).passed is True
+
+
+def test_tool_linter_integration_disabled(monkeypatch):
+    from backend.app.config import settings
+    monkeypatch.setattr(settings, "sql_linter_enabled", True)
+    monkeypatch.setattr(settings, "sql_linter_disabled_rules_raw", "STR-001")
+
+    custom_table_info = {
+        "dim.carbody_registry": "CREATE TABLE dim.carbody_registry (vehicle_id VARCHAR PRIMARY KEY);"
+    }
+    wrapped = create_wrapped_query_tool(DummyTool(), custom_table_info=custom_table_info)
+    monkeypatch.setattr(wrapped, "args_schema", None)
+    
+    class DummyRuntime:
+        state = {"skills_loaded": ["test_skill"]}
+        
+        def emit_stream_status(self, *args, **kwargs):
+            pass
+            
+        def run_db_query(self, *args, **kwargs):
+            return "[]"
+            
+        def run_no_throw(self, *args, **kwargs):
+            return "[]"
+
+    # STR-001 SELECT * is bypassed now because it is disabled
+    res = wrapped.invoke({
+        "query": "SELECT * FROM dim.carbody_registry",
+        "required_skill": "test_skill",
+        "runtime": DummyRuntime()
+    })
+    assert res.endswith("[]")
