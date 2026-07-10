@@ -359,6 +359,8 @@ class JoinUniquenessRule(BaseLintRule):
         if not joins:
             return []
 
+        cte_map = self._extract_cte_map(parsed)
+
         has_aggregates = any(
             isinstance(node, (sqlglot.exp.Sum, sqlglot.exp.Avg, sqlglot.exp.Count, sqlglot.exp.Min, sqlglot.exp.Max))
             for node in parsed.walk()
@@ -397,9 +399,11 @@ class JoinUniquenessRule(BaseLintRule):
                         break
 
             if not right_safe:
-                if self._is_max_min_subquery_filter(on_condition, right_alias, right_join_cols):
+                if isinstance(right_table_node, sqlglot.exp.Table) and self._is_cte_deduped(right_table_node.name.lower(), cte_map):
                     right_safe = True
-                elif self._is_rownumber_one_filter(on_condition, right_table_node, right_alias):
+                elif self._is_max_min_subquery_filter(on_condition, right_alias, right_join_cols):
+                    right_safe = True
+                elif self._is_rownumber_one_filter(on_condition, right_table_node, right_alias, cte_map):
                     right_safe = True
                 elif self._is_limit_one_subquery(right_table_node):
                     right_safe = True
@@ -459,10 +463,17 @@ class JoinUniquenessRule(BaseLintRule):
                             return True
         return False
 
-    def _is_rownumber_one_filter(self, on_condition: Expression, right_table_node: Expression, right_alias: str) -> bool:
-        if not isinstance(right_table_node, sqlglot.exp.Subquery):
+    def _is_rownumber_one_filter(self, on_condition: Expression, right_table_node: Expression, right_alias: str, cte_map: dict = None) -> bool:
+        # Support both inline subquery and CTE table reference
+        if isinstance(right_table_node, sqlglot.exp.Subquery):
+            sub_select = right_table_node.this
+        elif isinstance(right_table_node, sqlglot.exp.Table) and cte_map:
+            cte_name = right_table_node.name.lower()
+            if cte_name not in cte_map:
+                return False
+            sub_select = cte_map[cte_name]
+        else:
             return False
-        sub_select = right_table_node.this
         if not isinstance(sub_select, sqlglot.exp.Select):
             return False
 
@@ -496,6 +507,71 @@ class JoinUniquenessRule(BaseLintRule):
         limit_node = sub_select.args.get("limit")
         if limit_node and str(limit_node.expression) == "1":
             return True
+        return False
+
+    def _extract_cte_map(self, parsed: Expression) -> dict:
+        """Extract CTE name → SELECT definition mapping from WITH clause."""
+        cte_map = {}
+        # sqlglot stores WITH clause under "with_" key (with is a Python keyword)
+        with_node = parsed.args.get("with") or parsed.args.get("with_") if hasattr(parsed, "args") else None
+        if with_node:
+            for cte in with_node.expressions:
+                cte_name = cte.alias.lower() if cte.alias else ""
+                cte_select = cte.this
+                if cte_name and isinstance(cte_select, sqlglot.exp.Select):
+                    cte_map[cte_name] = cte_select
+        return cte_map
+
+    def _is_cte_deduped(self, cte_name: str, cte_map: dict, depth: int = 0) -> bool:
+        """Check if a CTE guarantees grain=1 via dedup patterns (whitelist approach)."""
+        if depth > 3 or cte_name not in cte_map:
+            return False
+
+        cte_select = cte_map[cte_name]
+
+        # Pattern 1: GROUP BY
+        if cte_select.args.get("group"):
+            return True
+
+        # Pattern 2: DISTINCT
+        if cte_select.args.get("distinct"):
+            return True
+
+        # Pattern 3: ROW_NUMBER() + WHERE rn=1 inside CTE
+        if self._cte_has_rownumber_filter(cte_select):
+            return True
+
+        # Pattern 4: Chained CTE — CTE references another deduped CTE
+        for table in cte_select.find_all(sqlglot.exp.Table):
+            ref_name = table.name.lower()
+            if ref_name in cte_map and self._is_cte_deduped(ref_name, cte_map, depth + 1):
+                return True
+
+        return False
+
+    def _cte_has_rownumber_filter(self, select: sqlglot.exp.Select) -> bool:
+        """Check if SELECT contains ROW_NUMBER() + WHERE rn=1 pattern."""
+        rn_aliases = []
+        for proj in select.selects:
+            if isinstance(proj, sqlglot.exp.Alias):
+                if any(isinstance(n, sqlglot.exp.RowNumber) or
+                       (isinstance(n, sqlglot.exp.Anonymous) and n.name.lower() == "row_number")
+                       for n in proj.walk()):
+                    rn_aliases.append(proj.alias.lower())
+
+        if not rn_aliases:
+            return False
+
+        where = select.args.get("where")
+        if not where:
+            return False
+
+        for eq in where.find_all(sqlglot.exp.EQ):
+            for alias_name in rn_aliases:
+                l, r = eq.left, eq.right
+                if (isinstance(l, sqlglot.exp.Column) and l.name.lower() == alias_name and str(r) == "1") or \
+                   (isinstance(r, sqlglot.exp.Column) and r.name.lower() == alias_name and str(l) == "1"):
+                    return True
         return False
 
 class CountDistinctRule(BaseLintRule):

@@ -1,7 +1,8 @@
 # 大模型滑动窗口外陈旧失败 SQL 历史配对物理删除（Proposal 2）技术提案
 
-> **Status:** PLANNING (Draft)  
-> **Target Path:** [safe_merge_middleware.py](file:///f:/000_dev/Python/workplace/rearch_agent/.tree/features/agent/backend/app/agent/middleware/safe_merge_middleware.py)
+> **Status:** ⚡ **IMPLEMENTED** (2026-07-10)  
+> **Target Path:** [safe_merge_middleware.py](file:///f:/000_dev/Python/workplace/rearch_agent/.tree/features/agent/backend/app/agent/middleware/safe_merge_middleware.py)  
+> **Related Tests:** [test_safe_merge_middleware.py](file:///f:/000_dev/Python/workplace/rearch_agent/.tree/features/agent/backend/app/agent/middleware/test_safe_merge_middleware.py)
 
 ---
 
@@ -87,7 +88,7 @@
 |------|--------|------|------|------|
 | 1 | `_stage_compute_boundary` | 从后向前数 `protect_turns` 个 `HumanMessage`，确定 `boundary_index` | `messages` | `boundary_index` |
 | 2 | `_stage_prescan_failures` | 遍历窗口外消息，识别 `sql_db_query` 和 `build_chart_artifact` 的失败，收集 `deleted_call_ids` | `messages`, `boundary_index` | `deleted_call_ids` |
-| 3 | `_stage_redaction` | 对窗口内/外所有 `sql_db_query` 执行 Redaction（保留最新失败线索） | `messages`, `context` | `projected` (浅拷贝) |
+| 3 | `_stage_redaction` | 对当前 ReAct 循环内 `sql_db_query` 执行 Redaction（保留最近 N 次失败线索，N=`llm_context_redaction_keep_count`） | `messages`, `context` | `projected` (浅拷贝) |
 | 4 | `_stage_physical_deletion` | 遍历 `projected`，成对删除 `deleted_call_ids` 中的失败对 | `projected`, `context` | `filtered` |
 | 5 | `_stage_standard_collapse` | 对剩余消息执行常规折叠占位 | `filtered`, `context` | 最终消息列表 |
 
@@ -142,7 +143,7 @@ class _CollapseContext:
         final = self._stage_standard_collapse(after_deletion, ctx)
 
         # 审计日志
-        self._log_collapse_results(ctx, len(messages), len(final))
+        self._log_collapse_results(ctx)
 
         return final
 ```
@@ -197,57 +198,91 @@ class _CollapseContext:
             elif config["has_runtime"] and config["runtime_header"] in content_str:
                 is_failed = True
             else:
-                # 降级兼容兜底
-                is_failed = "Error:" in content_str or "Exception:" in content_str
+                # 降级：JSON 成功数据反向校验 + 关键字匹配
+                is_json_success = False
+                try:
+                    import json
+                    data = json.loads(content_str)
+                    if isinstance(data, list):
+                        is_json_success = True
+                except Exception:
+                    pass
+
+                if not is_json_success:
+                    is_failed = (
+                        "error" in content_str.lower() or
+                        "exception" in content_str.lower() or
+                        "failed" in content_str.lower()
+                    )
 
             if is_failed:
                 ctx.deleted_call_ids.add(msg.tool_call_id)
 ```
 
-### 4.5 Stage 3：Redaction（窗口内 Linter 纠错链折叠）
+## 4.5 Stage 3：Redaction（当前 ReAct 循环 Linter 纠错链折叠）
+
+> **策略更新**（2026-07-10）：从"保留最近 1 次失败"升级为"保留最近 N 次（默认 3）失败"，且扫描范围限定到最后一条 `HumanMessage` 之后的当前 ReAct 循环内。解决了跨域成功 SQL 污染当前轮失败保留的问题。
 
 ```python
+    def _find_last_human_index(self, messages: list[Any]) -> int:
+        """返回最后一条 HumanMessage 的索引，找不到返回 0。"""
+        for idx in range(len(messages) - 1, -1, -1):
+            if isinstance(messages[idx], HumanMessage):
+                return idx
+        return 0
+
     def _stage_redaction(self, messages: list[Any], ctx: _CollapseContext) -> list[Any]:
         """
-        对 sql_db_query 执行 Redaction：保留最新失败线索，更早的失败被内容抹除。
-        注：此阶段保留原有实现逻辑，仅提取为独立方法。
+        对 sql_db_query 执行 Redaction：保留当前 ReAct 循环内最近 N 次失败线索。
+        - 扫描范围限定到最后一条 HumanMessage 之后（当前 ReAct 循环）
+        - 成功 SQL 仅在当前循环内查找，避免跨域污染
+        - 保留最后 N 个失败（N = settings.llm_context_redaction_keep_count）
+        - 当前循环已成功时，全部失败被抹除
         """
-        projected = list(messages)  # 浅拷贝
+        projected = list(messages)
+        last_human_idx = self._find_last_human_index(projected)
+        keep_count = settings.llm_context_redaction_keep_count
 
-        # 预扫描所有 sql_db_query 的元数据（复用原有逻辑）
+        # 只扫描当前 ReAct 循环内的 sql_db_query
         sql_tool_infos = []
-        for idx, msg in enumerate(projected):
+        for idx in range(last_human_idx, len(projected)):
+            msg = projected[idx]
             if isinstance(msg, ToolMessage) and msg.name == "sql_db_query":
                 content_str = str(msg.content)
                 is_linter_error = (
                     "X-SQL-LINTER-STATUS: FAILED" in content_str or
+                    "validation failed by Linter" in content_str or
                     ("Linter 拦截" in content_str or "SQL Linter" in content_str)
                 )
+                is_runtime_error = (
+                    "error" in content_str.lower() or
+                    "exception" in content_str.lower()
+                )
+                is_failed = is_linter_error or is_runtime_error
                 sql_tool_infos.append({
                     "idx": idx,
                     "tool_call_id": msg.tool_call_id,
                     "is_linter_error": is_linter_error,
+                    "is_failed": is_failed,
                 })
 
-        # 确定保留的最新失败 call_id
+        # 在当前 ReAct 循环范围内找成功
         successful_sql_call_id = None
         for info in reversed(sql_tool_infos):
-            if not info["is_linter_error"]:
+            if not info["is_failed"]:
                 successful_sql_call_id = info["tool_call_id"]
                 break
 
-        latest_failed_sql_call_id = None
-        if successful_sql_call_id is None:
-            for info in reversed(sql_tool_infos):
-                if info["is_linter_error"]:
-                    latest_failed_sql_call_id = info["tool_call_id"]
-                    break
-
+        # 收集当前循环所有失败，取最后 N 个保留
         ctx.kept_call_ids = set()
-        if latest_failed_sql_call_id:
-            ctx.kept_call_ids.add(latest_failed_sql_call_id)
+        if successful_sql_call_id is None:
+            failed_ids_in_loop = [
+                info["tool_call_id"] for info in sql_tool_infos if info["is_failed"]
+            ]
+            if failed_ids_in_loop:
+                ctx.kept_call_ids = set(failed_ids_in_loop[-keep_count:])
 
-        # 执行 Redaction
+        # 执行 Redaction（扫描全量消息，不在 kept 集合中的失败被抹除）
         for idx in range(len(projected)):
             msg = projected[idx]
             if not (isinstance(msg, ToolMessage) and msg.name == "sql_db_query"):
@@ -262,8 +297,7 @@ class _CollapseContext:
             if is_linter_error:
                 should_redact = (
                     (successful_sql_call_id is not None) or
-                    (latest_failed_sql_call_id is not None and
-                     msg.tool_call_id != latest_failed_sql_call_id)
+                    (msg.tool_call_id not in ctx.kept_call_ids)
                 )
                 if should_redact:
                     ctx.redacted_count += 1
@@ -272,7 +306,6 @@ class _CollapseContext:
                         name=msg.name,
                         tool_call_id=msg.tool_call_id
                     )
-                    # 反向查找并改写对应的 AIMessage
                     for back_idx in range(idx - 1, -1, -1):
                         aimsg = projected[back_idx]
                         if isinstance(aimsg, AIMessage) and hasattr(aimsg, "tool_calls"):
@@ -314,16 +347,12 @@ class _CollapseContext:
                     if tc_id not in ctx.deleted_call_ids:
                         remaining_tool_calls.append(tc)
 
-                # 如果过滤后无剩余调用且 content 为系统占位符，整条删除
-                is_system_placeholder = (
-                    not msg.content or
-                    (isinstance(msg.content, str) and msg.content.strip().startswith("["))
-                )
-                if not remaining_tool_calls and is_system_placeholder:
+                # 如果所有 tool_calls 均被删除，整条 AIMessage 无意义，直接剔除
+                if not remaining_tool_calls:
                     ctx.deleted_count += 1
                     continue
 
-                # 否则仅更新 tool_calls
+                # 否则仅更新 tool_calls（移除已删除项）
                 if len(remaining_tool_calls) != len(msg.tool_calls):
                     msg = AIMessage(
                         content=msg.content,
@@ -385,7 +414,7 @@ class _CollapseContext:
 ### 4.8 审计日志
 
 ```python
-    def _log_collapse_results(self, ctx: _CollapseContext, original_len: int, final_len: int) -> None:
+    def _log_collapse_results(self, ctx: _CollapseContext) -> None:
         """记录 Pipeline 各阶段执行结果。"""
         if ctx.redacted_count > 0 or ctx.kept_count > 0:
             logger.info(
@@ -396,9 +425,8 @@ class _CollapseContext:
         if ctx.deleted_call_ids:
             logger.info(
                 "🗑️ Paired physical deletion: %d failed pairs removed. "
-                "Deleted call_ids: %s | Remaining messages: %d → %d",
-                len(ctx.deleted_call_ids), ctx.deleted_call_ids,
-                original_len, final_len
+                "Deleted call_ids: %s",
+                len(ctx.deleted_call_ids), ctx.deleted_call_ids
             )
 ```
 
@@ -406,30 +434,33 @@ class _CollapseContext:
 
 ## 五、 测试覆盖矩阵
 
-1. `test_pipeline_boundary_computation`：
-   * **输入**：包含 5 个 HumanMessage 的消息链，`protect_turns=3`
-   * **断言**：`boundary_index` 正确指向倒数第 3 个 HumanMessage 的索引。
-2. `test_pipeline_prescan_sql_linter_failure`：
-   * **输入**：窗口外 ToolMessage 含 `X-SQL-LINTER-STATUS: FAILED`
-   * **断言**：`deleted_call_ids` 包含对应 `tool_call_id`。
-3. `test_pipeline_prescan_chart_runtime_failure`：
-   * **输入**：窗口外 ToolMessage 含 `X-CHART-STATUS: FAILED`
-   * **断言**：`deleted_call_ids` 包含对应 `tool_call_id`。
-4. `test_pipeline_redaction_keeps_latest_failure`：
-   * **输入**：3 轮 SQL 重试，仅最后一轮为 Linter 失败
-   * **断言**：Redaction 仅保留最新失败，更早失败被抹除。
-5. `test_pipeline_physical_deletion_removes_pairs`：
-   * **输入**：`Human` → `AI(SQL 1)` → `Tool(Linter 失败)` → `Human(M1)` → `Human(M2)` → `Human(M3)`
-   * **断言**：`AI(SQL 1)` 和 `Tool(Linter 失败)` 被完全从列表中成对剔除。
-6. `test_pipeline_physical_deletion_retains_success`：
-   * **输入**：`Human` → `AI(SQL 1)` → `Tool(成功结果数据)` → `Human(M1)` → `Human(M2)` → `Human(M3)`
-   * **断言**：成功 SQL 对未被物理删除，而是被常规折叠为 `[SQL execution successful...]`。
-7. `test_pipeline_standard_collapse_chart_success`：
-   * **输入**：窗口外成功的 `build_chart_artifact`
-   * **断言**：被常规折叠为 `[Chart generated successfully...]`，未被物理删除。
-8. `test_pipeline_api_format_compliance`：
-   * **输入**：构造包含 3 轮失败重试的复杂消息链
-   * **断言**：Pipeline 输出能够通过 OpenAI / Gemini / Anthropic 的 API 格式校验。
+实际测试文件：[test_safe_merge_middleware.py](file:///f:/000_dev/Python/workplace/rearch_agent/.tree/features/agent/backend/app/agent/middleware/test_safe_merge_middleware.py)（共 17 个测试，全部通过）
+
+### Pipeline Stage 单元测试
+
+| # | 测试函数 | 测试场景 | 断言 |
+|---|---------|---------|------|
+| 1 | `test_stage_compute_boundary_protects_last_n_human_messages` | 5 HumanMessage, `protect_turns=3` | `boundary_index` 指向倒数第 3 个 HumanMessage 索引 |
+| 2 | `test_stage_prescan_sql_linter_failure` | 窗口外 ToolMessage 含 linter 失败特征 | `deleted_call_ids` 包含对应 `tool_call_id` |
+| 3 | `test_stage_prescan_chart_runtime_failure` | 窗口外 ToolMessage 含 chart 运行失败特征 | `deleted_call_ids` 包含对应 `tool_call_id` |
+| 4 | `test_stage_prescan_success_not_deleted` | 窗口外成功 JSON 数据（列表） | `deleted_call_ids` 为空（JSON 反向校验防误杀） |
+| 5 | `test_stage_redaction_keeps_latest_failure` | 3 轮 SQL 重试，仅最后一轮 Linter 失败 | Redaction 仅保留最新失败，更早失败被抹除 |
+| 6 | `test_stage_physical_deletion_removes_failed_pairs` | 窗口外 Linter 失败对 | AIMessage + ToolMessage 从列表中成对剔除 |
+| 7 | `test_stage_physical_deletion_partial_filter_keeps_ai_message` | AIMessage 同时包含成功/失败 tool_calls | 仅删除失败 tool_calls，不删除整条 AIMessage |
+| 8 | `test_stage_standard_collapse_sql_success` | 窗口外成功 `sql_db_query` | 被常规折叠为 `[SQL execution successful...]` |
+| 9 | `test_stage_standard_collapse_chart_success` | 窗口外成功 `build_chart_artifact` | 被常规折叠为 `[Chart generated successfully...]` |
+| 10 | `test_stage_redaction_keeps_linter_and_runtime_mixed_failures` | Linter 拦截与数据库运行时报错混合重试 | 两者在 keep_count 限额内均被保留，数据库错误不被误判定为成功 |
+
+### 原有集成测试
+
+| # | 测试函数 | 测试场景 |
+|---|---------|---------|
+| 11 | `test_safe_merge_injects_current_date_no_rag` | 无 RAG 时的日期注入 |
+| 12 | `test_safe_merge_injects_current_date_with_rag` | 有 RAG 时的日期注入与合并 |
+| 13 | `test_safe_merge_context_collapse_successful_query` | 滑动窗口外成功 SQL 常规折叠 |
+| 14 | `test_safe_merge_context_collapse_failed_query` | 滑动窗口外失败 SQL 物理删除（物理删除取代标准折叠） |
+| 15 | `test_safe_merge_redacts_past_failures_keeps_latest` | 重试中保留最新失败线索 |
+| 16 | `test_safe_merge_redacts_all_failures_on_success` | 成功后续所有失败被红化抹除 |
 
 ---
 
@@ -448,8 +479,8 @@ class _CollapseContext:
 
 ### 6.2 与 Redaction 的依赖关系
 
-本方案假设 `proposal.md` 的 Redaction 已经运行（`AIMessage.content` 已被改写为系统占位符）。如果 Redaction 未运行：
-* `is_system_placeholder` 判定中的 `"[".startswith` 可能不匹配原始思考内容
-* 导致 AIMessage **未被删除**，留下"空壳"消息
-
-**建议**：本方案与 Redaction **绑定部署**，单独部署时效果会打折扣。
+本方案与 `proposal.md` 的 Redaction **互补共存**：
+* Redaction 处理**窗口内**当前轮重试的纠错链折叠（保留最新失败线索，更早失败被内容抹除）。
+* 物理删除处理**窗口外**已过期失败对的成对剔除。
+* Redaction 为本方案的 `_stage_physical_deletion` 提供已经 Redaction 改写后的消息输入。
+* 由于物理删除阶段不依赖 AIMessage 内容格式进行判断（仅基于 `tool_call_id` 匹配），即使 Redaction 未运行也不会影响物理删除的准确性。

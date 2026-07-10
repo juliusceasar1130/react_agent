@@ -1,5 +1,9 @@
 # 大模型 SQL 纠错链路极限制折叠（Linter 重试清理）技术提案
 
+> **DEPRECATED**：本提案的设计已被 [proposal2.md](./proposal2.md) 的轻量 Pipeline 架构取代。
+> 保留本文档作为 Redaction 设计理念的参考记录，**其中的代码片段（§四）已不反映当前实现**。
+> 当前实现请参考 `safe_merge_middleware.py` 中的 `_stage_redaction` 方法。
+
 ## 一、 问题与现象
 
 在生产数据查询 Agent 系统中，我们引入了 SQL 静态语法和语义检查工具 [sql_linter.py](file:///f:/000_dev/Python/workplace/rearch_agent/.tree/features/agent/backend/app/agent/utils/sql_linter.py)。当大模型编写的 SQL 不满足规范（例如触发了极其常见的 `SEM-001: JOIN 关联列不满足唯一性约束`）时，Linter 会实施强行拦截并返回报错日志与修复建议。

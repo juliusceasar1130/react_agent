@@ -1,3 +1,91 @@
+## 2026-07-10 22:50 +08:00 - 运行期数据库错误精准识别与重试线索保留修复
+
+### 概述
+- **运行期数据库错误精准识别**：修复了在 SQL 重试过程中，由于数据库运行期错误（如 UndefinedColumn 字段不存在）不具备 Linter 特征，被系统粗暴误判定为“SQL 执行成功（successful_sql_call_id）”，从而提前清空并误折叠了历史失败线索（如倒数第二对的 Linter 错误）的 Bug。
+- **线索保留机制细化**：细化了失败判定方法，只有真正没出错的 SQL 才是“成功 SQL”，将所有的运行期错误与 Linter 错误统一划归为“失败尝试”，受 `keep_count = 3` 的保护，原样保留作纠错线索。
+- **Linter 折叠状态重入判定兼容**：修复了已被抹除折叠的历史 Linter 失败由于丢失了原始的 `X-SQL-LINTER-STATUS: FAILED` 协议头而在多次 ReAct 重入时被误判为“成功 SQL”的缺陷。在检测条件中兼容匹配了折叠占位符 `"validation failed by Linter"`。
+
+### 变更内容
+#### backend/app/agent/middleware/safe_merge_middleware.py [MODIFY]
+- 在 `_stage_redaction` 的预扫描中增加 `is_runtime_error` 检测（检查 content 是否含 `error`/`exception` 关键字）。
+- 兼容重写：在 `is_linter_error` 的提取判定中，同步加入对已折叠占位符中 `"validation failed by Linter"` 特征词的检测。
+- 重构成功的 SQL 查询判定逻辑为 `not info["is_failed"]`（`is_failed = is_linter_error or is_runtime_error`）。
+- 将 `failed_ids_in_loop` 的筛选从 `is_linter_error` 扩大为 `is_failed`，使运行期报错同样进入重试保护集。
+
+#### backend/app/agent/middleware/test_safe_merge_middleware.py [MODIFY]
+- 新增单元测试 `test_stage_redaction_keeps_linter_and_runtime_mixed_failures`：验证 Linter 报错与数据库报错混合重试时，最近的错误均被保留，数据库错误不被误判定为成功。
+
+#### docs/context-collapse/proposal2.md [MODIFY]
+- 同步了 `_stage_redaction` 的示例代码设计，以及单元测试覆盖矩阵中新增的测试用例描述。
+
+### 验证
+- 重新运行全部后端单元和集成测试用例，76 个测试全部 PASS（100% 成功通过）。
+
+---
+
+## 2026-07-10 20:00 +08:00 - Redaction 保留 N 次策略 + Linter CTE 去重模式识别
+
+### 概述
+- **Redaction 保留策略升级**：`_stage_redaction` 从“保留最近 1 次失败”升级为“保留最近 N 次（默认 3，可配置）”，扫描范围限定到最后一条 `HumanMessage` 之后的当前 ReAct 循环内。解决跨域成功 SQL 污染当前轮失败保留的问题，减少 LLM 无效重试。
+- **Linter CTE 去重模式识别**：`JoinUniquenessRule`（SEM-001）新增 CTE（WITH 子句）grain 分析能力，支持识别 CTE 内 `ROW_NUMBER() + WHERE rn=1`、`GROUP BY`、`DISTINCT` 以及链式 CTE 传播的去重模式。解决 LLM 默认使用 CTE 写法但被 Linter 误拦截的问题。
+
+### 变更内容
+#### backend/app/config.py [MODIFY]
+- 新增 `llm_context_redaction_keep_count` 配置项（默认 3），控制 Redaction 保留的失败次数。
+
+#### backend/app/agent/middleware/safe_merge_middleware.py [MODIFY]
+- 新增 `_find_last_human_index` 辅助方法，定位最后一条 `HumanMessage` 索引。
+- 重写 `_stage_redaction`：扫描范围限定到 `last_human_idx` 之后；收集当前循环所有失败 `tool_call_id`，取最后 N 个加入 `ctx.kept_call_ids`；`should_redact` 改为检查 `msg.tool_call_id not in ctx.kept_call_ids`。
+
+#### backend/app/agent/middleware/test_safe_merge_middleware.py [MODIFY]
+- 更新 `test_safe_merge_redacts_past_failures_keeps_last_n`（原 `..._keeps_latest`）：4 次失败，最早 1 次被抹除，最近 3 次保留。
+- 更新 `test_stage_redaction_keeps_last_n_failures`（原 `..._keeps_latest_failure`）：同上，直接调用 Stage 测试。
+- 新增 `test_stage_redaction_cross_domain_success_no_pollution`：验证域 A 成功 SQL 不影响域 B 当前轮的失败保留。
+- 新增 `test_stage_redaction_success_in_current_loop_redacts_all`：验证当前轮成功后所有失败被抹除。
+- 共 18 个测试全部通过。
+
+#### backend/app/agent/utils/sql_linter.py [MODIFY]
+- `JoinUniquenessRule` 新增 `_extract_cte_map` 方法：从 WITH 子句提取 CTE 名 → SELECT 定义的映射。
+- 新增 `_is_cte_deduped` 方法：白名单策略判断 CTE 是否已去重（GROUP BY / DISTINCT / ROW_NUMBER+WHERE / 链式 CTE）。
+- 新增 `_cte_has_rownumber_filter` 方法：检查 SELECT 是否含 ROW_NUMBER() + WHERE rn=1 模式。
+- 扩展 `_is_rownumber_one_filter` 方法：增加 `cte_map` 参数，支持 CTE Table 引用的 ROW_NUMBER 检测。
+- `check_parsed_with_sql` 新增 CTE 检测分支：JOIN 右侧为已去重 CTE 时标记 `right_safe=True`。
+
+#### backend/app/agent/utils/test_sql_linter_cte.py [NEW]
+- 6 个测试覆盖 CTE 各场景：ROW_NUMBER+JOIN ON、GROUP BY、DISTINCT、链式 CTE 传播、无去重 CTE 仍拦截、UNION CTE 保守拦截。
+
+### 验证
+- `test_safe_merge_middleware.py`：18 个测试全部通过。
+- `test_sql_linter_cte.py`：6 个测试全部通过。
+- `test_sql_linter.py`：8 个测试全部通过（无回归）。
+- `test_sql_linter_header.py`：1 个测试通过。
+- 共 33 个测试全部通过。
+
+---
+
+## 2026-07-10 18:00 +08:00 - 滑动窗口外失败 SQL/图表配对物理删除（Pipeline 架构重构）
+
+### 概述
+- **轻量 Pipeline 架构**：将 `_project_and_collapse_messages` 从单函数重构为五阶段 Pipeline（compute_boundary → prescan_failures → redaction → physical_deletion → standard_collapse），通过 `_CollapseContext` 共享上下文。
+- **配对物理删除**：对滑动窗口外已过期的失败 SQL/图表执行对（AIMessage + ToolMessage）进行物理成对删除，而非仅折叠内容。覆盖 `sql_db_query` 和 `build_chart_artifact` 两个工具。
+- **JSON 反向校验防误杀**：降级判定时先尝试 `json.loads()` 解析，成功 JSON 列表则视为成功数据，防止关键字误匹配。
+- **物理删除优先于常规折叠**：失败的条目被物理删除后，不再进入常规折叠阶段，实现串行互斥。
+
+### 变更内容
+#### backend/app/agent/middleware/safe_merge_middleware.py [MODIFY]
+- 新增 `_CollapseContext` 共享上下文 dataclass。
+- 新增 `_DELETION_TARGET_CONFIG` 工具失败判定配置字典。
+- 新增五个 Stage 方法：`_stage_compute_boundary`、`_stage_prescan_failures`、`_stage_redaction`、`_stage_physical_deletion`、`_stage_standard_collapse`。
+- 新增 `_log_collapse_results` 审计日志方法。
+- `_project_and_collapse_messages` 重构为 Pipeline 主入口。
+
+#### backend/app/agent/middleware/test_safe_merge_middleware.py [MODIFY]
+- 新增 9 个测试覆盖各 Stage 功能，包括边界计算、失败预扫描（含 JSON 防误杀）、Redaction、物理删除（全删/过滤）、常规折叠。
+- 更新 `test_safe_merge_context_collapse_failed_query` 断言以匹配物理删除行为。
+- 共 15 个测试全部通过。
+
+---
+
 ## 2026-07-10 16:00 +08:00 - 大模型 SQL 纠错链路极限制折叠与参数保留防模仿优化
 
 ### 概述
