@@ -71,7 +71,7 @@ Agent 在编写查询时应参考本章节获取准确的字段名称和数据�
 
 ### 3.1 核心数据表 Schema
 
-**1. `ods.rb_position_data` (实时采集原始流水)**
+**1. `ods.rb_position_data` (基于位置/滚床的实时采集数据)**
 - **描述**：存储滚床/链条采集点的原始车辆状态信息。
 - **字段说明**：
   - `"id"` (BIGINT): 自增主键
@@ -88,7 +88,7 @@ Agent 在编写查询时应参考本章节获取准确的字段名称和数据�
   - `"vehicle_updated_at"` (TIMESTAMPTZ): 该位置上车辆数据最后更新的时间
 
 **2. `ods.carbody_history` (历史生命周期流水)**
-- **描述**：所有车辆历史过点的明细记录，用于计算产量和轨迹。
+- **描述**：所有车辆历史过点/读写站/RW_STATION的明细记录，用于计算产量和轨迹。
 - **字段说明**：
   - `"ID"` (BIGINT): 自增主键
   - `"BODY_ID"` (VARCHAR): 车身号（对应实时表的 `vehicle_id`）
@@ -113,6 +113,7 @@ Agent 在编写查询时应参考本章节获取准确的字段名称和数据�
   - `"rework_flag"`: 返修车标记 (1/Y表示返修车)
   - `"reserved_1"`: 车身 MDS 备用字段 1
   - `"reserved_2"`: 车身 MDS 备用字段 2
+  - `"SKID_ID"`: 雪橇号、载具，同carrier_id
 
 **4. `mart.mart_position_current_overview` (当前现场总览)**
 - **描述**：经过清洗的实时快照，包含异常车和载体类型翻译。

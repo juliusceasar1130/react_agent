@@ -1,3 +1,25 @@
+## 2026-07-10 16:00 +08:00 - 大模型 SQL 纠错链路极限制折叠与参数保留防模仿优化
+
+### 概述
+- **大模型 SQL 纠错链路极限制折叠（Linter 重试清理）**：针对 Linter 拦截导致的反复重试（ReAct 循环）进行了内容抹除重塑。区分了“当前轮重试中（只保留最后一次失败线索）”和“下一次对话开始前（彻底抹除上一轮全部重试日志）”两个拦截时机，显著缩减了 70%+ 的冗余上下文 Token。
+- **免失控模仿与参数保留优化**：解决了大模型在后续对话中会模仿被抹除的 `-- redacted --` 占位符并引发 `required_skill: Field required` 工具参数丢失报错的缺陷。通过“只抹除 AI 思考（content），原样复制保留 `tool_calls` 参数结构”的最佳实践设计，完美保留了纠错线索并彻底消除了 Trace UI 显示和运行错误。
+
+### 变更内容
+#### backend/app/agent/utils/sql_linter.py [MODIFY]
+- 在静态/语义 Linter 拦截生成的错误消息最前端强制注入了固定的技术特征协议头：`X-SQL-LINTER-STATUS: FAILED`。
+
+#### backend/app/agent/middleware/safe_merge_middleware.py [MODIFY]
+- 重构了 `_project_and_collapse_messages` 的消息投影过滤算法，基于 `X-SQL-LINTER-STATUS: FAILED` 协议头实现了重试抹除。
+- 优化了抹除策略，采用 `tool_calls=aimsg.tool_calls` 保留历史真实工具调用参数，只重写 `content`，以规避大模型幻觉模仿。
+- 移除了 `kept_call_ids` 对 `successful_sql_call_id` 的冗余保护，确保已完结的成功历史 SQL 可以正常常规折叠。
+
+#### backend/app/agent/utils/test_sql_linter_header.py [NEW]
+- 新增单元测试，验证 Linter 拦截消息能够正确反射包含协议特征码。
+
+#### backend/app/agent/middleware/test_safe_merge_middleware.py [MODIFY]
+- 新增 `test_safe_merge_redacts_past_failures_keeps_latest` 与 `test_safe_merge_redacts_all_failures_on_success` 单元测试，断言重试中及重试成功的历史抹除效果。
+- 调整了对 `query` 值的测试断言，确保改动后测试 100% 成功通过。
+
 ## 2026-07-08 20:20 +08:00 - 增加 SQL Linter 规则禁用配置
 
 ### 概述

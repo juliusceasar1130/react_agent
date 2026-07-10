@@ -31,7 +31,10 @@ class LintResult:
     warnings: List[LintViolation]
 
     def format_error_message(self) -> str:
-        lines = ["Error: SQL Linter 拦截 — 检测到以下问题：\n"]
+        lines = [
+            "X-SQL-LINTER-STATUS: FAILED",
+            "Error: SQL Linter 拦截 — 检测到以下问题：\n"
+        ]
         for i, error in enumerate(self.errors, 1):
             lines.append(f"{i}. [{error.severity}] {error.rule_id}: {error.message}")
             if error.detail:

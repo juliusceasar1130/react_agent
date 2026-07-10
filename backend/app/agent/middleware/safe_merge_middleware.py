@@ -78,7 +78,6 @@ class SafeMergeSystemMiddleware(AgentMiddleware[CustomState]):
     state_schema = CustomState
 
     def _project_and_collapse_messages(self, messages: list[Any]) -> list[Any]:
-        """Memory-only projection of messages, collapsing old tool results outside the sliding window."""
         if not messages:
             return []
 
@@ -96,51 +95,128 @@ class SafeMergeSystemMiddleware(AgentMiddleware[CustomState]):
                     boundary_index = idx
                     break
 
-        # 3. Collapse collapsible tool messages outside the sliding window
-        for idx in range(boundary_index):
+        # 3. Pre-scan: collect metadata for sql_db_query tools
+        sql_tool_infos = []
+        for idx, msg in enumerate(projected):
+            if isinstance(msg, ToolMessage) and msg.name == "sql_db_query":
+                content_str = str(msg.content)
+                # 优先通过技术标头特征码识别；降级到关键字匹配
+                is_linter_error = (
+                    "X-SQL-LINTER-STATUS: FAILED" in content_str or
+                    ("Linter 拦截" in content_str or "SQL Linter" in content_str)
+                )
+                
+                sql_tool_infos.append({
+                    "idx": idx,
+                    "tool_call_id": msg.tool_call_id,
+                    "is_linter_error": is_linter_error,
+                })
+
+        # 4. Find successful and latest failed call_ids
+        successful_sql_call_id = None
+        for info in reversed(sql_tool_infos):
+            if not info["is_linter_error"]:
+                successful_sql_call_id = info["tool_call_id"]
+                break
+
+        latest_failed_sql_call_id = None
+        if successful_sql_call_id is None:
+            for info in reversed(sql_tool_infos):
+                if info["is_linter_error"]:
+                    latest_failed_sql_call_id = info["tool_call_id"]
+                    break
+
+        # 5. Build kept call IDs
+        kept_call_ids = set()
+        if latest_failed_sql_call_id:
+            kept_call_ids.add(latest_failed_sql_call_id)
+
+        # 6. Apply redaction and collapse
+        redacted_count = 0
+        kept_count = 0
+
+        for idx in range(len(projected)):
             msg = projected[idx]
-            if isinstance(msg, ToolMessage) and msg.name in COLLAPSIBLE_TOOLS:
-                # Process sql_db_query collapse
-                if msg.name == "sql_db_query":
-                    content_str = str(msg.content)
-                    is_err = "Error" in content_str or "exception" in content_str.lower()
+            
+            # ── SQL Linter failure redaction (Time 1 & 2) ──
+            if isinstance(msg, ToolMessage) and msg.name == "sql_db_query":
+                content_str = str(msg.content)
+                is_linter_error = (
+                    "X-SQL-LINTER-STATUS: FAILED" in content_str or
+                    ("Linter 拦截" in content_str or "SQL Linter" in content_str)
+                )
+                
+                if is_linter_error:
+                    should_redact = (
+                        (successful_sql_call_id is not None) or
+                        (latest_failed_sql_call_id is not None and msg.tool_call_id != latest_failed_sql_call_id)
+                    )
                     
-                    if is_err:
+                    if should_redact:
+                        redacted_count += 1
                         projected[idx] = ToolMessage(
-                            content="[SQL execution failed. Detailed error log collapsed. Re-run with corrected SQL if needed.]",
+                            content="[SQL validation failed by Linter. Previous invalid attempt redacted to save context space.]",
                             name=msg.name,
                             tool_call_id=msg.tool_call_id
                         )
+                        for back_idx in range(idx - 1, -1, -1):
+                            aimsg = projected[back_idx]
+                            if isinstance(aimsg, AIMessage) and hasattr(aimsg, "tool_calls"):
+                                if any(tc.get("id") == msg.tool_call_id for tc in aimsg.tool_calls):
+                                    projected[back_idx] = AIMessage(
+                                        content="[Invalid SQL attempt. Redacted to save context space.]",
+                                        tool_calls=aimsg.tool_calls
+                                    )
+                                    break
+                        continue
                     else:
+                        kept_count += 1
+
+            # ── Standard Collapsible Tools logic outside sliding window ──
+            if isinstance(msg, ToolMessage) and msg.name in COLLAPSIBLE_TOOLS:
+                if msg.tool_call_id in kept_call_ids:
+                    continue
+                if idx < boundary_index:
+                    if msg.name == "sql_db_query":
+                        content_str = str(msg.content)
+                        is_err = "Error" in content_str or "exception" in content_str.lower()
+                        if is_err:
+                            projected[idx] = ToolMessage(
+                                content="[SQL execution failed. Detailed error log collapsed. Re-run with corrected SQL if needed.]",
+                                name=msg.name,
+                                tool_call_id=msg.tool_call_id
+                            )
+                        else:
+                            projected[idx] = ToolMessage(
+                                content="[SQL execution successful. Result content collapsed. Re-run query if details are needed.]",
+                                name=msg.name,
+                                tool_call_id=msg.tool_call_id
+                            )
+                    elif msg.name == "search_saved_correct_tool_uses":
                         projected[idx] = ToolMessage(
-                            content="[SQL execution successful. Result content collapsed. Re-run query if details are needed.]",
+                            content="[SQL examples retrieved and collapsed: reference examples shown in earlier step.]",
                             name=msg.name,
                             tool_call_id=msg.tool_call_id
                         )
-                
-                # Process search_saved_correct_tool_uses collapse
-                elif msg.name == "search_saved_correct_tool_uses":
-                    projected[idx] = ToolMessage(
-                        content="[SQL examples retrieved and collapsed: reference examples shown in earlier step.]",
-                        name=msg.name,
-                        tool_call_id=msg.tool_call_id
-                    )
-                
-                # Process chart generation collapse
-                elif msg.name == "build_chart_artifact":
-                    projected[idx] = ToolMessage(
-                        content="[Chart generated successfully. ECharts JSON config collapsed.]",
-                        name=msg.name,
-                        tool_call_id=msg.tool_call_id
-                    )
-                
-                # Process CSV export collapse
-                elif msg.name in ("export_to_csv", "export_query_to_csv"):
-                    projected[idx] = ToolMessage(
-                        content="[CSV export completed and collapsed. User has already received the download link.]",
-                        name=msg.name,
-                        tool_call_id=msg.tool_call_id
-                    )
+                    elif msg.name == "build_chart_artifact":
+                        projected[idx] = ToolMessage(
+                            content="[Chart generated successfully. ECharts JSON config collapsed.]",
+                            name=msg.name,
+                            tool_call_id=msg.tool_call_id
+                        )
+                    elif msg.name in ("export_to_csv", "export_query_to_csv"):
+                        projected[idx] = ToolMessage(
+                            content="[CSV export completed and collapsed. User has already received the download link.]",
+                            name=msg.name,
+                            tool_call_id=msg.tool_call_id
+                        )
+
+        if redacted_count > 0 or kept_count > 0:
+            logger.info(
+                "🛡️ SQL Linter Redaction: %d failures redacted, %d kept as correction clue. "
+                "Kept call_ids: %s",
+                redacted_count, kept_count, kept_call_ids
+            )
 
         return projected
 

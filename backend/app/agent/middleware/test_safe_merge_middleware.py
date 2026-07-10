@@ -135,3 +135,84 @@ def test_safe_merge_context_collapse_failed_query():
     collapsed_msg = new_request.messages[2]
     assert isinstance(collapsed_msg, ToolMessage)
     assert collapsed_msg.content == "[SQL execution failed. Detailed error log collapsed. Re-run with corrected SQL if needed.]"
+
+
+def test_safe_merge_redacts_past_failures_keeps_latest():
+    from langchain_core.messages import HumanMessage, AIMessage, ToolMessage
+    from langchain.agents.middleware.types import ModelRequest
+    from backend.app.agent.middleware.safe_merge_middleware import SafeMergeSystemMiddleware
+    
+    messages = [
+        HumanMessage(content="Query active users"),
+        # Attempt 1: Failed (Should be redacted)
+        AIMessage(content="Trying SQL 1", tool_calls=[{"name": "sql_db_query", "args": {"query": "SELECT 1"}, "id": "call_1"}]),
+        ToolMessage(content="X-SQL-LINTER-STATUS: FAILED\nError: SEM-001", name="sql_db_query", tool_call_id="call_1"),
+        
+        # Attempt 2: Failed (Should be redacted)
+        AIMessage(content="Trying SQL 2", tool_calls=[{"name": "sql_db_query", "args": {"query": "SELECT 2"}, "id": "call_2"}]),
+        ToolMessage(content="X-SQL-LINTER-STATUS: FAILED\nError: SEM-001", name="sql_db_query", tool_call_id="call_2"),
+        
+        # Attempt 3: Failed (Latest, should be KEPT as clue)
+        AIMessage(content="Trying SQL 3", tool_calls=[{"name": "sql_db_query", "args": {"query": "SELECT 3"}, "id": "call_3"}]),
+        ToolMessage(content="X-SQL-LINTER-STATUS: FAILED\nError: SYN-002", name="sql_db_query", tool_call_id="call_3"),
+    ]
+    
+    state = CustomState(messages=messages)
+    request = ModelRequest(
+        model=None,
+        messages=messages,
+        system_message=SystemMessage(content="Base prompt"),
+        state=state
+    )
+    
+    middleware = SafeMergeSystemMiddleware()
+    new_request = middleware._modify_request(request)
+    
+    assert new_request.messages[1].content == "[Invalid SQL attempt. Redacted to save context space.]"
+    assert new_request.messages[1].tool_calls[0]["args"]["query"] == "SELECT 1"
+    assert new_request.messages[2].content == "[SQL validation failed by Linter. Previous invalid attempt redacted to save context space.]"
+    
+    assert new_request.messages[3].content == "[Invalid SQL attempt. Redacted to save context space.]"
+    assert new_request.messages[4].content == "[SQL validation failed by Linter. Previous invalid attempt redacted to save context space.]"
+    
+    # 2. Attempt 3 (Latest failure) is preserved untouched
+    assert new_request.messages[5].content == "Trying SQL 3"
+    assert new_request.messages[6].content == "X-SQL-LINTER-STATUS: FAILED\nError: SYN-002"
+
+
+def test_safe_merge_redacts_all_failures_on_success():
+    from langchain_core.messages import HumanMessage, AIMessage, ToolMessage
+    from langchain.agents.middleware.types import ModelRequest
+    from backend.app.agent.middleware.safe_merge_middleware import SafeMergeSystemMiddleware
+    
+    messages = [
+        HumanMessage(content="Query active users"),
+        # Attempt 1: Failed (Should be redacted)
+        AIMessage(content="Trying SQL 1", tool_calls=[{"name": "sql_db_query", "args": {"query": "SELECT 1"}, "id": "call_1"}]),
+        ToolMessage(content="X-SQL-LINTER-STATUS: FAILED\nError: SEM-001", name="sql_db_query", tool_call_id="call_1"),
+        
+        # Attempt 2: Successful (Should be preserved)
+        AIMessage(content="Trying SQL 2", tool_calls=[{"name": "sql_db_query", "args": {"query": "SELECT 2"}, "id": "call_2"}]),
+        ToolMessage(content="[{'id': 1}]", name="sql_db_query", tool_call_id="call_2"),
+    ]
+    
+    state = CustomState(messages=messages)
+    request = ModelRequest(
+        model=None,
+        messages=messages,
+        system_message=SystemMessage(content="Base prompt"),
+        state=state
+    )
+    
+    middleware = SafeMergeSystemMiddleware()
+    new_request = middleware._modify_request(request)
+    
+    # Assertions:
+    # 1. Attempt 1 is redacted
+    assert new_request.messages[1].content == "[Invalid SQL attempt. Redacted to save context space.]"
+    assert new_request.messages[1].tool_calls[0]["args"]["query"] == "SELECT 1"
+    assert new_request.messages[2].content == "[SQL validation failed by Linter. Previous invalid attempt redacted to save context space.]"
+    
+    # 2. Attempt 2 (Success) is kept untouched (sliding window is latest, so not collapsed)
+    assert new_request.messages[3].content == "Trying SQL 2"
+    assert new_request.messages[4].content == "[{'id': 1}]"
