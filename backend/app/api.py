@@ -609,6 +609,10 @@ async def stream_message_post(
                     yield _encode_sse(event)
                     break
 
+                if event_type == "rag_context":
+                    yield _encode_sse(event)
+                    continue
+
                 if event_type == "token":
                     token_text = event.get("text", "")
                     if token_text:
@@ -924,6 +928,10 @@ async def stream_message_resume(
                     )
                     yield _encode_sse(event)
                     break
+
+                if event_type == "rag_context":
+                    yield _encode_sse(event)
+                    continue
 
                 if event_type == "token":
                     token_text = event.get("text", "")

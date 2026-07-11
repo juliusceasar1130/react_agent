@@ -64,7 +64,8 @@ const STREAM_EVENT_TYPES = new Set<StreamEvent['type']>([
   'tool_result',
   'final',
   'error',
-  'interrupt'
+  'interrupt',
+  'rag_context'
 ])
 
 const STREAM_STAGES = new Set<StreamStage>(['thinking', 'retrieving', 'querying', 'writing'])
@@ -149,6 +150,15 @@ const parseStreamEvent = (payload: string): StreamEvent | null => {
         type: 'tool_result',
         id: parsed.id,
         content: parsed.content,
+      }
+
+    case 'rag_context':
+      if (!Array.isArray(parsed.rag_context)) {
+        return null
+      }
+      return {
+        type: 'rag_context',
+        rag_context: parsed.rag_context,
       }
 
     case 'final':

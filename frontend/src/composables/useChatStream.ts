@@ -165,6 +165,12 @@ export function useChatStream() {
           messagesStore.setStreamingToolResult(event.id, event.content)
           return
 
+        case 'rag_context':
+          if (messagesStore.streamingMessage) {
+            messagesStore.streamingMessage.ragContext = event.rag_context
+          }
+          return
+
         case 'final':
           hasTerminalEvent = true
           messagesStore.completeStreamingMessage({
@@ -292,6 +298,12 @@ export function useChatStream() {
 
         case 'tool_result':
           messagesStore.setStreamingToolResult(event.id, event.content)
+          return
+
+        case 'rag_context':
+          if (messagesStore.streamingMessage) {
+            messagesStore.streamingMessage.ragContext = event.rag_context
+          }
           return
 
         case 'final':

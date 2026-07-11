@@ -31,7 +31,7 @@ try {
   // 测试用例 2: 图 2 格式 (中文冒号/全角逗号/括号中文解释)
   const test2 = "L2面漆区域在制车辆与缺陷汇总\n数据来源： fct.fct_vehicle_position_current (实时在制位置) ， fct.fct_vehicle_defect_detection (缺陷检测事实) ， 查询时间：2026-07-11 18:33\n表格内容";
   const { cleanContent: c2, meta: m2 } = extractMetaData(test2);
-  assert.strictEqual(c2, "L2面漆区域在制车辆与缺陷汇总\n表格内容");
+  assert.strictEqual(c2, "L2面漆区域在制车辆与缺陷汇总\n\n表格内容");
   assert.strictEqual(m2.queryTime, "2026-07-11 18:33");
   assert.strictEqual(m2.dataSource, "fct.fct_vehicle_position_current (实时在制位置) ， fct.fct_vehicle_defect_detection (缺陷检测事实)");
 
@@ -41,6 +41,13 @@ try {
   assert.strictEqual(c3, "说明如下：");
   assert.strictEqual(m3.queryTime, "2026-07-11 18:35:14");
   assert.strictEqual(m3.dataSource, "fct.fct_vehicle_position_current ， mart.mart_vehicle_quality_360");
+
+  // 测试用例 4: 带有句号和逗号残留格式
+  const test4 = "说明如下：\n数据来源： fct.fct_vehicle_position_current 关联 mart.mart_vehicle_quality_360, 。 查询时间： 2026-07-11 18:35:14";
+  const { cleanContent: c4, meta: m4 } = extractMetaData(test4);
+  assert.strictEqual(c4, "说明如下：");
+  assert.strictEqual(m4.queryTime, "2026-07-11 18:35:14");
+  assert.strictEqual(m4.dataSource, "fct.fct_vehicle_position_current 关联 mart.mart_vehicle_quality_360");
 
   console.log("PASS: 真实 markdown.ts 中的 extractMetaData 源码单元测试全量通过！");
 } catch (e) {

@@ -44,6 +44,39 @@
           v-html="renderedContent"
         ></div>
 
+        <!-- 第二阶段新增：参考业务术语折叠卡片 -->
+        <div v-if="!isUser && parsedRagContext.length > 0" class="mt-4 px-1.5 animate-fade-in text-left">
+          <details class="group rounded-[20px] border border-neutral-200/80 bg-neutral-50/50 p-3.5 text-xs text-neutral-600 transition-all duration-200">
+            <summary class="flex cursor-pointer select-none items-center justify-between font-semibold text-neutral-700 hover:text-primary list-none">
+              <span class="flex items-center gap-2">
+                <svg class="h-4 w-4 text-neutral-500 group-hover:text-primary transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+                </svg>
+                <span class="text-xs font-semibold text-neutral-800">参考业务术语 ({{ parsedRagContext.length }} 条)</span>
+              </span>
+              <svg class="h-3.5 w-3.5 text-neutral-400 transition-transform duration-200 group-open:rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+              </svg>
+            </summary>
+            <div class="mt-3 space-y-4 border-t border-neutral-200/60 pt-3">
+              <div v-for="item in parsedRagContext" :key="item.title" class="space-y-1.5">
+                <div class="flex flex-wrap items-center gap-2">
+                  <span class="rounded-[6px] bg-primary/10 px-1.5 py-0.5 text-[10px] font-bold text-primary">
+                    {{ item.domain }}
+                  </span>
+                  <span class="font-bold text-neutral-800 text-[12px]">{{ item.title }}</span>
+                  <span v-if="item.aliases && item.aliases.length" class="text-[10px] text-neutral-400 font-medium">
+                    (别名: {{ item.aliases.join(', ') }})
+                  </span>
+                </div>
+                <p class="pl-0.5 text-[11px] leading-5 text-neutral-500 whitespace-pre-line font-medium">
+                  {{ item.content }}
+                </p>
+              </div>
+            </div>
+          </details>
+        </div>
+
         <!-- 数据源与查询时刻脚标独立卡片化展示 -->
         <div
           v-if="!isUser && (metaData.queryTime || metaData.dataSource)"
@@ -298,6 +331,8 @@ interface ToolResultEntry {
 
 const props = defineProps<Props>()
 
+const messagesStore = useMessagesStore()
+
 const { formatTime, parseServerDate } = useDateFormat()
 
 const parseJson = <T,>(value?: string | null): T | null => {
@@ -339,6 +374,17 @@ const chartSuggestion = computed<{ type: 'line' | 'bar' | 'auto'; desc: string |
 const metaData = computed(() => {
   const { meta } = extractMetaData(content.value || '')
   return meta
+})
+
+const parsedRagContext = computed(() => {
+  if (streamingState.value?.ragContext) {
+    return streamingState.value.ragContext
+  }
+  const msgId = props.message.id
+  if (msgId && messagesStore.memoryRagMap[msgId]) {
+    return messagesStore.memoryRagMap[msgId]
+  }
+  return (props.message as Message).rag_context ?? []
 })
 
 const displayContent = computed(() => {
@@ -617,8 +663,6 @@ const formattedTime = computed(() => {
   if (isStreamingActive.value) return '正在生成...'
   return formatTime(props.message.created_at)
 })
-
-const messagesStore = useMessagesStore()
 
 const handleFeedback = async (feedbackType: 'none' | 'like' | 'dislike' | 'collected' | 'approved') => {
   if (!props.message.id) return

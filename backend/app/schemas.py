@@ -156,6 +156,18 @@ class ToolResultStreamEvent(BaseModel):
     content: str
 
 
+class RAGContextPayload(BaseModel):
+    title: str
+    domain: str
+    aliases: List[str]
+    content: str
+
+
+class RAGContextStreamEvent(BaseModel):
+    type: Literal["rag_context"]
+    rag_context: List[RAGContextPayload]
+
+
 class FinalStreamEvent(BaseModel):
     type: Literal["final"]
     content: str
@@ -189,6 +201,7 @@ ChatStreamEvent = Annotated[
         FinalStreamEvent,
         ErrorStreamEvent,
         InterruptStreamEvent,
+        RAGContextStreamEvent,
     ],
     Field(discriminator="type"),
 ]

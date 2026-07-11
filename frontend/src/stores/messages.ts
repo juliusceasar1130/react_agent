@@ -20,6 +20,12 @@ export const useMessagesStore = defineStore('messages', () => {
   const error = ref<string | null>(null)
   const latestFetchRequestId = ref(0)  // 2026-03-29 22:55 Asia/Shanghai: 防止会话切换时旧请求覆盖新消息
   const latestRequestedSessionId = ref<string | null>(null)
+  const memoryRagMap = ref<Record<string, Array<{
+    title: string
+    domain: string
+    aliases: string[]
+    content: string
+  }>>>({})
 
   // Actions
   const fetchMessages = async (sessionId: string) => {
@@ -264,7 +270,12 @@ export const useMessagesStore = defineStore('messages', () => {
         Object.keys(streamingMessage.value.toolResults).length
           ? JSON.stringify(streamingMessage.value.toolResults)
           : null
-      )
+      ),
+      rag_context: payload.rag_context ?? streamingMessage.value.ragContext
+    }
+
+    if (finalizedMessage.id && finalizedMessage.rag_context) {
+      memoryRagMap.value[finalizedMessage.id] = finalizedMessage.rag_context
     }
 
     messages.value.push(finalizedMessage)
@@ -330,5 +341,6 @@ export const useMessagesStore = defineStore('messages', () => {
     clearStreamingMessage,
     setStreamingInterrupt,
     displayMessages,  // 包含流式临时消息的列表
+    memoryRagMap,  // 🆕 内存隔离 RAG 缓存字典
   }
 })

@@ -1,9 +1,52 @@
+## 2026-07-11 20:45 +08:00 - RAG 检索业务术语提前流式抛出与前端折叠卡片实现 (阶段二)
+
+### 概述
+- **RAG 术语提前流式抛出**：实现了在前置 RAG 中间件检索出业务参考术语后，在大模型尚未生成任何文本 token 之前，前置以独立的 SSE 事件类型（`type: "rag_context"`）将结构化的业务术语列表提前流式推送给前端，极大地缩短了用户对 RAG 展现的感知延迟，消除了传统等待焦虑。
+- **提问词校验与重置自愈 (Checkpoint 竞争修复)**：修复了由于 LangGraph Checkpoint 写盘滞后导致 `aget_state` 在流式最早期读到上一轮对话历史残留数据并误发老卡片的 Race Condition。通过在 `process_stream` 的 `input_data` 中硬编码置空 `rag_context`，同时在 `services.py` 轮询发射前强制进行 `rag_query == user_query` 双重提问词比对校验，完全阻断了上一轮脏状态的提前误抛。
+- **隔离缓存字典防历史冲刷 (前端持久化防覆盖)**：解决了为了不污染数据库而“不落库”的 RAG 字段，在流式完成触发前端 `syncMessagesIfCurrent` 全量拉取覆盖 messages 列表时，被空数据无情冲刷擦除的 Bug。在 `messagesStore` 引入纯内存隔离字典 `memoryRagMap`（以消息 ID 为键），完美实现在当前页面生命周期内卡片稳固显示。
+- **高质量 collapsible 卡片渲染**：在 `MessageItem.vue` 正文与脚标之间插入了精致的原生 `<details>` 折叠面板组件。具备扁平化无衬线现代浅灰背景与流畅箭头转动动画，多表口径呈现更直观。
+
+### 变更内容
+#### backend/app/schemas.py [MODIFY]
+- 新增 `RAGContextPayload` 结构和 `RAGContextStreamEvent` Pydantic 事件模型，并将其注册到统一的 `ChatStreamEvent` discriminated union 中，支持 API 安全序列化。
+
+#### backend/app/services.py [MODIFY]
+- 在 `process_stream` 输入中主动清空 RAG 键，同时在 `_stream_execution_loop` 循环最早期，结合 `rag_query == user_query` 逻辑对 `aget_state` 提取出最新的 RAG 信息并以自定义 `rag_context` 事件前置抛出，阻断历史快照残留。
+
+#### backend/app/api.py [MODIFY]
+- 在 `chat_session_stream` 和 `resume_session_stream` 两处流式 SSE API 接口中，增加对 `rag_context` 事件的解析路由，以 SSE 事件形式将其直接透传 yield 发送给客户端。
+
+#### frontend/src/types/index.ts [MODIFY]
+- 在 `Message`、`FinalizedStreamingMessage` 与 `StreamingMessage` 接口中，分别扩展并对齐了 `rag_context` 和 `ragContext` 临时/流式属性的声明。
+- 在 `StreamEvent` discriminated union 类型中添加了 `'rag_context'` 类型的定义。
+
+#### frontend/src/api/chat.ts [MODIFY]
+- 在 `STREAM_EVENT_TYPES` 校验白名单集合中登记 `'rag_context'` 事件。
+- 在 `parseChatStreamEvent` 解析拦截器中加入 `'rag_context'` 分支，并将其安全返回。
+
+#### frontend/src/stores/messages.ts [MODIFY]
+- 新增 `memoryRagMap` 响应式字典（`Record<string, Array<...>>`）。
+- 修改 `completeStreamingMessage`，在流式完成转换为正式 Message 时，将临时 `ragContext` 挂载到永久 `Message` 的同时，以消息 ID 为 Key 缓存至 `memoryRagMap` 中。
+
+#### frontend/src/composables/useChatStream.ts [MODIFY]
+- 在新会话流与澄清流两处核心 SSE 事件循环开关中，新增对 `rag_context` 的监听处理，并在收到时将其直接缓存给 `streamingMessage.ragContext`。
+
+#### frontend/src/components/MessageItem.vue [MODIFY]
+- 导入 `useMessagesStore` 并定义实例，新增计算属性 `parsedRagContext`，优先从 `messagesStore.memoryRagMap[message.id]` 中还原数据，防止历史同步数据冲刷卡片。
+- 在 Markdown 模板内容区下方、脚标上方，嵌入精美的折叠面板卡片展示结构化术语标题、业务域、别名和口径内容。
+
+### 验证
+- 后端单元测试：运行 `conda activate py312_agent; pytest backend/app/test_services_stream_filtering.py -v` 完美 PASSED（100% 成功）。
+- 前端打包构建：执行 `npm run build:check`（`vue-tsc && vite build`），全模块成功编译，TypeScript 零错误。
+
+---
+
 ## 2026-07-11 17:50 +08:00 - 流式输出防泄漏与 SQL 检查降级及前端体验美化优化
 
 ### 概述
 - **流式消息安全隔离**：修复了在 Agent 异步流式输出时，由于底层通道无差别广播消息，导致 `SystemMessage`（RAG 上下文）和 `ToolMessage`（SQL 查询逻辑与 Linter 报错）的文本片段泄露到 AI 最终正文气泡里的 Bug。仅允许 `AIMessage` 类消息的 `text_segment` 被转为 token 事件发送给前端，其余系统和工具事件只在其他独立通道传递，实现流式阅读区和技术细节的彻底分离。
 - **配置化二元校验**：在 `Settings` 配置中引入了 `sql_checker_mode`（默认值为 `fast`）。支持 `fast`（乐观运行，跳过大模型 Checker，由本地 Linter 进行安全硬规约拦截）和 `safety`（同步阻断式大模型校验）两种模式。在保障本地 Linter 安全拦截的前提下，将单次查询的检查耗时从 14.68 秒压缩至毫秒级，响应延迟（TTFT）缩短 93% 以上。
-- **前端 AI 消息体验美化**：优化了消息渲染。为了保留 AI 思考过程供用户查看，只对 AI 消息尾部的 `[数据真实查询时刻: ...]`、`查询时间: ...` 以及 `数据来源: ...` 等元数据文本进行正则清洗，并以精致的独立卡片脚标进行分流排版；针对含有空格、括号括号注释、全角逗号等多表多数据源场景，采用了“优先提取并清除时间、再贪婪截取数据源整行”的健壮逻辑，彻底解决元数据残留导致的表格排版错乱 Bug。同时为 Markdown 表格定制了精致斑马纹和 hover 悬浮高亮样式，并为 SQL 代码 pre 块加上暗色背景与 SQL 徽章。**追加了全局等宽中文字体补全（Fallback）机制，彻底解决了 `font-mono`/`code`/`pre` 内中文（如数据源括弧、无 SQL 记录提示）回退至宋体的字形不一致 Bug。**
+- **前端 AI 消息体验美化**：优化了消息渲染。为了保留 AI 思考过程供用户查看，只对 AI 消息尾部的 `[数据真实查询时刻: ...]`、`查询时间: ...` 以及 `数据来源: ...` 等元数据文本进行正则清洗，并以精致的独立卡片脚标进行分流排版；针对含有空格、括号括号注释、全角逗号等多表多数据源场景，采用了“优先提取并清除时间、再贪婪截取数据源整行”的健壮逻辑，彻底解决元数据残留导致的表格排版错乱 Bug，**且增加了对数据源末尾残留的中英文逗号句号（如 `, 。`）的正则剔除与净化，保证数据源标签视觉极致纯净**。同时为 Markdown 表格定制了精致斑马纹和 hover 悬浮高亮样式，并为 SQL 代码 pre 块加上暗色背景与 SQL 徽章。**追加了全局等宽中文字体补全（Fallback）机制，彻底解决了 `font-mono`/`code`/`pre` 内中文（如数据源括弧、无 SQL 记录提示）回退至宋体的字形不一致 Bug。**
 
 ### 变更内容
 #### backend/app/services.py [MODIFY]

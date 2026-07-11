@@ -41,6 +41,12 @@ export interface Message {
   questions?: QuestionItem[]
   feedback?: 'none' | 'like' | 'dislike' | 'collected' | 'approved'
   refined_payload?: string | null  // LLM 预提纯草稿 JSON 字符串
+  rag_context?: Array<{
+    title: string
+    domain: string
+    aliases: string[]
+    content: string
+  }> | null
 }
 
 export interface MessageCreate {
@@ -172,6 +178,15 @@ export type StreamEvent =
       questions: QuestionItem[]
       session_id: string
     }
+  | {
+      type: 'rag_context'
+      rag_context: Array<{
+        title: string
+        domain: string
+        aliases: string[]
+        content: string
+      }>
+    }
 
 export interface FinalizedStreamingMessage {
   id?: string
@@ -179,6 +194,12 @@ export interface FinalizedStreamingMessage {
   content?: string
   tool_calls?: string | null
   tool_results?: string | null
+  rag_context?: Array<{
+    title: string
+    domain: string
+    aliases: string[]
+    content: string
+  }> | null
 }
 
 // 流式消息状态（临时显示）- 2025-01-01
@@ -197,6 +218,12 @@ export interface StreamingMessage {
   isInterrupted?: boolean
   questions?: QuestionItem[]
   feedback?: 'none' | 'like' | 'dislike' | 'collected' | 'approved'
+  ragContext?: Array<{
+    title: string
+    domain: string
+    aliases: string[]
+    content: string
+  }> | null
 }
 
 // 聊天请求类型 - 2025-01-01

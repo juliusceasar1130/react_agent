@@ -611,7 +611,11 @@ class SQLAgentService:
             request_mode="stream",
         )
         logger.info("开始流式处理，消息: %s...", message[:100])
-        input_data = {"messages": [HumanMessage(content=message)]}
+        input_data = {
+            "messages": [HumanMessage(content=message)],
+            "rag_context": [],
+            "rag_query": "",
+        }
         async for event in self._stream_execution_loop(session_id, resolved_config, input_data):
             yield event
 
@@ -654,6 +658,14 @@ class SQLAgentService:
             nonlocal source_iter
             nonlocal context_warning
             try:
+                # 提取当前的提问词以进行 RAG 口径时序分水岭校验
+                user_query = None
+                if isinstance(input_data, dict) and "messages" in input_data:
+                    last_msg = input_data["messages"][-1]
+                    user_query = getattr(last_msg, "content", "")
+                    if isinstance(user_query, str):
+                        user_query = user_query.strip()
+
                 initial_status = {
                     "type": "status",
                     "stage": "thinking",
@@ -670,9 +682,40 @@ class SQLAgentService:
                     version="v2",
                 )
 
+                has_sent_rag = False
                 async for chunk in source_iter:
                     if not chunk:
                         continue
+
+                    # 🚀 在流式早期，如检测到状态中 RAG 已就绪且未发送，提前触发自定义 RAG 事件发送给客户端
+                    if not has_sent_rag:
+                        try:
+                            state = await self.agent.aget_state(resolved_config)
+                            rag_context_list = state.values.get("rag_context", []) if state else []
+                            rag_query = state.values.get("rag_query", "") if state else ""
+                            if isinstance(rag_query, str):
+                                rag_query = rag_query.strip()
+
+                            # 只有当 RAG 检索到的提问词 rag_query 与本轮实际用户提问 user_query 匹配时，才证明最新数据已写入 Checkpoint 并可被提前发出
+                            # 如果 user_query 为 None（例如恢复流 Resume），本前置流中本来就无需重发 RAG
+                            if rag_context_list and (user_query is None or rag_query == user_query):
+                                rag_context_payload = [
+                                    {
+                                        "title": doc.metadata.get("term") or doc.metadata.get("title") or "未命名术语",
+                                        "domain": doc.metadata.get("domain", "通用"),
+                                        "aliases": doc.metadata.get("aliases", []),
+                                        "content": doc.page_content,
+                                    }
+                                    for doc in rag_context_list
+                                ]
+                                await _emit({
+                                    "type": "rag_context",
+                                    "rag_context": rag_context_payload
+                                })
+                                has_sent_rag = True
+                        except Exception as e:
+                            logger.warning("流式执行中提前提取并发送 RAG 状态失败: %s", e)
+                            has_sent_rag = True  # 真实报错异常时才设为 True 避免产生崩溃死循环
 
                     chunk_type, chunk_data = self._unpack_stream_chunk(chunk)
                     if chunk_type is None:
