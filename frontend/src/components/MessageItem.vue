@@ -44,6 +44,25 @@
           v-html="renderedContent"
         ></div>
 
+        <!-- 数据源与查询时刻脚标独立卡片化展示 -->
+        <div
+          v-if="!isUser && (metaData.queryTime || metaData.dataSource)"
+          class="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1.5 border-t border-neutral-100/50 pt-2.5 text-[11px] text-neutral-400 font-medium"
+        >
+          <span v-if="metaData.dataSource" class="flex items-center gap-1">
+            <svg class="h-3.5 w-3.5 text-neutral-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4" />
+            </svg>
+            数据源: <code class="rounded bg-neutral-100 px-1 py-0.5 text-neutral-500 font-mono">{{ metaData.dataSource }}</code>
+          </span>
+          <span v-if="metaData.queryTime" class="flex items-center gap-1">
+            <svg class="h-3.5 w-3.5 text-neutral-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            查询时刻: <span>{{ metaData.queryTime }}</span>
+          </span>
+        </div>
+
         <!-- 一键生成图表的智能快捷 Banner -->
         <div
           v-if="chartSuggestion"
@@ -266,7 +285,7 @@ import type {
   StreamingMessage
 } from '@/types'
 import { useDateFormat } from '@/composables/useDateFormat'
-import { renderMarkdown } from '@/utils/markdown'
+import { renderMarkdown, extractMetaData } from '@/utils/markdown'
 
 interface Props {
   message: Message | StreamingMessage
@@ -317,9 +336,16 @@ const chartSuggestion = computed<{ type: 'line' | 'bar' | 'auto'; desc: string |
   return match ? { type: match[1] as 'line' | 'bar' | 'auto', desc: match[2] || null } : null
 })
 
+const metaData = computed(() => {
+  const { meta } = extractMetaData(content.value || '')
+  return meta
+})
+
 const displayContent = computed(() => {
   const rawContent = content.value || ''
-  return rawContent.replace(/\[suggest_chart:(line|bar|auto)(?:\|[^\]]*)?\]/, '')
+  const cleaned = rawContent.replace(/\[suggest_chart:(line|bar|auto)(?:\|[^\]]*)?\]/, '')
+  const { cleanContent } = extractMetaData(cleaned)
+  return cleanContent
 })
 
 const renderedContent = computed(() => renderMarkdown(displayContent.value))
@@ -603,3 +629,75 @@ const handleFeedback = async (feedbackType: 'none' | 'like' | 'dislike' | 'colle
   }
 }
 </script>
+
+<style scoped>
+/* 2026-07-11 - Markdown 动态渲染元素与代码框美化 */
+.message-markdown :deep(table) {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 12px 0;
+  font-size: 13.5px;
+  line-height: 1.5;
+  text-align: left;
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.message-markdown :deep(th) {
+  background-color: #f8fafc;
+  color: #334155;
+  font-weight: 600;
+  padding: 10px 14px;
+  border-bottom: 2px solid #e2e8f0;
+}
+
+.message-markdown :deep(td) {
+  padding: 10px 14px;
+  border-bottom: 1px solid #f1f5f9;
+  color: #475569;
+}
+
+.message-markdown :deep(tr:last-child td) {
+  border-bottom: none;
+}
+
+.message-markdown :deep(tr:nth-child(even)) {
+  background-color: rgba(248, 250, 252, 0.6);
+}
+
+.message-markdown :deep(tr:hover td) {
+  background-color: rgba(241, 245, 249, 0.7);
+  color: #0f172a;
+}
+
+/* SQL 代码块样式 */
+.message-markdown :deep(pre) {
+  position: relative;
+  background-color: #0f172a;
+  color: #f8fafc;
+  padding: 16px;
+  border-radius: 16px;
+  margin: 12px 0;
+  overflow-x: auto;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+}
+
+.message-markdown :deep(pre::before) {
+  content: 'SQL';
+  position: absolute;
+  top: 8px;
+  right: 12px;
+  font-size: 10px;
+  font-weight: 700;
+  color: #64748b;
+  letter-spacing: 0.5px;
+  background-color: #1e293b;
+  padding: 2px 6px;
+  border-radius: 6px;
+}
+
+.message-markdown :deep(code) {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 13px;
+}
+</style>

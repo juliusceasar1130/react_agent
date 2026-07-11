@@ -693,17 +693,19 @@ class SQLAgentService:
                             else None
                         )
 
-                        for text_segment in self._extract_text_segments(message_chunk):
-                            if not text_segment:
-                                continue
-                            has_stream_tokens = True
-                            await _emit(
-                                {
-                                    "type": "token",
-                                    "text": text_segment,
-                                    "node": node_name,
-                                }
-                            )
+                        # 🚨 仅允许 AIMessage 提取文本 token 发送给客户端，杜绝 RAG 提示词(SystemMessage)和工具返回值(ToolMessage)泄露
+                        if isinstance(message_chunk, AIMessage):
+                            for text_segment in self._extract_text_segments(message_chunk):
+                                if not text_segment:
+                                    continue
+                                has_stream_tokens = True
+                                await _emit(
+                                    {
+                                        "type": "token",
+                                        "text": text_segment,
+                                        "node": node_name,
+                                    }
+                                )
 
                         for event in self._collect_tool_call_chunk_events(
                             message_chunk,

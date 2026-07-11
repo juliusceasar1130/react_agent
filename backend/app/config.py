@@ -64,6 +64,9 @@ class Settings(BaseSettings):
         str(Path(__file__).resolve().parent / "agent" / "prompts" / "base_system_prompt.md"),
     )
 
+    # SQL Checker 模式：fast(仅本地Linter) | safety(同步checker=当前默认)
+    sql_checker_mode: str = os.getenv("SQL_CHECKER_MODE", "fast")
+
     # SQL 结果硬限制：代码层面对查询结果集的强制截断上限，防止大量数据加载到 LLM 上下文中造成溢出或性能崩溃
     sql_result_hard_limit: int = int(os.getenv("SQL_RESULT_HARD_LIMIT", "30"))
 

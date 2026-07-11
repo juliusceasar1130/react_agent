@@ -47,3 +47,48 @@ export const renderMarkdown = (source: string) => {
     USE_PROFILES: { html: true }
   })
 }
+
+export interface MessageMetaData {
+  queryTime?: string
+  dataSource?: string
+}
+
+export const extractMetaData = (content: string): { cleanContent: string; meta: MessageMetaData } => {
+  let cleanContent = content
+  const meta: MessageMetaData = {}
+
+  // 1. 优先提取并清除时间（方括号格式：[数据真实查询时刻: ...]）
+  const bracketTimeRegex = /\[数据真实查询时刻[:：]\s*([^\]]+)\]/g
+  const bracketTimeMatch = bracketTimeRegex.exec(cleanContent)
+  if (bracketTimeMatch) {
+    meta.queryTime = bracketTimeMatch[1].trim()
+    cleanContent = cleanContent.replace(bracketTimeRegex, '')
+  }
+
+  // 2. 提取并清除普通文本时间（格式：查询时间：YYYY-MM-DD HH:MM:SS）
+  const textTimeRegex = /(?:查询时间|查询时刻)[:：]\s*([0-9\-\ :]+)/g
+  const textTimeMatch = textTimeRegex.exec(cleanContent)
+  if (textTimeMatch) {
+    if (!meta.queryTime) {
+      meta.queryTime = textTimeMatch[1].trim()
+    }
+    cleanContent = cleanContent.replace(textTimeRegex, '')
+  }
+
+  // 3. 提取并清除数据来源（消灭时间后，抓取“数据来源:”后面的整行文本，支持中英文混排、括号、逗号等）
+  const sourceRegex = /数据来源[:：]\s*([^\n\r]+)/g
+  const sourceMatch = sourceRegex.exec(cleanContent)
+  if (sourceMatch) {
+    let ds = sourceMatch[1].trim()
+    // 清洗首尾残留的逗号、全角逗号、顿号或空格
+    ds = ds.replace(/^[,，、\s\-\|]+|[,，、\s\-\|]+$/g, '').trim()
+    meta.dataSource = ds
+    cleanContent = cleanContent.replace(sourceRegex, '')
+  }
+
+  // 4. 清理残留的多余换行与逗号等垃圾标记
+  cleanContent = cleanContent.replace(/\n\s*[,，，、]\s*\n/g, '\n')
+  cleanContent = cleanContent.replace(/\n\s*\n/g, '\n').trim()
+
+  return { cleanContent, meta }
+}

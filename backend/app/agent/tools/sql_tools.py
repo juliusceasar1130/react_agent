@@ -260,8 +260,8 @@ def create_wrapped_query_tool(
                     logger.warning(f"Linter 校验拦截:\n{err_msg}")
                     raise ToolException(err_msg)
 
-        # 3. 自动执行 SQL 语法检查（如果 checker 工具可用）
-        if original_checker_tool is not None:
+        # 3. 自动执行 SQL 语法检查（如果配置为 safety 模式且 checker 工具可用）
+        if settings.sql_checker_mode == "safety" and original_checker_tool is not None:
             emit_stream_status(
                 "正在检查 SQL 语法",
                 stage="querying",

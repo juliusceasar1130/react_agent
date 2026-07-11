@@ -149,8 +149,8 @@ def create_wrapped_query_tool(
                 "可用技能请查看系统提示中的 Available Skills 部分。"
             )
 
-        # 2. 自动执行 SQL 语法检查（如果 checker 工具可用）
-        if original_checker_tool is not None:
+        # 2. 自动执行 SQL 语法检查（如果配置为 safety 模式且 checker 工具可用）
+        if settings.sql_checker_mode == "safety" and original_checker_tool is not None:
             emit_stream_status(
                 "正在检查 SQL 语法",
                 stage="querying",

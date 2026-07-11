@@ -42,6 +42,16 @@
       linear-gradient(180deg, #fbfcfd 0%, #f6f7f9 48%, #eef1f5 100%);
   }
 
+  /* 2026-07-11 - 全局修复等宽字体与 code/pre 中文 Fallback 宋体的排版缺陷 */
+  .font-mono,
+  code,
+  pre,
+  kbd,
+  samp {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 
+                 "PingFang SC", "Microsoft YaHei", sans-serif !important;
+  }
+
   ::-webkit-scrollbar {
     width: 8px;
     height: 8px;

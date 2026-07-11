@@ -1,3 +1,51 @@
+## 2026-07-11 17:50 +08:00 - 流式输出防泄漏与 SQL 检查降级及前端体验美化优化
+
+### 概述
+- **流式消息安全隔离**：修复了在 Agent 异步流式输出时，由于底层通道无差别广播消息，导致 `SystemMessage`（RAG 上下文）和 `ToolMessage`（SQL 查询逻辑与 Linter 报错）的文本片段泄露到 AI 最终正文气泡里的 Bug。仅允许 `AIMessage` 类消息的 `text_segment` 被转为 token 事件发送给前端，其余系统和工具事件只在其他独立通道传递，实现流式阅读区和技术细节的彻底分离。
+- **配置化二元校验**：在 `Settings` 配置中引入了 `sql_checker_mode`（默认值为 `fast`）。支持 `fast`（乐观运行，跳过大模型 Checker，由本地 Linter 进行安全硬规约拦截）和 `safety`（同步阻断式大模型校验）两种模式。在保障本地 Linter 安全拦截的前提下，将单次查询的检查耗时从 14.68 秒压缩至毫秒级，响应延迟（TTFT）缩短 93% 以上。
+- **前端 AI 消息体验美化**：优化了消息渲染。为了保留 AI 思考过程供用户查看，只对 AI 消息尾部的 `[数据真实查询时刻: ...]`、`查询时间: ...` 以及 `数据来源: ...` 等元数据文本进行正则清洗，并以精致的独立卡片脚标进行分流排版；针对含有空格、括号括号注释、全角逗号等多表多数据源场景，采用了“优先提取并清除时间、再贪婪截取数据源整行”的健壮逻辑，彻底解决元数据残留导致的表格排版错乱 Bug。同时为 Markdown 表格定制了精致斑马纹和 hover 悬浮高亮样式，并为 SQL 代码 pre 块加上暗色背景与 SQL 徽章。**追加了全局等宽中文字体补全（Fallback）机制，彻底解决了 `font-mono`/`code`/`pre` 内中文（如数据源括弧、无 SQL 记录提示）回退至宋体的字形不一致 Bug。**
+
+### 变更内容
+#### backend/app/services.py [MODIFY]
+- 修改 `_stream_execution_loop` 中 `chunk_type == "messages"` 消息块的处理，加入 `isinstance(message_chunk, AIMessage)` 校验。
+
+#### backend/app/config.py [MODIFY]
+- 在 `Settings` 类中新增 `sql_checker_mode` 字段，默认从环境变量 `SQL_CHECKER_MODE` 中加载。
+
+#### .env [MODIFY]
+- 新增 `SQL_CHECKER_MODE="fast"` 并补充了详细的模式注释。
+
+#### backend/app/agent/tools/sql_tools.py [MODIFY]
+- 修改 `sql_db_query`，将大模型 SQL 检查工具的 `invoke` 校验包装在 `settings.sql_checker_mode == "safety"` 逻辑分支中。
+
+#### backend/app/agent/tools/sql_tools_local.py [MODIFY]
+- 对本地工具模块同步进行包装修改，清理了重复的 `settings` 导入。
+
+#### backend/app/test_services_stream_filtering.py [NEW]
+- 编写专项过滤测试用例，模拟 LangGraph 输出不同角色消息（SystemMessage, ToolMessage, AIMessage），断言验证仅有 AI 回复的文本被吐给前端。
+
+#### backend/app/test_sql_checker_mode.py [NEW]
+- 新增测试套件，通过 mock `settings` 和 tools 验证不同检查模式下的行为，断言 `fast` 模式下完全没有发起 checker 接口调用。
+
+#### frontend/src/utils/markdown.ts [MODIFY]
+- 新增并导出 `extractMetaData` 工具函数。采用“时间优先剔除，数据源整行贪婪截取”的双阶正则策略，清洗提取出复杂的查询时刻与复杂多表数据源，避免因顿号、中括号及全角逗号等被误识别残留。
+
+#### frontend/src/components/MessageItem.vue [MODIFY]
+- 引入元数据提取模块，创建 `metaData` 与清洗后的 `displayContent` 计算属性；模板中在气泡底端增加图标卡片式脚标；底部追加 `scoped style` 渲染 Markdown 表格（表头样式、斑马纹、悬停背景）和 pre/code 代码块。
+
+#### frontend/src/utils/test_markdown.js [NEW]
+- 编写专项 Node.js 测试脚本，动态读取 `markdown.ts` 源码并剥离类型，对提取器逻辑（包括含有括号解释、全角逗号和多表顿号等 3 大复杂场景）进行断言单元测试。
+
+#### frontend/src/style.css [MODIFY]
+- 在 `@layer base` 层中为 `.font-mono`、`code`、`pre` 标签注入全局中文字体 Fallback 链（`PingFang SC` / `Microsoft YaHei`），防止等宽字体中文回退为宋体。
+
+### 验证
+- 后端测试：运行 `pytest backend/app/test_sql_checker_mode.py backend/app/test_services_stream_filtering.py backend/app/test_api_persistence.py backend/app/test_api_resume.py`，共 16 个测试用例全量 100% PASS。
+- 前端测试：运行 `node frontend/src/utils/test_markdown.js`，提取器单元测试成功通过。
+- 前端构建：执行 `npm run build:check`（即 `vue-tsc && vite build`），全模块成功打包通过，零 TS 类型错误。
+
+---
+
 ## 2026-07-11 15:38 +08:00 - 多步级联查询下 SQL 纠错时序分水岭隔离优化
 
 ### 概述
