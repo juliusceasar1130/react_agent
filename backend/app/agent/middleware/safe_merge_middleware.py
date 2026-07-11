@@ -218,20 +218,26 @@ class SafeMergeSystemMiddleware(AgentMiddleware[CustomState]):
                 })
 
         # Find successful SQL in current ReAct loop
-        successful_sql_call_id = None
-        for info in reversed(sql_tool_infos):
-            if not info["is_failed"]:
-                successful_sql_call_id = info["tool_call_id"]
+        last_success_idx = -1
+        for idx_in_list in range(len(sql_tool_infos) - 1, -1, -1):
+            if not sql_tool_infos[idx_in_list]["is_failed"]:
+                last_success_idx = idx_in_list
                 break
 
-        # Collect all failed call_ids in current ReAct loop, keep last N
+        # Collect failed call_ids AFTER the last success in current ReAct loop, keep last N
         ctx.kept_call_ids = set()
-        if successful_sql_call_id is None:
-            failed_ids_in_loop = [
+        active_failed_ids = []
+        if last_success_idx == -1:
+            active_failed_ids = [
                 info["tool_call_id"] for info in sql_tool_infos if info["is_failed"]
             ]
-            if failed_ids_in_loop:
-                ctx.kept_call_ids = set(failed_ids_in_loop[-keep_count:])
+        else:
+            active_failed_ids = [
+                info["tool_call_id"] for info in sql_tool_infos[last_success_idx + 1:] if info["is_failed"]
+            ]
+
+        if active_failed_ids:
+            ctx.kept_call_ids = set(active_failed_ids[-keep_count:])
 
         # Redact failures not in kept set (scans all messages, not just current loop)
         for idx in range(len(projected)):
@@ -247,10 +253,7 @@ class SafeMergeSystemMiddleware(AgentMiddleware[CustomState]):
             )
 
             if is_linter_error:
-                should_redact = (
-                    (successful_sql_call_id is not None) or
-                    (msg.tool_call_id not in ctx.kept_call_ids)
-                )
+                should_redact = msg.tool_call_id not in ctx.kept_call_ids
                 if should_redact:
                     ctx.redacted_count += 1
                     projected[idx] = ToolMessage(

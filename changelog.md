@@ -1,3 +1,28 @@
+## 2026-07-11 15:38 +08:00 - 多步级联查询下 SQL 纠错时序分水岭隔离优化
+
+### 概述
+- **时序分水岭保护算法**：修复了在多步 SQL（分步/级联）查询中，大模型前置 SQL 执行成功后，后置最新失败 SQL 尝试（Linter 或运行期报错）在重入中间件时被误杀折叠的 Bug。
+- **活跃失败精准分流**：根据当前轮次内“最后一个成功 SQL”的相对时序，将重试失败分类为：
+  - *陈旧已解决失败*（位于成功前，已无纠错参考价值，予以抹除折叠）。
+  - *活跃重试失败*（位于成功后，模型仍处于新步骤纠错中，予以 `keep_count` 额度保护不折叠）。
+
+### 变更内容
+#### backend/app/agent/middleware/safe_merge_middleware.py [MODIFY]
+- 重构 `_stage_redaction` 的判断方法，引入 `last_success_idx` 定位最后一个成功 SQL 位置。
+- 仅将 `last_success_idx` 之后的失败收集入 `active_failed_ids`，并在其上通过 `keep_count` 截取保护集，对陈旧失败直接抹除。
+- 简化 `should_redact` 逻辑为仅检查 `msg.tool_call_id not in ctx.kept_call_ids`。
+
+#### backend/app/agent/middleware/test_safe_merge_middleware.py [MODIFY]
+- 新增单元测试 `test_stage_redaction_keeps_active_failures_after_success`：模拟级联失败场景（失败1 -> 成功2 -> 失败3），验证仅有失败1被抹除，而最新失败3受到完美保护不折叠。
+
+#### docs/context-collapse/summary_and_lessons.md [MODIFY]
+- 在重大漏洞复盘中新增「2.5 多步级联查询下，前置成功误杀后续失败 Bug」段落，阐明机制原理和时序隔离设计。
+
+### 验证
+- 运行全量后端单元和集成测试用例，77 个测试全部 PASS（100% 成功通过）。
+
+---
+
 ## 2026-07-10 22:50 +08:00 - 运行期数据库错误精准识别与重试线索保留修复
 
 ### 概述

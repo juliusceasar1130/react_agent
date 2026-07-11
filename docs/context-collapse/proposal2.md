@@ -266,21 +266,27 @@ class _CollapseContext:
                     "is_failed": is_failed,
                 })
 
-        # 在当前 ReAct 循环范围内找成功
-        successful_sql_call_id = None
-        for info in reversed(sql_tool_infos):
-            if not info["is_failed"]:
-                successful_sql_call_id = info["tool_call_id"]
+        # 在当前 ReAct 循环范围内寻找最后一个成功
+        last_success_idx = -1
+        for idx_in_list in range(len(sql_tool_infos) - 1, -1, -1):
+            if not sql_tool_infos[idx_in_list]["is_failed"]:
+                last_success_idx = idx_in_list
                 break
 
-        # 收集当前循环所有失败，取最后 N 个保留
+        # 收集最后一个成功之后的活跃重试失败，取最后 N 个保留
         ctx.kept_call_ids = set()
-        if successful_sql_call_id is None:
-            failed_ids_in_loop = [
+        active_failed_ids = []
+        if last_success_idx == -1:
+            active_failed_ids = [
                 info["tool_call_id"] for info in sql_tool_infos if info["is_failed"]
             ]
-            if failed_ids_in_loop:
-                ctx.kept_call_ids = set(failed_ids_in_loop[-keep_count:])
+        else:
+            active_failed_ids = [
+                info["tool_call_id"] for info in sql_tool_infos[last_success_idx + 1:] if info["is_failed"]
+            ]
+
+        if active_failed_ids:
+            ctx.kept_call_ids = set(active_failed_ids[-keep_count:])
 
         # 执行 Redaction（扫描全量消息，不在 kept 集合中的失败被抹除）
         for idx in range(len(projected)):
@@ -291,14 +297,12 @@ class _CollapseContext:
             content_str = str(msg.content)
             is_linter_error = (
                 "X-SQL-LINTER-STATUS: FAILED" in content_str or
+                "validation failed by Linter" in content_str or
                 ("Linter 拦截" in content_str or "SQL Linter" in content_str)
             )
 
             if is_linter_error:
-                should_redact = (
-                    (successful_sql_call_id is not None) or
-                    (msg.tool_call_id not in ctx.kept_call_ids)
-                )
+                should_redact = msg.tool_call_id not in ctx.kept_call_ids
                 if should_redact:
                     ctx.redacted_count += 1
                     projected[idx] = ToolMessage(

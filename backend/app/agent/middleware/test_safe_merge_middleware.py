@@ -556,3 +556,36 @@ def test_stage_redaction_keeps_linter_and_runtime_mixed_failures():
     
     assert result[4].content == "Error: (psycopg2.errors.UndefinedColumn) column not found"
     assert result[3].content == "Trying SQL 2"
+
+
+def test_stage_redaction_keeps_active_failures_after_success():
+    """测试多步 SQL 场景下，成功 SQL 之后的最新失败尝试属于活跃线索，不应被折叠，而成功之前的陈旧失败应被折叠。"""
+    from langchain_core.messages import HumanMessage, AIMessage, ToolMessage
+    from backend.app.agent.middleware.safe_merge_middleware import SafeMergeSystemMiddleware, _CollapseContext
+
+    messages = [
+        HumanMessage(content="Query profile and logs"),
+        # 1. 步骤一的失败 (应被折叠，因为其后已经成功了)
+        AIMessage(content="SQL 1", tool_calls=[{"name": "sql_db_query", "args": {"query": "bad 1"}, "id": "call_1"}]),
+        ToolMessage(content="X-SQL-LINTER-STATUS: FAILED", name="sql_db_query", tool_call_id="call_1"),
+        
+        # 2. 步骤一改对成功 (分水岭)
+        AIMessage(content="SQL 2", tool_calls=[{"name": "sql_db_query", "args": {"query": "ok 2"}, "id": "call_2"}]),
+        ToolMessage(content="[{'id': 1}]", name="sql_db_query", tool_call_id="call_2"),
+        
+        # 3. 步骤二开始尝试，最新失败 (活跃失败，必须受到 keep_count 保护保留)
+        AIMessage(content="SQL 3", tool_calls=[{"name": "sql_db_query", "args": {"query": "bad 3"}, "id": "call_3"}]),
+        ToolMessage(content="X-SQL-LINTER-STATUS: FAILED", name="sql_db_query", tool_call_id="call_3"),
+    ]
+
+    middleware = SafeMergeSystemMiddleware()
+    ctx = _CollapseContext(messages=messages, boundary_index=0)
+    result = middleware._stage_redaction(messages, ctx)
+
+    # 验证：分水岭之前的 call_1 被折叠
+    assert result[1].content == "[Invalid SQL attempt. Redacted to save context space.]"
+    assert result[2].content == "[SQL validation failed by Linter. Previous invalid attempt redacted to save context space.]"
+    
+    # 验证：分水岭之后的 call_3 完好保留作为线索
+    assert result[5].content == "SQL 3"
+    assert result[6].content == "X-SQL-LINTER-STATUS: FAILED"
