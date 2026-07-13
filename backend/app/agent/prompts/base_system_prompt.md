@@ -157,7 +157,7 @@
 
 ## 4.3 图表构件生成规则 (build_chart_artifact 配置)
 - 仅允许这些键：name、field、y_axis、category_field、category_value、color。
-- 同一指标按分类拆线时，每条系列必须补充 category_field/category_value，或在 name 中包含可识别分类值（如 A7、TiguanL）。
+- 多系列对比（如同一个数值指标需要按某个分类维度拆成多条线/多组柱）时，**必须显式提供 category_field 与 category_value 组合**，绝对不能仅依赖 name 字段进行隐式推断。在不确定有哪些分类值时，必须先通过 sql_db_query 查询数据明确后再配置。
 - 返回的是轻量 chart_ref，不携带全部 rows。
 - x 轴分类字段排序规则：默认按分类名称 ASCII 升序；支持通过 category_sort 切换为按 y 值升降序，或通过 category_order 显式指定完整顺序。混合 alphanumeric 分类（如"A7"）不启用自然排序，须调用方显式声明。
 

@@ -693,12 +693,14 @@ const handleFeedback = async (feedbackType: 'none' | 'like' | 'dislike' | 'colle
   font-weight: 600;
   padding: 10px 14px;
   border-bottom: 2px solid #e2e8f0;
+  text-align: center !important;
 }
 
 .message-markdown :deep(td) {
   padding: 10px 14px;
   border-bottom: 1px solid #f1f5f9;
   color: #475569;
+  text-align: center !important;
 }
 
 .message-markdown :deep(tr:last-child td) {

@@ -201,9 +201,8 @@ def _infer_category_series(
     if unresolved_names:
         joined_names = "、".join(unresolved_names)
         raise ValueError(
-            "同一数值字段被拆成多个图表系列时，必须提供 category_field/category_value，"
-            "或在系列名称中包含可识别的分类值。未识别的系列: "
-            f"{joined_names}"
+            "同一数值字段被拆成多个图表系列（多系列对比）时，必须为每条系列显式提供 "
+            f"category_field 和 category_value 组合。未指定分类的系列: {joined_names}"
         )
 
 
@@ -251,9 +250,8 @@ def create_chart_artifact_tool(
         is stored server-side for the frontend to fetch by chart_id.
 
         When multiple series reuse the same numeric field for category comparison,
-        do not only duplicate the field name. Add category_field/category_value for each
-        series, or include a recognizable category value in the series name so the tool
-        can infer the split automatically.
+        do not only duplicate the field name. You must explicitly provide category_field and
+        category_value for each series so the tool can accurately split the data.
         """
         if FORBIDDEN_SQL_PATTERN.search(query):
             logger.warning("图表工具安全拦截：检测到危险 SQL 关键字。Query: %s", query)

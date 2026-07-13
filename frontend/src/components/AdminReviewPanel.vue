@@ -1,6 +1,32 @@
 <!-- 2026-06-29 Asia/Shanghai - 管理员黄金案例审核终端面板 (阶段四) -->
 <template>
-  <div class="flex h-full w-full flex-col overflow-hidden">
+  <Transition name="modal-fade">
+    <div
+      v-if="show"
+      class="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6"
+    >
+      <!-- 背景遮罩 overlay -->
+      <div
+        class="fixed inset-0 bg-neutral-900/40 backdrop-blur-md transition-opacity"
+        @click="closeModal"
+      ></div>
+
+      <!-- 弹窗容器 container -->
+      <div
+        class="relative z-10 flex h-[85vh] w-[95vw] max-w-6xl flex-col overflow-hidden rounded-[28px] bg-white border border-neutral-200/50 shadow-2xl transition-all duration-300 backdrop-blur-2xl"
+      >
+        <!-- 右上角关闭按钮 -->
+        <button
+          @click="closeModal"
+          class="absolute top-4 right-4 z-20 flex h-8 w-8 items-center justify-center rounded-full text-neutral-400 hover:bg-neutral-100 hover:text-neutral-700 transition-colors"
+          title="关闭审核终端"
+        >
+          <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
+
+        <div class="flex h-full w-full flex-col overflow-hidden">
     <!-- 头部 -->
     <div class="flex shrink-0 items-start justify-between border-b border-neutral-200/80 bg-white/80 px-6 py-4 backdrop-blur-xl">
       <div>
@@ -21,7 +47,7 @@
       <button
         @click="fetchPendingList"
         :disabled="loading"
-        class="flex shrink-0 items-center gap-1.5 rounded-full border border-neutral-200 bg-white px-3.5 py-2 text-xs font-medium text-neutral-600 shadow-sm transition hover:bg-neutral-50 active:scale-95 disabled:opacity-50"
+        class="flex shrink-0 items-center gap-1.5 rounded-full border border-neutral-200 bg-white px-3.5 py-2 text-xs font-medium text-neutral-600 shadow-sm transition hover:bg-neutral-50 active:scale-95 disabled:opacity-50 mr-10"
       >
         <svg class="h-3.5 w-3.5 transition-transform" :class="loading ? 'animate-spin' : ''" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
@@ -182,13 +208,34 @@
         <span>{{ toast.message }}</span>
       </div>
     </Transition>
-  </div>
+        </div>
+      </div>
+    </div>
+  </Transition>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, onUnmounted, watch } from 'vue'
 import api from '@/api'
 import type { Message } from '@/types'
+
+// ---- Props & Emits ----
+const props = withDefaults(
+  defineProps<{
+    show: boolean
+  }>(),
+  {
+    show: false
+  }
+)
+
+const emit = defineEmits<{
+  (e: 'update:show', value: boolean): void
+}>()
+
+const closeModal = () => {
+  emit('update:show', false)
+}
 
 // ---- State ----
 const pendingList = ref<Message[]>([])
@@ -197,6 +244,26 @@ const submitting = ref<Record<string, boolean>>({})
 const editForms = ref<Record<string, { custom_query: string; custom_sql: string; domain: string }>>({})
 
 const toast = ref({ visible: false, type: 'success', message: '' })
+
+// 监听弹窗显示状态控制 body 滚动与刷新
+watch(
+  () => props.show,
+  (newVal) => {
+    if (newVal) {
+      document.body.classList.add('overflow-hidden')
+      fetchPendingList()
+    } else {
+      document.body.classList.remove('overflow-hidden')
+    }
+  }
+)
+
+// 处理 ESC 按键关闭
+const handleKeyDown = (e: KeyboardEvent) => {
+  if (e.key === 'Escape' && props.show) {
+    closeModal()
+  }
+}
 
 // ---- Helpers ----
 function parseOriginalSql(item: Message): string {
@@ -298,11 +365,29 @@ async function handleReject(id: string) {
 }
 
 onMounted(() => {
-  fetchPendingList()
+  window.addEventListener('keydown', handleKeyDown)
+  if (props.show) {
+    document.body.classList.add('overflow-hidden')
+    fetchPendingList()
+  }
+})
+
+onUnmounted(() => {
+  window.removeEventListener('keydown', handleKeyDown)
+  document.body.classList.remove('overflow-hidden')
 })
 </script>
 
 <style scoped>
+.modal-fade-enter-active,
+.modal-fade-leave-active {
+  transition: opacity 0.28s ease;
+}
+.modal-fade-enter-from,
+.modal-fade-leave-to {
+  opacity: 0;
+}
+
 .toast-enter-active,
 .toast-leave-active {
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);

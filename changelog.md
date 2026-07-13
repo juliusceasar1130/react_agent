@@ -1,3 +1,67 @@
+## 2026-07-13 11:11 +08:00 - 收紧多系列图表分类拆线的显式声明约束
+
+### 概述
+- **多系列对比黄金规则落地**：为解决多系列对比图表生成时仅依赖系列名称（`name`）模糊自动推理导致的匹配歧义、拼写不匹配以及由此引发的工具运行时报错，通过全链路（系统提示词、工具定义和报错信息）实施强约束，强制大模型必须显式且成对提供 `category_field` 和 `category_value` 组合。
+- **无前端代码改动**：由于前端 `ChartArtifactCard` 仅消费已格式化的图表 JSON，且天然原生基于 `category_field`/`category_value` 进行过滤渲染，故此项加固完全在后端与 LLM 指令端闭环完成，保持前端零改动。
+
+### 变更内容
+#### backend/app/agent/prompts/base_system_prompt.md [MODIFY]
+- 修改第 4.3 节关于图表构件生成规则的描述，将原来宽松的“或在 name 中包含可识别分类值”表述彻底替换为强制显式声明的规则，并指引大模型不确定时优先使用 SQL 检索明确后再进行图表参数组装。
+
+#### docs/reconstructed_system_prompt.py [MODIFY]
+- 同步修改重构系统提示词中的第 4.3 节规则，以保持示例模板与线上提示词一致。
+
+#### backend/app/agent/tools/chart_artifact_tool.py [MODIFY]
+- 更新 `build_chart_artifact` 工具的英文 Docstring，移除带有误导性的模糊自动推理声明，明确要求大模型显式提供 `category_field` 与 `category_value` 组合。
+- 修改 `_infer_category_series` 函数校验失败时的 ValueError 报错文案，去除关于 `name` 推理的误导提示，强制指出必须使用显式参数对系列分类进行设定。
+
+### 验证
+- **系统提示词单元测试**：在本地执行 `pytest backend/app/agent/test_service_prompt.py` 测试用例，断言逻辑与模板整体匹配，全部通过。
+
+---
+
+## 2026-07-12 22:43 +08:00 - 黄金案例审核终端重构为模态弹窗显示
+
+### 概述
+- **审核终端弹窗化**：为了改善原先审核终端内联展示导致的硬切屏、视觉割裂和当前会话上下文丢失的问题，将其彻底重构为了自包含的模态弹窗（Modal）。管理员可以随时唤起与关闭审核面板，而底层的对话状态和输入内容得以完整保留。
+
+### 变更内容
+#### frontend/src/components/AdminReviewPanel.vue [MODIFY]
+- 新增 `show` 属性作为显示开关，并提供 `update:show` 事件。
+- 引入 `<Transition name="modal-fade">` 挂载半透明毛玻璃背景遮罩与 `h-[85vh]`、`w-[95vw] max-w-6xl` 大尺寸的弹窗容器。
+- 增加了绝对定位的右上角关闭按钮，并为顶部的“刷新列表”按钮设置了 `mr-10` 边距避免按钮遮挡。
+- 在 `watch` 与生命周期钩子中实现了弹窗唤起时锁定 `document.body` 滚动，关闭时释放的拦截机制。
+- 注册了 `keydown` 监听器，支持在弹窗打开时按下键盘 `Escape` 键直接退出的便捷体验。
+- 优化了状态响应式自愈，在弹窗每次显示时自动执行数据加载刷新。
+
+#### frontend/src/views/ChatView.vue [MODIFY]
+- 移除了原有的内敛渲染卡片，并撤销了主聊天内容和输入框的 `v-else` 隐藏限制，保持状态常驻。
+- 在页面模板底部平级引入并挂载了 `<AdminReviewPanel v-model:show="showAdminReview" />`。
+
+### 验证
+- **构建测试**：在 `frontend` 目录下运行 `npm run build` 打包任务，编译成功，零 TypeScript 错误及样式编译冲突。
+- **功能与交互验证**：弹窗可以正常通过主页面的“审核终端”按钮唤起；键盘 `ESC`、遮罩层点击、右上角 `X` 关闭等关闭流程符合预期；弹窗打开时背景滚动穿透拦截成功。
+
+---
+
+## 2026-07-12 22:36 +08:00 - 修复 Markdown 表格对中对齐不一致问题
+
+### 概述
+- **表格对齐强制居中**：解决了在大模型输出中，因包含对齐声明语法（如 `:---`）生成的 inline 样式覆盖全局表格居中属性，导致表格有时居中、有时靠左对齐的现象。通过在全局样式和消息展示组件中引入强制居中（`text-align: center !important`），确保所有表格表现一致。
+
+### 变更内容
+#### frontend/src/components/MessageItem.vue [MODIFY]
+- 在 scoped style 样式块中，为 `.message-markdown :deep(th)` 和 `.message-markdown :deep(td)` 规则加入了 `text-align: center !important`。这会直接覆盖 markdown-it 解析后注入的 inline 样式以及继承的左对齐样式。
+
+#### frontend/src/style.css [MODIFY]
+- 将全局的 `.message-markdown th` 和 `.message-markdown td` 的 `text-align: center` 样式属性提升为 `text-align: center !important`，以确保全局多处使用时的居中样式兜底有效。
+
+### 验证
+- **构建测试**：在 `frontend` 目录下运行 `npm run build`，项目打包成功，无编译或类型检查报错。
+- **渲染验证**：测试了普通 Markdown 表格和显式左对齐声明的表格，两者均能在页面中保持完美的居中对齐排版。
+
+---
+
 ## 2026-07-11 20:45 +08:00 - RAG 检索业务术语提前流式抛出与前端折叠卡片实现 (阶段二)
 
 ### 概述

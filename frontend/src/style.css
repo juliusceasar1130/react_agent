@@ -269,7 +269,7 @@
     min-width: 5rem;
     border-bottom: 1px solid rgb(219 229 240);
     padding: 0.78rem 0.9rem;
-    text-align: center;
+    text-align: center !important;
     vertical-align: middle;
     white-space: normal;
     line-height: 1.6;

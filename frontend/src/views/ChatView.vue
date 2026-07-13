@@ -92,10 +92,7 @@
             </div>
           </header>
 
-          <!-- 管理员审核终端：showAdminReview 时全屏展示 -->
-          <AdminReviewPanel v-if="showAdminReview" class="flex-1 min-h-0" />
-
-          <div v-else class="relative flex min-h-0 flex-1 flex-col px-3 pb-3 pt-3 sm:px-5 lg:px-8 lg:pb-6">
+          <div class="relative flex min-h-0 flex-1 flex-col px-3 pb-3 pt-3 sm:px-5 lg:px-8 lg:pb-6">
             <div
               v-if="currentSession && contextWarning"
               class="animate-fade-in mx-auto mb-3 w-full max-w-5xl rounded-[22px] border border-amber-200/80 bg-amber-50/95 px-4 py-3 text-sm text-amber-900 shadow-sm"
@@ -192,6 +189,7 @@
     </VariantB>
 
     <VersionChangelogModal v-model:show="showChangelog" />
+    <AdminReviewPanel v-model:show="showAdminReview" />
 
     <!-- 极富设计感的毛玻璃 Toast 提示 -->
     <Transition name="toast-fade">
