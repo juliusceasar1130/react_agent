@@ -15,4 +15,6 @@ DOMAIN_META = {
     "associated_tables": [
         "mart.mart_vehicle_quality_360"
     ],
+    "columns_lexicon_whitelist": {},
+    "rows_lexicon_whitelist": {}
 }

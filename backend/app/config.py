@@ -237,6 +237,12 @@ class Settings(BaseSettings):
     )
     milvus_data_dir: str = os.getenv("MILVUS_DATA_DIR", _default_data_dir)
     milvus_overwrite: bool = os.getenv("MILVUS_OVERWRITE", "true").lower() == "true"
+    db_lexicon_sync_on_startup: bool = (
+        os.getenv("DB_LEXICON_SYNC_ON_STARTUP", "true").lower() == "true"
+    )
+    lexicon_schema_top_k: int = int(os.getenv("LEXICON_SCHEMA_TOP_K", "3"))
+    lexicon_value_top_k: int = int(os.getenv("LEXICON_VALUE_TOP_K", "5"))
+    lexicon_row_top_k: int = int(os.getenv("LEXICON_ROW_TOP_K", "5"))
 
     # Embedding Provider 配置（Milvus 混合检索共用）
     embedding_provider: str = os.getenv("EMBEDDING_PROVIDER", "ollama")

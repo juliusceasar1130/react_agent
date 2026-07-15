@@ -158,6 +158,15 @@ class MilvusHybridRetriever(BaseRetriever):
         
         return self._index
 
+    def warmup(self) -> None:
+        """预热连接，在系统启动主线程主动建立 Milvus 数据库连接"""
+        try:
+            logger.info("MilvusHybridRetriever: 开始预热 Milvus 连接...")
+            _ = self._lazy_index
+            logger.info("MilvusHybridRetriever: Milvus 连接预热成功")
+        except Exception as e:
+            logger.error(f"MilvusHybridRetriever: 预热连接失败: {e}", exc_info=True)
+
     def retrieve(
         self,
         query: str,

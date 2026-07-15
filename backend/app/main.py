@@ -25,6 +25,15 @@ async def lifespan(app: FastAPI):
     create_tables()  # 创建数据库和数据表
     init_analytics_engine()  # 预热 analytics 连接池
     await initialize_agent_service()
+    # 异步非阻塞执行数据库物理词典 (DB Lexicon) 同步任务
+    from .config import settings
+    if settings.db_lexicon_sync_on_startup:
+        logger.info("启动时异步执行数据库物理词典 (DB Lexicon) 同步")
+        from backend.app.agent.vector.sql_lexicon.tasks import start_metadata_lexicon_sync_async
+        start_metadata_lexicon_sync_async(overwrite=settings.milvus_overwrite)
+    else:
+        logger.info("配置已禁用启动时数据库物理词典 (DB Lexicon) 同步，跳过")
+    
     yield
     await shutdown_agent_service()
     logger.info("App 关闭")

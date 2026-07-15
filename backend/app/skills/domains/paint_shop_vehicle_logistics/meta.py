@@ -17,4 +17,21 @@ DOMAIN_META = {
         "dim.carbody_registry",
         "dim.dim_process_area"
     ],
+    # 💡 明确指定哪些表允许被抽取列值和行级实体嵌入，用作检索候选
+    "lexicon_enabled_tables": [
+        "dim.dim_process_area"
+    ],
+    "rows_lexicon_whitelist": {
+        "dim.dim_process_area": {
+            "pk": "process_area_name",
+            "semantic_cols": ["description"],
+            "limit": 1000
+        }
+    },
+    "columns_lexicon_whitelist": {
+        "dim.dim_process_area": {
+            "cols": ["process_area_name", "description"],
+            "limit": 1000
+        }
+    }
 }

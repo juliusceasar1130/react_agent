@@ -1,4 +1,116 @@
+## 2026-07-15 20:47 +08:00 - 实现数据库物理词典 (DB Lexicon) 启动同步参数可配置化
+
+### 概述
+- **新增启动同步配置项**：在后端配置类 `Settings` 中新增 `db_lexicon_sync_on_startup` 配置项，允许通过环境变量 `DB_LEXICON_SYNC_ON_STARTUP` 决定是否在 FastAPI 服务启动时执行三层物理词典 (DB Lexicon) 向量异步嵌入同步任务。
+- **防止重复长耗时嵌入**：在 `lifespan` 启动钩子中，根据该配置值条件判断是否异步执行 `start_metadata_lexicon_sync_async`，避免每次启动或在数据库未变化时耗时重复执行嵌入过程，显著优化启动耗时。
+- **覆盖写入参数对齐**：使用 `settings.milvus_overwrite` 代替原本硬编码的 `overwrite=True`，让同步行为更符合系统配置。
+- **验证通过**：运行单元测试 `test_sync_metadata.py` 成功通过。
+
+### 变更内容
+#### backend/app/config.py [MODIFY]
+- 新增 `db_lexicon_sync_on_startup` 参数配置，支持从环境变量读取，默认为 `true`。
+
+#### backend/app/main.py [MODIFY]
+- 修改启动钩子，仅在 `settings.db_lexicon_sync_on_startup` 为真时启动异步物理词典同步任务，并传递 `settings.milvus_overwrite`。
+
+#### .env / .env_docker [MODIFY]
+- 声明并加入 `DB_LEXICON_SYNC_ON_STARTUP="true"` 并补充说明注释。
+
+---
+
+## 2026-07-14 23:20 +08:00 - 实现 SQL 骨架表与检索嵌入表白名单配置解耦 (去中心化自治优化)
+
+### 概述
+- **去中心化嵌入白名单配置**：在技能 `meta.py` 内部引入了 `"lexicon_enabled_tables"` 配置字段。实现了将 “SQL 生成元数据骨架（`associated_tables`）”与“行/列字典检索嵌入候选（`lexicon_enabled_tables`）”的明确职责解耦与分工。
+- **配置结构顺序重整**：为提升可读性，将 `meta.py` 字典属性排版调整为：表级配置（表骨架 & 嵌入白名单） $\rightarrow$ 行级白名单 $\rightarrow$ 列级白名单（从宏观至微观的心智模型）。
+- **同步管道逻辑修正**：在 `MetadataExtractorNode` 中移除了硬编码的 `dim.` / `mart.` 前缀前置过滤规则，完全采用技能自包含的嵌入白名单对行列去重值抽取表名进行校验拦截。
+- **集成测试通过**：对同步测试方法进行了无死锁改造（去除 asyncio mark 并通过 asyncio.run 在空事件循环下自启动测试），单元测试全量顺利通过（2 passed in 137.35s）。
+
+### 变更内容
+#### backend/app/skills/domains/paint_shop_vehicle_logistics/meta.py [MODIFY]
+- 引入 `lexicon_enabled_tables` 表嵌入白名单并重整配置顺序。
+
+#### backend/app/agent/vector/sql_lexicon/pipeline/extractor_nodes.py [MODIFY]
+- 在 `MetadataExtractorNode` 中支持嵌入表白名单过滤，移除 schema 字符前缀匹配规则。
+
+#### backend/tests/agent/vector/sql_lexicon/test_sync_metadata.py [MODIFY]
+- 重构为同步测试，使 pytest 的测试线程行为与生产环境完全对称对称。
+
+---
+
+## 2026-07-14 22:32 +08:00 - 重构 SQL 表格检索为专属模块并引入 Ingestion Pipeline 流式管道 (架构隔离与复用对齐)
+
+### 概述
+- **物理解耦与安全隔离**：创建了独立的 `sql_lexicon/` 专属模块包，将三层检索中 SQL 向量词典与 Schema 检索的所有代码完全从原生文档/知识库 RAG 中抽离，做到了物理上 100% 隔离，杜绝原有业务受损的隐患。
+- **公共 Milvus 存储连接工厂**：在 `sql_lexicon/store.py` 内部封装了统一的 `get_milvus_vector_store` 函数，将混合检索所需的 BM25 中文分词、相似度度量（IP）、RRF 重排、多路覆写等物理参数收敛在一处。
+- **引入 Ingestion Pipeline 流式架构**：在 `pipeline/` 下引入了 `PipelineNode` 接口和 `IngestionPipeline` 控制器。开发了 `MetadataExtractorNode`（技能扫描）、`TableDDLExtractorNode`（表 DDL 抽取）、`ColumnLexiconExtractorNode`（列值字典抽取）、`RowLexiconExtractorNode`（行实体抽取）和 `MilvusIngestionNode`（向量加载）等五个可拔插流式节点。
+- **清理历史遗留垃圾**：安全地物理删除了散落在外的 `sync_metadata_lexicon.py`、`init_metadata_collections.py` 以及旧版本集成测试。
+
+### 变更内容
+#### backend/app/agent/vector/sql_lexicon/ [NEW]
+- 新建专属模块目录，提供 `store.py`、`tasks.py`、`init_script.py` 以及 `pipeline/` 流式管道子包。
+
+#### backend/app/main.py [MODIFY]
+- 修正 `lifespan` 挂载，切换后台同步入口导入路径至 `backend.app.agent.vector.sql_lexicon.tasks`。
+
+#### backend/tests/agent/vector/sql_lexicon/ [NEW]
+- 迁移并新建独立测试套件 `test_init_collections.py` 和 `test_sync_metadata.py`。
+
+#### (垃圾文件清理) [DELETE]
+- 删除了位于 `vector/tasks/`、`vector/milvus_init/` 以及 `tests/agent/vector/` 下的 4 个临时陈旧遗留文件。
+
+### 验证
+- 运行新测试套件 `pytest backend/tests/agent/vector/sql_lexicon/ -v` 顺利完成并通过测试（2 passed in 134.04s）。
+
+---
+
+## 2026-07-14 21:58 +08:00 - 实现三层向量元数据全量同步与 FastAPI Lifespan 自动挂载 (阶段二)
+
+### 概述
+- **去中心化元数据全量同步**：实现了从各个注册领域（`discover_domains()`）动态合并白名单表名、列名和行配置，自动提取并计算密集向量与 BM25 分词稀疏向量，重新覆盖导入 Milvus 三个 Collection 的后台任务。
+- **PostgreSQL 模式路由兼容**：引入并配置了 `build_postgres_search_path_engine_args`，解决了在多模式（`dim`、`fct`、`mart`）下 SQLAlchemy 无法反射获取表 DDL 和列值的环境兼容问题。
+- **FastAPI 启动非阻塞挂载**：在 `lifespan` 钩子中以后台守护线程（`threading.Thread`）方式异步拉起同步任务，成功规避了长耗时 Embedding 运算对主进程 HTTP 绑定的阻塞干扰。
+- **集成测试通过**：编写并顺利闭环跑通了 `test_sync_metadata.py` 单元测试，增加了 `flush()` 机制保证测试环境下 Milvus 实体数据断言的实时性。
+
+### 变更内容
+#### backend/app/agent/vector/tasks/sync_metadata_lexicon.py [NEW]
+- 新增 `run_metadata_lexicon_sync(overwrite: bool)` 及 `start_metadata_lexicon_sync_async(overwrite: bool)` 后台同步服务。
+
+#### backend/app/main.py [MODIFY]
+- 在异步 `lifespan(app: FastAPI)` 中导入并注册 `start_metadata_lexicon_sync_async(overwrite=True)`。
+
+#### backend/tests/agent/vector/test_sync_metadata.py [NEW]
+- 编写 `test_metadata_lexicon_synchronization` 异步单元测试，全流程覆盖同步任务并对数量大于 0 进行物理刷盘断言。
+
+### 验证
+- **本地单元测试**：环境内运行 `pytest backend/tests/agent/vector/test_sync_metadata.py -v` 顺利完成并通过测试（1 passed in 128.05s）。
+
+---
+
+## 2026-07-14 20:53 +08:00 - 修复三层检索 Milvus 集合物理初始化脚本与测试用例事件循环异常
+
+### 概述
+- **异步化集合初始化入口**：修复了在同步阻塞测试和直接运行集合初始化脚本时，由于新版 `pymilvus` 初始化 `AsyncMilvusClient` 强依赖运行中事件循环导致抛出 `ConnectionConfigException: no running event loop` 的 Bug。通过将初始化入口重构为异步方法并配合 `asyncio.run()` 完美解决该隐式依赖问题。
+- **单元测试异步化对齐**：将 `test_init_collections.py` 对应测试用例升级为 `async` 并使用 `pytest.mark.asyncio` 装配，使其能顺利捕获和配合异步事件循环执行，完全闭环通过了阶段一的测试验证。
+- **设计文档结构补充**：将 `table_schema_store`、`db_value_lexicon`、`db_row_lexicon` 三个 Milvus 物理集合的逻辑结构、元数据规范和召回机制补充写入了双轨融合设计报告。
+
+### 变更内容
+#### backend/app/agent/vector/milvus_init/init_metadata_collections.py [MODIFY]
+- 将 `main()` 修改为 `async def main()`，并更新 `__main__` 块为 `asyncio.run(main())` 启动。
+
+#### backend/tests/agent/vector/test_init_collections.py [MODIFY]
+- 引入 `pytest`，将 `test_milvus_collections_initialization` 测试用例重构为异步函数 `async def`，并装配 `@pytest.mark.asyncio` 装饰器，内部使用 `await run_init()`。
+
+#### docs/llamaindex_rag/LlamaIndex SQL 检索与本项目双轨融合设计报告.md [MODIFY]
+- 插入全新第三章节 `三、 三层向量检索集合结构设计 (Milvus Collections)`，详细阐述三个 Milvus 集合的物理名称、text计算载体格式、metadata 路由结构和召回后的业务组装用法；顺延调整后续第四、五、六章节序号。
+
+### 验证
+- **本地单元测试**：使用绝对路径运行环境内 `pytest` 跑测 `backend/tests/agent/vector/test_init_collections.py` 与 `backend/tests/agent/vector/test_skills_meta_whitelists.py`，全部测试 **100% 成功通过 (3 passed)**。
+
+---
+
 ## 2026-07-13 11:11 +08:00 - 收紧多系列图表分类拆线的显式声明约束
+
 
 ### 概述
 - **多系列对比黄金规则落地**：为解决多系列对比图表生成时仅依赖系列名称（`name`）模糊自动推理导致的匹配歧义、拼写不匹配以及由此引发的工具运行时报错，通过全链路（系统提示词、工具定义和报错信息）实施强约束，强制大模型必须显式且成对提供 `category_field` 和 `category_value` 组合。

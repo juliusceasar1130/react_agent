@@ -539,6 +539,9 @@ class SQLAgentService:
             try:
                 retriever, reranker = create_business_retriever_and_reranker()
                 if retriever is not None:
+                    # 在主线程/主事件循环环境下，提前对惰性初始化的检索器进行连接预热
+                    if hasattr(retriever, "warmup"):
+                        retriever.warmup()
                     doc_k = 10 if reranker is not None else 5
                     rag_middleware = BusinessRagMiddleware(
                         retriever=retriever,
@@ -547,6 +550,7 @@ class SQLAgentService:
                         score_threshold=getattr(
                             settings, "rag_similarity_threshold", None
                         ),
+                        db=db,
                     )
                     rerank_status = "Rerank 已启用" if reranker else "仅向量检索"
                     logger.info("业务知识 RAG 中间件已启用（%s）", rerank_status)
@@ -672,6 +676,9 @@ class SQLAgentService:
             try:
                 retriever, reranker = create_business_retriever_and_reranker()
                 if retriever is not None:
+                    # 在主线程/主事件循环环境下，提前对惰性初始化的检索器进行连接预热
+                    if hasattr(retriever, "warmup"):
+                        retriever.warmup()
                     doc_k = 10 if reranker is not None else 5
                     rag_middleware = BusinessRagMiddleware(
                         retriever=retriever,
@@ -680,6 +687,7 @@ class SQLAgentService:
                         score_threshold=getattr(
                             settings, "rag_similarity_threshold", None
                         ),
+                        db=db,
                     )
                     rerank_status = "Rerank 已启用" if reranker else "仅向量检索"
                     logger.info("业务知识 RAG 中间件已启用（%s）", rerank_status)
