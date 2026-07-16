@@ -50,3 +50,11 @@ async def test_business_rag_middleware_abefore_model():
         assert "lexicon_context" in result
         assert "formatted_text" in result["lexicon_context"]
         assert "CREATE TABLE dim_test_table" in result["lexicon_context"]["formatted_text"]
+        
+        # 校验新增加的结构化 detail 明细
+        assert "detail" in result["lexicon_context"]
+        detail = result["lexicon_context"]["detail"]
+        assert "tables" in detail
+        assert len(detail["tables"]) == 1
+        assert detail["tables"][0]["table_name"] == "dim.dim_test_table"
+        assert "CREATE TABLE dim_test_table" in detail["tables"][0]["ddl"]

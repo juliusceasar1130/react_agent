@@ -683,6 +683,7 @@ class SQLAgentService:
                 )
 
                 has_sent_rag = False
+                has_sent_lexicon = False
                 async for chunk in source_iter:
                     if not chunk:
                         continue
@@ -716,6 +717,25 @@ class SQLAgentService:
                         except Exception as e:
                             logger.warning("流式执行中提前提取并发送 RAG 状态失败: %s", e)
                             has_sent_rag = True  # 真实报错异常时才设为 True 避免产生崩溃死循环
+
+                    # 🚀 在流式早期，检测物理词典是否已就绪且未发送，提前触发自定义 Lexicon 事件发送给客户端
+                    if not has_sent_lexicon:
+                        try:
+                            state = await self.agent.aget_state(resolved_config)
+                            lexicon_context_val = state.values.get("lexicon_context", {}) if state else {}
+                            rag_query = state.values.get("rag_query", "") if state else ""
+                            if isinstance(rag_query, str):
+                                rag_query = rag_query.strip()
+
+                            if lexicon_context_val and "detail" in lexicon_context_val and (user_query is None or rag_query == user_query):
+                                await _emit({
+                                    "type": "lexicon_context",
+                                    "lexicon_context": lexicon_context_val["detail"]
+                                })
+                                has_sent_lexicon = True
+                        except Exception as e:
+                            logger.warning("流式执行中提前提取并发送 Lexicon 状态失败: %s", e)
+                            has_sent_lexicon = True
 
                     chunk_type, chunk_data = self._unpack_stream_chunk(chunk)
                     if chunk_type is None:

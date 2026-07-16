@@ -77,6 +77,101 @@
           </details>
         </div>
 
+        <!-- 新增：参考数据库物理词典折叠卡片 -->
+        <div v-if="!isUser && parsedLexiconContext && (parsedLexiconContext.tables?.length || parsedLexiconContext.values?.length || parsedLexiconContext.rows?.length)" class="mt-3 px-1.5 animate-fade-in text-left">
+          <details class="group rounded-[20px] border border-neutral-200/80 bg-neutral-50/50 p-3.5 text-xs text-neutral-600 transition-all duration-200">
+            <summary class="flex cursor-pointer select-none items-center justify-between font-semibold text-neutral-700 hover:text-primary list-none">
+              <span class="flex items-center gap-2">
+                <svg class="h-4 w-4 text-neutral-500 group-hover:text-primary transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4" />
+                </svg>
+                <span class="text-xs font-semibold text-neutral-800">参考数据库物理词典 (DB Lexicon)</span>
+              </span>
+              <svg class="h-3.5 w-3.5 text-neutral-400 transition-transform duration-200 group-open:rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+              </svg>
+            </summary>
+            
+            <div class="mt-3 space-y-3.5 border-t border-neutral-200/60 pt-3">
+              <!-- 1. 表结构 DDL 模块 -->
+              <div v-if="parsedLexiconContext.tables && parsedLexiconContext.tables.length > 0" class="space-y-2">
+                <details class="sub-group">
+                  <summary class="flex cursor-pointer select-none items-center gap-1.5 font-bold text-neutral-700 hover:text-primary text-[11.5px] list-none">
+                    <span class="text-neutral-400">📂</span>
+                    <span>推荐的数据库表 DDL 结构 (已命中 {{ parsedLexiconContext.tables.length }} 张表)</span>
+                  </summary>
+                  <div class="mt-2 space-y-2.5 pl-3 border-l border-neutral-200/80">
+                    <div v-for="tbl in parsedLexiconContext.tables" :key="tbl.table_name" class="space-y-1">
+                      <div class="text-[11px] font-bold text-neutral-600 font-mono">{{ tbl.table_name }}</div>
+                      <pre class="bg-neutral-900 text-neutral-100 p-2.5 rounded-xl text-[10.5px] overflow-x-auto max-h-48 font-mono leading-normal whitespace-pre-wrap break-all"><code class="language-sql">{{ tbl.ddl }}</code></pre>
+                    </div>
+                  </div>
+                </details>
+              </div>
+
+              <!-- 2. 列值对照映射模块 -->
+              <div v-if="parsedLexiconContext.values && parsedLexiconContext.values.length > 0" class="space-y-2">
+                <details class="sub-group">
+                  <summary class="flex cursor-pointer select-none items-center gap-1.5 font-bold text-neutral-700 hover:text-primary text-[11.5px] list-none">
+                    <span class="text-neutral-400">🔄</span>
+                    <span>字段去重值对照参考 (已命中 {{ parsedLexiconContext.values.length }} 条)</span>
+                  </summary>
+                  <div class="mt-2 pl-3 border-l border-neutral-200/80 overflow-x-auto">
+                    <table class="min-w-full text-[10.5px] border-collapse text-left">
+                      <thead>
+                        <tr class="bg-neutral-100/80 text-neutral-600 border-b border-neutral-200">
+                          <th class="p-1.5 font-semibold">数据表</th>
+                          <th class="p-1.5 font-semibold">目标列名</th>
+                          <th class="p-1.5 font-semibold">物理字段值</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <tr v-for="(val, idx) in parsedLexiconContext.values" :key="idx" class="border-b border-neutral-100 hover:bg-neutral-50/50">
+                          <td class="p-1.5 font-mono text-neutral-500">{{ val.table_name }}</td>
+                          <td class="p-1.5 font-mono text-neutral-700 font-semibold">{{ val.column_name }}</td>
+                          <td class="p-1.5"><code class="bg-primary/5 text-primary px-1 py-0.5 rounded font-mono font-bold">{{ val.exact_value }}</code></td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                </details>
+              </div>
+
+              <!-- 3. 行实体关联模块 -->
+              <div v-if="parsedLexiconContext.rows && parsedLexiconContext.rows.length > 0" class="space-y-2">
+                <details class="sub-group">
+                  <summary class="flex cursor-pointer select-none items-center gap-1.5 font-bold text-neutral-700 hover:text-primary text-[11.5px] list-none">
+                    <span class="text-neutral-400">🔍</span>
+                    <span>实体主键与行属性参考 (已命中 {{ parsedLexiconContext.rows.length }} 条)</span>
+                  </summary>
+                  <div class="mt-2 pl-3 border-l border-neutral-200/80 overflow-x-auto">
+                    <table class="min-w-full text-[10.5px] border-collapse text-left">
+                      <thead>
+                        <tr class="bg-neutral-100/80 text-neutral-600 border-b border-neutral-200">
+                          <th class="p-1.5 font-semibold">数据表</th>
+                          <th class="p-1.5 font-semibold">主键列 / 主键值</th>
+                          <th class="p-1.5 font-semibold">关联行属性描述</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <tr v-for="(row, idx) in parsedLexiconContext.rows" :key="idx" class="border-b border-neutral-100 hover:bg-neutral-50/50">
+                          <td class="p-1.5 font-mono text-neutral-500">{{ row.table_name }}</td>
+                          <td class="p-1.5 font-mono">
+                            <span class="text-neutral-700 font-medium">{{ row.primary_key_column }}</span>
+                            <span class="text-neutral-400 mx-1">:</span>
+                            <code class="bg-neutral-100 text-neutral-800 px-1 py-0.5 rounded font-bold">{{ row.primary_key_val }}</code>
+                          </td>
+                          <td class="p-1.5 text-neutral-600 whitespace-pre-line leading-relaxed">{{ row.row_content }}</td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                </details>
+              </div>
+            </div>
+          </details>
+        </div>
+
         <!-- 数据源与查询时刻脚标独立卡片化展示 -->
         <div
           v-if="!isUser && (metaData.queryTime || metaData.dataSource)"
@@ -385,6 +480,17 @@ const parsedRagContext = computed(() => {
     return messagesStore.memoryRagMap[msgId]
   }
   return (props.message as Message).rag_context ?? []
+})
+
+const parsedLexiconContext = computed(() => {
+  if (streamingState.value?.lexiconContext) {
+    return streamingState.value.lexiconContext
+  }
+  const msgId = props.message.id
+  if (msgId && messagesStore.memoryLexiconMap[msgId]) {
+    return messagesStore.memoryLexiconMap[msgId]
+  }
+  return (props.message as Message).lexicon_context ?? { tables: [], values: [], rows: [] }
 })
 
 const displayContent = computed(() => {

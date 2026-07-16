@@ -297,6 +297,9 @@ class BusinessRagMiddleware(AgentMiddleware[CustomState]):
         ddl_block = ""
         mappings_block = ""
         table_lexicon_context = []
+        structured_tables = []
+        structured_values = []
+        structured_rows = []
 
         if self.db is not None and getattr(self.db, "_custom_table_info", None) is not None:
             custom_table_info = self.db._custom_table_info
@@ -336,6 +339,10 @@ class BusinessRagMiddleware(AgentMiddleware[CustomState]):
                     # 统一 VARCHAR 长度修饰符
                     clean_ddl = re.sub(r"VARCHAR\(\d+\)", "VARCHAR", clean_ddl, flags=re.IGNORECASE)
                     ddl_parts.append(clean_ddl)
+                    structured_tables.append({
+                        "table_name": full_table_name,
+                        "ddl": clean_ddl
+                    })
             
             if ddl_parts:
                 ddl_block = "### 2.1 推荐的数据库表 DDL 结构 (Recommended Table Schema DDL)\n\n" + "\n\n".join(ddl_parts)
@@ -348,6 +355,11 @@ class BusinessRagMiddleware(AgentMiddleware[CustomState]):
                 col_name = meta.get('column_name', '')
                 exact_val = meta.get('exact_value', '')
                 value_rows.append(f"| `{t_name}` | `{col_name}` | `'{exact_val}'` |")
+                structured_values.append({
+                    "table_name": t_name,
+                    "column_name": col_name,
+                    "exact_value": exact_val
+                })
 
             value_block = ""
             if value_rows:
@@ -368,6 +380,12 @@ class BusinessRagMiddleware(AgentMiddleware[CustomState]):
                 pk_val = meta.get('primary_key_val', '')
                 row_content = meta.get('row_content', '')
                 row_rows.append(f"| `{t_name}` | `{pk_col}` | `'{pk_val}'` | {row_content} |")
+                structured_rows.append({
+                    "table_name": t_name,
+                    "primary_key_column": pk_col,
+                    "primary_key_val": pk_val,
+                    "row_content": row_content
+                })
 
             row_block = ""
             if row_rows:
@@ -421,6 +439,11 @@ class BusinessRagMiddleware(AgentMiddleware[CustomState]):
                 "formatted_text": rag_system_content,
                 "tables": table_lexicon_context,
                 "values_count": len(lexicon_results.get("values", [])),
-                "rows_count": len(lexicon_results.get("rows", []))
+                "rows_count": len(lexicon_results.get("rows", [])),
+                "detail": {
+                    "tables": structured_tables,
+                    "values": structured_values,
+                    "rows": structured_rows
+                }
             }
         }

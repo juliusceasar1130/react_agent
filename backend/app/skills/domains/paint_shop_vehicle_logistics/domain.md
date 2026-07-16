@@ -71,36 +71,20 @@ Agent 在编写查询时应参考本章节获取准确的字段名称和数据�
 
 ### 3.1 核心数据表 Schema
 
-**1. `ods.rb_position_data` (基于位置/滚床的实时采集数据)**
-- **描述**：存储滚床/链条采集点的原始车辆状态信息。
-- **字段说明**：
-  - `"id"` (BIGINT): 自增主键
-  - `"plc"`: 所属 PLC 设备名称
-  - `"rb_index"`: 滚床/链条储存位编号（物理位置）
-  - `"process_area"`: 生产工艺区域名称（如：前道电泳、面漆）
-  - `"carrier_id"`: 载体唯一标识（滑橇/挂具号）
-  - `"carrier_type"`: 载体类型代码（关联 `carrier_types`）
-  - `"vehicle_id"`: 车身唯一标识 ID（14位长度）
-  - `"body_type"`: 车身类型代码（关联 `vehicle_body_types`）
-  - `"color_code"`: 颜色代码（关联 `vehicle_color_codes`）
-  - `"platform_code"`: 车型平台代码
-  - `"position_created_at"` (TIMESTAMPTZ): 该位置记录首次被创建的时间
-  - `"vehicle_updated_at"` (TIMESTAMPTZ): 该位置上车辆数据最后更新的时间
 
-**2. `ods.carbody_history` (历史生命周期流水)**
+**1. `ods.carbody_history` (历史生命周期流水)**
 - **描述**：所有车辆历史过点/读写站/RW_STATION的明细记录，用于计算产量和轨迹。
 - **字段说明**：
-  - `"ID"` (BIGINT): 自增主键
   - `"BODY_ID"` (VARCHAR): 车身号（对应实时表的 `vehicle_id`）
   - `"DATE_EVT"` (TIMESTAMP): 事件发生/过站的精确时间
   - `"RW_STATION_ID"` (VARCHAR): 过站的工位或逻辑节点 ID
 
-**3. `dim.carbody_registry` (全量车身字典)**
-- **描述**：聚合自历史流水的车身维度表，用于查询车辆静态属性和生命周期。
+**2. `dim.carbody_registry` (全量车身字典)**
+- **描述**：聚合自历史流水ods.carbody_history的车身维度表，保留首次和末次读写站信息
 - **字段说明**：
   - `"vehicle_id"` (PK): 车身号唯一标识
-  - `"first_seen_at"`: 首次过站读写站时间（出生时间）
-  - `"last_seen_at"`: 末次过站读写站时间（离线时间）
+  - `"first_seen_at"`: 首次过站读写站时间（最先记录时间）
+  - `"last_seen_at"`: 末次过站读写站时间（最后记录时间）
   - `"first_rw_station"`: 首次过站读写站编码
   - `"last_rw_station"`: 末次过站读写站编码
   - `"first_body_type"`: 入口车身类型
@@ -115,51 +99,43 @@ Agent 在编写查询时应参考本章节获取准确的字段名称和数据�
   - `"reserved_2"`: 车身 MDS 备用字段 2
   - `"SKID_ID"`: 雪橇号、载具，同carrier_id
 
-**4. `mart.mart_position_current_overview` (当前现场总览)**
-- **描述**：经过清洗的实时快照，包含异常车和载体类型翻译。
+**3. `mart.mart_position_current_overview` (基于位置的实时采集数据)**
+- **描述**：包含异常车和载体类型属性。
 - **字段说明**：
   - `position_id`: 位置唯一标识
   - `entity_type`: 实体类型（`product_vehicle`: 正式产品车, `abnormal_vehicle`: 异常车）
   - `process_area`: 生产工艺区域名称
   - `carrier_id`: 载体号
-  - `carrier_type_name_cn`: 载体类型中文（如：滑橇、滑杠）
+  - `carrier_type`: 载体类型
+  - `carrier_type_name_cn`: 载体类型中文
   - `vehicle_id`: 当前车身号
   - `vehicle_updated_at`: 车辆在当前位置的最后更新时间
+  - `"plc"`: 所属 PLC 设备名称
+  - `"rb_index"`: 滚床/链条储存位编号（物理位置）
 
-**5. `fct.fct_vehicle_position_current` (正式车当前定位)**
-- **描述**：仅包含正式产品车的实时定位，已排除干扰数据。
-- **字段说明**：
-  - `vehicle_id`: 车身号
-  - `process_area`: 当前所属工艺区域
-  - `carrier_id`: 当前载体号
-  - `full_rb_code`: 完整的滚床编号（逻辑索引）
 
 ### 3.2 辅助及主维度表 Schema
 
-- **`dim.dim_vehicle_profile` (车辆主画像维度表 - 核心！)**
+- **`dim.dim_vehicle_profile` 车辆核心属性主维度表 (全量车辆的一车一档台账)**
   - `vehicle_id` (PK): 车辆唯一识别码
   - `body_type`: 车型代码（优先滚床，其次车身）
   - `tracking_type_name`: 车型中文名
-  - `defect_model`: 最新缺陷检测型号
-  - `defect_type_name`: 最新缺陷检测类型名
+  - `defect_model`: 缺陷检测代码
+  - `defect_type_name`: 检测车型名称
   - `platform_code`, `platform_name`: 平台代码与中文名
   - `color_code`, `color_name`: 颜色代码与中文名
-  - `is_black_roof`: 是否双色车顶 (滚床黑顶或缺陷包含“黑”或车身黑顶)
+  - `is_black_roof`: 是否黑色车顶 (滚床黑顶或缺陷包含“黑”或车身黑顶)
   - `is_rework`: 是否重工车 (根据车身重工标记 rework_flag 计算)
-  - `has_defect_record`: 是否存在缺陷检测记录
-  - `black_roof_raw_tracking`: 滚床原始黑车顶标记
-  - `black_roof_raw_defect`: 缺陷系统原始黑车顶标记
-  - `tracking_last_seen_at`: 滚床系统最后看到时间
+  - `has_defect_record`: 是否存在缺陷检测记录 
   - `defect_last_seen_at`: 缺陷系统最后检测时间
   - `carbody_first_seen_at`, `carbody_last_seen_at`: 首次/末次过站读写站时间
   - `carbody_first_rw_station`, `carbody_last_rw_station`: 首次/末次过站读写站编码
   - `carbody_station_pass_count`: 累计过站读写站总频次
   - `current_position_id`, `current_carrier_id`, `current_process_area`, `current_full_rb_code`, `current_position_updated_at`: 当前最新在制位置追踪及载具快照信息
 
-- **`dim.dim_process_area` (区域字典)**
-  - `process_area_name` (PK): 区域名称
+- **`ods.process_area` (区域字典)**
+  - `area_name`: 区域名称(唯一)
   - `description`: 区域详细中文说明
-  - `sort_order`: 在工艺流程中的先后顺序
 - **`ods.carrier_types` (载体字典)**
   - `type_code` (PK): 类型代码
   - `type_name_cn`: 类型中文名称（如：撬、挂、杠）
@@ -185,10 +161,10 @@ Agent 在编写查询时应参考本章节获取准确的字段名称和数据�
 ### 3.4 表关系图谱 (JOIN 键)
 
 - **实时关联流水线**：
-  - `ods.rb_position_data.process_area` -> `dim.dim_process_area.process_area_name`
-  - `ods.rb_position_data.carrier_type` -> `ods.carrier_types.type_code`
-  - `ods.rb_position_data.body_type` -> `ods.vehicle_body_types.body_type`
-  - `ods.rb_position_data.color_code` -> `ods.vehicle_color_codes.color_code`
+  - `mart.mart_position_current_overview.process_area` -> `ods.process_area.area_name`
+  - `mart.mart_position_current_overview.carrier_type` -> `ods.carrier_types.type_code`
+  - `mart.mart_position_current_overview.body_type` -> `ods.vehicle_body_types.body_type`
+  - `mart.mart_position_current_overview.color_code` -> `ods.vehicle_color_codes.color_code`
 - **历史溯源流水线**：
   - `ods.carbody_history.BODY_ID` -> `dim.carbody_registry.vehicle_id`
 

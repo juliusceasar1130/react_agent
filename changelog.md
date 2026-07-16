@@ -1,3 +1,40 @@
+## 2026-07-16 15:22 +08:00 - 数据库物理词典（DB Lexicon）前端折叠展示优化
+
+### 概述
+- **后端三层检索结构化与 SSE 适配**：在 `BusinessRagMiddleware` 中间件中将表 DDL、列值、实体行等三层检索结果结构化为 `detail` 载荷；在 `api.py` 及 `services.py` 里的流式早期异步推送 `type: "lexicon_context"` 自定义 SSE 事件给前端，并在 `schemas.py` 注册了对应 Payload 模式。
+- **前端状态、流订阅与 UI 嵌套折叠渲染**：在前端 `types/index.ts` 补充契约，在消息 Pinia store (`messages.ts`) 与 `useChatStream.ts` 建立缓存与推送监听；在 `MessageItem.vue` 中支持动态捕获物理词典上下文并使用多级嵌套折叠面板呈现，实现了与业务知识术语相同的气泡折叠效果。
+- **全量测试通过**：对 `test_rag_middleware.py` 单元测试用例补充了 `detail` 物理结构的断言，测试以 100% 成功率通过（PASS）。
+
+### 变更内容
+#### backend/app/agent/middleware/rag_middleware.py [MODIFY]
+- 在返回值 `lexicon_context` 中加入了结构化明细字段 `detail`（内含 tables、values、rows）。
+
+#### backend/app/schemas.py [MODIFY]
+- 增加了 `LexiconTablePayload`, `LexiconValuePayload`, `LexiconRowPayload`, `LexiconContextPayload` 以及 `LexiconContextStreamEvent` 流事件，并注册进入 `ChatStreamEvent`。
+
+#### backend/app/services.py [MODIFY]
+- 在 `process_stream` 生成流的过程中，检测 state 触发异步 emit `"lexicon_context"` 消息。
+
+#### backend/app/api.py [MODIFY]
+- 在两个 SSE 流消息 yield 节点中加入了对 `lexicon_context` 事件的直接透传。
+
+#### frontend/src/types/index.ts [MODIFY]
+- 增加 `LexiconContext` 类型，更新相关消息/事件契约。
+
+#### frontend/src/stores/messages.ts [MODIFY]
+- 增加 `memoryLexiconMap` 及其落定与缓存处理。
+
+#### frontend/src/composables/useChatStream.ts [MODIFY]
+- 在 handleStreamMessage 与 resumeMessage 事件分流中增加对 `lexicon_context` 的监听。
+
+#### frontend/src/components/MessageItem.vue [MODIFY]
+- 增加 `parsedLexiconContext` 计算属性，采用 details 与 Table 嵌套实现物理词典折叠渲染。
+
+#### backend/tests/agent/vector/sql_lexicon/test_rag_middleware.py [MODIFY]
+- 在用例中追加了对 `detail` 数据明细和表名/DDL 的断言。
+
+---
+
 ## 2026-07-16 11:01 +08:00 - 实施阶段 4 联调与数据库持久化存储验证
 
 ### 概述

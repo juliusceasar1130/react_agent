@@ -171,6 +171,12 @@ export function useChatStream() {
           }
           return
 
+        case 'lexicon_context':
+          if (messagesStore.streamingMessage) {
+            messagesStore.streamingMessage.lexiconContext = event.lexicon_context
+          }
+          return
+
         case 'final':
           hasTerminalEvent = true
           messagesStore.completeStreamingMessage({
@@ -303,6 +309,12 @@ export function useChatStream() {
         case 'rag_context':
           if (messagesStore.streamingMessage) {
             messagesStore.streamingMessage.ragContext = event.rag_context
+          }
+          return
+
+        case 'lexicon_context':
+          if (messagesStore.streamingMessage) {
+            messagesStore.streamingMessage.lexiconContext = event.lexicon_context
           }
           return
 

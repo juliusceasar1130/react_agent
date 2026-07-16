@@ -9,6 +9,7 @@ import type {
   StreamingMessage,
   StreamToolCall,
   QuestionItem,
+  LexiconContext,
 } from '@/types'
 
 export const useMessagesStore = defineStore('messages', () => {
@@ -26,6 +27,7 @@ export const useMessagesStore = defineStore('messages', () => {
     aliases: string[]
     content: string
   }>>>({})
+  const memoryLexiconMap = ref<Record<string, LexiconContext>>({})
 
   // Actions
   const fetchMessages = async (sessionId: string) => {
@@ -271,11 +273,16 @@ export const useMessagesStore = defineStore('messages', () => {
           ? JSON.stringify(streamingMessage.value.toolResults)
           : null
       ),
-      rag_context: payload.rag_context ?? streamingMessage.value.ragContext
+      rag_context: payload.rag_context ?? streamingMessage.value.ragContext,
+      lexicon_context: payload.lexicon_context ?? streamingMessage.value.lexiconContext
     }
 
     if (finalizedMessage.id && finalizedMessage.rag_context) {
       memoryRagMap.value[finalizedMessage.id] = finalizedMessage.rag_context
+    }
+
+    if (finalizedMessage.id && finalizedMessage.lexicon_context) {
+      memoryLexiconMap.value[finalizedMessage.id] = finalizedMessage.lexicon_context
     }
 
     messages.value.push(finalizedMessage)
@@ -342,5 +349,6 @@ export const useMessagesStore = defineStore('messages', () => {
     setStreamingInterrupt,
     displayMessages,  // 包含流式临时消息的列表
     memoryRagMap,  // 🆕 内存隔离 RAG 缓存字典
+    memoryLexiconMap, // 🆕 内存隔离物理词典缓存字典
   }
 })

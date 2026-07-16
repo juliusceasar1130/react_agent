@@ -18,19 +18,49 @@ DOMAIN_META = {
         "dim.dim_process_area"
     ],
     # 💡 明确指定哪些表允许被抽取列值和行级实体嵌入，用作检索候选
-    "lexicon_enabled_tables": [
-        "dim.dim_process_area"
+    "lexicon_enabled_tables": [      
+        "ods.process_areas",
+        "ods.vehicle_body_types",
+        "ods.vehicle_color_codes",
+        "ods.vehicle_platforms"
     ],
-    "rows_lexicon_whitelist": {
-        "dim.dim_process_area": {
-            "pk": "process_area_name",
-            "semantic_cols": ["description"],
+    "rows_lexicon_whitelist": {       
+        "ods.process_areas": {
+            "pk": "id",
+            "semantic_cols": ["area_name"],
+            "limit": 1000
+        },
+        "ods.vehicle_body_types": {
+            "pk": "body_type",
+            "semantic_cols": ["type_name"],
+            "limit": 1000
+        },
+        "ods.vehicle_color_codes": {
+            "pk": "color_code",
+            "semantic_cols": ["color_name"],
+            "limit": 1000
+        },
+        "ods.vehicle_platforms": {
+            "pk": "platform_code",
+            "semantic_cols": ["platform_name"],
             "limit": 1000
         }
     },
     "columns_lexicon_whitelist": {
-        "dim.dim_process_area": {
-            "cols": ["process_area_name", "description"],
+        "ods.process_areas": {
+            "cols": ["area_name"],
+            "limit": 1000
+        },
+        "ods.vehicle_body_types": {
+            "cols": ["body_type","type_name"],
+            "limit": 1000
+        },
+        "ods.vehicle_color_codes": {
+            "cols": ["color_code","color_name"],
+            "limit": 1000
+        },
+        "ods.vehicle_platforms": {
+            "cols": ["platform_code","platform_name"],
             "limit": 1000
         }
     }

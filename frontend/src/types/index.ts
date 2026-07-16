@@ -28,6 +28,12 @@ export interface SessionUpdate {
   title?: string
 }
 
+export interface LexiconContext {
+  tables: Array<{ table_name: string; ddl: string }>
+  values: Array<{ table_name: string; column_name: string; exact_value: string }>
+  rows: Array<{ table_name: string; primary_key_column: string; primary_key_val: string; row_content: string }>
+}
+
 // 消息类型
 export interface Message {
   id: string
@@ -47,6 +53,7 @@ export interface Message {
     aliases: string[]
     content: string
   }> | null
+  lexicon_context?: LexiconContext | null
 }
 
 export interface MessageCreate {
@@ -187,6 +194,10 @@ export type StreamEvent =
         content: string
       }>
     }
+  | {
+      type: 'lexicon_context'
+      lexicon_context: LexiconContext
+    }
 
 export interface FinalizedStreamingMessage {
   id?: string
@@ -200,6 +211,7 @@ export interface FinalizedStreamingMessage {
     aliases: string[]
     content: string
   }> | null
+  lexicon_context?: LexiconContext | null
 }
 
 // 流式消息状态（临时显示）- 2025-01-01
@@ -224,6 +236,7 @@ export interface StreamingMessage {
     aliases: string[]
     content: string
   }> | null
+  lexiconContext?: LexiconContext | null
 }
 
 // 聊天请求类型 - 2025-01-01

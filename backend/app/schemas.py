@@ -168,6 +168,35 @@ class RAGContextStreamEvent(BaseModel):
     rag_context: List[RAGContextPayload]
 
 
+class LexiconTablePayload(BaseModel):
+    table_name: str
+    ddl: str
+
+
+class LexiconValuePayload(BaseModel):
+    table_name: str
+    column_name: str
+    exact_value: str
+
+
+class LexiconRowPayload(BaseModel):
+    table_name: str
+    primary_key_column: str
+    primary_key_val: str
+    row_content: str
+
+
+class LexiconContextPayload(BaseModel):
+    tables: List[LexiconTablePayload] = []
+    values: List[LexiconValuePayload] = []
+    rows: List[LexiconRowPayload] = []
+
+
+class LexiconContextStreamEvent(BaseModel):
+    type: Literal["lexicon_context"]
+    lexicon_context: LexiconContextPayload
+
+
 class FinalStreamEvent(BaseModel):
     type: Literal["final"]
     content: str
@@ -202,6 +231,7 @@ ChatStreamEvent = Annotated[
         ErrorStreamEvent,
         InterruptStreamEvent,
         RAGContextStreamEvent,
+        LexiconContextStreamEvent,
     ],
     Field(discriminator="type"),
 ]
