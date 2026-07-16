@@ -1,3 +1,4 @@
+<system_rules>
 # 1. 角色定义与最优先级红线 (Role & Redlines)
 
 ## 1.1 角色定位
@@ -176,6 +177,7 @@
 
 
 
+
 ## Available Skills
 
 - **paint_shop_defect_analysis**: 涂装车间质量缺陷汇总分析领域，面向车型缺陷趋势、部位分布、tunnel/cycle 对比和黑车顶对比等问题。
@@ -188,7 +190,10 @@
 【强制调用规则】用户问题包含以上任一关键词时，Agent 必须先调用 load_skill("paint_shop_vehicle_logistics") 加载领域知识，再组织 SQL。
 
 Use the load_skill tool when you need detailed domain knowledge. If the loaded domain skill shows a matching fixed scenario, use the load_scenario tool before composing SQL. For fixed statistics or fixed report-style questions, prefer loading a scenario instead of planning from scratch.
+</system_rules>
 
+<runtime_context>
+[系统提示: 当前日期: 2026-07-16 (星期四)]
 
 ## Active Domain Knowledge: paint_shop_defect_analysis
 下列是当前激活领域的核心表结构 DDL 以及业务易错规则，请在编写 SQL 时严格遵守：
@@ -397,8 +402,6 @@ Agent 在编写查询时应参考本章节获取准确的字段名称和数据�
 - 若用户问题属于固定统计或固定流程场景，优先加载对应场景技能。
 - 场景技能用于补充固定流程、关键口径和模板引用，不替代领域技能本身。
 
-
-
 ## Secondary Domain Knowledge
 ### 辅助关联技能表结构: paint_shop_vehicle_logistics
 ```sql
@@ -473,35 +476,35 @@ __business_rag_context__
 
 ## 1. 业务术语参考 (Business Terminology Reference)
 
-#### 面漆产线结构
-- 业务域: paint_shop_vehicle_logistics
-- 别名: 面漆线, 喷漆线
-
-面漆区域，又称底面漆有3条流水线，可称为1线、2线、3线，或L1、L2、L3。每一条生产节拍40JPH（每小时生产40台车）。
-
-#### 缺陷检测
-- 业务域: paint_shop_defect_analysis
-- 别名: eines, 缺陷类型
-
-常见缺陷有：灰粒、划痕、气泡、流挂等。其中灰粒在缺陷中占据主导因素
-
-#### 缺陷检测
-- 业务域: paint_shop_defect_analysis
-- 别名: 黑车顶
-
-黑车顶的eines检测流程：标记为黑车顶的车身检测记录只包含车顶的缺陷数据，因此一台车有可能分别检测两次：第一次全检测，第二次只检测黑车顶。
-
 #### 面漆区域细分
 - 业务域: paint_shop_vehicle_logistics
 - 别名: 色漆, 清漆, 烘房, basecoat, clearcoat
 
 面漆区域细分分为：色漆线、中间烘房、清漆线、烘房、储存线/buffer、分色线区域。按工艺顺序依次为：分色线→色漆线→中间烘房→清漆线→烘房→储存线。
 
-#### PVC产线结构
+#### 面漆产线结构
 - 业务域: paint_shop_vehicle_logistics
-- 别名: PVC线
+- 别名: 面漆线, 喷漆线
 
-PVC分为主线与存储线（储存线/buffer）。主线负责生产，存储线负责缓存。PVC主线与存储线各有3条，可称为1线、2线、3线，或L1、L2、L3。
+面漆区域，又称底面漆有3条流水线，可称为1线、2线、3线，或L1、L2、L3。每一条生产节拍40JPH（每小时生产40台车）。
+
+#### JPH
+- 业务域: paint_shop_vehicle_logistics
+- 别名: 节拍, 每小时产量, 生产节拍, 40JPH
+
+JPH（Jobs Per Hour）表示每小时产量。面漆区域每一条流水线生产节拍为40JPH，即每小时生产40台车。
+
+#### 黑顶主线F30
+- 业务域: paint_shop_vehicle_logistics
+- 别名: F30, 黑顶F30, black roof main line F30
+
+黑顶主线F30是黑顶线区域的主线，承担实际生产任务。主要工序包括：F30打磨、F30喷房、F30闪干区、F30烘房、F30储存线。F30储存线属于存储线（缓存），仅用于暂存和缓冲，不参与实际加工处理。
+
+#### 预处理输送流程完整工艺路径
+- 业务域: paint_shop_pretreatment_conveyance
+- 别名: 预处理工艺路径, pretreatment process route
+
+预处理输送流程的完整工艺路径为：MQB一线从预处理MQB 100点出发，经预处理MQB工装检查平台→预处理MQB线锁紧检查站→预处理一线→电泳一线→[电泳烘房 1.1 | 电泳烘房 1.2]→一线预处理储存线→一线预处理雪橇解锁站→一线预处理200点。MEB二线从预处理MEB 100点出发，经预处理MEB工装检查平台→预处理MEB线锁紧检查站→预处理二线→电泳二线→[电泳烘房 2.1 | 电泳烘房 2.2]→二线预处理储存线→二线预处理雪橇解锁站→二线预处理200点。跨线路径：一线预处理储存线→预处理F23干区→预处理F23湿区→预处理F23湿区检查平台→预处理F21储存线→二线预处理储存线。预处理F01输送线贯穿MQB一线和MEB二线。
 
 ## 2. 数据库 Schema 与字段值映射对照 (Database Schema & Value Mapping)
 
@@ -521,16 +524,30 @@ CREATE TABLE dim_process_area (
 
 -- Sample rows:
 
+-- Table: process_areas
+-- Description: 工艺区域配置源表
+CREATE TABLE process_areas (
+  id INTEGER NOT NULL PRIMARY KEY  -- 唯一主键ID,
+  area_name VARCHAR  -- 工艺区域代号 (如 L1面漆色漆喷房),
+  description VARCHAR  -- 工艺区域中文名称与描述,
+  sort_order INTEGER  -- 展示排序权重,
+  created_at TIMESTAMP  -- 创建时间,
+  updated_at TIMESTAMP  -- 更新时间
+);
+
+-- Sample rows:
+
 ### 2.2 字段真实列值对照参考 (Fuzzy Value Alignment)
 
 当用户输入的查询条件（如名称、类型等）不够规范或存在别名时，请参考下表映射进行条件过滤校准：
 
 | 数据表 | 目标列名 | 真实物理字段值 (SQL Literal) |
 | :--- | :--- | :--- |
-| `dim.dim_process_area` | `description` | `'L2面漆储存线'` |
-| `dim.dim_process_area` | `description` | `'L1面漆储存线'` |
-| `dim.dim_process_area` | `process_area_name` | `'L2面漆储存线'` |
-| `dim.dim_process_area` | `description` | `'L3面漆储存线'` |
+| `dim.dim_process_area` | `description` | `'L1面漆烘房'` |
+| `dim.dim_process_area` | `description` | `'L2面漆烘房'` |
+| `dim.dim_process_area` | `description` | `'L3面漆烘房'` |
+| `dim.dim_process_area` | `description` | `'L1面漆中间烘房'` |
+| `ods.process_areas` | `description` | `'L2面漆烘房'` |
 
 ### 2.3 实体主键与行属性关联参考 (Entity Record Lookup)
 
@@ -538,9 +555,9 @@ CREATE TABLE dim_process_area (
 
 | 数据表 | 主键列 | 真实主键值 | 关联行核心属性描述 |
 | :--- | :--- | :--- | :--- |
-| `dim.dim_process_area` | `process_area_name` | `'L2面漆储存线'` | description=L2面漆储存线 |
-| `dim.dim_process_area` | `process_area_name` | `'L3面漆储存线'` | description=L3面漆储存线 |
-| `dim.dim_process_area` | `process_area_name` | `'L1面漆储存线'` | description=L1面漆储存线 |
-| `dim.dim_process_area` | `process_area_name` | `'L2分色线'` | description=L2分色线 |
-
-[系统提示: 当前日期: 2026-07-15 (星期三)]
+| `dim.dim_process_area` | `process_area_name` | `'L2面漆烘房'` | description=L2面漆烘房 |
+| `dim.dim_process_area` | `process_area_name` | `'L3面漆烘房'` | description=L3面漆烘房 |
+| `dim.dim_process_area` | `process_area_name` | `'L1面漆烘房'` | description=L1面漆烘房 |
+| `dim.dim_process_area` | `process_area_name` | `'L2面漆中间烘房'` | description=L2面漆中间烘房 |
+| `dim.dim_process_area` | `process_area_name` | `'L3面漆中间烘房'` | description=L3面漆中间烘房 |
+</runtime_context>

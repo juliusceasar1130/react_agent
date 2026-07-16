@@ -454,13 +454,16 @@ class PromptCompilerMiddleware(AgentMiddleware[CustomState]):
         date_str = f"当前日期: {now.strftime('%Y-%m-%d')} ({weekdays[now.weekday()]})"
         date_prompt = f"[系统提示: {date_str}]"
 
-        dynamic_parts = [date_prompt]
+        dynamic_parts = []
         if active_ddl:
             dynamic_parts.append(active_ddl.strip())
         if secondary_ddl:
             dynamic_parts.append(secondary_ddl.strip())
         if rag_text:
             dynamic_parts.append(rag_text.strip())
+        
+        # 将日期提示词作为 runtime 动态区的最末尾锚点注入（尾部强注意力区）
+        dynamic_parts.append(date_prompt)
             
         runtime_context_content = "\n\n".join(dynamic_parts).strip()
         runtime_context_xml = f"<runtime_context>\n{runtime_context_content}\n</runtime_context>"
