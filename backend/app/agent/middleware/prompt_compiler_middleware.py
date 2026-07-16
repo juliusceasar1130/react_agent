@@ -1,9 +1,10 @@
-# backend/app/agent/middleware/safe_merge_middleware.py
+# backend/app/agent/middleware/prompt_compiler_middleware.py
 """
-终极安全合并中间件。
+系统提示词与 RAG 背景知识终极编译合并中间件（提示词编译器）。
 
-将 ModelRequest.system_message 和在历史对话 `messages` 首部或中间任意位置的 RAG 业务知识 SystemMessage，
-安全高效地合并成唯一的一个全局 System 消息，以完美规避本地 vLLM 在 strict 格式下引发的多 system 400 报错。
+将静态系统提示词模版、已激活技能的 DDL 及 Gotchas、已加载的辅助技能 Skeleton 骨架，
+以及在 CustomState 中传递的 RAG 检索上下文和系统日期，安全高效地合并成唯一的一个全局 System 消息，
+以完美规避本地 vLLM 在 strict 格式下引发的多 system 400 报错。
 """
 
 import logging
@@ -83,7 +84,7 @@ def _get_string_content(msg) -> str:
     return str(content)
 
 
-class SafeMergeSystemMiddleware(AgentMiddleware[CustomState]):
+class PromptCompilerMiddleware(AgentMiddleware[CustomState]):
     """
     系统提示词与 RAG 背景知识终极合并中间件。
     """
@@ -350,12 +351,12 @@ class SafeMergeSystemMiddleware(AgentMiddleware[CustomState]):
         """Emit audit logs for redaction and physical deletion stages."""
         if ctx.redacted_count > 0 or ctx.kept_count > 0:
             logger.info(
-                "U0001F6E1️ Redaction: %d failures redacted, %d kept as correction clue. Kept call_ids: %s",
+                "🛡️ Redaction: %d failures redacted, %d kept as correction clue. Kept call_ids: %s",
                 ctx.redacted_count, ctx.kept_count, ctx.kept_call_ids
             )
         if ctx.deleted_call_ids:
             logger.info(
-                "U0001F5D1️ Paired physical deletion: %d failed pairs removed. Deleted call_ids: %s",
+                "🗑️ Paired physical deletion: %d failed pairs removed. Deleted call_ids: %s",
                 len(ctx.deleted_call_ids), ctx.deleted_call_ids
             )
 
@@ -382,79 +383,93 @@ class SafeMergeSystemMiddleware(AgentMiddleware[CustomState]):
                 # 动态改写 chat_template_kwargs，保证在网络包的根层级发出
                 extra_body["chat_template_kwargs"]["enable_thinking"] = client_enable_thinking
                 logger.info(
-                    "🛡️ SafeMergeSystemMiddleware: 成功将客户端运行时思考参数 %s 注入到模型网络调用中", 
+                    "🛡️ PromptCompilerMiddleware: 成功将客户端运行时思考参数 %s 注入到模型网络调用中", 
                     client_enable_thinking
                 )
         except Exception as e:
-            logger.warning("🛡️ SafeMergeSystemMiddleware: 动态注入思考模式参数失败: %s", e)
+            logger.warning("🛡️ PromptCompilerMiddleware: 动态注入思考模式参数失败: %s", e)
 
     def _modify_request(self, request: ModelRequest) -> ModelRequest:
-        # 新增首部调用：动态注入客户端思考模式配置
+        """读取 state 中的 RAG 文本直接拼装至系统消息，并清理历史留存的 RAG 污染消息"""
         self._inject_thinking_config(request)
         
         raw_messages = list(request.messages) if request.messages else []
         projected_messages = self._project_and_collapse_messages(raw_messages)
 
-        filtered_messages = []
-        rag_texts = []
+        # 1. 直接从 request.state 中获取结构化 RAG 文本
+        lexicon_ctx = request.state.get("lexicon_context") if request.state else {}
+        if not lexicon_ctx:
+            lexicon_ctx = {}
+        rag_text = lexicon_ctx.get("formatted_text", "")
 
-        # 1. 深度遍历全量历史消息队列，定位并抽干所有的 RAG SystemMessage
+        # 2. 防御性过滤历史数据库中可能残留的老旧 RAG 消息 (向下兼容)
+        filtered_messages = []
         for msg in projected_messages:
             if isinstance(msg, SystemMessage):
                 content = getattr(msg, "content", "")
-                is_rag = False
-                
                 if isinstance(content, str) and "__business_rag_context__" in content:
-                    is_rag = True
+                    continue
                 elif hasattr(msg, "content_blocks"):
+                    is_legacy_rag = False
                     for block in msg.content_blocks:
                         if isinstance(block, dict) and block.get("type") == "text":
                             if "__business_rag_context__" in block.get("text", ""):
-                                is_rag = True
+                                is_legacy_rag = True
                                 break
-
-                if is_rag:
-                    # 提取该条 RAG 消息的纯文本内容，存入暂存器
-                    rag_text = _get_string_content(msg)
-                    if rag_text:
-                        rag_texts.append(rag_text)
-                    # ⚠️ 注意：此处故意不将该消息放入 filtered_messages，以实现彻底的物理抽干！
-                    continue
-
-            # 保留其他所有普通消息
+                    if is_legacy_rag:
+                        continue
             filtered_messages.append(msg)
 
-        # 获取原始 system_message 文本
-        sys_text = _get_string_content(request.system_message)
+        # 3. 解析 content_blocks 区分静态与动态部分
+        blocks = getattr(request.system_message, "content_blocks", None)
+        base_sys_text = ""
+        skills_addendum = ""
+        active_ddl = ""
+        secondary_ddl = ""
 
-        # 动态获取当前日期和时间并准备注入模板
+        if isinstance(blocks, list) and len(blocks) > 0:
+            base_sys_text = blocks[0].get("text", "") if isinstance(blocks[0], dict) else str(blocks[0])
+            for block in blocks[1:]:
+                text = block.get("text", "") if isinstance(block, dict) else str(block)
+                if "## Available Skills" in text:
+                    skills_addendum = text
+                elif "## Active Domain Knowledge" in text:
+                    active_ddl = text
+                elif "## Secondary Domain Knowledge" in text:
+                    secondary_ddl = text
+        else:
+            base_sys_text = _get_string_content(request.system_message)
+
+        # 4. 组装静态区 (System Rules)
+        static_parts = [base_sys_text]
+        if skills_addendum:
+            static_parts.append(skills_addendum)
+        system_rules_content = "\n\n".join(static_parts).strip()
+        system_rules_xml = f"<system_rules>\n{system_rules_content}\n</system_rules>"
+
+        # 5. 组装动态区 (Runtime Context)
         import datetime
         now = datetime.datetime.now()
         weekdays = ["星期一", "星期二", "星期三", "星期四", "星期五", "星期六", "星期日"]
         date_str = f"当前日期: {now.strftime('%Y-%m-%d')} ({weekdays[now.weekday()]})"
-        date_prompt = f"\n\n[系统提示: {date_str}]"
+        date_prompt = f"[系统提示: {date_str}]"
 
-        # 2. 如果检索到了任何 RAG 消息，执行物理合并与对话历史大一统抽干
-        if rag_texts:
-            logger.info(f"🛡️ SafeMergeSystemMiddleware: 全局打捞检测到 {len(rag_texts)} 条 RAG 消息，正在开启安全自愈合并...")
+        dynamic_parts = [date_prompt]
+        if active_ddl:
+            dynamic_parts.append(active_ddl.strip())
+        if secondary_ddl:
+            dynamic_parts.append(secondary_ddl.strip())
+        if rag_text:
+            dynamic_parts.append(rag_text.strip())
             
-            # 提取全局核心提示词与所有搜集到的 RAG 消息的纯文本
-            merged_rag_text = "\n\n".join(rag_texts)
-            
-            # 用纯文本大一统构筑 SystemMessage，并保证当前日期在整个提示词的最末尾
-            merged_content = f"{sys_text}\n\n{merged_rag_text}{date_prompt}"
-            new_system_message = SystemMessage(content=merged_content)
-            
-            logger.info(
-                "🛡️ SafeMergeSystemMiddleware: 多 System 消息全量打捞合并完成，"
-                "已将所有 RAG 消息规范化为纯文本 SystemMessage 并从 messages 列表中彻底抽干物理抹除！"
-            )
-            return request.override(
-                system_message=new_system_message,
-                messages=filtered_messages
-            )
+        runtime_context_content = "\n\n".join(dynamic_parts).strip()
+        runtime_context_xml = f"<runtime_context>\n{runtime_context_content}\n</runtime_context>"
 
-        new_system_message = SystemMessage(content=f"{sys_text}{date_prompt}")
+        # 6. 合并编译并重载 ModelRequest
+        compiled_content = f"{system_rules_xml}\n\n{runtime_context_xml}"
+        new_system_message = SystemMessage(content=compiled_content)
+        
+        logger.info("🛡️ PromptCompilerMiddleware: 静态/动态双分区编译合并完成。")
         return request.override(
             system_message=new_system_message,
             messages=filtered_messages

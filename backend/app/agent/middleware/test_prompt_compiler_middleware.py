@@ -3,7 +3,7 @@ import datetime
 from langchain_core.messages import SystemMessage
 from langchain.agents.middleware.types import ModelRequest
 
-from backend.app.agent.middleware.safe_merge_middleware import SafeMergeSystemMiddleware
+from backend.app.agent.middleware.prompt_compiler_middleware import PromptCompilerMiddleware
 from backend.app.agent.state import CustomState
 
 def test_safe_merge_injects_current_date_no_rag():
@@ -15,7 +15,7 @@ def test_safe_merge_injects_current_date_no_rag():
         state=state
     )
     
-    middleware = SafeMergeSystemMiddleware()
+    middleware = PromptCompilerMiddleware()
     new_request = middleware._modify_request(request)
     
     content = str(new_request.system_message.content)
@@ -23,22 +23,31 @@ def test_safe_merge_injects_current_date_no_rag():
     weekdays = ["星期一", "星期二", "星期三", "星期四", "星期五", "星期六", "星期日"]
     expected_date_str = f"当前日期: {now.strftime('%Y-%m-%d')} ({weekdays[now.weekday()]})"
     
-    assert f"[系统提示: {expected_date_str}]" in content
-    assert content.endswith(f"[系统提示: {expected_date_str}]")
-    assert "Base system prompt" in content
+    assert "<system_rules>" in content
+    assert "</system_rules>" in content
+    assert "<runtime_context>" in content
+    assert "</runtime_context>" in content
+    
+    assert "Base system prompt" in content.split("</system_rules>")[0]
+    assert f"[系统提示: {expected_date_str}]" in content.split("<runtime_context>")[1]
 
 
 def test_safe_merge_injects_current_date_with_rag():
-    rag_msg = SystemMessage(content="This is __business_rag_context__ info")
-    state = CustomState(messages=[rag_msg])
+    state = CustomState(
+        messages=[],
+        lexicon_context={
+            "formatted_text": "This is __business_rag_context__ info",
+            "tables": []
+        }
+    )
     request = ModelRequest(
         model=None,
-        messages=[rag_msg],
+        messages=[],
         system_message=SystemMessage(content="Base system prompt"),
         state=state
     )
     
-    middleware = SafeMergeSystemMiddleware()
+    middleware = PromptCompilerMiddleware()
     new_request = middleware._modify_request(request)
     
     content = str(new_request.system_message.content)
@@ -46,10 +55,14 @@ def test_safe_merge_injects_current_date_with_rag():
     weekdays = ["星期一", "星期二", "星期三", "星期四", "星期五", "星期六", "星期日"]
     expected_date_str = f"当前日期: {now.strftime('%Y-%m-%d')} ({weekdays[now.weekday()]})"
     
-    assert f"[系统提示: {expected_date_str}]" in content
-    assert content.endswith(f"[系统提示: {expected_date_str}]")
-    assert "Base system prompt" in content
-    assert "This is __business_rag_context__ info" in content
+    assert "<system_rules>" in content
+    assert "</system_rules>" in content
+    assert "<runtime_context>" in content
+    assert "</runtime_context>" in content
+    
+    assert "Base system prompt" in content.split("</system_rules>")[0]
+    assert "This is __business_rag_context__ info" in content.split("<runtime_context>")[1]
+    assert f"[系统提示: {expected_date_str}]" in content.split("<runtime_context>")[1]
     assert len(new_request.messages) == 0
 
 
@@ -85,7 +98,7 @@ def test_safe_merge_context_collapse_successful_query():
         state=state
     )
     
-    middleware = SafeMergeSystemMiddleware()
+    middleware = PromptCompilerMiddleware()
     new_request = middleware._modify_request(request)
     
     # Assertions:
@@ -128,7 +141,7 @@ def test_safe_merge_context_collapse_failed_query():
         state=state
     )
     
-    middleware = SafeMergeSystemMiddleware()
+    middleware = PromptCompilerMiddleware()
     new_request = middleware._modify_request(request)
     
     # Error message is now physically deleted (more aggressive than collapse)
@@ -140,7 +153,6 @@ def test_safe_merge_redacts_past_failures_keeps_last_n():
     """With keep_count=3, the oldest failure beyond the last 3 is redacted; latest 3 are kept."""
     from langchain_core.messages import HumanMessage, AIMessage, ToolMessage
     from langchain.agents.middleware.types import ModelRequest
-    from backend.app.agent.middleware.safe_merge_middleware import SafeMergeSystemMiddleware
     
     messages = [
         HumanMessage(content="Query active users"),
@@ -169,7 +181,7 @@ def test_safe_merge_redacts_past_failures_keeps_last_n():
         state=state
     )
     
-    middleware = SafeMergeSystemMiddleware()
+    middleware = PromptCompilerMiddleware()
     new_request = middleware._modify_request(request)
     
     # Attempt 1 (oldest, beyond keep_count=3) is redacted
@@ -193,7 +205,6 @@ def test_safe_merge_redacts_past_failures_keeps_last_n():
 def test_safe_merge_redacts_all_failures_on_success():
     from langchain_core.messages import HumanMessage, AIMessage, ToolMessage
     from langchain.agents.middleware.types import ModelRequest
-    from backend.app.agent.middleware.safe_merge_middleware import SafeMergeSystemMiddleware
     
     messages = [
         HumanMessage(content="Query active users"),
@@ -214,7 +225,7 @@ def test_safe_merge_redacts_all_failures_on_success():
         state=state
     )
     
-    middleware = SafeMergeSystemMiddleware()
+    middleware = PromptCompilerMiddleware()
     new_request = middleware._modify_request(request)
     
     # Assertions:
@@ -243,7 +254,7 @@ def test_stage_compute_boundary_protects_last_n_human_messages():
         HumanMessage(content="H5"),
     ]
     
-    middleware = SafeMergeSystemMiddleware()
+    middleware = PromptCompilerMiddleware()
     boundary = middleware._stage_compute_boundary(messages)
     # H5 is last, H4 second-to-last, H3 third-to-last (protect_turns=3)
     # H3 is at index 4 (0-indexed)
@@ -253,7 +264,7 @@ def test_stage_compute_boundary_protects_last_n_human_messages():
 def test_stage_redaction_keeps_last_n_failures():
     """With keep_count=3, 4 failures → oldest 1 redacted, latest 3 kept."""
     from langchain_core.messages import HumanMessage, AIMessage, ToolMessage
-    from backend.app.agent.middleware.safe_merge_middleware import SafeMergeSystemMiddleware, _CollapseContext
+    from backend.app.agent.middleware.prompt_compiler_middleware import _CollapseContext
 
     messages = [
         HumanMessage(content="Query"),
@@ -270,7 +281,7 @@ def test_stage_redaction_keeps_last_n_failures():
         ToolMessage(content="X-SQL-LINTER-STATUS: FAILED\nError: SEM-004", name="sql_db_query", tool_call_id="call_4"),
     ]
 
-    middleware = SafeMergeSystemMiddleware()
+    middleware = PromptCompilerMiddleware()
     ctx = _CollapseContext(messages=messages, boundary_index=0)
     result = middleware._stage_redaction(messages, ctx)
 
@@ -292,7 +303,7 @@ def test_stage_redaction_keeps_last_n_failures():
 def test_stage_redaction_cross_domain_success_no_pollution():
     """Domain A success (before last HumanMessage) must not redact Domain B failures."""
     from langchain_core.messages import HumanMessage, AIMessage, ToolMessage
-    from backend.app.agent.middleware.safe_merge_middleware import SafeMergeSystemMiddleware, _CollapseContext
+    from backend.app.agent.middleware.prompt_compiler_middleware import _CollapseContext
 
     messages = [
         # Domain A (before last HumanMessage)
@@ -310,7 +321,7 @@ def test_stage_redaction_cross_domain_success_no_pollution():
         ToolMessage(content="X-SQL-LINTER-STATUS: FAILED\nError: SYN-002", name="sql_db_query", tool_call_id="call_b2"),
     ]
 
-    middleware = SafeMergeSystemMiddleware()
+    middleware = PromptCompilerMiddleware()
     ctx = _CollapseContext(messages=messages, boundary_index=0)
     result = middleware._stage_redaction(messages, ctx)
 
@@ -328,7 +339,7 @@ def test_stage_redaction_cross_domain_success_no_pollution():
 def test_stage_redaction_success_in_current_loop_redacts_all():
     """When the current ReAct loop has a success, all failures in that loop are redacted."""
     from langchain_core.messages import HumanMessage, AIMessage, ToolMessage
-    from backend.app.agent.middleware.safe_merge_middleware import SafeMergeSystemMiddleware, _CollapseContext
+    from backend.app.agent.middleware.prompt_compiler_middleware import _CollapseContext
 
     messages = [
         HumanMessage(content="Query"),
@@ -342,7 +353,7 @@ def test_stage_redaction_success_in_current_loop_redacts_all():
         ToolMessage(content="[{\"id\": 1}]", name="sql_db_query", tool_call_id="call_3"),  # SUCCESS
     ]
 
-    middleware = SafeMergeSystemMiddleware()
+    middleware = PromptCompilerMiddleware()
     ctx = _CollapseContext(messages=messages, boundary_index=0)
     result = middleware._stage_redaction(messages, ctx)
 
@@ -360,7 +371,7 @@ def test_stage_redaction_success_in_current_loop_redacts_all():
 
 def test_stage_prescan_sql_linter_failure():
     from langchain_core.messages import HumanMessage, ToolMessage
-    from backend.app.agent.middleware.safe_merge_middleware import _CollapseContext
+    from backend.app.agent.middleware.prompt_compiler_middleware import _CollapseContext
 
     messages = [
         HumanMessage(content="Query"),
@@ -370,7 +381,7 @@ def test_stage_prescan_sql_linter_failure():
         HumanMessage(content="M3"),
     ]
 
-    middleware = SafeMergeSystemMiddleware()
+    middleware = PromptCompilerMiddleware()
     ctx = _CollapseContext(messages=messages, boundary_index=2)
     middleware._stage_prescan_failures(ctx)
 
@@ -379,7 +390,7 @@ def test_stage_prescan_sql_linter_failure():
 
 def test_stage_prescan_chart_runtime_failure():
     from langchain_core.messages import HumanMessage, ToolMessage
-    from backend.app.agent.middleware.safe_merge_middleware import _CollapseContext
+    from backend.app.agent.middleware.prompt_compiler_middleware import _CollapseContext
 
     messages = [
         HumanMessage(content="Chart"),
@@ -389,7 +400,7 @@ def test_stage_prescan_chart_runtime_failure():
         HumanMessage(content="M3"),
     ]
 
-    middleware = SafeMergeSystemMiddleware()
+    middleware = PromptCompilerMiddleware()
     ctx = _CollapseContext(messages=messages, boundary_index=2)
     middleware._stage_prescan_failures(ctx)
 
@@ -398,7 +409,7 @@ def test_stage_prescan_chart_runtime_failure():
 
 def test_stage_prescan_success_not_deleted():
     from langchain_core.messages import HumanMessage, ToolMessage
-    from backend.app.agent.middleware.safe_merge_middleware import _CollapseContext
+    from backend.app.agent.middleware.prompt_compiler_middleware import _CollapseContext
 
     messages = [
         HumanMessage(content="Query"),
@@ -408,7 +419,7 @@ def test_stage_prescan_success_not_deleted():
         HumanMessage(content="M3"),
     ]
 
-    middleware = SafeMergeSystemMiddleware()
+    middleware = PromptCompilerMiddleware()
     ctx = _CollapseContext(messages=messages, boundary_index=1)
     middleware._stage_prescan_failures(ctx)
 
@@ -417,7 +428,7 @@ def test_stage_prescan_success_not_deleted():
 
 def test_stage_physical_deletion_removes_failed_pairs():
     from langchain_core.messages import HumanMessage, AIMessage, ToolMessage
-    from backend.app.agent.middleware.safe_merge_middleware import SafeMergeSystemMiddleware, _CollapseContext
+    from backend.app.agent.middleware.prompt_compiler_middleware import _CollapseContext
 
     messages = [
         HumanMessage(content="Query"),
@@ -429,7 +440,7 @@ def test_stage_physical_deletion_removes_failed_pairs():
         HumanMessage(content="M3"),
     ]
 
-    middleware = SafeMergeSystemMiddleware()
+    middleware = PromptCompilerMiddleware()
     ctx = _CollapseContext(messages=messages, boundary_index=3, deleted_call_ids={"call_fail"})
     result = middleware._stage_physical_deletion(messages, ctx)
 
@@ -441,7 +452,7 @@ def test_stage_physical_deletion_removes_failed_pairs():
 def test_stage_physical_deletion_partial_filter_keeps_ai_message():
     """If AIMessage has multiple tool_calls and only one fails, keep the AIMessage."""
     from langchain_core.messages import AIMessage, ToolMessage
-    from backend.app.agent.middleware.safe_merge_middleware import SafeMergeSystemMiddleware, _CollapseContext
+    from backend.app.agent.middleware.prompt_compiler_middleware import _CollapseContext
 
     messages = [
         AIMessage(content="Multi call", tool_calls=[
@@ -452,7 +463,7 @@ def test_stage_physical_deletion_partial_filter_keeps_ai_message():
         ToolMessage(content="OK", name="search_saved_correct_tool_uses", tool_call_id="call_ok"),
     ]
 
-    middleware = SafeMergeSystemMiddleware()
+    middleware = PromptCompilerMiddleware()
     ctx = _CollapseContext(messages=messages, boundary_index=0, deleted_call_ids={"call_fail"})
     result = middleware._stage_physical_deletion(messages, ctx)
 
@@ -465,7 +476,7 @@ def test_stage_physical_deletion_partial_filter_keeps_ai_message():
 
 def test_stage_standard_collapse_sql_success():
     from langchain_core.messages import HumanMessage, ToolMessage
-    from backend.app.agent.middleware.safe_merge_middleware import SafeMergeSystemMiddleware, _CollapseContext
+    from backend.app.agent.middleware.prompt_compiler_middleware import _CollapseContext
 
     messages = [
         HumanMessage(content="Query"),
@@ -475,7 +486,7 @@ def test_stage_standard_collapse_sql_success():
         HumanMessage(content="M3"),
     ]
 
-    middleware = SafeMergeSystemMiddleware()
+    middleware = PromptCompilerMiddleware()
     ctx = _CollapseContext(messages=messages, boundary_index=2)
     result = middleware._stage_standard_collapse(messages, ctx)
 
@@ -484,7 +495,7 @@ def test_stage_standard_collapse_sql_success():
 
 def test_stage_standard_collapse_chart_success():
     from langchain_core.messages import HumanMessage, ToolMessage
-    from backend.app.agent.middleware.safe_merge_middleware import SafeMergeSystemMiddleware, _CollapseContext
+    from backend.app.agent.middleware.prompt_compiler_middleware import _CollapseContext
 
     messages = [
         HumanMessage(content="Chart"),
@@ -494,7 +505,7 @@ def test_stage_standard_collapse_chart_success():
         HumanMessage(content="M3"),
     ]
 
-    middleware = SafeMergeSystemMiddleware()
+    middleware = PromptCompilerMiddleware()
     ctx = _CollapseContext(messages=messages, boundary_index=2)
     result = middleware._stage_standard_collapse(messages, ctx)
 
@@ -503,7 +514,6 @@ def test_stage_standard_collapse_chart_success():
 
 def test_pipeline_integration_physical_deletion_before_collapse():
     from langchain_core.messages import HumanMessage, AIMessage, ToolMessage
-    from backend.app.agent.middleware.safe_merge_middleware import SafeMergeSystemMiddleware
 
     messages = [
         HumanMessage(content="Query 1"),
@@ -519,7 +529,7 @@ def test_pipeline_integration_physical_deletion_before_collapse():
         HumanMessage(content="M3"),
     ]
 
-    middleware = SafeMergeSystemMiddleware()
+    middleware = PromptCompilerMiddleware()
     result = middleware._project_and_collapse_messages(messages)
 
     # call_fail pair should be physically deleted
@@ -533,7 +543,7 @@ def test_pipeline_integration_physical_deletion_before_collapse():
 def test_stage_redaction_keeps_linter_and_runtime_mixed_failures():
     """验证 Linter 报错和数据库运行期报错混合重试时，在 keep_count=3 的限制内，两者都被原样保留不折叠。"""
     from langchain_core.messages import HumanMessage, AIMessage, ToolMessage
-    from backend.app.agent.middleware.safe_merge_middleware import SafeMergeSystemMiddleware, _CollapseContext
+    from backend.app.agent.middleware.prompt_compiler_middleware import _CollapseContext
 
     messages = [
         HumanMessage(content="Query active users"),
@@ -546,7 +556,7 @@ def test_stage_redaction_keeps_linter_and_runtime_mixed_failures():
         ToolMessage(content="Error: (psycopg2.errors.UndefinedColumn) column not found", name="sql_db_query", tool_call_id="call_2"),
     ]
 
-    middleware = SafeMergeSystemMiddleware()
+    middleware = PromptCompilerMiddleware()
     ctx = _CollapseContext(messages=messages, boundary_index=0)
     result = middleware._stage_redaction(messages, ctx)
 
@@ -561,7 +571,7 @@ def test_stage_redaction_keeps_linter_and_runtime_mixed_failures():
 def test_stage_redaction_keeps_active_failures_after_success():
     """测试多步 SQL 场景下，成功 SQL 之后的最新失败尝试属于活跃线索，不应被折叠，而成功之前的陈旧失败应被折叠。"""
     from langchain_core.messages import HumanMessage, AIMessage, ToolMessage
-    from backend.app.agent.middleware.safe_merge_middleware import SafeMergeSystemMiddleware, _CollapseContext
+    from backend.app.agent.middleware.prompt_compiler_middleware import _CollapseContext
 
     messages = [
         HumanMessage(content="Query profile and logs"),
@@ -578,7 +588,7 @@ def test_stage_redaction_keeps_active_failures_after_success():
         ToolMessage(content="X-SQL-LINTER-STATUS: FAILED", name="sql_db_query", tool_call_id="call_3"),
     ]
 
-    middleware = SafeMergeSystemMiddleware()
+    middleware = PromptCompilerMiddleware()
     ctx = _CollapseContext(messages=messages, boundary_index=0)
     result = middleware._stage_redaction(messages, ctx)
 

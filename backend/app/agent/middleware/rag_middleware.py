@@ -407,42 +407,7 @@ class BusinessRagMiddleware(AgentMiddleware[CustomState]):
             + "\n\n".join(rag_sections)
         )
 
-        rag_system_message = SystemMessage(
-            content=rag_system_content,
-            id=self._rag_system_message_id
-        )
-
-        new_messages = []
-        rag_message_added = False
-
-        for msg in messages:
-            if isinstance(msg, SystemMessage):
-                if getattr(msg, "id", None) == self._rag_system_message_id:
-                    new_messages.append(rag_system_message)
-                    rag_message_added = True
-                    continue
-                content = getattr(msg, "content", "")
-                if isinstance(content, str) and self._rag_system_message_id in content:
-                    new_messages.append(rag_system_message)
-                    rag_message_added = True
-                    continue
-                elif hasattr(msg, "content_blocks"):
-                    should_replace = False
-                    for block in msg.content_blocks:
-                        if isinstance(block, dict) and block.get("type") == "text":
-                            if self._rag_system_message_id in block.get("text", ""):
-                                should_replace = True
-                                break
-                    if should_replace:
-                        new_messages.append(rag_system_message)
-                        rag_message_added = True
-                        continue
-            new_messages.append(msg)
-
-        if not rag_message_added:
-            new_messages.insert(0, rag_system_message)
-
-        logger.info("BusinessRagMiddleware: 已将混合辅助知识注入到 messages")
+        logger.info("BusinessRagMiddleware: 已将混合辅助知识注入到 state 的 lexicon_context")
         emit_stream_status(
             f"辅助知识与物理词典装配完毕 (DDL 并集共 {len(table_lexicon_context)} 张表)",
             stage="retrieving",
@@ -450,10 +415,10 @@ class BusinessRagMiddleware(AgentMiddleware[CustomState]):
         )
 
         return {
-            "messages": new_messages,
             "rag_context": retrieved_docs,
             "rag_query": user_query,
             "lexicon_context": {
+                "formatted_text": rag_system_content,
                 "tables": table_lexicon_context,
                 "values_count": len(lexicon_results.get("values", [])),
                 "rows_count": len(lexicon_results.get("rows", []))

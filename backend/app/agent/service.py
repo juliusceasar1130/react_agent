@@ -36,7 +36,7 @@ from backend.app.agent.middleware import (
     BusinessRagMiddleware,
     ContextWarningMiddleware,
     SkillMiddleware,
-    SafeMergeSystemMiddleware,
+    PromptCompilerMiddleware,
 )
 from backend.app.agent.tools import (
     create_chart_artifact_tool,
@@ -575,7 +575,7 @@ class SQLAgentService:
                 formatted = []
                 system_contents = []
 
-                # 借鉴 SafeMergeSystemMiddleware 的思路：物理抽干并合并所有的 system 消息
+                # 借鉴 PromptCompilerMiddleware 的思路：物理抽干并合并所有的 system 消息
                 for m in messages:
                     msg_type = getattr(m, "type", "")
                     if msg_type == "system":
@@ -630,7 +630,7 @@ class SQLAgentService:
                 summarization_middleware,
                 SkillMiddleware(db),
                 _create_context_warning_middleware(token_estimator),
-                SafeMergeSystemMiddleware(),
+                PromptCompilerMiddleware(),
             ]
             if rag_middleware:
                 middleware_list.insert(0, rag_middleware)
@@ -712,7 +712,7 @@ class SQLAgentService:
                 formatted = []
                 system_contents = []
 
-                # 借鉴 SafeMergeSystemMiddleware 的思路：物理抽干并合并所有的 system 消息
+                # 借鉴 PromptCompilerMiddleware 的思路：物理抽干并合并所有的 system 消息
                 for m in messages:
                     msg_type = getattr(m, "type", "")
                     if msg_type == "system":
@@ -767,7 +767,7 @@ class SQLAgentService:
                 summarization_middleware,
                 SkillMiddleware(db),
                 _create_context_warning_middleware(token_estimator),
-                SafeMergeSystemMiddleware(),
+                PromptCompilerMiddleware(),
             ]
             if rag_middleware:
                 middleware_list.insert(0, rag_middleware)

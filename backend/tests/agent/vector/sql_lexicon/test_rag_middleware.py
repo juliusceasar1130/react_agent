@@ -46,10 +46,7 @@ async def test_business_rag_middleware_abefore_model():
         
         result = await middleware.abefore_model(state, runtime)
         assert result is not None
-        assert "messages" in result
+        assert "messages" not in result
         assert "lexicon_context" in result
-        
-        # Verify correct DDL was formatted
-        sys_msg = result["messages"][0]
-        assert isinstance(sys_msg, SystemMessage)
-        assert "CREATE TABLE dim_test_table" in sys_msg.content
+        assert "formatted_text" in result["lexicon_context"]
+        assert "CREATE TABLE dim_test_table" in result["lexicon_context"]["formatted_text"]

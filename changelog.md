@@ -1,3 +1,85 @@
+## 2026-07-16 11:01 +08:00 - 实施阶段 4 联调与数据库持久化存储验证
+
+### 概述
+- **持久化集成测试编写**：新建了集成测试脚本 `test_persistence_integration.py`，模拟多轮对话生命周期，验证了状态化传输后的数据库归档行为。
+- **验证历史消息去污染**：测试脚本严格断言并证实，持久化到 MemorySaver 中的 `messages` 列表彻底免除了 `"__business_rag_context__"` 等大段 RAG 上下文信息的污染，成功达到大幅缩减数据库存储空间的目标。
+- **状态序列化验证**：确认 `lexicon_context` 状态被成功持久化，且能够在多轮迭代中平滑地执行覆盖更新（Last-Wins），无任何类型序列化异常。
+
+### 变更内容
+#### backend/tests/agent/test_persistence_integration.py [NEW]
+- 编写了完整的集成持久化校验用例，涉及 mock 数据连接、序列化对象校验、以及绿线防污染断言。
+
+---
+
+## 2026-07-16 10:52 +08:00 - 实施阶段 3 静态与动态分区物理隔离设计 (Prompt Caching 优化)
+
+### 概述
+- **XML 物理分区编译**：在 `PromptCompilerMiddleware` 中将拼接提示词进行了结构化物理隔离，划分为 `<system_rules>`（静态规则区）和 `<runtime_context>`（动态上下文区）两个 XML 标签分区。
+- **提升 Prefix Cache 命率**：静态大段规则（基础提示词和 Available Skills 可用大纲）被打包进 `<system_rules>` 区，由于内容永不变化，使 LLM 服务端能够 100% 缓存该前缀；时间、已加载 DDL 骨架及 RAG 参考等高频变化的数据置于 `<runtime_context>` 后置区，避免污染前置静态缓存。
+- **测试对齐校验**：对齐并更新了 `test_prompt_compiler_middleware.py` 的测试断言，严格校验分区标签的起止和静态与动态内容在正确分区内的包含关系，全量 21 个单元测试（含 RAG 部分）一次性全部通过（PASS）。
+
+### 变更内容
+#### backend/app/agent/middleware/prompt_compiler_middleware.py [MODIFY]
+- 修改 `_modify_request` 方法，利用 `content_blocks` 的特征识别提取基础提示词和大纲并包裹在 `<system_rules>` 中，其他部分包裹在 `<runtime_context>` 中并进行物理组合。
+
+#### backend/app/agent/middleware/test_prompt_compiler_middleware.py [MODIFY]
+- 更新测试用例 `test_safe_merge_inject_current_date_no_rag` 和 `test_safe_merge_inject_current_date_with_rag`，增加了对 XML 闭合标签及静态/动态分区所属情况的严格校验。
+
+---
+
+## 2026-07-16 10:28 +08:00 - 实施阶段 2 类名与文件规范化重构 (Rebranding)
+
+### 概述
+- **物理文件重命名**：将 `safe_merge_middleware.py` 重命名为 `prompt_compiler_middleware.py`，并将对应的单元测试 `test_safe_merge_middleware.py` 重命名为 `test_prompt_compiler_middleware.py`。
+- **类名语义对齐**：将类名 `SafeMergeSystemMiddleware` 改为 `PromptCompilerMiddleware`，代表系统提示词与 RAG 背景知识的终极编译和合并职责。
+- **引用同步更新**：同步修改了包出口 `__init__.py` 以及服务类 `SQLAgentService` 的初始化引入。
+- **测试全量回归**：测试全部通过（20 个 PromptCompiler 单元测试和 1 个 RAG 单元测试）。
+
+### 变更内容
+#### backend/app/agent/middleware/prompt_compiler_middleware.py [NEW]
+- 创建了重构后的 PromptCompiler 类文件。
+
+#### backend/app/agent/middleware/safe_merge_middleware.py [DELETE]
+- 删除了原文件。
+
+#### backend/app/agent/middleware/test_prompt_compiler_middleware.py [NEW]
+- 创建了重构后的测试类文件。
+
+#### backend/app/agent/middleware/test_safe_merge_middleware.py [DELETE]
+- 删除了原测试文件。
+
+#### backend/app/agent/middleware/__init__.py [MODIFY]
+- 更新中间件列表，导出 `PromptCompilerMiddleware`。
+
+#### backend/app/agent/service.py [MODIFY]
+- 更新引用，在 `middleware_list` 中引入并实例化 `PromptCompilerMiddleware()`。
+
+---
+
+## 2026-07-16 10:22 +08:00 - 实施阶段 1 数据流去耦与状态化 RAG 传递优化
+
+### 概述
+- **对话历史去耦优化**：重构了业务知识 RAG 中间件，取消往历史消息列表 `messages` 插入 RAG 文本块的机制。改用 `CustomState` 中的结构化字段 `rag_context` 与 `lexicon_context` 在内存中传递数据，彻底阻断了 PostgresSaver 数据库中的对话历史消息污染与物理空间暴增问题。
+- **状态化提示词拼装**：重构了合并中间件 `SafeMergeSystemMiddleware`，将提取历史消息并抽干的逻辑替换为直接从状态（`state.lexicon_context`）读取预格式化的 RAG 文本直接物理拼接。
+- **向下兼容过滤**：在合并中间件过滤消息时，增加了对数据库中可能残留的老旧 RAG 消息的防御性过滤，确保线上旧会话能够平滑迁移。
+- **全量单元测试通过**：重构并对齐了 `test_rag_middleware.py` 和 `test_safe_merge_middleware.py`，全量测试均顺利通过。
+
+### 变更内容
+#### backend/app/agent/middleware/rag_middleware.py [MODIFY]
+- 修改 `_format_and_assemble_state` 方法，取消在 `messages` 中插入 `SystemMessage` 的逻辑，直接以 `formatted_text` 字段返回在 `lexicon_context` 状态字典中。
+
+#### backend/app/agent/middleware/safe_merge_middleware.py [MODIFY]
+- 修改 `_modify_request` 方法，直接从 `request.state.lexicon_context` 读取 RAG 文本进行拼装。
+- 添加对历史消息中残留的 `__business_rag_context__` 污染消息的防御性过滤逻辑以向下兼容。
+
+#### backend/tests/agent/vector/sql_lexicon/test_rag_middleware.py [MODIFY]
+- 对齐状态化传递测试，验证返回字典中无 `messages` 且 RAG DDL 包含在状态的 `formatted_text` 中。
+
+#### backend/app/agent/middleware/test_safe_merge_middleware.py [MODIFY]
+- 重构 `test_safe_merge_inject_current_date_with_rag`，测试从 `state.lexicon_context` 传递 RAG 文本的合并与拼装行为。
+
+---
+
 ## 2026-07-15 20:47 +08:00 - 实现数据库物理词典 (DB Lexicon) 启动同步参数可配置化
 
 ### 概述
