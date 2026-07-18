@@ -53,7 +53,7 @@
           <thead>
             <tr class="border-b border-neutral-200 bg-neutral-50/70">
               <th
-                v-for="col in columns"
+                v-for="col in filteredColumns"
                 :key="col"
                 class="px-4 py-3 font-semibold text-neutral-600 tracking-tight whitespace-nowrap cursor-pointer select-none"
                 @dblclick="$emit('dblclick-cell', col)"
@@ -91,7 +91,7 @@
           </thead>
           <tbody class="divide-y divide-neutral-100">
             <tr
-              v-for="(row, ri) in rows"
+              v-for="(row, ri) in filteredRows"
               :key="ri"
               class="group hover:bg-neutral-50/50 transition-colors"
             >
@@ -106,7 +106,7 @@
                   <span>{{ cell === null || cell === undefined ? 'NULL' : cell }}</span>
                   <!-- 点击复制单元格值 -->
                   <button
-                    v-if="showCellCopy(columns[ci])"
+                    v-if="showCellCopy(filteredColumns[ci])"
                     @click="copyText(String(cell), 'cell-' + ri + '-' + ci)"
                     class="rounded p-0.5 text-neutral-400 hover:bg-neutral-200/70 hover:text-neutral-600 transition"
                     title="复制单元格内容"
@@ -155,9 +155,9 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 
-defineProps<{
+const props = defineProps<{
   title: string
   tableName: string
   columns: string[]
@@ -172,8 +172,25 @@ const copiedType = ref<string | null>(null)
 const showToast = ref(false)
 let toastTimer: any = null
 
-// 第一列（序号列）和时间相关列不显示复制图标
-const _TIME_PATTERNS = /date|time|_at/i
+const _TIME_PATTERNS = /date|time|_at|seen/i
+
+// 过滤掉时间相关的列
+const filteredColumns = computed(() => {
+  return props.columns.filter(col => !_TIME_PATTERNS.test(col))
+})
+
+// 过滤每一行对应的数据单元格
+const filteredRows = computed(() => {
+  const activeIndices = props.columns
+    .map((col, index) => ({ col, index }))
+    .filter(item => !_TIME_PATTERNS.test(item.col))
+    .map(item => item.index)
+
+  return props.rows.map(row => {
+    return activeIndices.map(index => row[index])
+  })
+})
+
 function showCellCopy(colName: string): boolean {
   return !_TIME_PATTERNS.test(colName)
 }

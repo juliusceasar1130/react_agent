@@ -376,22 +376,65 @@
             ⭐ <span class="hidden sm:inline">{{ props.message.feedback === 'collected' || props.message.feedback === 'approved' ? '已收藏' : '收藏' }}</span>
           </button>
         </div>
-        <div class="flex items-center gap-1 mt-2" :class="timeClass">
+        <div class="flex items-center gap-4 mt-2" :class="timeClass">
+          <button
+            type="button"
+            class="transition-colors duration-150 hover:text-primary active:scale-95 flex items-center gap-1.5 text-xs text-neutral-500 font-medium bg-transparent border-none cursor-pointer"
+            @click="handleCopy"
+          >
+            <template v-if="copied">
+              <svg class="h-3.5 w-3.5 text-emerald-500 animate-scale-up" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+              </svg>
+              <span class="text-emerald-600 font-semibold">已复制</span>
+            </template>
+            <template v-else>
+              <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+              </svg>
+              <span class="hidden sm:inline">复制</span>
+            </template>
+          </button>
+          <div class="flex items-center gap-1">
+            <svg class="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <span class="text-xs">{{ formattedTime }}</span>
+          </div>
+        </div>
+      </div>
+      <div
+        v-else
+        class="flex items-center justify-end gap-4 px-4 pb-2.5 pt-0"
+        :class="timeClass"
+      >
+        <button
+          v-if="!isStreamingActive"
+          type="button"
+          class="transition-colors duration-150 hover:text-primary active:scale-95 flex items-center gap-1.5 text-xs text-neutral-500 font-medium bg-transparent border-none cursor-pointer"
+          @click="handleCopy"
+        >
+          <template v-if="copied">
+            <svg class="h-3.5 w-3.5 text-emerald-500 animate-scale-up" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+            </svg>
+            <span class="text-emerald-600 font-semibold">已复制</span>
+          </template>
+          <template v-else>
+            <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+              <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+              <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+            </svg>
+            <span class="hidden sm:inline">复制</span>
+          </template>
+        </button>
+        <div class="flex items-center gap-1">
           <svg class="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
           </svg>
           <span class="text-xs">{{ formattedTime }}</span>
         </div>
-      </div>
-      <div
-        v-else
-        class="flex items-center justify-end gap-1.5 px-4 pb-2.5 pt-0"
-        :class="timeClass"
-      >
-        <svg class="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-        </svg>
-        <span class="text-xs">{{ formattedTime }}</span>
       </div>
     </div>
   </div>
@@ -776,6 +819,49 @@ const handleFeedback = async (feedbackType: 'none' | 'like' | 'dislike' | 'colle
     await messagesStore.submitMessageFeedback(props.message.id, feedbackType)
   } catch (err) {
     console.error('Submit feedback failed:', err)
+  }
+}
+
+const copied = ref(false)
+let copyTimeout: number | null = null
+
+const copyToClipboard = async (text: string) => {
+  if (navigator.clipboard && window.isSecureContext) {
+    await navigator.clipboard.writeText(text)
+  } else {
+    const textArea = document.createElement('textarea')
+    textArea.value = text
+    textArea.style.top = '0'
+    textArea.style.left = '0'
+    textArea.style.position = 'fixed'
+    document.body.appendChild(textArea)
+    textArea.focus()
+    textArea.select()
+    try {
+      document.execCommand('copy')
+    } catch (err) {
+      console.error('Fallback copy failed:', err)
+      throw err
+    } finally {
+      document.body.removeChild(textArea)
+    }
+  }
+}
+
+const handleCopy = async () => {
+  const textToCopy = displayContent.value || ''
+  if (!textToCopy) return
+  try {
+    await copyToClipboard(textToCopy)
+    copied.value = true
+    if (copyTimeout) {
+      clearTimeout(copyTimeout)
+    }
+    copyTimeout = window.setTimeout(() => {
+      copied.value = false
+    }, 2000)
+  } catch (err) {
+    console.error('Failed to copy text:', err)
   }
 }
 </script>

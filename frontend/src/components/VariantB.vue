@@ -79,269 +79,277 @@
     <!-- 右侧主区域 -->
     <div class="relative flex min-w-0 flex-1 flex-col overflow-hidden">
       <!-- 正常的聊天主区域 -->
-      <slot v-if="!showBento" name="main-chat-area"></slot>
+      <slot name="main-chat-area"></slot>
+    </div>
 
-      <!-- Bento 风格的数据字典展示区 -->
+    <!-- 数据字典 Bento 看板弹窗 -->
+    <Transition name="modal-fade">
       <div
-        v-else
-        class="flex flex-1 flex-col bg-neutral-50/50 p-6 overflow-y-auto"
+        v-if="showBento"
+        class="fixed inset-0 z-40 flex items-center justify-center p-4 sm:p-6 lg:p-10"
       >
-        <div class="mx-auto w-full max-w-5xl pt-8 pb-4">
-          <div class="mb-8 flex items-start justify-between">
+        <!-- 弹窗背景遮罩 -->
+        <div
+          class="absolute inset-0 bg-neutral-900/40 backdrop-blur-[3px]"
+          @click="$emit('toggle-bento')"
+        ></div>
+
+        <!-- 弹窗内容容器：毛玻璃、圆角、最大高度限制 -->
+        <div
+          class="relative z-10 flex h-full max-h-[85vh] w-full max-w-5xl flex-col rounded-3xl border border-neutral-200/60 bg-white/95 p-6 shadow-2xl backdrop-blur-xl animate-scale-up"
+        >
+          <!-- 头部：标题与关闭按钮 -->
+          <div class="mb-6 flex items-start justify-between">
             <div>
-              <span
-                class="rounded-full bg-primary/10 px-3 py-1 text-xs font-bold text-primary"
-                >基础信息</span
-              >
-              <h1
-                class="mt-3 text-2xl font-black text-neutral-800 tracking-tight sm:text-3xl"
-              >
-                维度表
-              </h1>
+              <span class="rounded-full bg-primary/10 px-3 py-1 text-xs font-bold text-primary">基础信息</span>
+              <h1 class="mt-2 text-2xl font-black text-neutral-800 tracking-tight sm:text-3xl">维度表数据字典</h1>
             </div>
             <button
               @click="$emit('toggle-bento')"
-              class="flex items-center gap-1.5 rounded-full border border-primary/20 bg-primary/5 px-3 py-2 text-xs font-bold text-primary transition-all duration-200 hover:bg-primary hover:text-white shadow-glow shrink-0 mt-1"
+              class="rounded-xl border border-neutral-200 p-2 text-neutral-500 transition hover:bg-neutral-100 hover:text-neutral-700"
+              title="关闭"
             >
-              <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+              <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
               </svg>
-              返回对话
             </button>
           </div>
 
-          <!-- Bento 网格容器 -->
-          <div class="grid grid-cols-1 gap-5 md:grid-cols-3">
-            <!-- 载体类型 (Bento Card 1) -->
-            <div
-              @click="openDrawer('carrier_types')"
-              class="group cursor-pointer rounded-3xl border border-neutral-200 bg-white p-6 shadow-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-lg hover:border-primary/30 md:col-span-2 flex flex-col justify-between"
-            >
-              <div>
-                <div class="flex items-center justify-between">
-                  <span class="text-2xl">🚜</span>
-                  <span
-                    class="rounded-full bg-neutral-100 px-2.5 py-0.5 text-[10px] font-bold text-neutral-500 font-mono"
-                    >DIMENSION</span
-                  >
-                </div>
-                <h3
-                  class="mt-4 text-lg font-bold text-neutral-800 group-hover:text-primary transition"
-                >
-                  载体类型字典
-                  <span class="text-xs font-normal text-neutral-400 font-mono"
-                    >carrier_types</span
-                  >
-                </h3>
-                <p class="mt-1.5 text-xs text-neutral-500 line-clamp-2">
-                  定义涂装、总装及焊装车间物流运输中使用的标准和非标滑橇、吊具、托盘等物料承载设备，支持最大荷载配置。
-                </p>
-              </div>
+          <!-- Bento 网格滚动区 -->
+          <div class="flex-1 overflow-y-auto pr-1">
+            <!-- Bento 网格容器 -->
+            <div class="grid grid-cols-1 gap-5 md:grid-cols-3">
+              <!-- 载体类型 (Bento Card 1) -->
               <div
-                class="mt-6 border-t border-neutral-100 pt-4 flex items-center justify-between text-xs"
+                @click="openDrawer('carrier_types')"
+                class="group cursor-pointer rounded-3xl border border-neutral-200 bg-white p-6 shadow-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-lg hover:border-primary/30 md:col-span-2 flex flex-col justify-between"
               >
-                <span class="text-neutral-400 font-medium"
-                  >数据样本:
-                  <span class="font-mono text-neutral-600"
-                    >C01 (普通滑橇), C02...</span
-                  ></span
-                >
-                <span
-                  class="text-primary font-bold inline-flex items-center gap-1 group-hover:translate-x-1 transition-transform"
-                >
-                  查看详情
-                  <svg
-                    class="h-3 w-3"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
+                <div>
+                  <div class="flex items-center justify-between">
+                    <span class="text-2xl">🚜</span>
+                    <span
+                      class="rounded-full bg-neutral-100 px-2.5 py-0.5 text-[10px] font-bold text-neutral-500 font-mono"
+                      >DIMENSION</span
+                    >
+                  </div>
+                  <h3
+                    class="mt-4 text-lg font-bold text-neutral-800 group-hover:text-primary transition"
                   >
-                    <path
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                      stroke-width="2.5"
-                      d="M9 5l7 7-7 7"
-                    />
-                  </svg>
-                </span>
+                    载体类型字典
+                    <span class="text-xs font-normal text-neutral-400 font-mono"
+                      >carrier_types</span
+                    >
+                  </h3>
+                  <p class="mt-1.5 text-xs text-neutral-500 line-clamp-2">
+                    定义涂装、总装及焊装车间物流运输中使用的标准和非标滑橇、吊具、托盘等物料承载设备，支持最大荷载配置。
+                  </p>
+                </div>
+                <div
+                  class="mt-6 border-t border-neutral-100 pt-4 flex items-center justify-between text-xs"
+                >
+                  <span class="text-neutral-400 font-medium"
+                    >数据样本:
+                    <span class="font-mono text-neutral-600"
+                      >C01 (普通滑橇), C02...</span
+                    ></span
+                  >
+                  <span
+                    class="text-primary font-bold inline-flex items-center gap-1 group-hover:translate-x-1 transition-transform"
+                  >
+                    查看详情
+                    <svg
+                      class="h-3 w-3"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        stroke-width="2.5"
+                        d="M9 5l7 7-7 7"
+                      />
+                    </svg>
+                  </span>
+                </div>
               </div>
-            </div>
 
-            <!-- 平台字典 (Bento Card 2) -->
-            <div
-              @click="openDrawer('vehicle_platforms')"
-              class="group cursor-pointer rounded-3xl border border-neutral-200 bg-white p-6 shadow-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-lg hover:border-primary/30 flex flex-col justify-between"
-            >
-              <div>
-                <div class="flex items-center justify-between">
-                  <span class="text-2xl">🔌</span>
-                  <span
-                    class="rounded-full bg-neutral-100 px-2.5 py-0.5 text-[10px] font-bold text-neutral-500 font-mono"
-                    >PLATFORM</span
-                  >
-                </div>
-                <h3
-                  class="mt-4 text-lg font-bold text-neutral-800 group-hover:text-primary transition"
-                >
-                  平台字典
-                  <span
-                    class="text-xs font-normal text-neutral-400 font-mono block"
-                    >vehicle_platforms</span
-                  >
-                </h3>
-                <p class="mt-1.5 text-xs text-neutral-500 line-clamp-2">
-                  涵盖纯电、插混等不同驱动模式和轴距区间的车身基础架构平台。
-                </p>
-              </div>
+              <!-- 平台字典 (Bento Card 2) -->
               <div
-                class="mt-6 border-t border-neutral-100 pt-4 flex items-center justify-between text-xs"
+                @click="openDrawer('vehicle_platforms')"
+                class="group cursor-pointer rounded-3xl border border-neutral-200 bg-white p-6 shadow-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-lg hover:border-primary/30 flex flex-col justify-between"
               >
-                <span class="text-neutral-400 font-medium"
-                  >轴距:
-                  <span class="font-mono text-neutral-600"
-                    >2.6m - 3.3m</span
-                  ></span
+                <div>
+                  <div class="flex items-center justify-between">
+                    <span class="text-2xl">🔌</span>
+                    <span
+                      class="rounded-full bg-neutral-100 px-2.5 py-0.5 text-[10px] font-bold text-neutral-500 font-mono"
+                      >PLATFORM</span
+                    >
+                  </div>
+                  <h3
+                    class="mt-4 text-lg font-bold text-neutral-800 group-hover:text-primary transition"
+                  >
+                    平台字典
+                    <span
+                      class="text-xs font-normal text-neutral-400 font-mono block"
+                      >vehicle_platforms</span
+                    >
+                  </h3>
+                  <p class="mt-1.5 text-xs text-neutral-500 line-clamp-2">
+                    涵盖纯电、插混等不同驱动模式 and 轴距区间的车身基础架构平台。
+                  </p>
+                </div>
+                <div
+                  class="mt-6 border-t border-neutral-100 pt-4 flex items-center justify-between text-xs"
                 >
-                <span
-                  class="text-primary font-bold group-hover:translate-x-1 transition-transform"
-                >
-                  →
-                </span>
+                  <span class="text-neutral-400 font-medium"
+                    >轴距:
+                    <span class="font-mono text-neutral-600"
+                      >2.6m - 3.3m</span
+                    ></span
+                  >
+                  <span
+                    class="text-primary font-bold group-hover:translate-x-1 transition-transform"
+                  >
+                    →
+                  </span>
+                </div>
               </div>
-            </div>
 
-            <!-- 工艺区域 (Bento Card 3) -->
-            <div
-              @click="openDrawer('process_areas')"
-              class="group cursor-pointer rounded-3xl border border-neutral-200 bg-white p-6 shadow-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-lg hover:border-primary/30 flex flex-col justify-between"
-            >
-              <div>
-                <div class="flex items-center justify-between">
-                  <span class="text-2xl">🏭</span>
-                  <span
-                    class="rounded-full bg-neutral-100 px-2.5 py-0.5 text-[10px] font-bold text-neutral-500 font-mono"
-                    >PROCESS</span
-                  >
-                </div>
-                <h3
-                  class="mt-4 text-lg font-bold text-neutral-800 group-hover:text-primary transition"
-                >
-                  工艺区域字典
-                  <span
-                    class="text-xs font-normal text-neutral-400 font-mono block"
-                    >process_areas</span
-                  >
-                </h3>
-                <p class="mt-1.5 text-xs text-neutral-500 line-clamp-2">
-                  车间喷涂、前处理、电泳以及烘干区段，规定标准运行温度区间与区域主管。
-                </p>
-              </div>
+              <!-- 工艺区域 (Bento Card 3) -->
               <div
-                class="mt-6 border-t border-neutral-100 pt-4 flex items-center justify-between text-xs"
+                @click="openDrawer('process_areas')"
+                class="group cursor-pointer rounded-3xl border border-neutral-200 bg-white p-6 shadow-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-lg hover:border-primary/30 flex flex-col justify-between"
               >
-                <span class="text-neutral-400 font-medium"
-                  >包含:
-                  <span class="font-mono text-neutral-600"
-                    >PRE, PVC, BC, CC...</span
-                  ></span
+                <div>
+                  <div class="flex items-center justify-between">
+                    <span class="text-2xl">🏭</span>
+                    <span
+                      class="rounded-full bg-neutral-100 px-2.5 py-0.5 text-[10px] font-bold text-neutral-500 font-mono"
+                      >PROCESS</span
+                    >
+                  </div>
+                  <h3
+                    class="mt-4 text-lg font-bold text-neutral-800 group-hover:text-primary transition"
+                  >
+                    工艺区域字典
+                    <span
+                      class="text-xs font-normal text-neutral-400 font-mono block"
+                      >process_areas</span
+                    >
+                  </h3>
+                  <p class="mt-1.5 text-xs text-neutral-500 line-clamp-2">
+                    车间喷涂、前处理、电泳以及烘干区段，规定标准运行温度区间与区域主管。
+                  </p>
+                </div>
+                <div
+                  class="mt-6 border-t border-neutral-100 pt-4 flex items-center justify-between text-xs"
                 >
-                <span
-                  class="text-primary font-bold group-hover:translate-x-1 transition-transform"
-                >
-                  →
-                </span>
+                  <span class="text-neutral-400 font-medium"
+                    >包含:
+                    <span class="font-mono text-neutral-600"
+                      >PRE, PVC, BC, CC...</span
+                    ></span
+                  >
+                  <span
+                    class="text-primary font-bold group-hover:translate-x-1 transition-transform"
+                  >
+                    →
+                  </span>
+                </div>
               </div>
-            </div>
 
-            <!-- 车型字典 (Bento Card 4) -->
-            <div
-              @click="openDrawer('vehicle_body_types')"
-              class="group cursor-pointer rounded-3xl border border-neutral-200 bg-white p-6 shadow-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-lg hover:border-primary/30 flex flex-col justify-between"
-            >
-              <div>
-                <div class="flex items-center justify-between">
-                  <span class="text-2xl">🚗</span>
-                  <span
-                    class="rounded-full bg-neutral-100 px-2.5 py-0.5 text-[10px] font-bold text-neutral-500 font-mono"
-                    >BODY</span
-                  >
-                </div>
-                <h3
-                  class="mt-4 text-lg font-bold text-neutral-800 group-hover:text-primary transition"
-                >
-                  车型字典
-                  <span
-                    class="text-xs font-normal text-neutral-400 font-mono block"
-                    >vehicle_body_types</span
-                  >
-                </h3>
-                <p class="mt-1.5 text-xs text-neutral-500 line-clamp-2">
-                  轿车、SUV、MPV等不同外轮廓尺寸的数据集，包含长度及高宽。
-                </p>
-              </div>
+              <!-- 车型字典 (Bento Card 4) -->
               <div
-                class="mt-6 border-t border-neutral-100 pt-4 flex items-center justify-between text-xs"
+                @click="openDrawer('vehicle_body_types')"
+                class="group cursor-pointer rounded-3xl border border-neutral-200 bg-white p-6 shadow-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-lg hover:border-primary/30 flex flex-col justify-between"
               >
-                <span class="text-neutral-400 font-medium"
-                  >参数:
-                  <span class="font-mono text-neutral-600"
-                    >SEDAN, SUV...</span
-                  ></span
+                <div>
+                  <div class="flex items-center justify-between">
+                    <span class="text-2xl">🚗</span>
+                    <span
+                      class="rounded-full bg-neutral-100 px-2.5 py-0.5 text-[10px] font-bold text-neutral-500 font-mono"
+                      >BODY</span
+                    >
+                  </div>
+                  <h3
+                    class="mt-4 text-lg font-bold text-neutral-800 group-hover:text-primary transition"
+                  >
+                    车型字典
+                    <span
+                      class="text-xs font-normal text-neutral-400 font-mono block"
+                      >vehicle_body_types</span
+                    >
+                  </h3>
+                  <p class="mt-1.5 text-xs text-neutral-500 line-clamp-2">
+                    轿车、SUV、MPV等不同外轮廓尺寸的数据集，包含长度及高宽。
+                  </p>
+                </div>
+                <div
+                  class="mt-6 border-t border-neutral-100 pt-4 flex items-center justify-between text-xs"
                 >
-                <span
-                  class="text-primary font-bold group-hover:translate-x-1 transition-transform"
-                >
-                  →
-                </span>
+                  <span class="text-neutral-400 font-medium"
+                    >参数:
+                    <span class="font-mono text-neutral-600"
+                      >SEDAN, SUV...</span
+                    ></span
+                  >
+                  <span
+                    class="text-primary font-bold group-hover:translate-x-1 transition-transform"
+                  >
+                    →
+                  </span>
+                </div>
               </div>
-            </div>
 
-            <!-- 颜色字典 (Bento Card 5) -->
-            <div
-              @click="openDrawer('vehicle_color_codes')"
-              class="group cursor-pointer rounded-3xl border border-neutral-200 bg-white p-6 shadow-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-lg hover:border-primary/30 flex flex-col justify-between"
-            >
-              <div>
-                <div class="flex items-center justify-between">
-                  <span class="text-2xl">🎨</span>
-                  <span
-                    class="rounded-full bg-neutral-100 px-2.5 py-0.5 text-[10px] font-bold text-neutral-500 font-mono"
-                    >COLOR</span
-                  >
-                </div>
-                <h3
-                  class="mt-4 text-lg font-bold text-neutral-800 group-hover:text-primary transition"
-                >
-                  颜色颜色字典
-                  <span
-                    class="text-xs font-normal text-neutral-400 font-mono block"
-                    >vehicle_color_codes</span
-                  >
-                </h3>
-                <p class="mt-1.5 text-xs text-neutral-500 line-clamp-2">
-                  涂装油漆编码对照表，含珍珠白、极光黑、钛金灰等珍珠漆与金属漆色值。
-                </p>
-              </div>
+              <!-- 颜色字典 (Bento Card 5) -->
               <div
-                class="mt-6 border-t border-neutral-100 pt-4 flex items-center justify-between text-xs"
+                @click="openDrawer('vehicle_color_codes')"
+                class="group cursor-pointer rounded-3xl border border-neutral-200 bg-white p-6 shadow-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-lg hover:border-primary/30 flex flex-col justify-between"
               >
-                <span class="text-neutral-400 font-medium"
-                  >色组:
-                  <span class="font-mono text-neutral-600"
-                    >黑/白/灰/红/蓝</span
-                  ></span
+                <div>
+                  <div class="flex items-center justify-between">
+                    <span class="text-2xl">🎨</span>
+                    <span
+                      class="rounded-full bg-neutral-100 px-2.5 py-0.5 text-[10px] font-bold text-neutral-500 font-mono"
+                      >COLOR</span
+                    >
+                  </div>
+                  <h3
+                    class="mt-4 text-lg font-bold text-neutral-800 group-hover:text-primary transition"
+                  >
+                    颜色颜色字典
+                    <span
+                      class="text-xs font-normal text-neutral-400 font-mono block"
+                      >vehicle_color_codes</span
+                    >
+                  </h3>
+                  <p class="mt-1.5 text-xs text-neutral-500 line-clamp-2">
+                    涂装油漆编码对照表，含珍珠白、极光黑、钛金灰等珍珠漆与金属漆色值。
+                  </p>
+                </div>
+                <div
+                  class="mt-6 border-t border-neutral-100 pt-4 flex items-center justify-between text-xs"
                 >
-                <span
-                  class="text-primary font-bold group-hover:translate-x-1 transition-transform"
-                >
-                  →
-                </span>
+                  <span class="text-neutral-400 font-medium"
+                    >色组:
+                    <span class="font-mono text-neutral-600"
+                      >黑/白/灰/红/蓝</span
+                    ></span
+                  >
+                  <span
+                    class="text-primary font-bold group-hover:translate-x-1 transition-transform"
+                  >
+                    →
+                  </span>
+                </div>
               </div>
             </div>
           </div>
-        </div>
       </div>
     </div>
+    </Transition>
 
     <!-- 侧拉毛玻璃抽屉 (Slide-over Drawer) -->
     <Transition name="slide-over">
@@ -530,5 +538,46 @@ async function fetchTableData() {
 .slide-over-enter-to .absolute.right-0,
 .slide-over-leave-to .absolute.right-0 {
   transform: translateX(0);
+}
+
+/* Modal Fade Transition */
+.modal-fade-enter-active,
+.modal-fade-leave-active {
+  transition: opacity 0.25s ease;
+}
+
+.modal-fade-enter-from,
+.modal-fade-leave-to {
+  opacity: 0;
+}
+
+.modal-fade-enter-active :deep(.animate-scale-up) {
+  animation: scale-up 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.modal-fade-leave-active :deep(.animate-scale-up) {
+  animation: scale-down 0.2s ease-in;
+}
+
+@keyframes scale-up {
+  from {
+    transform: scale(0.95);
+    opacity: 0;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+@keyframes scale-down {
+  from {
+    transform: scale(1);
+    opacity: 1;
+  }
+  to {
+    transform: scale(0.95);
+    opacity: 0;
+  }
 }
 </style>

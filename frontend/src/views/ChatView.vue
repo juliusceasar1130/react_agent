@@ -74,6 +74,7 @@
                   <span>关于</span>
                 </button>
                 <button
+                  v-if="showAdminReviewBtn"
                   @click="toggleAdminReview()"
                   class="flex items-center gap-1.5 rounded-full border border-neutral-200 bg-white px-3 py-2 text-xs font-semibold text-neutral-600 shadow-sm transition-all duration-200 whitespace-nowrap"
                   :class="showAdminReview ? 'border-amber-300 bg-amber-50 text-amber-700' : 'hover:bg-neutral-50'"
@@ -205,7 +206,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, ref, onMounted } from 'vue'
+import { computed, nextTick, ref, onMounted, onUnmounted } from 'vue'
 import VariantB from '@/components/VariantB.vue'
 import { useSessionsStore } from '@/stores/sessions'
 import { useMessagesStore } from '@/stores/messages'
@@ -234,6 +235,15 @@ const isSlim = computed(() => {
 const showBento = ref(false)
 const showChangelog = ref(false)
 const showAdminReview = ref(false)
+const showAdminReviewBtn = ref(false)
+
+const handleKeyDown = (e: KeyboardEvent) => {
+  if (e.ctrlKey && (e.key === 'm' || e.key === 'M')) {
+    e.preventDefault()
+    showAdminReviewBtn.value = !showAdminReviewBtn.value
+  }
+}
+
 function toggleBento() {
   showBento.value = !showBento.value
   if (showAdminReview.value) showAdminReview.value = false
@@ -370,6 +380,11 @@ const handleStopStreaming = () => {
 onMounted(() => {
   // 智能适配大屏初始状态下侧边栏的开合状态（大屏默认展开）
   isSidebarOpen.value = window.innerWidth >= 1024
+  window.addEventListener('keydown', handleKeyDown)
+})
+
+onUnmounted(() => {
+  window.removeEventListener('keydown', handleKeyDown)
 })
 </script>
 

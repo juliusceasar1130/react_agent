@@ -1,3 +1,35 @@
+## 2026-07-18 20:05 +08:00 - 对话气泡复制、数据字典弹窗化、维度表时间列隐藏及 Ctrl+M 隐藏审核终端
+
+### 问题根因
+1. 用户期望对前端的每个消息对话气泡增加一个复制按钮以方便拷贝消息内容。
+2. 用户期望将原有的数据字典看板由页面级切换修改为毛玻璃悬浮弹窗（Modal）形式，避免在查看字典时中断聊天进程。
+3. 用户不希望在看板展示的维度表数据字典中看见无意义的首次/末次时间及系统列（如 `created_at`、`updated_at`、`first_seen` 等），影响视觉排版。
+4. 用户期望“审核终端”按钮默认隐藏，仅在按下键盘快捷键 `Ctrl + M` 时进行显示切换，防止敏感按钮被普通用户误操作。
+
+### 变更内容
+#### frontend/src/components/MessageItem.vue [MODIFY]
+- 新增 `copied` 状态和 `handleCopy` 事件处理器。
+- 引入具备 `navigator.clipboard` 及传统 `document.execCommand` 兼容性的剪贴板复制逻辑，保证特殊开发/部署环境下功能可用。
+- AI 消息已生成状态：将“复制”按钮与时间戳放在气泡底栏右侧。
+- 用户/临时/错误/停止消息状态：在底栏右侧同时并列展示“复制”按钮和时间戳。
+- 流式生成过程中隐藏复制按钮。
+
+#### frontend/src/components/VariantB.vue [MODIFY]
+- 移除聊天主槽位 `slot name="main-chat-area"` 的 `v-if="!showBento"` 控制，保证聊天界面常驻后台，提升性能 and 体验。
+- 重构数据字典 Bento 网格，将其置于精美的玻璃毛玻璃悬浮 Modal 之中，支持点击背景遮罩或右上角 (✖️) 按钮进行关闭。
+- 添加 `modal-fade` 过渡和 `scale-up/down` 弹性缩放动效，提供流畅微动效体验。
+
+#### frontend/src/components/DimensionTable.vue [MODIFY]
+- 新增 `filteredColumns` 和 `filteredRows` 计算属性，其中 `_TIME_PATTERNS` 正则升级为 `/date|time|_at|seen/i`，可自动分析并隐藏包括 `first_seen`、`created_at` 等在内的所有时间/系统审计相关字段。
+- 模板渲染从原有的 `columns`/`rows` 升级为使用过滤后的 `filteredColumns`/`filteredRows`，实现整个维度表数据视图对时间字段的彻底隐藏。
+
+#### frontend/src/views/ChatView.vue [MODIFY]
+- 新增 `showAdminReviewBtn` 响应式变量，默认设为 `false`。
+- 在 `onMounted` 和 `onUnmounted` 中绑定和销毁全局键盘事件监听器，拦截 `Ctrl + M` 键触发 `showAdminReviewBtn` 显示切换。
+- 将“审核终端”按钮的挂载条件设为 `v-if="showAdminReviewBtn"`。
+
+---
+
 ## 2026-07-18 18:42 +08:00 - 编写检索工具极限物理删除的单元测试用例
 
 ### 问题根因
