@@ -1,3 +1,77 @@
+## 2026-07-18 18:42 +08:00 - 编写检索工具极限物理删除的单元测试用例
+
+### 问题根因
+为确保大模型聊天会话管理系统中的三层物理词典方案中检索工具的极限物理删除与折叠功能正确性，需要编写相关单元测试，覆盖滑动窗口内保留、滑动窗口外物理删除以及并行调用混合情况下的删除/折叠行为。
+
+### 变更内容
+#### backend/app/agent/middleware/test_prompt_compiler_middleware.py [MODIFY]
+- 在文件末尾追加了三个测试用例：
+  - `test_prompt_compiler_lexicon_retrieval_window_in_preservation`（窗口内检索工具保留）
+  - `test_prompt_compiler_lexicon_retrieval_window_out_ultimate_deletion`（窗口外检索工具物理删除）
+  - `test_prompt_compiler_lexicon_retrieval_mixed_tool_calls_deletion`（并行工具混合调用时检索工具删除、SQL成功工具折叠）
+
+---
+
+## 2026-07-18 18:40 +08:00 - 预扫描阶段无条件执行物理词典检索工具的物理删除收集
+
+### 问题根因
+在原有的消息折叠/删除机制中，`_stage_prescan_failures` 仅会对 `self._DELETION_TARGET_CONFIG` 列表中配置的工具进行分析和删除。而在三层物理词典方案中，为了保持窗口整洁与减少无效上下文，在滑动窗口外对三层辅助检索工具（定义在 `ULTIMATE_DELETION_TOOLS` 中）的调用信息应当无条件进行物理删除，避免对模型造成干扰。
+
+### 变更内容
+#### backend/app/agent/middleware/prompt_compiler_middleware.py [MODIFY]
+- 修改 `_stage_prescan_failures` 方法，如果在滑动窗口外的 ToolMessage 名称匹配 `ULTIMATE_DELETION_TOOLS`，则将其 `tool_call_id` 直接加入到 `deleted_call_ids` 列表中并立即 `continue`，以实现无条件物理删除。
+
+---
+
+## 2026-07-18 17:30 +08:00 - 重构 RAG 三层物理词典合并与追加策略以解决分数错配
+
+### 问题根因
+以前的 `BusinessRagMiddleware` 对表层、值层、行层检索出来的表通过 `max(score)` 强行合并为一个扁平字典。由于三层各自所在的检索空间不同（特别是 Milvus 混合检索中 RRF 分数完全由各集合的元素及排位决定），跨空间的分数无法直接进行数值比较，导致列值匹配常会将维度表错误排序并压制核心事实表。此外，当维度表通过值/行层跨层命中时，缺乏摘要，代码被迫使用了 fallback hack 从 `custom_table_info` 中加载。
+
+### 变更内容
+#### backend/app/config.py [MODIFY]
+- 将 `lexicon_schema_top_k` 的默认配置值从 `3` 调优为 `5`，确保表层独立决策时核心事实表有足够的召回率。
+
+#### backend/app/agent/middleware/rag_middleware.py [MODIFY]
+- 表层独立决策：直接由表检索结果提取主表结构（Primary Table Schema）并置于核心展示位置。
+- 值层降权追加：值层命中用于提取不重复的辅助维度表结构（Auxiliary Table Schema），并降权渲染在独立子版块中。
+- 设定防噪门槛：只处理值层前 3 项，最多只追加 2 张辅助表，行级检索彻底旁路隔离不再触发 DDL 追加，防止无关表过召回。
+- 精简代码：完全废除并删除了原有针对 `summary` 为 `None` 时的兜底 Fallback Hack 逻辑。
+
+#### backend/tests/agent/vector/sql_lexicon/test_rag_middleware.py [MODIFY]
+- 适配新的渲染格式断言，并新增针对值层降权追加与行层防表污染的单元测试用例，所有测试顺利通过。
+
+---
+
+## 2026-07-18 17:10 +08:00 - 物理词典检索工具支持动态 limit 参数以避免截断遗漏
+
+### 问题根因
+当环境变量 `LEXICON_VALUE_TOP_K` 被设置为较小值（例如 3）时，检索到的物理列值或实体数量会被底层检索器强制截断。对于存在 6 个以上相关物理值的数据库，LLM 执行 `search_db_value_lexicon` 工具时仅能获取被截断的前 3 条数据，从而导致关键数据遗漏，影响 SQL 生成与纠偏。
+
+### 变更内容
+#### backend/app/agent/tools/sql_lexicon_tools.py [MODIFY]
+- 修改 `search_db_value_lexicon` 和 `search_db_row_lexicon` 工厂函数创建的工具定义，使其接受可选的 `limit: int = 10` 参数，默认值设为 10。
+- 执行查询前，临时重写检索器的 `similarity_top_k` (及 `_similarity_top_k`) 属性为 `limit`，并在 `finally` 块中复原，防止干扰常规的 RAG 预检索。
+- 格式化输出表格切片同步修改为 `nodes[:limit]`。
+
+#### backend/tests/agent/tools/test_sql_lexicon_tools.py [MODIFY]
+- 在单元测试 `test_db_value_lexicon_tool` 和 `test_db_row_lexicon_tool` 中，增加 `limit` 传参测试。
+- 增加 assertion，校验检索期间 `similarity_top_k` 属性成功被修改，并在工具调用结束后正确复原。
+
+---
+
+## 2026-07-18 16:40 +08:00 - 修复三层 DB 检索偶发仅显示表名的 Bug
+
+### 问题根因
+`BusinessRagMiddleware._format_and_assemble_state` 中，`custom_table_info`（启动时预热的完整 DDL 缓存）被取出后从未使用。当某张表仅通过**值层或行层**跨层命中（未经过表结构层检索），其 `summary` 字段为 `None`，导致前端和模型提示词只能看到裸表名 `表: ods.xxx`，丢失了全部字段和注释信息。
+
+### 变更内容
+#### backend/app/agent/middleware/rag_middleware.py [MODIFY]
+- 修复 `_format_and_assemble_state` 中 `display_text` 的 fallback 逻辑：在 `summary` 为 `None` 时，先从 `custom_table_info` 缓存中按**全名**（带 schema 前缀）或**短名**（无前缀）查找完整 DDL，查找失败才降级为裸表名。
+- 新增注释说明 key 命名兼容策略（Milvus 向量库使用全名，SQLAlchemy inspector 返回短名）。
+
+---
+
 ## 2026-07-18 15:10 +08:00 - SQL Agent 主动纠偏工具链与自愈重写（SQL Lexicon）
 
 ### 概述

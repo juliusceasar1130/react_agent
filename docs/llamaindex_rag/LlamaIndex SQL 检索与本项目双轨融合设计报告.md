@@ -382,9 +382,10 @@ SELECT COUNT(*) FROM fct.fct_vehicle_position_current WHERE process_area = '电�
     - 在 `before_model` 中，使用 `asyncio.gather` 同时并发检索：
       1. 原原有业务知识库检索 (`self.retriever.retrieve(doc_type="documentation")`)
       2. 物理数据库词典三路并行检索 (`table_schema_store`, `db_value_lexicon`, `db_row_lexicon`)
-    - **表结构并集叠加与 Token 裁剪 (Union Merger & Token Trim)**：
-      - 提取行/列词典命中结果对应的物理 `table_name`，与表级检索召回的表和辅助技能骨架表**取并集**。
-      - 针对动态 RAG 召回的 DDL 设定上限约束（通过 `LEXICON_SCHEMA_TOP_K` 配置，默认 3 张表，若超出则按向量相似度得分降序裁剪），防止长 DDL 撑爆大模型 Context Window。
+    - **表结构层独立决策与降权辅助追加 (Table Linking & Auxiliary Appending)**：
+      - **主表决策独立化**：直接从表结构检索（`tables`）中截取前 `LEXICON_SCHEMA_TOP_K`（默认配置调整为 5）张表作为主表，避免与值/行检索结果发生跨检索空间的 RRF 分数错配。
+      - **值层降权追加表**：仅从值层检索（`values`）最相关的 3 项中提取主表未包含的表，拉取其完整 DDL 并置于独立的辅助表板块（`### 2.1.1 辅助参考的数据库表结构`），上限最多追加 2 张表，从而防御无关表过召回。
+      - **行层旁路隔离**：行级检索（`rows`）不参与任何 DDL 的提取与追加，仅贡献行记录属性以防冗余。
       - 对列值纠偏对照组通过 `LEXICON_VALUE_TOP_K` 配置（默认 5 条）；行级主键映射通过 `LEXICON_ROW_TOP_K` 配置（默认 5 条）。
 *   **开发内容 3.3: 状态流 CustomState 显式扩展与消息合并**
     - 扩展 `backend/app/agent/state.py` 内部的 `CustomState`，新增 **`lexicon_context: dict`** 状态字段。在 RAG 检索返回后，将命中字典结果存入 `state["lexicon_context"]` 并随 Postgres Saver 持久化，确保线上诊断时具备极佳的可观测性。

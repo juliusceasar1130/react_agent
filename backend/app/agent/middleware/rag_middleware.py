@@ -290,56 +290,83 @@ class BusinessRagMiddleware(AgentMiddleware[CustomState]):
 
         if self.db is not None and getattr(self.db, "_custom_table_info", None) is not None:
             custom_table_info = self.db._custom_table_info
-            hit_tables_dict = {}  # table_name_lower -> {"score": max_score, "summary": text_or_None}
-
-            # 从表检索中提取（语义摘要）
+            
+            # 1. 确定主表 (Primary Tables) - 独立决策，解决分数错配问题
+            primary_tables = []
+            seen_tables = set()
+            schema_top_k = settings.lexicon_schema_top_k
+            
             for node in lexicon_results.get("tables", []):
                 t_name = node.node.metadata.get("table_name")
                 if t_name:
                     key = t_name.lower()
-                    entry = hit_tables_dict.get(key)
-                    if not entry or node.score > entry["score"]:
-                        hit_tables_dict[key] = {"score": node.score, "summary": node.node.text}
+                    if key not in seen_tables:
+                        seen_tables.add(key)
+                        primary_tables.append({
+                            "table_name": t_name,
+                            "summary": node.node.text
+                        })
+            primary_tables = primary_tables[:schema_top_k]
+            primary_table_names = {t["table_name"].lower() for t in primary_tables}
 
-            # 从值词典检索中提取（仅贡献分数，无摘要）
-            for node in lexicon_results.get("values", []):
+            # 2. 跨层追加辅助表 (Auxiliary Tables) - 仅限值层且前 3 项内，最多追加 2 个，去除冗余和 spurious 过召回
+            auxiliary_tables = []
+            max_check_values = 3
+            seen_aux = set()
+            cross_layer_top_k = 2
+            
+            for node in lexicon_results.get("values", [])[:max_check_values]:
                 t_name = node.node.metadata.get("table_name")
                 if t_name:
                     key = t_name.lower()
-                    if key not in hit_tables_dict:
-                        hit_tables_dict[key] = {"score": node.score, "summary": None}
-                    else:
-                        hit_tables_dict[key]["score"] = max(hit_tables_dict[key]["score"], node.score)
+                    if (key not in primary_table_names) and (key not in seen_aux):
+                        seen_aux.add(key)
+                        short_name = t_name.split(".")[-1]
+                        display_text = (
+                            custom_table_info.get(t_name)
+                            or custom_table_info.get(short_name)
+                            or f"表: {t_name}"
+                        )
+                        auxiliary_tables.append({
+                            "table_name": t_name,
+                            "ddl": display_text
+                        })
+                        if len(auxiliary_tables) >= cross_layer_top_k:
+                            break
 
-            # 从行词典检索中提取（仅贡献分数，无摘要）
-            for node in lexicon_results.get("rows", []):
-                t_name = node.node.metadata.get("table_name")
-                if t_name:
-                    key = t_name.lower()
-                    if key not in hit_tables_dict:
-                        hit_tables_dict[key] = {"score": node.score, "summary": None}
-                    else:
-                        hit_tables_dict[key]["score"] = max(hit_tables_dict[key]["score"], node.score)
-
-            # 排序并截断至 lexicon_schema_top_k 张动态表
-            schema_top_k = settings.lexicon_schema_top_k
-            sorted_tables = sorted(hit_tables_dict.items(), key=lambda x: x[1]["score"], reverse=True)
-            top_tables = [t[0] for t in sorted_tables[:schema_top_k]]
-            table_lexicon_context = top_tables
-
-            # 构建 Agent 提示词和前端展示 detail（均使用召回语义摘要）
+            # 3. 构造 DDL Block
             summary_parts = []
-            for full_table_name in top_tables:
-                table_info = hit_tables_dict[full_table_name]
-                display_text = table_info.get("summary") or f"表: {full_table_name}"
-                summary_parts.append(display_text)
+            for t in primary_tables:
+                summary_parts.append(t["summary"])
                 structured_tables.append({
-                    "table_name": full_table_name,
-                    "ddl": display_text
+                    "table_name": t["table_name"],
+                    "ddl": t["summary"]
                 })
+                table_lexicon_context.append(t["table_name"])
 
             if summary_parts:
-                ddl_block = "### 2.1 命中的数据库表结构 (Matched Table Schema)\n\n" + "\n\n---\n\n".join(summary_parts)
+                ddl_block = "### 2.1 命中的主要数据库表结构 (Primary Table Schema)\n\n" + "\n\n---\n\n".join(summary_parts)
+
+            # 辅助表 DDL 追加
+            aux_parts = []
+            for t in auxiliary_tables:
+                aux_parts.append(t["ddl"])
+                structured_tables.append({
+                    "table_name": t["table_name"],
+                    "ddl": t["ddl"]
+                })
+                table_lexicon_context.append(t["table_name"])
+
+            if aux_parts:
+                aux_block = (
+                    "### 2.1.1 辅助参考的数据库表结构 (Auxiliary Table Schema)\n"
+                    "(由于检索到相关列值条件，追加以下表结构供编写 SQL 过滤参考)\n\n"
+                    + "\n\n---\n\n".join(aux_parts)
+                )
+                if ddl_block:
+                    ddl_block = ddl_block + "\n\n" + aux_block
+                else:
+                    ddl_block = aux_block
 
             # 3. 格式化列值对照参考为 Markdown 表格（最多展示 lexicon_value_top_k 条）
             value_rows = []

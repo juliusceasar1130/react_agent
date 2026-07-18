@@ -31,9 +31,10 @@
 *   **工具命名**：`search_db_value_lexicon`
 *   **输入参数**：
     *   `query` (str): 待检索模糊值的自然语言文本（例如：“电泳二期”）。
+    *   `limit` (int, 可选): 返回的最大匹配结果数量。默认值为 10，当怀疑有更多匹配值时，可传入更大的数值。
 *   **核心逻辑**：
-    1.  **向量匹配检索**：调用 `lexicon_retriever.value_retriever.retrieve(query)`。
-    2.  **结果格式化输出**：如果检索到结果，将其渲染为整齐的 Markdown 表格：
+    1.  **向量匹配检索**：临时重写 `value_retriever.similarity_top_k` 属性为 `limit`，并在查询结束后复原。调用 `lexicon_retriever.value_retriever.retrieve(query)`。
+    2.  **结果格式化输出**：如果检索到结果，将其按 `nodes[:limit]` 渲染为整齐的 Markdown 表格：
         ```markdown
         | 数据库表 | 目标列名 | 真实物理字段值 (SQL Literal) | 相似度得分 |
         | :--- | :--- | :--- | :--- |
@@ -45,9 +46,10 @@
 *   **工具命名**：`search_db_row_lexicon`
 *   **输入参数**：
     *   `query` (str): 待检索行实体（如工位、工艺区域、设备等）的名称或别名。
+    *   `limit` (int, 可选): 返回的最大匹配结果数量。默认值为 10，当怀疑有更多匹配值时，可传入更大的数值。
 *   **核心逻辑**：
-    1.  **向量匹配检索**：调用 `lexicon_retriever.row_retriever.retrieve(query)`。
-    2.  **结果格式化输出**：如果检索到结果，将其渲染为 Markdown 表格返回给大模型：
+    1.  **向量匹配检索**：临时重写 `row_retriever.similarity_top_k` 属性为 `limit`，并在查询结束后复原。调用 `lexicon_retriever.row_retriever.retrieve(query)`。
+    2.  **结果格式化输出**：如果检索到结果，将其按 `nodes[:limit]` 渲染为 Markdown 表格返回给大模型：
         ```markdown
         | 数据库表 | 主键列 | 真实主键值 | 关联行核心属性描述 | 相似度得分 |
         | :--- | :--- | :--- | :--- | :--- |

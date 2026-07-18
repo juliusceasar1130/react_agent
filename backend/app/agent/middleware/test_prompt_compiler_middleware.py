@@ -599,3 +599,111 @@ def test_stage_redaction_keeps_active_failures_after_success():
     # 验证：分水岭之后的 call_3 完好保留作为线索
     assert result[5].content == "SQL 3"
     assert result[6].content == "X-SQL-LINTER-STATUS: FAILED"
+
+
+def test_prompt_compiler_lexicon_retrieval_window_in_preservation():
+    from langchain_core.messages import HumanMessage, AIMessage, ToolMessage
+    # 模拟处于滑动窗口内部的检索，应完好保留
+    messages = [
+        HumanMessage(content="Query table schema"),
+        AIMessage(content="Let me check schema", tool_calls=[{"name": "search_db_table_schema", "args": {"query": "ods.process_areas"}, "id": "call_schema"}]),
+        ToolMessage(content="CREATE TABLE ods.process_areas (id VARCHAR);", name="search_db_table_schema", tool_call_id="call_schema"),
+        HumanMessage(content="Helpful query"),
+    ]
+    
+    state = CustomState(messages=messages)
+    request = ModelRequest(
+        model=None,
+        messages=messages,
+        system_message=SystemMessage(content="Base system prompt"),
+        state=state
+    )
+    
+    middleware = PromptCompilerMiddleware()
+    new_request = middleware._modify_request(request)
+    
+    # 验证窗口内消息完整，不被删除
+    assert len(new_request.messages) == 4
+    assert new_request.messages[2].content == "CREATE TABLE ods.process_areas (id VARCHAR);"
+    assert new_request.messages[1].tool_calls[0]["name"] == "search_db_table_schema"
+
+
+def test_prompt_compiler_lexicon_retrieval_window_out_ultimate_deletion():
+    from langchain_core.messages import HumanMessage, AIMessage, ToolMessage
+    # 模拟超出滑动窗口边界的检索工具调用，应当成对物理删除
+    messages = [
+        HumanMessage(content="Old query"),
+        AIMessage(content="Search old table DDL", tool_calls=[{"name": "search_db_table_schema", "args": {"query": "old_table"}, "id": "call_old_schema"}]),
+        ToolMessage(content="CREATE TABLE old_table (id INT);", name="search_db_table_schema", tool_call_id="call_old_schema"),
+        
+        # 3 个 HumanMessage 确保其被推到窗口外
+        HumanMessage(content="M1"),
+        HumanMessage(content="M2"),
+        HumanMessage(content="M3"),
+    ]
+    
+    state = CustomState(messages=messages)
+    request = ModelRequest(
+        model=None,
+        messages=messages,
+        system_message=SystemMessage(content="Base system prompt"),
+        state=state
+    )
+    
+    middleware = PromptCompilerMiddleware()
+    new_request = middleware._modify_request(request)
+    
+    # 验证窗口外检索对已完全被物理删除（从 6 条消息缩减为 4 条，去掉了 AIMessage 和 ToolMessage 对）
+    assert len(new_request.messages) == 4  # H0, M1, M2, M3
+    for msg in new_request.messages:
+        if isinstance(msg, ToolMessage):
+            assert msg.tool_call_id != "call_old_schema"
+        if isinstance(msg, AIMessage) and hasattr(msg, "tool_calls"):
+            assert all(tc["id"] != "call_old_schema" for tc in msg.tool_calls)
+
+
+def test_prompt_compiler_lexicon_retrieval_mixed_tool_calls_deletion():
+    from langchain_core.messages import HumanMessage, AIMessage, ToolMessage
+    # 模拟并行调用：一个检索工具（需删除）和一个成功SQL工具（需保留折叠）
+    messages = [
+        HumanMessage(content="Find and Query"),
+        AIMessage(
+            content="Check schema and data",
+            tool_calls=[
+                {"name": "search_db_table_schema", "args": {"query": "t1"}, "id": "c_schema"},
+                {"name": "sql_db_query", "args": {"query": "SELECT * FROM t1"}, "id": "c_sql"}
+            ]
+        ),
+        ToolMessage(content="CREATE TABLE t1 (id INT);", name="search_db_table_schema", tool_call_id="c_schema"),
+        ToolMessage(content="[{'id': 1}]", name="sql_db_query", tool_call_id="c_sql"),
+        
+        # 推动其滑出窗口
+        HumanMessage(content="M1"),
+        HumanMessage(content="M2"),
+        HumanMessage(content="M3"),
+    ]
+    
+    state = CustomState(messages=messages)
+    request = ModelRequest(
+        model=None,
+        messages=messages,
+        system_message=SystemMessage(content="Base system prompt"),
+        state=state
+    )
+    
+    middleware = PromptCompilerMiddleware()
+    new_request = middleware._modify_request(request)
+    
+    # 检索对应当删除，SQL成功对应当折叠
+    # 消息列表中，检索的 ToolMessage (index 2) 被剔除，SQL 的 ToolMessage (index 3) 被折叠
+    tool_msgs = [m for m in new_request.messages if isinstance(m, ToolMessage)]
+    # 只剩下 SQL 成功查询对应的 ToolMessage，且被成功折叠
+    assert len(tool_msgs) == 1
+    assert tool_msgs[0].tool_call_id == "c_sql"
+    assert tool_msgs[0].content == "[SQL execution successful. Result content collapsed. Re-run query if details are needed.]"
+    
+    # 并行 AIMessage 应该只保留 SQL 调用，剥离检索调用
+    ai_msgs = [m for m in new_request.messages if isinstance(m, AIMessage)]
+    assert len(ai_msgs) == 1
+    assert len(ai_msgs[0].tool_calls) == 1
+    assert ai_msgs[0].tool_calls[0]["id"] == "c_sql"

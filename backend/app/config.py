@@ -240,7 +240,7 @@ class Settings(BaseSettings):
     db_lexicon_sync_on_startup: bool = (
         os.getenv("DB_LEXICON_SYNC_ON_STARTUP", "true").lower() == "true"
     )
-    lexicon_schema_top_k: int = int(os.getenv("LEXICON_SCHEMA_TOP_K", "3"))
+    lexicon_schema_top_k: int = int(os.getenv("LEXICON_SCHEMA_TOP_K", "5"))
     lexicon_value_top_k: int = int(os.getenv("LEXICON_VALUE_TOP_K", "5"))
     lexicon_row_top_k: int = int(os.getenv("LEXICON_ROW_TOP_K", "5"))
 

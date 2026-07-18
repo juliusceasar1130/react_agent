@@ -16,7 +16,7 @@ def create_db_value_lexicon_tool(lexicon_retriever: Any) -> Any:
     """
 
     @langchain_tool
-    def search_db_value_lexicon(query: str) -> str:
+    def search_db_value_lexicon(query: str, limit: int = 10) -> str:
         """
         通过语义相似度在去重列值字典中检索数据库字段物理真实值。
         
@@ -25,6 +25,7 @@ def create_db_value_lexicon_tool(lexicon_retriever: Any) -> Any:
         
         Args:
             query: 待检索列值的模糊文本或关键字。
+            limit: 返回的最大匹配结果数量。默认值为 10，当怀疑有更多匹配值时，可传入更大的数值。
         """
         if lexicon_retriever is None:
             return "Error: Database lexicon retriever is not initialized or disabled."
@@ -34,7 +35,20 @@ def create_db_value_lexicon_tool(lexicon_retriever: Any) -> Any:
                 stage="retrieving",
                 source="search_db_value_lexicon",
             )
-            nodes = lexicon_retriever.value_retriever.retrieve(query)
+            orig_top_k = getattr(lexicon_retriever.value_retriever, "similarity_top_k", 5)
+            try:
+                if hasattr(lexicon_retriever.value_retriever, "similarity_top_k"):
+                    lexicon_retriever.value_retriever.similarity_top_k = limit
+                elif hasattr(lexicon_retriever.value_retriever, "_similarity_top_k"):
+                    lexicon_retriever.value_retriever._similarity_top_k = limit
+                
+                nodes = lexicon_retriever.value_retriever.retrieve(query)
+            finally:
+                if hasattr(lexicon_retriever.value_retriever, "similarity_top_k"):
+                    lexicon_retriever.value_retriever.similarity_top_k = orig_top_k
+                elif hasattr(lexicon_retriever.value_retriever, "_similarity_top_k"):
+                    lexicon_retriever.value_retriever._similarity_top_k = orig_top_k
+
             if not nodes:
                 return f"未在列值词典中找到与 '{query}' 相关的物理真实值。"
             
@@ -43,7 +57,7 @@ def create_db_value_lexicon_tool(lexicon_retriever: Any) -> Any:
                 "| 数据表 | 目标列名 | 真实物理字段值 (SQL Literal) | 相似度得分 |",
                 "| :--- | :--- | :--- | :--- |"
             ]
-            for n in nodes[:5]:
+            for n in nodes[:limit]:
                 meta = n.node.metadata
                 t_name = meta.get("table_name", "")
                 c_name = meta.get("column_name", "")
@@ -65,7 +79,7 @@ def create_db_row_lexicon_tool(lexicon_retriever: Any) -> Any:
     """
 
     @langchain_tool
-    def search_db_row_lexicon(query: str) -> str:
+    def search_db_row_lexicon(query: str, limit: int = 10) -> str:
         """
         通过语义相似度在行实体字典中检索对应记录的主键及核心属性描述。
         
@@ -73,6 +87,7 @@ def create_db_row_lexicon_tool(lexicon_retriever: Any) -> Any:
         
         Args:
             query: 待检索行实体（如工位、工艺区域、设备等）的名称或别名。
+            limit: 返回的最大匹配结果数量。默认值为 10，当怀疑有更多匹配值时，可传入更大的数值。
         """
         if lexicon_retriever is None:
             return "Error: Database lexicon retriever is not initialized or disabled."
@@ -82,7 +97,20 @@ def create_db_row_lexicon_tool(lexicon_retriever: Any) -> Any:
                 stage="retrieving",
                 source="search_db_row_lexicon",
             )
-            nodes = lexicon_retriever.row_retriever.retrieve(query)
+            orig_top_k = getattr(lexicon_retriever.row_retriever, "similarity_top_k", 5)
+            try:
+                if hasattr(lexicon_retriever.row_retriever, "similarity_top_k"):
+                    lexicon_retriever.row_retriever.similarity_top_k = limit
+                elif hasattr(lexicon_retriever.row_retriever, "_similarity_top_k"):
+                    lexicon_retriever.row_retriever._similarity_top_k = limit
+                
+                nodes = lexicon_retriever.row_retriever.retrieve(query)
+            finally:
+                if hasattr(lexicon_retriever.row_retriever, "similarity_top_k"):
+                    lexicon_retriever.row_retriever.similarity_top_k = orig_top_k
+                elif hasattr(lexicon_retriever.row_retriever, "_similarity_top_k"):
+                    lexicon_retriever.row_retriever._similarity_top_k = orig_top_k
+
             if not nodes:
                 return f"未在行实体词典中找到与 '{query}' 相关的记录。"
             
@@ -91,7 +119,7 @@ def create_db_row_lexicon_tool(lexicon_retriever: Any) -> Any:
                 "| 数据表 | 主键列 | 真实主键值 | 关联行核心属性描述 | 相似度得分 |",
                 "| :--- | :--- | :--- | :--- | :--- |"
             ]
-            for n in nodes[:5]:
+            for n in nodes[:limit]:
                 meta = n.node.metadata
                 t_name = meta.get("table_name", "")
                 pk_col = meta.get("primary_key_column", "")
