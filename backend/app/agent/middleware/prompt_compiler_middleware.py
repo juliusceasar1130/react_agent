@@ -33,6 +33,13 @@ class _CollapseContext:
     deleted_count: int = 0
 
 
+# 定义需要在滑动窗口外物理删除的辅助检索工具（极限删除）
+ULTIMATE_DELETION_TOOLS = {
+    "search_db_value_lexicon",
+    "search_db_row_lexicon",
+    "search_db_table_schema",
+}
+
 # 定义需折叠替换的白名单工具名
 COLLAPSIBLE_TOOLS = {
     "sql_db_query",
@@ -40,9 +47,6 @@ COLLAPSIBLE_TOOLS = {
     "build_chart_artifact",
     "export_to_csv",
     "export_query_to_csv",
-    "search_db_value_lexicon",
-    "search_db_row_lexicon",
-    "search_db_table_schema",
 }
 
 
