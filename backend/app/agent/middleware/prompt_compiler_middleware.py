@@ -156,6 +156,12 @@ class PromptCompilerMiddleware(AgentMiddleware[CustomState]):
             msg = ctx.messages[idx]
             if not isinstance(msg, ToolMessage):
                 continue
+            
+            # 对于三层检索辅助工具，在滑动窗口外一律无条件执行物理删除
+            if msg.name in ULTIMATE_DELETION_TOOLS:
+                ctx.deleted_call_ids.add(msg.tool_call_id)
+                continue
+
             if msg.name not in self._DELETION_TARGET_CONFIG:
                 continue
 
