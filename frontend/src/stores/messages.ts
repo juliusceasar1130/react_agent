@@ -15,8 +15,17 @@ import type {
 export const useMessagesStore = defineStore('messages', () => {
   // State
   const messages = ref<Message[]>([])
-  const streamingMessage = ref<StreamingMessage | null>(null)  // 流式消息临时状态 - 2025-01-01
-  const isStreaming = ref(false)  // 是否正在流式输出 - 2025-01-01
+  const streamingMessagesMap = ref<Record<string, StreamingMessage>>({})
+
+  // 保持向前兼容的 computed 属性
+  const streamingMessage = computed(() =>
+    latestRequestedSessionId.value
+      ? streamingMessagesMap.value[latestRequestedSessionId.value] ?? null
+      : null
+  )
+  const isStreaming = computed(() => !!streamingMessage.value)
+  const isSessionStreaming = (sessionId: string) => !!streamingMessagesMap.value[sessionId]
+
   const loading = ref(false)
   const error = ref<string | null>(null)
   const latestFetchRequestId = ref(0)  // 2026-03-29 22:55 Asia/Shanghai: 防止会话切换时旧请求覆盖新消息
@@ -116,7 +125,7 @@ export const useMessagesStore = defineStore('messages', () => {
   const startStreamingMessage = (sessionId: string) => {
     const now = new Date().toISOString()
     const tempId = `temp-${Date.now()}`
-    streamingMessage.value = {
+    streamingMessagesMap.value[sessionId] = {
       id: tempId,
       session_id: sessionId,
       role: 'assistant',
@@ -129,41 +138,43 @@ export const useMessagesStore = defineStore('messages', () => {
       toolResults: {},
       error: null
     }
-    isStreaming.value = true
   }
 
   /**
    * 追加流式内容
    */
-  const appendStreamingContent = (content: string) => {
-    if (streamingMessage.value) {
-      streamingMessage.value.content += content
+  const appendStreamingContent = (sessionId: string, content: string) => {
+    const msg = streamingMessagesMap.value[sessionId]
+    if (msg) {
+      msg.content += content
     }
   }
 
   /**
    * 更新流式状态
    */
-  const updateStreamingStatus = (stage: StreamStage, text: string) => {
-    if (!streamingMessage.value) return
-    streamingMessage.value.stage = stage
-    streamingMessage.value.statusText = text
+  const updateStreamingStatus = (sessionId: string, stage: StreamStage, text: string) => {
+    const msg = streamingMessagesMap.value[sessionId]
+    if (!msg) return
+    msg.stage = stage
+    msg.statusText = text
   }
 
   /**
    * 更新流式工具调用
    */
-  const upsertStreamingToolCall = (toolCall: StreamToolCall) => {
-    if (!streamingMessage.value) return
+  const upsertStreamingToolCall = (sessionId: string, toolCall: StreamToolCall) => {
+    const msg = streamingMessagesMap.value[sessionId]
+    if (!msg) return
 
-    const index = streamingMessage.value.toolCalls.findIndex(item => item.id === toolCall.id)
+    const index = msg.toolCalls.findIndex(item => item.id === toolCall.id)
     if (index === -1) {
-      streamingMessage.value.toolCalls.push(toolCall)
+      msg.toolCalls.push(toolCall)
       return
     }
 
-    streamingMessage.value.toolCalls[index] = {
-      ...streamingMessage.value.toolCalls[index],
+    msg.toolCalls[index] = {
+      ...msg.toolCalls[index],
       ...toolCall
     }
   }
@@ -171,17 +182,18 @@ export const useMessagesStore = defineStore('messages', () => {
   /**
    * 写入流式工具结果
    */
-  const setStreamingToolResult = (toolCallId: string, content: string) => {
-    if (!streamingMessage.value) return
-    streamingMessage.value.toolResults = {
-      ...streamingMessage.value.toolResults,
+  const setStreamingToolResult = (sessionId: string, toolCallId: string, content: string) => {
+    const msg = streamingMessagesMap.value[sessionId]
+    if (!msg) return
+    msg.toolResults = {
+      ...msg.toolResults,
       [toolCallId]: content
     }
 
-    const index = streamingMessage.value.toolCalls.findIndex(item => item.id === toolCallId)
+    const index = msg.toolCalls.findIndex(item => item.id === toolCallId)
     if (index !== -1) {
-      streamingMessage.value.toolCalls[index] = {
-        ...streamingMessage.value.toolCalls[index],
+      msg.toolCalls[index] = {
+        ...msg.toolCalls[index],
         status: 'completed'
       }
     }
@@ -190,126 +202,144 @@ export const useMessagesStore = defineStore('messages', () => {
   /**
    * 标记流式错误
    */
-  const setStreamingError = (message: string) => {
-    if (!streamingMessage.value) return
-    streamingMessage.value.error = message
-    streamingMessage.value.isStreaming = false
-    streamingMessage.value.statusText = '生成失败'
-    isStreaming.value = false
+  const setStreamingError = (sessionId: string, message: string) => {
+    const msg = streamingMessagesMap.value[sessionId]
+    if (!msg) return
+    msg.error = message
+    msg.isStreaming = false
+    msg.statusText = '生成失败'
   }
 
   /**
    * 完成流式错误消息（不保留过程态信息）
    */
-  const finalizeStreamingError = (payload: {
+  const finalizeStreamingError = (sessionId: string, payload: {
     id?: string
     created_at?: string
     content: string
   }) => {
-    if (!streamingMessage.value) return null
+    const temp = streamingMessagesMap.value[sessionId]
+    if (!temp) return null
+
+    delete streamingMessagesMap.value[sessionId]
+
+    // 仅当前显示的会话才推入视图，防止污染其他会话
+    if (sessionId !== latestRequestedSessionId.value) return null
 
     const finalizedMessage: Message = {
-      id: payload.id ?? streamingMessage.value.id,
-      session_id: streamingMessage.value.session_id,
+      id: payload.id ?? temp.id,
+      session_id: sessionId,
       role: 'assistant',
       content: payload.content,
-      created_at: payload.created_at ?? streamingMessage.value.created_at,
+      created_at: payload.created_at ?? temp.created_at,
       tool_calls: null,
       tool_results: null,
     }
 
     messages.value.push(finalizedMessage)
-    streamingMessage.value = null
-    isStreaming.value = false
     return finalizedMessage
   }
 
   /**
    * 用户主动停止生成时，保留已生成片段并落定为本地中断消息
    */
-  const finalizeStreamingInterrupted = () => {
-    if (!streamingMessage.value) return null
+  const finalizeStreamingInterrupted = (sessionId: string) => {
+    const temp = streamingMessagesMap.value[sessionId]
+    if (!temp) return null
+
+    delete streamingMessagesMap.value[sessionId]
+
+    // 仅当前显示的会话才推入视图，防止污染其他会话
+    if (sessionId !== latestRequestedSessionId.value) return null
 
     const interruptedMessage: Message = {
-      id: `${streamingMessage.value.id}-interrupted`,
-      session_id: streamingMessage.value.session_id,
+      id: `${temp.id}-interrupted`,
+      session_id: sessionId,
       role: 'assistant',
-      content: streamingMessage.value.content || '已停止生成',
-      created_at: streamingMessage.value.created_at,
-      tool_calls: streamingMessage.value.toolCalls.length
-        ? JSON.stringify(streamingMessage.value.toolCalls)
+      content: temp.content || '已停止生成',
+      created_at: temp.created_at,
+      tool_calls: temp.toolCalls.length
+        ? JSON.stringify(temp.toolCalls)
         : null,
-      tool_results: Object.keys(streamingMessage.value.toolResults).length
-        ? JSON.stringify(streamingMessage.value.toolResults)
+      tool_results: Object.keys(temp.toolResults).length
+        ? JSON.stringify(temp.toolResults)
         : null,
       is_interrupted: true,
     }
 
     messages.value.push(interruptedMessage)
-    streamingMessage.value = null
-    isStreaming.value = false
     return interruptedMessage
   }
 
   /**
    * 完成流式消息（将临时消息转换为正式消息）
    */
-  const completeStreamingMessage = (payload: FinalizedStreamingMessage = {}) => {
-    if (!streamingMessage.value) return null
+  const completeStreamingMessage = (sessionId: string, payload: FinalizedStreamingMessage = {}) => {
+    const temp = streamingMessagesMap.value[sessionId]
+    if (!temp) return null
+
+    delete streamingMessagesMap.value[sessionId]
+
+    const finalizedId = payload.id ?? temp.id
+    if (finalizedId && temp.ragContext) {
+      memoryRagMap.value[finalizedId] = temp.ragContext
+    }
+    if (finalizedId && temp.lexiconContext) {
+      memoryLexiconMap.value[finalizedId] = temp.lexiconContext
+    }
+
+    // 仅当前显示的会话才推入视图，防止污染其他会话
+    if (sessionId !== latestRequestedSessionId.value) return null
 
     const finalizedMessage: Message = {
-      id: payload.id ?? streamingMessage.value.id,
-      session_id: streamingMessage.value.session_id,
+      id: finalizedId,
+      session_id: sessionId,
       role: 'assistant',
-      content: payload.content ?? streamingMessage.value.content,
-      created_at: payload.created_at ?? streamingMessage.value.created_at,
+      content: payload.content ?? temp.content,
+      created_at: payload.created_at ?? temp.created_at,
       tool_calls: payload.tool_calls ?? (
-        streamingMessage.value.toolCalls.length
-          ? JSON.stringify(streamingMessage.value.toolCalls)
+        temp.toolCalls.length
+          ? JSON.stringify(temp.toolCalls)
           : null
       ),
       tool_results: payload.tool_results ?? (
-        Object.keys(streamingMessage.value.toolResults).length
-          ? JSON.stringify(streamingMessage.value.toolResults)
+        Object.keys(temp.toolResults).length
+          ? JSON.stringify(temp.toolResults)
           : null
       ),
-      rag_context: payload.rag_context ?? streamingMessage.value.ragContext,
-      lexicon_context: payload.lexicon_context ?? streamingMessage.value.lexiconContext
-    }
-
-    if (finalizedMessage.id && finalizedMessage.rag_context) {
-      memoryRagMap.value[finalizedMessage.id] = finalizedMessage.rag_context
-    }
-
-    if (finalizedMessage.id && finalizedMessage.lexicon_context) {
-      memoryLexiconMap.value[finalizedMessage.id] = finalizedMessage.lexicon_context
+      rag_context: payload.rag_context ?? temp.ragContext,
+      lexicon_context: payload.lexicon_context ?? temp.lexiconContext
     }
 
     messages.value.push(finalizedMessage)
-    streamingMessage.value = null
-    isStreaming.value = false
     return finalizedMessage
   }
 
   /**
    * 清除流式消息（错误时使用）
    */
-  const clearStreamingMessage = () => {
-    streamingMessage.value = null
-    isStreaming.value = false
+  const clearStreamingMessage = (sessionId: string) => {
+    delete streamingMessagesMap.value[sessionId]
+  }
+
+  /**
+   * 清除特定会话的流式（会话删除时使用）
+   */
+  const clearStreamingForSession = (sessionId: string) => {
+    delete streamingMessagesMap.value[sessionId]
   }
 
   /**
    * 将当前流式消息转为中断挂起状态
    */
-  const setStreamingInterrupt = (questions: QuestionItem[]) => {
-    if (!streamingMessage.value) return
-    streamingMessage.value.isStreaming = false
-    streamingMessage.value.isInterrupted = true
-    streamingMessage.value.questions = questions
-    streamingMessage.value.statusText = '等待用户确认'
-    streamingMessage.value.stage = null
-    isStreaming.value = false
+  const setStreamingInterrupt = (sessionId: string, questions: QuestionItem[]) => {
+    const msg = streamingMessagesMap.value[sessionId]
+    if (!msg) return
+    msg.isStreaming = false
+    msg.isInterrupted = true
+    msg.questions = questions
+    msg.statusText = '等待用户确认'
+    msg.stage = null
   }
 
   /**
@@ -325,8 +355,9 @@ export const useMessagesStore = defineStore('messages', () => {
   return {
     // State
     messages,
-    streamingMessage,  // 流式消息临时状态 - 2025-01-01
-    isStreaming,  // 是否正在流式输出 - 2025-01-01
+    streamingMessage,  // 流式消息临时状态
+    isStreaming,  // 是否正在流式输出
+    streamingMessagesMap, // 🆕 新增 Map 状态导出
     loading,
     error,
     // Actions
@@ -335,7 +366,7 @@ export const useMessagesStore = defineStore('messages', () => {
     deleteMessage,
     submitMessageFeedback,
     clearMessages,
-    // 流式消息管理 - 2025-01-01
+    // 流式消息管理
     startStreamingMessage,
     appendStreamingContent,
     updateStreamingStatus,
@@ -346,9 +377,11 @@ export const useMessagesStore = defineStore('messages', () => {
     finalizeStreamingInterrupted,
     completeStreamingMessage,
     clearStreamingMessage,
+    clearStreamingForSession, // 🆕 新增清理 action
     setStreamingInterrupt,
-    displayMessages,  // 包含流式临时消息的列表
-    memoryRagMap,  // 🆕 内存隔离 RAG 缓存字典
-    memoryLexiconMap, // 🆕 内存隔离物理词典缓存字典
+    displayMessages,
+    isSessionStreaming,  // 🆕 新增会话状态判断 getter
+    memoryRagMap,
+    memoryLexiconMap,
   }
 })

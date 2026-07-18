@@ -758,7 +758,7 @@ const formatToolResultContent = (content: string): string => {
 
 const messageWrapperClass = computed(() => {
   if (isUser.value) {
-    return 'border border-[#B8D7F3] bg-[#DBECFF] shadow-sm'
+    return 'border border-[#D2E0EE] bg-[#F0F4F9] shadow-sm'
   }
   if (errorText.value) {
     return 'border border-red-200 bg-gradient-to-br from-red-50 to-white'
@@ -774,7 +774,7 @@ const messageWrapperClass = computed(() => {
 
 const textClass = computed(() => {
   if (isUser.value) {
-    return 'font-medium text-slate-800'
+    return 'font-medium text-[#2D3A4B]'
   }
   if (errorText.value) {
     return 'text-red-700'
@@ -797,7 +797,7 @@ const statusClass = computed(() => {
 
 const timeClass = computed(() => {
   if (isUser.value) {
-    return 'text-slate-500'
+    return 'text-[#7A8C9E]'
   }
   if (errorText.value) {
     return 'text-red-400'

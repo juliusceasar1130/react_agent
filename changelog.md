@@ -1,3 +1,38 @@
+## 2026-07-18 22:47 +08:00 - 优化人工输入气泡的视觉配色系统
+
+### 变更内容
+#### frontend/src/components/MessageItem.vue [MODIFY]
+- 优化用户发送消息的气泡配色，从原本的淡亮蓝色（#DBECFF）升级为雅致的现代莫兰迪灰蓝（#F0F4F9 背景 + #D2E0EE 边框 + #2D3A4B 墨蓝文本 + #7A8C9E 时间戳）。
+- 极大减弱了界面的视觉噪点，提供了更加深沉、专注的企业数据查询与阅读体验。
+
+---
+
+## 2026-07-18 22:30 +08:00 - 实现多会话后台并行流式生成与运行状态动效提示
+
+### 问题根因
+1. 当用户在消息生成中途切换到左侧其他会话时，旧会话的流式 SSE 依旧在后台继续吐字，但由于全局状态共用且无 ID 隔离验证，导致旧会话的流式数据会错误泄漏到新会话底部，造成严重的输入框锁死和消息交叉污染。
+2. 缺乏会话状态的动态提示，用户无法得知当前具体有哪些会话在后台默默进行分析与生成。
+
+### 变更内容
+#### frontend/src/stores/messages.ts [MODIFY]
+- 将原全局唯一的流式临时消息 `streamingMessage` 升级为 Map 字典结构 `streamingMessagesMap`。
+- 将 `streamingMessage` 与 `isStreaming` 改造为 computed 属性以自动向下兼容，并新增 `isSessionStreaming(sessionId)` 判断服务。
+- 升级所有的流消息操作 Action 支持 `sessionId`，在 Map 中对各会话独立隔离存储。
+- 升级终态完成和错误落定 Action，增加 `latestRequestedSessionId` 会话比对拦截防护，防止后台流式在 complete 时对前台当前会话造成数据污染。
+
+#### frontend/src/composables/useChatStream.ts [MODIFY]
+- 移除原会话切换时重置上下文预警和可能带来的逻辑锁，将 `activeStreamController`、`isSending`、`contextWarning` 全部 Map 隔离化。
+- 改造 `stopStreaming`，增加 `sessionId` 形参，支持单独精准中止目标会话的后台流式。
+- 升级 `sendMessage` 与 `resumeMessage`，在接收到 SSE 事件时为 Action 显式透传对应的 `sessionId`，并解决非流式处理分支直接为 read-only computed 赋值的 Bug。
+
+#### frontend/src/components/SessionItem.vue [MODIFY]
+- 引入 `isStreaming` 状态判断，当且仅当对应的会话在后台流式运行中时触发状态激活。
+- 在正常展开态下，在会话标题右侧渲染精致、科幻的三频段 Siri 频谱柱跳动微动效。
+- 在折叠态下，在头像右下角渲染一圈圆润、绿色的呼吸灯 Loading 状态角标。
+- 增加对应动效在不同状态下的 CSS 跳动 keyframes。
+
+---
+
 ## 2026-07-18 20:05 +08:00 - 对话气泡复制、数据字典弹窗化、维度表时间列隐藏及 Ctrl+M 隐藏审核终端
 
 ### 问题根因

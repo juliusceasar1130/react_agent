@@ -11,7 +11,7 @@
 // - 2026-03-31 21:31 Asia/Shanghai: 移除宽松事件兜底，改为穷尽式处理统一 SSE 事件协议
 // - 2026-03-31 22:15 Asia/Shanghai: 停止生成后保留已生成片段，并明确落定为本地“已停止生成”消息
 
-import { ref, watch } from 'vue'
+import { ref, computed } from 'vue'
 import { sendChatStream, sendChatMessage, sendChatResumeStream } from '@/api/chat'
 import { useMessagesStore } from '@/stores/messages'
 import { useSessionsStore } from '@/stores/sessions'
@@ -29,17 +29,22 @@ export function useChatStream() {
   const messagesStore = useMessagesStore()
   const sessionsStore = useSessionsStore()
 
-  const isSending = ref(false)
   const streamMode = ref(true)  // 流式模式开关状态
   const enableThinking = ref(false) // 新增：思考模式开关状态，默认关闭
-  const activeStreamController = ref<AbortController | null>(null)
-  const contextWarning = ref<ContextWarningPayload | null>(null)
+  
+  const activeStreamControllersMap = ref<Record<string, AbortController>>({})
+  const sendingSessionsMap = ref<Record<string, boolean>>({})
+  const contextWarningsMap = ref<Record<string, ContextWarningPayload | null>>({})
 
-  watch(
-    () => sessionsStore.currentSessionId,
-    () => {
-      contextWarning.value = null
-    }
+  const isSending = computed(() =>
+    sessionsStore.currentSessionId
+      ? !!sendingSessionsMap.value[sessionsStore.currentSessionId]
+      : false
+  )
+  const contextWarning = computed(() =>
+    sessionsStore.currentSessionId
+      ? contextWarningsMap.value[sessionsStore.currentSessionId] ?? null
+      : null
   )
 
   const syncMessagesIfCurrent = (sessionId: string) => {
@@ -65,8 +70,11 @@ export function useChatStream() {
     ? error.name === 'AbortError'
     : error instanceof Error && error.name === 'AbortError'
 
-  const stopStreaming = () => {
-    activeStreamController.value?.abort()
+  const stopStreaming = (sessionId?: string) => {
+    const sid = sessionId ?? sessionsStore.currentSessionId
+    if (sid) {
+      activeStreamControllersMap.value[sid]?.abort()
+    }
   }
 
   /**
@@ -78,8 +86,8 @@ export function useChatStream() {
       throw new Error('没有选择会话')
     }
 
-    isSending.value = true
-    contextWarning.value = null
+    sendingSessionsMap.value[currentSession.id] = true
+    contextWarningsMap.value[currentSession.id] = null
 
     // 1. 立即显示用户消息（乐观更新）- 2025-01-01
     const tempUserMessage: Message = {
@@ -104,7 +112,7 @@ export function useChatStream() {
     } catch (error) {
       if (isAbortError(error)) {
         console.info('流式请求已取消')
-        messagesStore.finalizeStreamingInterrupted()
+        messagesStore.finalizeStreamingInterrupted(currentSession.id)
         void syncSessions()
         return
       }
@@ -116,12 +124,12 @@ export function useChatStream() {
       if (index !== -1) {
         messagesStore.messages.splice(index, 1)
       }
-      messagesStore.clearStreamingMessage()
+      messagesStore.clearStreamingMessage(currentSession.id)
       syncMessagesIfCurrent(currentSession.id)
       void syncSessions()
       throw error
     } finally {
-      isSending.value = false
+      delete sendingSessionsMap.value[currentSession.id]
     }
   }
 
@@ -131,7 +139,7 @@ export function useChatStream() {
   const handleStreamMessage = async (sessionId: string, content: string) => {
     let hasTerminalEvent = false
     const controller = new AbortController()
-    activeStreamController.value = controller
+    activeStreamControllersMap.value[sessionId] = controller
 
     // 开始流式消息（创建临时消息对象）
     messagesStore.startStreamingMessage(sessionId)
@@ -140,20 +148,20 @@ export function useChatStream() {
       switch (event.type) {
         case 'token':
           if (event.text) {
-            messagesStore.appendStreamingContent(event.text)
+            messagesStore.appendStreamingContent(sessionId, event.text)
           }
           return
 
         case 'status':
           if (event.source === 'context_warning' && event.detail) {
-            contextWarning.value = event.detail as unknown as ContextWarningPayload
+            contextWarningsMap.value[sessionId] = event.detail as unknown as ContextWarningPayload
             return
           }
-          messagesStore.updateStreamingStatus(event.stage, event.text)
+          messagesStore.updateStreamingStatus(sessionId, event.stage, event.text)
           return
 
         case 'tool_call':
-          messagesStore.upsertStreamingToolCall({
+          messagesStore.upsertStreamingToolCall(sessionId, {
             id: event.id,
             name: event.name,
             args_text: event.args_text,
@@ -162,24 +170,24 @@ export function useChatStream() {
           return
 
         case 'tool_result':
-          messagesStore.setStreamingToolResult(event.id, event.content)
+          messagesStore.setStreamingToolResult(sessionId, event.id, event.content)
           return
 
         case 'rag_context':
-          if (messagesStore.streamingMessage) {
-            messagesStore.streamingMessage.ragContext = event.rag_context
+          if (messagesStore.streamingMessagesMap[sessionId]) {
+            messagesStore.streamingMessagesMap[sessionId].ragContext = event.rag_context
           }
           return
 
         case 'lexicon_context':
-          if (messagesStore.streamingMessage) {
-            messagesStore.streamingMessage.lexiconContext = event.lexicon_context
+          if (messagesStore.streamingMessagesMap[sessionId]) {
+            messagesStore.streamingMessagesMap[sessionId].lexiconContext = event.lexicon_context
           }
           return
 
         case 'final':
           hasTerminalEvent = true
-          messagesStore.completeStreamingMessage({
+          messagesStore.completeStreamingMessage(sessionId, {
             id: event.message_id,
             created_at: event.created_at,
             content: event.content,
@@ -192,7 +200,7 @@ export function useChatStream() {
 
         case 'error':
           hasTerminalEvent = true
-          messagesStore.finalizeStreamingError({
+          messagesStore.finalizeStreamingError(sessionId, {
             id: event.message_id,
             created_at: event.created_at,
             content: event.message,
@@ -203,7 +211,7 @@ export function useChatStream() {
 
         case 'interrupt':
           hasTerminalEvent = true
-          messagesStore.setStreamingInterrupt(event.questions)
+          messagesStore.setStreamingInterrupt(sessionId, event.questions)
           syncMessagesIfCurrent(sessionId)
           void syncSessions()
           return
@@ -228,8 +236,8 @@ export function useChatStream() {
         throw new Error('流式响应未正常结束')
       }
     } finally {
-      if (activeStreamController.value === controller) {
-        activeStreamController.value = null
+      if (activeStreamControllersMap.value[sessionId] === controller) {
+        delete activeStreamControllersMap.value[sessionId]
       }
     }
   }
@@ -244,7 +252,7 @@ export function useChatStream() {
       stream: false,
       enable_thinking: enableThinking.value // 新增透传
     })
-    contextWarning.value = response.context_warning ?? null
+    contextWarningsMap.value[sessionId] = response.context_warning ?? null
 
     // 非流式完成后，重新加载消息列表
     if (sessionsStore.currentSessionId === sessionId) {
@@ -262,39 +270,40 @@ export function useChatStream() {
       throw new Error('没有选择会话')
     }
 
-    isSending.value = true
-    contextWarning.value = null
+    sendingSessionsMap.value[currentSession.id] = true
+    contextWarningsMap.value[currentSession.id] = null
 
-    // 重新将临时消息的 isStreaming 设为 true，并清除 isInterrupted 状态
-    if (messagesStore.streamingMessage) {
-      messagesStore.streamingMessage.isStreaming = true
-      messagesStore.streamingMessage.isInterrupted = false
-      messagesStore.streamingMessage.statusText = '恢复会话生成中'
+    // 重新将对应会话的临时消息 isStreaming 设为 true，并清除 isInterrupted 状态
+    const targetMsg = messagesStore.streamingMessagesMap[currentSession.id]
+    if (targetMsg) {
+      targetMsg.isStreaming = true
+      targetMsg.isInterrupted = false
+      targetMsg.statusText = '恢复会话生成中'
     }
-    messagesStore.isStreaming = true
 
     let hasTerminalEvent = false
     const controller = new AbortController()
-    activeStreamController.value = controller
+    activeStreamControllersMap.value[currentSession.id] = controller
 
     const handleEvent = (event: StreamEvent) => {
+      const sessionId = currentSession.id
       switch (event.type) {
         case 'token':
           if (event.text) {
-            messagesStore.appendStreamingContent(event.text)
+            messagesStore.appendStreamingContent(sessionId, event.text)
           }
           return
 
         case 'status':
           if (event.source === 'context_warning' && event.detail) {
-            contextWarning.value = event.detail as unknown as ContextWarningPayload
+            contextWarningsMap.value[sessionId] = event.detail as unknown as ContextWarningPayload
             return
           }
-          messagesStore.updateStreamingStatus(event.stage, event.text)
+          messagesStore.updateStreamingStatus(sessionId, event.stage, event.text)
           return
 
         case 'tool_call':
-          messagesStore.upsertStreamingToolCall({
+          messagesStore.upsertStreamingToolCall(sessionId, {
             id: event.id,
             name: event.name,
             args_text: event.args_text,
@@ -303,49 +312,49 @@ export function useChatStream() {
           return
 
         case 'tool_result':
-          messagesStore.setStreamingToolResult(event.id, event.content)
+          messagesStore.setStreamingToolResult(sessionId, event.id, event.content)
           return
 
         case 'rag_context':
-          if (messagesStore.streamingMessage) {
-            messagesStore.streamingMessage.ragContext = event.rag_context
+          if (messagesStore.streamingMessagesMap[sessionId]) {
+            messagesStore.streamingMessagesMap[sessionId].ragContext = event.rag_context
           }
           return
 
         case 'lexicon_context':
-          if (messagesStore.streamingMessage) {
-            messagesStore.streamingMessage.lexiconContext = event.lexicon_context
+          if (messagesStore.streamingMessagesMap[sessionId]) {
+            messagesStore.streamingMessagesMap[sessionId].lexiconContext = event.lexicon_context
           }
           return
 
         case 'final':
           hasTerminalEvent = true
-          messagesStore.completeStreamingMessage({
+          messagesStore.completeStreamingMessage(sessionId, {
             id: event.message_id,
             created_at: event.created_at,
             content: event.content,
             tool_calls: event.tool_calls ? JSON.stringify(event.tool_calls) : null,
             tool_results: event.tool_results ? JSON.stringify(event.tool_results) : null,
           })
-          syncMessagesIfCurrent(currentSession.id)
+          syncMessagesIfCurrent(sessionId)
           void syncSessions()
           return
 
         case 'error':
           hasTerminalEvent = true
-          messagesStore.finalizeStreamingError({
+          messagesStore.finalizeStreamingError(sessionId, {
             id: event.message_id,
             created_at: event.created_at,
             content: event.message,
           })
-          syncMessagesIfCurrent(currentSession.id)
+          syncMessagesIfCurrent(sessionId)
           void syncSessions()
           return
 
         case 'interrupt':
           hasTerminalEvent = true
-          messagesStore.setStreamingInterrupt(event.questions)
-          syncMessagesIfCurrent(currentSession.id)
+          messagesStore.setStreamingInterrupt(sessionId, event.questions)
+          syncMessagesIfCurrent(sessionId)
           void syncSessions()
           return
       }
@@ -369,22 +378,22 @@ export function useChatStream() {
     } catch (error) {
       if (isAbortError(error)) {
         console.info('恢复流式请求已取消')
-        messagesStore.finalizeStreamingInterrupted()
+        messagesStore.finalizeStreamingInterrupted(currentSession.id)
         void syncSessions()
         return
       }
 
       console.error('[diagnose] 恢复流式异常:', (error as Error)?.constructor?.name, (error as Error)?.message)
       console.error('恢复发送消息失败:', error)
-      messagesStore.clearStreamingMessage()
+      messagesStore.clearStreamingMessage(currentSession.id)
       syncMessagesIfCurrent(currentSession.id)
       void syncSessions()
       throw error
     } finally {
-      if (activeStreamController.value === controller) {
-        activeStreamController.value = null
+      if (activeStreamControllersMap.value[currentSession.id] === controller) {
+        delete activeStreamControllersMap.value[currentSession.id]
       }
-      isSending.value = false
+      delete sendingSessionsMap.value[currentSession.id]
     }
   }
 

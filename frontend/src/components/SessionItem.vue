@@ -18,13 +18,21 @@
 
     <!-- 极简微缩展示状态 -->
     <div v-if="isSlim" class="flex items-center justify-center">
-      <div
-        class="h-10 w-10 rounded-full flex items-center justify-center font-black text-sm transition-all duration-300 border shadow-sm select-none"
-        :class="isActive 
-          ? 'bg-gradient-to-br from-primary to-accent text-white border-transparent shadow-glow scale-105' 
-          : 'bg-white text-neutral-600 border-neutral-200/80 hover:bg-neutral-50 hover:text-text'"
-      >
-        {{ session.title ? session.title.trim().charAt(0) : '会' }}
+      <div class="relative">
+        <div
+          class="h-10 w-10 rounded-full flex items-center justify-center font-black text-sm transition-all duration-300 border shadow-sm select-none"
+          :class="isActive 
+            ? 'bg-gradient-to-br from-primary to-accent text-white border-transparent shadow-glow scale-105' 
+            : 'bg-white text-neutral-600 border-neutral-200/80 hover:bg-neutral-50 hover:text-text'"
+        >
+          {{ session.title ? session.title.trim().charAt(0) : '会' }}
+        </div>
+        <!-- 折叠态运行状态指示器 -->
+        <span
+          v-if="isStreaming"
+          class="absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full bg-emerald-500 border-2 border-white dark:border-neutral-900 animate-pulse shadow-sm"
+          title="正在生成回答..."
+        ></span>
       </div>
     </div>
 
@@ -39,6 +47,12 @@
           <h4 class="truncate text-sm font-semibold" :class="isActive ? 'text-primary' : 'text-neutral-700'">
             {{ session.title }}
           </h4>
+          <!-- 展开态运行状态指示器 -->
+          <div v-if="isStreaming" class="flex items-center gap-0.5 shrink-0 ml-1.5" title="正在生成回答...">
+            <span class="stream-bar bar-1"></span>
+            <span class="stream-bar bar-2"></span>
+            <span class="stream-bar bar-3"></span>
+          </div>
         </div>
         <div class="mt-2 space-y-1.5 text-xs text-neutral-600">
           <p class="flex items-center gap-1.5">
@@ -72,6 +86,7 @@ import { computed } from 'vue'
 import type { Session } from '@/types'
 import { useDateFormat } from '@/composables/useDateFormat'
 import { useConfirmation } from '@/composables/useConfirmation'
+import { useMessagesStore } from '@/stores/messages'
 
 interface Props {
   session: Session
@@ -87,6 +102,9 @@ const emit = defineEmits<{
   select: [sessionId: string]
   delete: [sessionId: string]
 }>()
+
+const messagesStore = useMessagesStore()
+const isStreaming = computed(() => messagesStore.isSessionStreaming(props.session.id))
 
 const { formatFullDateTime, parseServerDate } = useDateFormat()
 const { confirm } = useConfirmation()
@@ -117,3 +135,33 @@ const handleDelete = async () => {
   }
 }
 </script>
+
+<style scoped>
+.stream-bar {
+  display: inline-block;
+  width: 2px;
+  height: 8px;
+  background-color: var(--color-primary, #2563eb);
+  border-radius: 1px;
+  animation: bar-bounce 0.8s ease-in-out infinite alternate;
+}
+.bar-1 {
+  animation-delay: 0.1s;
+}
+.bar-2 {
+  animation-delay: 0.3s;
+  height: 12px;
+}
+.bar-3 {
+  animation-delay: 0.5s;
+}
+
+@keyframes bar-bounce {
+  from {
+    transform: scaleY(0.4);
+  }
+  to {
+    transform: scaleY(1.2);
+  }
+}
+</style>
