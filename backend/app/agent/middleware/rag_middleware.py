@@ -20,6 +20,7 @@ from backend.app.agent.state import CustomState
 from backend.app.agent.utils import emit_stream_status
 from backend.app.agent.vector.base import BaseRetriever, BaseReranker, ScoredDocument
 from backend.app.agent.vector.sql_lexicon.retriever import DatabaseLexiconRetriever
+from backend.app.config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -75,6 +76,19 @@ class BusinessRagMiddleware(AgentMiddleware[CustomState]):
         """判断是否为用户消息"""
         msg_type = getattr(msg, "type", None) or getattr(msg, "role", None)
         return msg_type == "human"
+
+    def _extract_query(self, state: CustomState) -> tuple[List[BaseMessage], str] | None:
+        """提取用户消息和查询文本，非用户消息或空查询时跳过。"""
+        messages: List[BaseMessage] = state.get("messages", [])
+        if not messages:
+            return None
+        last_msg = messages[-1]
+        if not self._is_human_message(last_msg):
+            return None
+        user_query = getattr(last_msg, "content", None) or getattr(last_msg, "text", "")
+        if not user_query:
+            return None
+        return messages, user_query
 
     @staticmethod
     def _format_knowledge_block(docs: List[Document]) -> str:
@@ -147,20 +161,10 @@ class BusinessRagMiddleware(AgentMiddleware[CustomState]):
         """
         在用户消息时检索业务知识，并将检索结果作为系统消息注入到 messages 中。(同步回退支持)
         """
-        messages: List[BaseMessage] = state.get("messages", [])
-        if not messages:
+        extracted = self._extract_query(state)
+        if extracted is None:
             return None
-
-        last_msg = messages[-1]
-
-        # 只在用户消息时执行检索
-        if not self._is_human_message(last_msg):
-            logger.info("BusinessRagMiddleware.before_model: 非用户消息，跳过检索")
-            return None
-
-        user_query = getattr(last_msg, "content", None) or getattr(last_msg, "text", "")
-        if not user_query:
-            return None
+        messages, user_query = extracted
 
         retrieved_docs: List[Document] = []
         lexicon_results = {"tables": [], "values": [], "rows": []}
@@ -171,18 +175,14 @@ class BusinessRagMiddleware(AgentMiddleware[CustomState]):
                 stage="retrieving",
                 source="business_rag",
             )
-            # 使用统一检索接口，根据阈值过滤
             scored_results: List[ScoredDocument] = self.retriever.retrieve(
                 query=user_query,
                 k=self.doc_k,
                 score_threshold=self.score_threshold,
                 doc_type="documentation",
             )
-
-            # 提取文档列表
             retrieved_docs = [item.document for item in scored_results]
 
-            # 获取同步三层词典召回
             if self.lexicon_retriever is not None:
                 lexicon_results = self.lexicon_retriever.retrieve_all_sync(user_query)
 
@@ -190,27 +190,16 @@ class BusinessRagMiddleware(AgentMiddleware[CustomState]):
             logger.error(f"BusinessRagMiddleware 同步检索失败: {e}", exc_info=True)
             return None
 
-        # 格式化并组装 SystemMessage
         return self._format_and_assemble_state(user_query, messages, retrieved_docs, lexicon_results)
 
     async def abefore_model(self, state: CustomState, runtime: Runtime) -> Optional[dict[str, Any]]:
         """
         在用户消息时并发检索业务知识与数据库词典，并将检索结果作为系统消息注入到 messages 中。
         """
-        messages: List[BaseMessage] = state.get("messages", [])
-        if not messages:
+        extracted = self._extract_query(state)
+        if extracted is None:
             return None
-
-        last_msg = messages[-1]
-
-        # 只在用户消息时执行检索
-        if not self._is_human_message(last_msg):
-            logger.info("BusinessRagMiddleware.abefore_model: 非用户消息，跳过检索")
-            return None
-
-        user_query = getattr(last_msg, "content", None) or getattr(last_msg, "text", "")
-        if not user_query:
-            return None
+        messages, user_query = extracted
 
         retrieved_docs: List[Document] = []
         lexicon_results = {"tables": [], "values": [], "rows": []}
@@ -221,8 +210,7 @@ class BusinessRagMiddleware(AgentMiddleware[CustomState]):
                 stage="retrieving",
                 source="business_rag",
             )
-            
-            # 1. 组装并行并发检索任务
+
             tasks = [
                 asyncio.to_thread(
                     self.retriever.retrieve,
@@ -234,11 +222,11 @@ class BusinessRagMiddleware(AgentMiddleware[CustomState]):
             ]
             if self.lexicon_retriever is not None:
                 tasks.append(self.lexicon_retriever.retrieve_all(user_query))
-                
+
             results = await asyncio.gather(*tasks)
             scored_results = results[0]
             retrieved_docs = [item.document for item in scored_results]
-            
+
             if len(results) > 1:
                 lexicon_results = results[1]
 
@@ -259,7 +247,7 @@ class BusinessRagMiddleware(AgentMiddleware[CustomState]):
                     self.score_threshold if self.score_threshold is not None else "无",
                 )
 
-            # ---- Rerank 精排（如果启用） ----
+            # Rerank 精排（如果启用）
             if self.reranker and retrieved_docs:
                 try:
                     reranked_results: List[ScoredDocument] = self.reranker.rerank(
@@ -280,7 +268,6 @@ class BusinessRagMiddleware(AgentMiddleware[CustomState]):
             logger.error(f"BusinessRagMiddleware 异步检索失败: {e}", exc_info=True)
             return None
 
-        # 格式化并组装 SystemMessage
         return self._format_and_assemble_state(user_query, messages, retrieved_docs, lexicon_results)
 
     def _format_and_assemble_state(
@@ -303,53 +290,60 @@ class BusinessRagMiddleware(AgentMiddleware[CustomState]):
 
         if self.db is not None and getattr(self.db, "_custom_table_info", None) is not None:
             custom_table_info = self.db._custom_table_info
-            hit_tables_dict = {}  # table_name -> score
+            hit_tables_dict = {}  # table_name_lower -> {"score": max_score, "summary": text_or_None}
 
-            # 从表检索中提取
+            # 从表检索中提取（语义摘要）
             for node in lexicon_results.get("tables", []):
                 t_name = node.node.metadata.get("table_name")
                 if t_name:
-                    hit_tables_dict[t_name.lower()] = max(hit_tables_dict.get(t_name.lower(), 0), node.score)
+                    key = t_name.lower()
+                    entry = hit_tables_dict.get(key)
+                    if not entry or node.score > entry["score"]:
+                        hit_tables_dict[key] = {"score": node.score, "summary": node.node.text}
 
-            # 从值词典检索中提取
+            # 从值词典检索中提取（仅贡献分数，无摘要）
             for node in lexicon_results.get("values", []):
                 t_name = node.node.metadata.get("table_name")
                 if t_name:
-                    hit_tables_dict[t_name.lower()] = max(hit_tables_dict.get(t_name.lower(), 0), node.score)
+                    key = t_name.lower()
+                    if key not in hit_tables_dict:
+                        hit_tables_dict[key] = {"score": node.score, "summary": None}
+                    else:
+                        hit_tables_dict[key]["score"] = max(hit_tables_dict[key]["score"], node.score)
 
-            # 从行词典检索中提取
+            # 从行词典检索中提取（仅贡献分数，无摘要）
             for node in lexicon_results.get("rows", []):
                 t_name = node.node.metadata.get("table_name")
                 if t_name:
-                    hit_tables_dict[t_name.lower()] = max(hit_tables_dict.get(t_name.lower(), 0), node.score)
+                    key = t_name.lower()
+                    if key not in hit_tables_dict:
+                        hit_tables_dict[key] = {"score": node.score, "summary": None}
+                    else:
+                        hit_tables_dict[key]["score"] = max(hit_tables_dict[key]["score"], node.score)
 
-            # 排序并截断至最多 3 张动态表
-            sorted_tables = sorted(hit_tables_dict.items(), key=lambda x: x[1], reverse=True)
-            top_tables = [t[0] for t in sorted_tables[:3]]
+            # 排序并截断至 lexicon_schema_top_k 张动态表
+            schema_top_k = settings.lexicon_schema_top_k
+            sorted_tables = sorted(hit_tables_dict.items(), key=lambda x: x[1]["score"], reverse=True)
+            top_tables = [t[0] for t in sorted_tables[:schema_top_k]]
             table_lexicon_context = top_tables
 
-            # 从缓存中抓取并精简 DDL 骨架
-            ddl_parts = []
+            # 构建 Agent 提示词和前端展示 detail（均使用召回语义摘要）
+            summary_parts = []
             for full_table_name in top_tables:
-                bare_table_name = full_table_name.split(".")[-1]
-                if bare_table_name in custom_table_info:
-                    ddl_raw = custom_table_info[bare_table_name]
-                    # 正则剥离尾部的样本数据行
-                    clean_ddl = re.sub(r"-- \d+\. \{.*?\}", "", ddl_raw, flags=re.DOTALL).strip()
-                    # 统一 VARCHAR 长度修饰符
-                    clean_ddl = re.sub(r"VARCHAR\(\d+\)", "VARCHAR", clean_ddl, flags=re.IGNORECASE)
-                    ddl_parts.append(clean_ddl)
-                    structured_tables.append({
-                        "table_name": full_table_name,
-                        "ddl": clean_ddl
-                    })
-            
-            if ddl_parts:
-                ddl_block = "### 2.1 推荐的数据库表 DDL 结构 (Recommended Table Schema DDL)\n\n" + "\n\n".join(ddl_parts)
+                table_info = hit_tables_dict[full_table_name]
+                display_text = table_info.get("summary") or f"表: {full_table_name}"
+                summary_parts.append(display_text)
+                structured_tables.append({
+                    "table_name": full_table_name,
+                    "ddl": display_text
+                })
 
-            # 3. 格式化列值对照参考为 Markdown 表格 (最多展示前 5 条)
+            if summary_parts:
+                ddl_block = "### 2.1 命中的数据库表结构 (Matched Table Schema)\n\n" + "\n\n---\n\n".join(summary_parts)
+
+            # 3. 格式化列值对照参考为 Markdown 表格（最多展示 lexicon_value_top_k 条）
             value_rows = []
-            for node in lexicon_results.get("values", [])[:5]:
+            for node in lexicon_results.get("values", [])[:settings.lexicon_value_top_k]:
                 meta = node.node.metadata
                 t_name = meta.get('table_name', '')
                 col_name = meta.get('column_name', '')
@@ -371,9 +365,9 @@ class BusinessRagMiddleware(AgentMiddleware[CustomState]):
                     + "\n".join(value_rows)
                 )
 
-            # 4. 格式化实体主键与行属性关联参考 (最多展示前 5 条)
+            # 4. 格式化实体主键与行属性关联参考（最多展示 lexicon_row_top_k 条）
             row_rows = []
-            for node in lexicon_results.get("rows", [])[:5]:
+            for node in lexicon_results.get("rows", [])[:settings.lexicon_row_top_k]:
                 meta = node.node.metadata
                 t_name = meta.get('table_name', '')
                 pk_col = meta.get('primary_key_column', '')

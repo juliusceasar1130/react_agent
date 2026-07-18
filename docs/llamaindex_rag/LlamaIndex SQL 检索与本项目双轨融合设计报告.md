@@ -1,6 +1,6 @@
-# 基于 LlamaIndex 检索思想的 SQL Agent 架构优化评审与设计报告（第十三版）
+# 基于 LlamaIndex 检索思想的 SQL Agent 架构优化评审与设计报告（第十四版）
 
-**报告时间**: 2026-07-14  
+**报告时间**: 2026-07-17  
 **分析对象**: 动态三层检索工具链精简与 Agent 语义自愈决策（双轨方案最终纯净版）  
 **开发环境**: Python 3.12 + FastAPI + LangChain/Graph + Milvus 向量数据库（基于 LlamaIndex 库封装）
 
@@ -14,11 +14,13 @@
    - **完全采纳您的建议**。直查关系型数据库的 `column_value_probe` 缺乏语义匹配能力（例如输入“双色车顶”，由于源表字段只存有 `True`，`ILIKE` 模糊匹配根本查不出来），且频繁查询会给只读数据库带来不必要的扫表压力。
    - 在我们已经实现了 **FastAPI Lifespan 重启时自动重新嵌入三层向量 Collection** 的保障下，Milvus 中的 `db_value_lexicon` 和 `db_row_lexicon` 数据已能保持高度最新。
 2. **工具链极简合并**：
-   - 彻底将所有“大模型自主动态行/列值检索”以及“执行为空时的反射纠偏”职责，**统一收拢合并至已有的两个向量工具上**：
+   - 彻底将所有“大模型自主动态行/列值检索”、“表结构探索”以及“执行为空时的反射纠偏”职责，**统一收拢合并至已有或新增的向量工具上**：
      - `search_db_value_lexicon`（基于 Milvus 的列值语义字典匹配）。
      - `search_db_row_lexicon`（基于 Milvus 的行实体主键语义对齐）。
+     - `search_db_table_schema`（基于 Milvus 的表结构 DDL 语义匹配）。
+     - *注：上述工具纯粹为读取属性，取消 `required_skill` 门槛限制，交由 LLM 根据提示词规则自主决策调用。*
 3. **大模型自愈纠偏的纯净路径**：
-   - 若大模型生成的 SQL 执行为空，大模型自我反思后，**同样调用 `search_db_value_lexicon` 进行语义匹配**。例如：检索“电泳二期”，Milvus 全局字典通过向量距离依然能成功将其映射为 `process_area = '前道电泳二区'`，在没有数据库直查开销的前提下完美自愈。
+   - 若大模型生成的 SQL 执行为空，大模型自我反思后，**调用 `search_db_value_lexicon` 进行语义匹配**。例如：检索“电泳二期”，Milvus 全局字典通过向量距离依然能成功将其映射为 `process_area = '前道电泳二区'`，在没有数据库直查开销的前提下完美自愈。如果发现对表结构认知不足，则自主调用 `search_db_table_schema` 补充 DDL 信息。
 
 ---
 
@@ -60,16 +62,19 @@ flowchart TD
         %% 向量路径
         LLMAgentNext -->|语义模糊近义词匹配| CallValTool[调用 search_db_value_lexicon]
         LLMAgentNext -->|模糊工位主键映射| CallRowTool[调用 search_db_row_lexicon]
+        LLMAgentNext -->|缺失表结构认知| CallTableTool[调用 search_db_table_schema]
         
         CallValTool -->|检索 Milvus 共享列值字典| ReturnVal
         CallRowTool -->|检索 Milvus 共享行实体字典| ReturnRow
+        CallTableTool -->|检索 Milvus 共享表结构字典| ReturnTable
         
-        ReturnVal & ReturnRow --> LLMAgentNext
+        ReturnVal & ReturnRow & ReturnTable --> LLMAgentNext
         
         LLMAgentNext -->|合成 SQL并提供 required_skill| CallSQLTool[调用 sql_db_query 工具]
         
-        CallSQLTool -->|执行成功但结果为 Empty| SelfReflection[大模型自愈纠偏：反思 SQL 过滤值错误]
+        CallSQLTool -->|执行成功但结果为 Empty| SelfReflection[大模型自愈纠偏：反思 SQL 过滤值错误或结构理解偏差]
         SelfReflection -->|调用 search_db_value_lexicon 找寻真实列值| CallValTool
+        SelfReflection -->|调用 search_db_table_schema 补充结构信息| CallTableTool
     end
     
     CallSQLTool -->|执行返回真实结果| ReturnUser([返回用户结果])
@@ -166,15 +171,18 @@ class SkillMiddleware(AgentMiddleware[CustomState]):
 ### 3.1 表级 DDL 库 (`table_schema_store`)
 *   **定位**：提供全局数据库表结构的语义寻址，帮助 Agent 根据用户提问找准需要关联的表 DDL。
 *   **物理集合名称**：`table_schema_store`
-*   **文本格式 (`text`)**：完整的物理表 DDL 语句，包括各列字段、类型、主外键声明，以及从数据库反射注入的表/列注释、`Grain:` 指标粒度说明等。
+*   **文本格式 (`text`)**：语义摘要格式（仅保留表名、表注释、字段名及注释，剥离类型/约束/样本噪声），用于纯语义匹配，格式为 `"表: {schema.table_name}\n说明: {comment}\n字段: {col1(注释), col2, ...}"`。表名带 schema 前缀（如 `ods.process_areas`），与白名单中的全限定名一致。
 *   **元数据结构 (`metadata`)**：
     ```json
     {
-      "table_name": "具体的表名 (e.g., 'fct.fct_vehicle_position_current')",
-      "description": "表结构 具体的表名"
+      "table_name": "具体的表名 (e.g., 'dim.dim_test_table')",
+      "description": "表语义摘要 具体的表名"
     }
     ```
-*   **召回后业务用法**：RAG 中间件召回相关 Node 后，直接将 `text` 中的 DDL SQL 大文本拼接至大模型 System Message 的 `## 表结构 DDL` 块中，使 Agent 获取精准的 schema 认知。
+*   **召回后业务用法**：
+    *   **语义匹配**：召回 Node 的 `text`（语义摘要）仅用于向量相似度评分，确定最相关的表。匹配得到的表名用于从 `custom_table_info` 缓存中获取完整 DDL 供 Agent SQL 生成。
+    *   **RAG 中间件展示**：`formatted_text`（Agent 提示词）和 `detail`（前端卡片）均展示召回语义摘要，与嵌入内容保持一致，便于用户直观了解系统匹配到的表结构上下文。
+    *   **工具阶段**：大模型调用 `search_db_table_schema` 工具自主进行语义检索，返回语义摘要给大模型，供其在 SQL 编写阶段补充认知。
 
 ### 3.2 维度列值库 (`db_value_lexicon`)
 *   **定位**：将用户查询中的口语化非标过滤值映射为数据库中标准的去重枚举值（专治 `WHERE` 条件过滤值对齐）。
@@ -376,8 +384,8 @@ SELECT COUNT(*) FROM fct.fct_vehicle_position_current WHERE process_area = '电�
       2. 物理数据库词典三路并行检索 (`table_schema_store`, `db_value_lexicon`, `db_row_lexicon`)
     - **表结构并集叠加与 Token 裁剪 (Union Merger & Token Trim)**：
       - 提取行/列词典命中结果对应的物理 `table_name`，与表级检索召回的表和辅助技能骨架表**取并集**。
-      - 针对动态 RAG 召回的 DDL 设定上限约束（最大允许装配 3 个动态 DDL 块，若超出则按向量相似度得分降序裁剪），防止长 DDL 撑爆大模型 Context Window。
-      - 对列值纠偏对照组最多展示 5 条；行级主键映射最多展示 5 条。
+      - 针对动态 RAG 召回的 DDL 设定上限约束（通过 `LEXICON_SCHEMA_TOP_K` 配置，默认 3 张表，若超出则按向量相似度得分降序裁剪），防止长 DDL 撑爆大模型 Context Window。
+      - 对列值纠偏对照组通过 `LEXICON_VALUE_TOP_K` 配置（默认 5 条）；行级主键映射通过 `LEXICON_ROW_TOP_K` 配置（默认 5 条）。
 *   **开发内容 3.3: 状态流 CustomState 显式扩展与消息合并**
     - 扩展 `backend/app/agent/state.py` 内部的 `CustomState`，新增 **`lexicon_context: dict`** 状态字段。在 RAG 检索返回后，将命中字典结果存入 `state["lexicon_context"]` 并随 Postgres Saver 持久化，确保线上诊断时具备极佳的可观测性。
     - 并发检索出的物理词典 Markdown 段落，直接拼接在原本检索出的 `### 业务术语说明 (Documentation)` 段落后方，组合为唯一的 `__business_rag_context__` SystemMessage 注入。
@@ -386,14 +394,15 @@ SELECT COUNT(*) FROM fct.fct_vehicle_position_current WHERE process_area = '电�
     - 原本的 RAG 检索器 `self.retriever` 不作破坏，完好无损地继续作为参数传递给 `_prepare_tools` 里的 `create_sql_example_search_tool(retriever)` 构造工厂，确保 `search_saved_correct_tool_uses` 工具以原本逻辑平滑运作。
 
 ### 阶段 4: 主动纠偏工具链挂载与 SQL Agent 自愈重写 (第 5 天)
-*   **开发内容 4.1: 向量纠偏工具挂载**
-    - 编写并向大模型暴露 `search_db_value_lexicon` 与 `search_db_row_lexicon` 两个向量检索微调工具。
-    - 对工具逻辑进行限制，防止在工具内运行大型计算，专注于字段纠偏和主键回传。
-*   **开发内容 4.2: SQL 空结果反思自愈机制**
-    - 微调 Agent System Prompt 逻辑。强引导大模型在执行 SQL 时，如果捕获到**返回结果集为空 (Empty Result)** 的反馈：
-      1. 必须启动反思机制，怀疑是否发生了 WHERE 条件中的专有名词或参数值拼写对齐错误。
-      2. 必须自发调用上述两个向量工具去 Milvus 检索数据库中的物理真实值。
-      3. 取得纠偏结果后，替换过滤词并自动重写 SQL 进行二次执行。
+*   **开发内容 4.1: 向量纠偏与探索工具挂载**
+    - 编写并向大模型暴露 `search_db_value_lexicon`、`search_db_row_lexicon` 和 `search_db_table_schema` 三个向量检索微调工具。
+    - 工具取消 `required_skill` 拦截限制，使 LLM 能在全流程中自由调用。
+    - 在 `prompt_compiler_middleware.py` 中增加对这三个工具的滑动窗口外折叠，防止撑爆上下文。
+*   **开发内容 4.2: SQL 空结果反思与自愈机制**
+    - 微调 Agent System Prompt 逻辑。强引导大模型在执行 SQL 时，如果捕获到**返回结果集为空 (Empty Result)** 的反馈或发现结构缺失：
+      1. 必须启动反思机制，怀疑是否发生了 WHERE 条件中的专有名词、参数值拼写对齐错误，或者是用错了表/列名。
+      2. 必须自发调用对应的向量工具去 Milvus 检索数据库中的物理真实值或补全 DDL。
+      3. 取得纠偏结果后，自动重写 SQL 进行二次执行。
 
 ### 阶段 5: 场景化系统联调与真实涂装追踪数据测试验证 (第 6 天)
 *   **测试内容 5.1: 冷启动时序验证**

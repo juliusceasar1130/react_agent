@@ -39,7 +39,10 @@ COLLAPSIBLE_TOOLS = {
     "search_saved_correct_tool_uses",
     "build_chart_artifact",
     "export_to_csv",
-    "export_query_to_csv"
+    "export_query_to_csv",
+    "search_db_value_lexicon",
+    "search_db_row_lexicon",
+    "search_db_table_schema",
 }
 
 

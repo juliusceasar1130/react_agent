@@ -1,3 +1,101 @@
+## 2026-07-18 15:10 +08:00 - SQL Agent 主动纠偏工具链与自愈重写（SQL Lexicon）
+
+### 概述
+- **主动纠偏工具链**：在 Agent 层引入了三个专有向量物理词典纠偏与探索工具（`search_db_value_lexicon`、`search_db_row_lexicon`、`search_db_table_schema`），允许 Agent 在执行 SQL 返回空结果或表结构认知缺失时，自主利用 Milvus 向量物理词典查询正确的列值、行实体或表结构。
+- **系统提示词微调**：在 `base_system_prompt.md` 中新增了空结果反思与自愈纠偏规约，指导大模型在查询无结果时自发调用纠偏工具并重写 SQL，实现“自愈”重试。
+- **中间件折叠适配**：在 `prompt_compiler_middleware.py` 的折叠工具白名单中挂载上述三个纠偏工具，确保在滑动窗口外自动折叠相应的 ToolMessage 以降低 token 消耗。
+- **工具链生命周期注入**：在 `service.py` 中提取并复用 `BusinessRagMiddleware` 初始化时产生的 `DatabaseLexiconRetriever` 物理词典检索器单例，在同步和异步的 Agent 工具初始化路径中统一挂载新工具。
+- **单元测试保障**：新增 `test_sql_lexicon_tools.py` 完整验证了三个纠偏工具的逻辑和输出格式。
+
+### 变更内容
+#### backend/app/agent/tools/sql_lexicon_tools.py [NEW]
+- 新增 `search_db_value_lexicon`、`search_db_row_lexicon`、`search_db_table_schema` 三个工具及其工厂构建函数，使用 `lexicon_retriever` 进行向量/文本召回。
+
+#### backend/app/agent/tools/__init__.py [MODIFY]
+- 导出物理词典纠偏工具相关工厂函数。
+
+#### backend/app/agent/service.py [MODIFY]
+- 修改 `_prepare_tools` 接收可选的 `lexicon_retriever` 并完成工具挂载；在 `SQLAgentService` 同步与异步初始化方法中均注入该检索器。
+
+#### backend/app/agent/middleware/prompt_compiler_middleware.py [MODIFY]
+- 在 `COLLAPSIBLE_TOOLS` 折叠工具集合中追加纠偏工具名。
+
+#### backend/app/agent/prompts/base_system_prompt.md [MODIFY]
+- 增加空结果反思与自愈纠偏段落，明确纠偏工具使用时机。
+
+#### backend/tests/agent/tools/test_sql_lexicon_tools.py [NEW]
+- 新增单元测试用例对三个纠偏工具的逻辑与输出格式进行验证。
+
+#### docs/superpowers/plans/2026-07-17-sql-agent-self-healing-lexicon.md [NEW]
+- 新增 SQL Agent 主动纠偏工具链与自愈重写实施计划文档。
+
+---
+
+## 2026-07-17 16:00 +08:00 - Schema 语义摘要嵌入优化 & 三层检索架构对齐（SQL Lexicon）
+
+### 概述
+- **DDL 嵌入 → 语义摘要嵌入**：将 `table_schema_store` 集合的嵌入内容从完整 DDL（含 `VARCHAR(50) NOT NULL` 等类型/约束噪声）替换为语义摘要（表名 + 表注释 + 字段名及注释），大幅缩减嵌入文本长度，提升表选择语义匹配精度。
+- **消除分块膨胀**：`milvus_load_node.py` 改用 `VectorStoreIndex(nodes=nodes, ...)` 构造函数直接注入 `TextNode`，跳过 `SentenceSplitter` 分块，使每个表在 `table_schema_store` 中仅对应 1 条记录（原长 DDL 被切成多条，导致 5 个表产生 7 条记录）。
+- **物化视图支持**：`extractor_nodes.py` 启用 `include_materialized_views=True`，将 `mart.mart_position_current_overview`（物化视图）纳入表结构检索范围。
+- **召回内容与展示一致**：`rag_middleware.py` 中 Agent 提示词 `formatted_text` 和前端 `detail` 均改为展示实际召回的语义摘要，不再从 `custom_table_info` 取完整 DDL；三者（嵌入、Agent 提示词、前端展示）统一使用语义摘要，消除信息不一致。
+- **展示上限与配置对齐**：三层展示上限硬编码 `[:3]` / `[:5]` / `[:5]` 替换为 `lexicon_schema_top_k` / `lexicon_value_top_k` / `lexicon_row_top_k` 配置参数。
+- **代码重复消除**：`before_model` / `abefore_model` 抽取出共用 `_extract_query` 方法，减少 39% 重复代码。
+- **样本数据残留清理**：正则增强，一并移除 `-- Sample rows:` 空标题行。
+- **全量测试通过**：9 项单元测试全部通过（PASS）。
+
+### 变更内容
+#### backend/app/agent/utils/db_utils.py [MODIFY]
+- 新增 `_list_db_objects(inspector, ...)` — 提取表列表逻辑为独立函数，去重保序，供 `fetch_table_definitions_with_comments` 复用（DRY）。
+- 新增 `_build_semantic_summary(conn, inspector, table, db_dialect)` — 构建单表语义摘要，仅保留表名、表注释、字段名及注释，剥离类型/约束/样本噪声。
+- 新增 `fetch_table_semantic_summaries(db_uri, ...)` — 批量提取语义摘要字典 `{表名: 摘要文本}`，供 `TableDDLExtractorNode` 使用。
+
+#### backend/app/agent/utils/__init__.py [MODIFY]
+- 导出 `fetch_table_semantic_summaries`，与 `fetch_table_definitions_with_comments` 保持一致的导出风格。
+
+#### backend/app/agent/vector/sql_lexicon/pipeline/extractor_nodes.py [MODIFY]
+- 将 `TableDDLExtractorNode.process()` 中的 DDL 提取调用替换为 `fetch_table_semantic_summaries`，使用语义摘要作为 `Document.text` 进行嵌入。
+- 启用 `include_materialized_views=True`，修复物化视图表未被纳入检索的问题。
+
+#### backend/app/agent/vector/sql_lexicon/pipeline/milvus_load_node.py [MODIFY]
+- 提取 `_index_nodes(docs, settings, collection_name)` 辅助方法，消除三组重复的嵌入/存储逻辑。
+- 改用 `VectorStoreIndex(nodes=text_nodes, storage_context=ctx)` 直接注入 `TextNode`，跳过 `SentenceSplitter` 分块，确保每个表在 Milvus 中仅对应一个实体。
+
+#### backend/app/agent/middleware/rag_middleware.py [MODIFY]
+- 召回内容展示对齐：`structured_tables`（前端 `detail`）和 `ddl_block`（Agent `formatted_text`）均改为展示实际召回的语义摘要，不再从 `custom_table_info` 取完整 DDL。
+- 展示上限配置化：`top_tables[:3]` → `settings.lexicon_schema_top_k`，`values[:5]` → `settings.lexicon_value_top_k`，`rows[:5]` → `settings.lexicon_row_top_k`。
+- 代码重复消除：新增 `_extract_query` 共用方法，`before_model` / `abefore_model` 合计减少 39% 代码量。
+- 样本数据清理增强：正则一并移除 `-- Sample rows:` 头部残留行。
+
+#### backend/tests/agent/utils/test_semantic_summary.py [NEW]
+- 4 个单元测试覆盖 `_build_semantic_summary` 的字段注释、无表注释、PG fallback 查询、无注释字段等场景。
+
+#### backend/tests/agent/vector/sql_lexicon/test_extractor_nodes.py [NEW]
+- 2 个单元测试验证 `TableDDLExtractorNode` 使用语义摘要及非白名单表过滤。
+
+#### backend/tests/agent/vector/sql_lexicon/test_milvus_load_node.py [NEW]
+- 2 个单元测试验证 `MilvusIngestionNode` 使用 `VectorStoreIndex(nodes=nodes, ...)` 构造函数注入及空集合跳过逻辑。
+
+#### backend/tests/agent/vector/sql_lexicon/test_rag_middleware.py [MODIFY]
+- 补充语义摘要断言，适配 `formatted_text` 和 `detail` 展示召回内容的新行为。
+
+#### docs/superpowers/plans/2026-07-17-schema-semantic-summary-embedding.md [NEW]
+- 4 任务实施计划文档。
+
+---
+
+## 2026-07-18 15:00 +08:00 - 图表工具使用规约重构（§4.2 → 四层规范）
+
+### 概述
+- **重构 §4.2 图表建议规则**：将原有的单层前端标记规则重写为四层结构（触发条件 → 排除场景 → 建议策略 → 执行策略），明确量化触发条件（≥2 行、含数值列、4 类场景），补充排除场景（单值/纯文本/用户拒绝/截断数据），分离 `suggest_chart` 标记与 `build_chart_artifact` 调用时机。
+- **删除旧 §4.3 参数规则**：`build_chart_artifact` 的 6 键约束与 `category_field/category_value` 成对约束保留至 §4.4 输出格式规范中，避免信息重复。
+
+### 变更内容
+#### backend/app/agent/prompts/base_system_prompt.md [MODIFY]
+- 替换 §4.2 为 `图表建议与生成规则`，含 4 个子节（4.2.1~4.2.4）。
+- 删除旧 §4.3，参数约束合并至 §4.4。
+
+---
+
 ## 2026-07-16 21:40 +08:00 - 时间敏感因子（当前日期）排布优化与注意力增强
 
 ### 概述

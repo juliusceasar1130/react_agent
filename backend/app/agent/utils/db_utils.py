@@ -227,6 +227,99 @@ def _process_single_table(
         return None
 
 
+def _list_db_objects(
+    inspector, include_views: bool = False, include_materialized_views: bool = False
+) -> list[str]:
+    """列出数据库对象（表，可选视图/物化视图），去重保序。"""
+    tables = inspector.get_table_names()
+    if include_views:
+        tables += inspector.get_view_names()
+    if include_materialized_views:
+        get_materialized_view_names = getattr(
+            inspector, "get_materialized_view_names", None
+        )
+        if callable(get_materialized_view_names):
+            tables += get_materialized_view_names()
+    return list(dict.fromkeys(tables))
+
+
+def _build_semantic_summary(
+    conn, inspector, table: str, db_dialect: str
+) -> str | None:
+    """构建表的语义摘要（表名+表注释+字段名及注释），用于向量检索嵌入。
+
+    与 _process_single_table 不同，本函数剥离类型/约束/样本等结构噪声，
+    只保留对"表选择"有价值的语义信号。
+    """
+    try:
+        table_comment_obj = inspector.get_table_comment(table)
+        table_comment = (
+            table_comment_obj.get("text", "") if table_comment_obj else ""
+        )
+
+        columns = inspector.get_columns(table)
+
+        field_parts: list[str] = []
+        for col in columns:
+            col_name = col["name"]
+            col_comment = col.get("comment")
+            if not col_comment:
+                if db_dialect == "postgresql":
+                    col_comment = _get_column_comment_postgresql(conn, table, col_name)
+                elif db_dialect == "mysql":
+                    col_comment = _get_column_comment_mysql(conn, table, col_name)
+            if col_comment:
+                field_parts.append(f"{col_name}({col_comment})")
+            else:
+                field_parts.append(col_name)
+
+        lines = [f"表: {table}"]
+        if table_comment:
+            lines.append(f"说明: {table_comment}")
+        if field_parts:
+            lines.append(f"字段: {', '.join(field_parts)}")
+        return "\n".join(lines)
+
+    except Exception as table_err:
+        logger.error(f"构建表 {table} 语义摘要失败: {table_err}")
+        return None
+
+
+def fetch_table_semantic_summaries(
+    db_uri: str,
+    *,
+    engine_args: dict | None = None,
+    include_views: bool = False,
+    include_materialized_views: bool = False,
+) -> Dict[str, str]:
+    """提取表的语义摘要字典 {表名: 摘要文本}，供 table_schema_store 嵌入使用。"""
+    try:
+        engine = create_engine(db_uri, **(engine_args or {}))
+        inspector = inspect(engine)
+        summaries: Dict[str, str] = {}
+
+        db_dialect = engine.dialect.name
+        logger.info(f"检测到数据库类型: {db_dialect}")
+
+        tables = _list_db_objects(inspector, include_views, include_materialized_views)
+        logger.info(f"找到 {len(tables)} 个数据库对象")
+
+        with engine.connect() as conn:
+            for table in tables:
+                summary = _build_semantic_summary(conn, inspector, table, db_dialect)
+                if summary:
+                    summaries[table] = summary
+                    logger.debug(f"已生成语义摘要: {table}")
+
+        engine.dispose()
+        logger.info(f"成功提取 {len(summaries)} 个表的语义摘要")
+        return summaries
+
+    except Exception as e:
+        logger.error(f"提取表语义摘要失败: {e}")
+        return {}
+
+
 def fetch_table_definitions_with_comments(
     db_uri: str,
     *,
@@ -257,18 +350,7 @@ def fetch_table_definitions_with_comments(
         logger.info(f"检测到数据库类型: {db_dialect}")
 
         # 获取所有表 / 视图 / 物化视图
-        tables = inspector.get_table_names()
-        if include_views:
-            tables += inspector.get_view_names()
-        if include_materialized_views:
-            get_materialized_view_names = getattr(
-                inspector,
-                "get_materialized_view_names",
-                None,
-            )
-            if callable(get_materialized_view_names):
-                tables += get_materialized_view_names()
-        tables = list(dict.fromkeys(tables))
+        tables = _list_db_objects(inspector, include_views, include_materialized_views)
         logger.info(f"找到 {len(tables)} 个数据库对象")
 
         with engine.connect() as conn:

@@ -4,7 +4,7 @@ from sqlalchemy import create_engine, text
 from llama_index.core import Document
 from backend.app.agent.vector.sql_lexicon.pipeline.base import PipelineNode
 from backend.app.skills.discovery import discover_domains
-from backend.app.agent.utils.db_utils import fetch_table_definitions_with_comments
+from backend.app.agent.utils.db_utils import fetch_table_semantic_summaries
 
 logger = logging.getLogger(__name__)
 
@@ -69,13 +69,15 @@ class TableDDLExtractorNode(PipelineNode):
         engine_args = context["engine_args"]
         lexicon_enabled_tables = context["lexicon_enabled_tables"]
         
-        custom_table_info = fetch_table_definitions_with_comments(db_uri, engine_args=engine_args)
-        
-        # 表级 DDL 同步源完全收拢为 lexicon_enabled_tables
+        summaries = fetch_table_semantic_summaries(
+            db_uri, engine_args=engine_args, include_materialized_views=True
+        )
+
+        # 表级语义摘要同步源完全收拢为 lexicon_enabled_tables
         lexicon_enabled_short = {t.split(".")[-1].lower() for t in lexicon_enabled_tables}
         schema_docs = []
-        
-        for tbl_name, ddl in custom_table_info.items():
+
+        for tbl_name, summary in summaries.items():
             tbl_name_lower = tbl_name.lower()
             if tbl_name_lower in lexicon_enabled_short:
                 # 匹配并找回带模式名前缀的原表名格式，以便 metadata 存储一致性
@@ -84,8 +86,8 @@ class TableDDLExtractorNode(PipelineNode):
                     tbl_name_lower
                 )
                 schema_docs.append(Document(
-                    text=ddl,
-                    metadata={"table_name": full_table_name, "description": f"表结构 {full_table_name}"}
+                    text=summary.replace(f"表: {tbl_name}", f"表: {full_table_name}", 1),
+                    metadata={"table_name": full_table_name, "description": f"表语义摘要 {full_table_name}"}
                 ))
                 
         context["schema_docs"] = schema_docs

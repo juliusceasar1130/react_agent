@@ -46,6 +46,7 @@ Windows 下可直接运行 `start_langgraph_dev.bat`。
 - 主键统一使用 UUID 字符串
 - 优先遵循现有模块边界，不随意把逻辑重新塞回单文件
 - 新增第三方包需更新 `requirements.txt`
+- **注意双初始化路径**：`SQLAgentService` 有同步 (`_initialize_agent`) 和异步 (`_ainitialize_agent`) 两条初始化路径，分别用于 LangGraph 托管模式和 FastAPI 本地模式。修改工具注册、中间件装配、RAG 接线时，必须同步更新两边
 
 ### 前端
 

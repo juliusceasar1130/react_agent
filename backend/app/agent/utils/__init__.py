@@ -4,7 +4,7 @@
 
 from .async_utils import ensure_windows_selector_loop
 from .date_utils import normalize_dates_in_text
-from .db_utils import fetch_table_definitions_with_comments
+from .db_utils import fetch_table_definitions_with_comments, fetch_table_semantic_summaries
 from .llama_cpp_token_estimator import LlamaCppTokenEstimator
 from .vllm_token_estimator import VllmTokenEstimator
 from .sql_database import (
@@ -17,6 +17,7 @@ __all__ = [
     "ensure_windows_selector_loop",
     "normalize_dates_in_text",
     "fetch_table_definitions_with_comments",
+    "fetch_table_semantic_summaries",
     "LlamaCppTokenEstimator",
     "VllmTokenEstimator",
     "MaterializedViewSQLDatabase",

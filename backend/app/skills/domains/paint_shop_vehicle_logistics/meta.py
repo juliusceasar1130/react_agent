@@ -18,7 +18,8 @@ DOMAIN_META = {
         "dim.dim_process_area"
     ],
     # 💡 明确指定哪些表允许被抽取列值和行级实体嵌入，用作检索候选
-    "lexicon_enabled_tables": [      
+    "lexicon_enabled_tables": [ 
+        "mart.mart_position_current_overview",     
         "ods.process_areas",
         "ods.vehicle_body_types",
         "ods.vehicle_color_codes",

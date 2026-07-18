@@ -306,6 +306,7 @@ def _prepare_tools(
     db: MaterializedViewSQLDatabase,
     llm: Any,
     retriever: Optional[BaseRetriever] = None,
+    lexicon_retriever: Optional[Any] = None,
 ) -> list:
     """
     准备 Agent 工具列表。
@@ -314,6 +315,7 @@ def _prepare_tools(
         db: SQLDatabase 实例
         llm: LLM 实例
         retriever: 可选业务检索器，用于 SQL 示例检索
+        lexicon_retriever: 可选物理词典检索器，用于纠偏/结构自愈
 
     Returns:
         配置好的工具列表
@@ -376,6 +378,23 @@ def _prepare_tools(
         logger.info("已注入澄清与确认工具：AskUserQuestion")
     except Exception as exc:
         logger.warning("注入澄清与确认工具失败: %s", exc)
+
+    if lexicon_retriever is not None:
+        try:
+            from backend.app.agent.tools.sql_lexicon_tools import (
+                create_db_value_lexicon_tool,
+                create_db_row_lexicon_tool,
+                create_db_table_schema_tool,
+            )
+
+            tools.append(create_db_value_lexicon_tool(lexicon_retriever))
+            tools.append(create_db_row_lexicon_tool(lexicon_retriever))
+            tools.append(create_db_table_schema_tool(lexicon_retriever))
+            logger.info(
+                "已注入物理词典纠偏/探索工具集 (search_db_value_lexicon, search_db_row_lexicon, search_db_table_schema)"
+            )
+        except Exception as exc:
+            logger.warning("注入物理词典工具失败: %s", exc)
 
     return tools
 
@@ -566,7 +585,8 @@ class SQLAgentService:
                 rag_middleware = None
                 retriever = None
 
-            tools = _prepare_tools(db, llm, retriever=retriever)
+            lexicon_retriever = rag_middleware.lexicon_retriever if rag_middleware else None
+            tools = _prepare_tools(db, llm, retriever=retriever, lexicon_retriever=lexicon_retriever)
             system_prompt = _build_system_prompt(db)
 
             token_estimator = _create_token_estimator()
@@ -703,7 +723,8 @@ class SQLAgentService:
                 rag_middleware = None
                 retriever = None
 
-            tools = _prepare_tools(db, llm, retriever=retriever)
+            lexicon_retriever = rag_middleware.lexicon_retriever if rag_middleware else None
+            tools = _prepare_tools(db, llm, retriever=retriever, lexicon_retriever=lexicon_retriever)
             system_prompt = _build_system_prompt(db)
 
             token_estimator = _create_token_estimator()

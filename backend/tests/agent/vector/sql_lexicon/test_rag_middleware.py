@@ -34,6 +34,7 @@ async def test_business_rag_middleware_abefore_model():
         mock_table = MagicMock()
         mock_table.score = 0.95
         mock_table.node.metadata = {"table_name": "dim.dim_test_table"}
+        mock_table.node.text = "表: dim.dim_test_table\n说明: 维度测试表\n字段: col(整数列)"
         mock_lexicon_retriever.retrieve_all.return_value = {
             "tables": [mock_table],
             "values": [],
@@ -49,7 +50,8 @@ async def test_business_rag_middleware_abefore_model():
         assert "messages" not in result
         assert "lexicon_context" in result
         assert "formatted_text" in result["lexicon_context"]
-        assert "CREATE TABLE dim_test_table" in result["lexicon_context"]["formatted_text"]
+        assert "表: dim.dim_test_table" in result["lexicon_context"]["formatted_text"]
+        assert "字段: col(整数列)" in result["lexicon_context"]["formatted_text"]
         
         # 校验新增加的结构化 detail 明细
         assert "detail" in result["lexicon_context"]
@@ -57,4 +59,5 @@ async def test_business_rag_middleware_abefore_model():
         assert "tables" in detail
         assert len(detail["tables"]) == 1
         assert detail["tables"][0]["table_name"] == "dim.dim_test_table"
-        assert "CREATE TABLE dim_test_table" in detail["tables"][0]["ddl"]
+        assert "表: dim.dim_test_table" in detail["tables"][0]["ddl"]
+        assert "字段: col(整数列)" in detail["tables"][0]["ddl"]
