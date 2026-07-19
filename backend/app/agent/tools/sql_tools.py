@@ -22,12 +22,7 @@ import sqlglot
 from langchain.tools import ToolRuntime, tool as langchain_tool
 from langchain_core.tools import ToolException
 
-from backend.app.agent.utils.sql_linter import (
-    SQLLinter, _build_lint_context, DMLSecurityRule, MultiStatementRule,
-    DatabasePrefixRule, StarSelectRule, AliasPrefixRule, SubqueryDepthRule,
-    CteCountRule, JoinUniquenessRule, CountDistinctRule, ScalarSubqueryRule,
-    NotInSubqueryRule, LintViolation, LintResult
-)
+from backend.app.agent.utils.sql_linter import validate_readonly_query, SQLLintException
 
 from backend.app.agent.constants import SQL_ERROR_KEYWORDS
 from backend.app.agent.utils import emit_stream_status, normalize_dates_in_text
@@ -35,12 +30,6 @@ from backend.app.agent.vector.base import BaseRetriever
 from backend.app.config import settings
 
 logger = logging.getLogger(__name__)
-
-# 禁止的 SQL 关键字正则模式 (DML/DDL)，用于保护数据库安全
-FORBIDDEN_SQL_PATTERN = re.compile(
-    r"\b(INSERT|UPDATE|DELETE|DROP|ALTER|TRUNCATE|GRANT|REVOKE|REPLACE|MERGE|EXEC|EXECUTE)\b",
-    re.IGNORECASE
-)
 
 
 def _extract_table_names(query: str) -> set[str]:
@@ -199,66 +188,10 @@ def create_wrapped_query_tool(
             if not db_custom_info and hasattr(original_query_tool, "db"):
                 db_custom_info = getattr(original_query_tool.db, "_custom_table_info", None) or {}
             
-            # 构建校验上下文
-            context = _build_lint_context(db_custom_info)
-            
-            # 实例化 Linter
-            linter = SQLLinter(
-                rules_severity_override=settings.sql_linter_rules_severity_override,
-                disabled_rules=settings.sql_linter_disabled_rules
-            )
-            
-            # 注册安全拦截规则集
-            linter.register(DMLSecurityRule())
-            linter.register(MultiStatementRule())
-            linter.register(DatabasePrefixRule(allowed_schemas=settings.sql_linter_allowed_schemas))
-            
-            # 注册结构合规规则集
-            linter.register(StarSelectRule())
-            linter.register(AliasPrefixRule())
-            linter.register(SubqueryDepthRule(max_depth=settings.sql_linter_max_subquery_depth))
-            linter.register(CteCountRule(max_cte=settings.sql_linter_max_cte_count))
-            
-            # 注册语义校验规则集
-            linter.register(JoinUniquenessRule())
-            linter.register(CountDistinctRule())
-            linter.register(ScalarSubqueryRule())
-            linter.register(NotInSubqueryRule())
-            
-            # 执行解析与校验
             try:
-                parsed = sqlglot.parse_one(query)
-            except Exception as parse_error:
-                # 解析失败，退避到正则安全拦截与 MultiStatement 校验
-                logger.warning(f"sqlglot 解析 SQL 失败，执行正则/多语句退避校验: {parse_error}")
-                raw_violations = []
-                if FORBIDDEN_SQL_PATTERN.search(query):
-                    raw_violations.append(LintViolation(
-                        rule_id="SEC-001",
-                        severity="ERROR",
-                        message="SQL 仅允许 SELECT 只读查询，禁止任何写操作 (DML/DDL)。",
-                        detail=query,
-                        fix_suggestion="删除写入或更改表结构的指令。"
-                    ))
-                raw_violations.extend(MultiStatementRule().check_raw_sql(query, context))
-                
-                errors = [v for v in raw_violations if v.severity == "ERROR"]
-                if errors:
-                    dummy_result = LintResult(passed=False, errors=errors, warnings=[])
-                    err_msg = dummy_result.format_error_message()
-                    logger.warning(f"Linter 校验拦截 (退避模式):\n{err_msg}")
-                    raise ToolException(err_msg)
-                parsed = None
-            
-            if parsed is not None:
-                result = linter.lint(parsed, context, raw_sql=query)
-                for warn in result.warnings:
-                    logger.warning(f"Linter 警告 [{warn.rule_id}]: {warn.message} (Detail: {warn.detail})")
-                
-                if not result.passed:
-                    err_msg = result.format_error_message()
-                    logger.warning(f"Linter 校验拦截:\n{err_msg}")
-                    raise ToolException(err_msg)
+                validate_readonly_query(query, db_custom_info)
+            except SQLLintException as exc:
+                raise ToolException(str(exc))
 
         # 3. 自动执行 SQL 语法检查（如果配置为 safety 模式且 checker 工具可用）
         if settings.sql_checker_mode == "safety" and original_checker_tool is not None:

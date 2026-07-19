@@ -10,11 +10,12 @@ from decimal import Decimal
 from typing import Any, Literal
 
 from langchain.tools import ToolRuntime, tool as langchain_tool
+from langchain_core.tools import ToolException
 from pydantic import BaseModel, ConfigDict, Field, TypeAdapter, ValidationError, model_validator
 from sqlalchemy import text
 from sqlalchemy.engine import Engine
 
-from backend.app.agent.tools.sql_tools import FORBIDDEN_SQL_PATTERN
+from backend.app.agent.utils.sql_linter import validate_readonly_query, SQLLintException
 from backend.app.agent.utils import emit_stream_status
 from backend.app.chart_artifacts import create_chart_record
 from backend.app.config import settings
@@ -228,6 +229,7 @@ def _validate_numeric_series_fields(
 
 def create_chart_artifact_tool(
     engine: Engine,
+    custom_table_info: dict = None,
 ) -> Any:
     """创建图表 artifact 工具。"""
 
@@ -253,17 +255,10 @@ def create_chart_artifact_tool(
         do not only duplicate the field name. You must explicitly provide category_field and
         category_value for each series so the tool can accurately split the data.
         """
-        if FORBIDDEN_SQL_PATTERN.search(query):
-            logger.warning("图表工具安全拦截：检测到危险 SQL 关键字。Query: %s", query)
-            return (
-                "Error: 严重安全警告 - 该操作已被系统拦截。\n"
-                "build_chart_artifact 仅允许执行只读查询 (SELECT)，禁止执行任何修改操作。"
-            )
-
         if runtime is not None:
             skills_loaded = runtime.state.get("skills_loaded", [])
             if required_skill not in skills_loaded:
-                return (
+                raise ToolException(
                     f"Error: 请先使用 load_skill('{required_skill}') 加载该业务技能后再生成图表。\n"
                     f"当前已加载的技能: {skills_loaded or '无'}。"
                 )
@@ -274,15 +269,22 @@ def create_chart_artifact_tool(
             )
 
         if not series:
-            return "Error: 生成图表至少需要一个序列字段。"
-
-        emit_stream_status(
-            "正在准备图表数据",
-            stage="querying",
-            source="build_chart_artifact",
-        )
+            raise ToolException("Error: 生成图表至少需要一个序列字段。")
 
         try:
+            emit_stream_status(
+                "正在执行 SQL 合规检查",
+                stage="querying",
+                source="build_chart_artifact",
+            )
+            validate_readonly_query(query, custom_table_info)
+
+            emit_stream_status(
+                "正在准备图表数据",
+                stage="querying",
+                source="build_chart_artifact",
+            )
+
             with engine.connect() as conn:
                 result = conn.execute(text(query))
                 rows = [
@@ -358,8 +360,12 @@ def create_chart_artifact_tool(
                 source="build_chart_artifact",
             )
             return json.dumps(chart_ref, ensure_ascii=False)
+        except SQLLintException as exc:
+            logger.warning(f"build_chart_artifact 校验未通过拦截: {exc}")
+            raise ToolException(str(exc))
         except Exception as exc:
             logger.error("图表 artifact 生成失败: %s", exc)
-            return f"Error: 图表生成失败 - {exc}"
+            raise ToolException(f"Error: 图表生成失败 - {exc}")
 
+    build_chart_artifact.handle_tool_error = True
     return build_chart_artifact

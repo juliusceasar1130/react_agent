@@ -662,3 +662,83 @@ class NotInSubqueryRule(BaseLintRule):
                         fix_suggestion="请将 NOT IN 改写为等价的 NOT EXISTS 存在性查询。"
                     ))
         return violations
+
+
+# =====================================================================
+# 统一安全合规校验对齐核心
+# =====================================================================
+
+FORBIDDEN_SQL_PATTERN = re.compile(
+    r"\b(INSERT|UPDATE|DELETE|DROP|ALTER|TRUNCATE|GRANT|REVOKE|REPLACE|MERGE|EXEC|EXECUTE)\b",
+    re.IGNORECASE
+)
+
+class SQLLintException(Exception):
+    """SQL 合规性校验异常"""
+    pass
+
+def validate_readonly_query(query: str, db_custom_info: dict = None) -> None:
+    """
+    统一执行 SQL 的安全合规校验（DML/DDL 防御、多语句拦截及 11 条 AST 检查规则）。
+    若校验未通过，抛出 SQLLintException。
+    本函数保持纯校验职责：不引入 emit_stream_status / ToolException 等框架依赖。
+    """
+    from backend.app.config import settings
+
+    # 1. 【安全提升】无条件执行第一道正则物理阻断，防止 AST 解析成功但规则遗漏（如 TRUNCATE/GRANT）
+    if FORBIDDEN_SQL_PATTERN.search(query):
+        raise SQLLintException("Error: SQL 仅允许 SELECT/WITH/EXPLAIN 只读查询，禁止执行修改或表结构变更操作。")
+
+    if not settings.sql_linter_enabled:
+        return
+
+    db_custom_info = db_custom_info or {}
+    context = _build_lint_context(db_custom_info)
+    
+    linter = SQLLinter(
+        rules_severity_override=settings.sql_linter_rules_severity_override,
+        disabled_rules=settings.sql_linter_disabled_rules
+    )
+    
+    # 统一注册全部 11 条安全与合规规则
+    linter.register(DMLSecurityRule())
+    linter.register(MultiStatementRule())
+    linter.register(DatabasePrefixRule(allowed_schemas=settings.sql_linter_allowed_schemas))
+    linter.register(StarSelectRule())
+    linter.register(AliasPrefixRule())
+    linter.register(SubqueryDepthRule(max_depth=settings.sql_linter_max_subquery_depth))
+    linter.register(CteCountRule(max_cte=settings.sql_linter_max_cte_count))
+    linter.register(JoinUniquenessRule())
+    linter.register(CountDistinctRule())
+    linter.register(ScalarSubqueryRule())
+    linter.register(NotInSubqueryRule())
+    
+    try:
+        parsed = sqlglot.parse_one(query)
+    except Exception as parse_error:
+        # AST 解析失败，执行正则/多语句退避校验
+        logger.warning(f"sqlglot 解析 SQL 失败，执行正则退避校验: {parse_error}")
+        raw_violations = []
+        if FORBIDDEN_SQL_PATTERN.search(query):
+            raw_violations.append(LintViolation(
+                rule_id="SEC-001",
+                severity="ERROR",
+                message="SQL 仅允许 SELECT 只读查询，禁止任何写操作 (DML/DDL)。",
+                detail=query,
+                fix_suggestion="删除写入或更改表结构的指令。"
+            ))
+        raw_violations.extend(MultiStatementRule().check_raw_sql(query, context))
+        
+        errors = [v for v in raw_violations if v.severity == "ERROR"]
+        if errors:
+            dummy_result = LintResult(passed=False, errors=errors, warnings=[])
+            raise SQLLintException(dummy_result.format_error_message())
+        return
+
+    # 执行完整的 Linter 规则集校验
+    result = linter.lint(parsed, context, raw_sql=query)
+    for warn in result.warnings:
+        logger.warning(f"Linter 警告 [{warn.rule_id}]: {warn.message}")
+        
+    if not result.passed:
+        raise SQLLintException(result.format_error_message())

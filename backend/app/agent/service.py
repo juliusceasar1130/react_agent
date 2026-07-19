@@ -363,11 +363,12 @@ def _prepare_tools(
             )
 
     try:
-        chart_artifact_tool = create_chart_artifact_tool(db._engine)
+        custom_table_info = getattr(db, "_custom_table_info", None) or {}
+        chart_artifact_tool = create_chart_artifact_tool(db._engine, custom_table_info)
         tools.append(chart_artifact_tool)
         logger.info("已注入图表 artifact 工具：build_chart_artifact")
 
-        csv_export_tool = create_csv_export_tool(db._engine)
+        csv_export_tool = create_csv_export_tool(db._engine, custom_table_info)
         tools.append(csv_export_tool)
         logger.info("已注入 CSV 导出工具：export_to_csv")
     except Exception as exc:
@@ -541,126 +542,137 @@ class SQLAgentService:
 
         self.checkpointer, self.conn_pool = await _create_local_async_checkpointer()
 
-    def _initialize_agent(self) -> None:
-        """初始化 Agent。"""
+    def _build_agent_components(self) -> dict:
+        """
+        统一构建 Agent 的核心组件（LLM、DB、Tools、System Prompt、Middlewares）。
+        保持纯逻辑组装，不涉及持久化资源。
+        """
+        _configure_proxy_settings()
+
+        # 1. 准备大模型与数据库元信息
+        llm = _create_llm(self._use_ollama)
+        db, _ = _create_database_connection()
+
+        # 2. 准备 RAG / SQL 示例工具
+        logger.info("开始初始化业务知识 RAG 组件及 SQL 示例检索能力...")
+        rag_middleware = None
+        retriever: Optional[BaseRetriever] = None
+        reranker = None
         try:
-            _configure_proxy_settings()
-
-            # 1. 准备大模型与数据库元信息，这是两种运行模式共用的主干流程。
-            llm = _create_llm(self._use_ollama)
-            db, _ = _create_database_connection()
-
-            # 2. 准备 RAG / SQL 示例工具。这里失败时允许降级，不阻断基础 SQL Agent 启动。
-            logger.info("开始初始化业务知识 RAG 组件及 SQL 示例检索能力...")
-            rag_middleware = None
-            retriever: Optional[BaseRetriever] = None
-            reranker = None
-            try:
-                retriever, reranker = create_business_retriever_and_reranker()
-                if retriever is not None:
-                    # 在主线程/主事件循环环境下，提前对惰性初始化的检索器进行连接预热
-                    if hasattr(retriever, "warmup"):
-                        retriever.warmup()
-                    doc_k = 10 if reranker is not None else 5
-                    rag_middleware = BusinessRagMiddleware(
-                        retriever=retriever,
-                        reranker=reranker,
-                        doc_k=doc_k,
-                        score_threshold=getattr(
-                            settings, "rag_similarity_threshold", None
-                        ),
-                        db=db,
-                    )
-                    rerank_status = "Rerank 已启用" if reranker else "仅向量检索"
-                    logger.info("业务知识 RAG 中间件已启用（%s）", rerank_status)
-                else:
-                    logger.warning(
-                        "未获取到业务检索器实例，RAG 功能将不可用，同时无法提供 SQL 示例检索工具"
-                    )
-            except Exception as exc:
-                logger.warning(
-                    "业务知识 RAG 组件初始化失败，RAG 功能和 SQL 示例检索工具将不可用: %s",
-                    exc,
+            retriever, reranker = create_business_retriever_and_reranker()
+            if retriever is not None:
+                # 在主线程/主事件循环环境下，提前对惰性初始化的检索器进行连接预热
+                if hasattr(retriever, "warmup"):
+                    retriever.warmup()
+                doc_k = 10 if reranker is not None else 5
+                rag_middleware = BusinessRagMiddleware(
+                    retriever=retriever,
+                    reranker=reranker,
+                    doc_k=doc_k,
+                    score_threshold=getattr(
+                        settings, "rag_similarity_threshold", None
+                    ),
+                    db=db,
                 )
-                rag_middleware = None
-                retriever = None
+                rerank_status = "Rerank 已启用" if reranker else "仅向量检索"
+                logger.info("业务知识 RAG 中间件已启用（%s）", rerank_status)
+            else:
+                logger.warning(
+                    "未获取到业务检索器实例，RAG 功能将不可用，同时无法提供 SQL 示例检索工具"
+                )
+        except Exception as exc:
+            logger.warning(
+                "业务知识 RAG 组件初始化失败，RAG 功能和 SQL 示例检索工具将不可用: %s",
+                exc,
+            )
+            rag_middleware = None
+            retriever = None
 
-            lexicon_retriever = rag_middleware.lexicon_retriever if rag_middleware else None
-            tools = _prepare_tools(db, llm, retriever=retriever, lexicon_retriever=lexicon_retriever)
-            system_prompt = _build_system_prompt(db)
+        lexicon_retriever = rag_middleware.lexicon_retriever if rag_middleware else None
+        tools = _prepare_tools(db, llm, retriever=retriever, lexicon_retriever=lexicon_retriever)
+        system_prompt = _build_system_prompt(db)
 
-            token_estimator = _create_token_estimator()
+        token_estimator = _create_token_estimator()
 
-            def exact_token_counter(messages: list) -> int:
-                formatted = []
-                system_contents = []
+        def exact_token_counter(messages: list) -> int:
+            formatted = []
+            system_contents = []
 
-                # 借鉴 PromptCompilerMiddleware 的思路：物理抽干并合并所有的 system 消息
-                for m in messages:
-                    msg_type = getattr(m, "type", "")
-                    if msg_type == "system":
-                        system_contents.append(str(m.content))
-                    else:
-                        role = "user"
-                        if msg_type == "human":
-                            role = "user"
-                        elif msg_type == "ai":
-                            role = "assistant"
-                        elif msg_type == "tool":
-                            role = "tool"
-                        formatted.append({"role": role, "content": str(m.content)})
-
-                # 如果收集到了任何 system 消息，将其统一合并成一条，强制放置在最头部 [0] 索引位置
-                if system_contents:
-                    formatted.insert(
-                        0, {"role": "system", "content": "\n\n".join(system_contents)}
-                    )
-
-                if hasattr(token_estimator, "count_messages_tokens"):
-                    return token_estimator.count_messages_tokens(formatted)
+            # 借鉴 PromptCompilerMiddleware 的思路：物理抽干并合并所有的 system 消息
+            for m in messages:
+                msg_type = getattr(m, "type", "")
+                if msg_type == "system":
+                    system_contents.append(str(m.content))
                 else:
-                    return token_estimator.count_json_like_tokens(formatted)
+                    role = "user"
+                    if msg_type == "human":
+                        role = "user"
+                    elif msg_type == "ai":
+                        role = "assistant"
+                    elif msg_type == "tool":
+                        role = "tool"
+                    formatted.append({"role": role, "content": str(m.content)})
 
-            summarization_middleware = SummarizationMiddleware(
-                model=llm,
-                trigger=("tokens", settings.llm_context_summarize_trigger_tokens),
-                keep=("messages", 5),
-                token_counter=exact_token_counter,
+            # 如果收集到了任何 system 消息，将其统一合并成一条，强制放置在最头部 [0] 索引位置
+            if system_contents:
+                formatted.insert(
+                    0, {"role": "system", "content": "\n\n".join(system_contents)}
+                )
+
+            if hasattr(token_estimator, "count_messages_tokens"):
+                return token_estimator.count_messages_tokens(formatted)
+            else:
+                return token_estimator.count_json_like_tokens(formatted)
+
+        summarization_middleware = SummarizationMiddleware(
+            model=llm,
+            trigger=("tokens", settings.llm_context_summarize_trigger_tokens),
+            keep=("messages", 5),
+            token_counter=exact_token_counter,
+        )
+
+        # 构建调用限制中间件（防止Agent无限调用工具无法跳出）
+        call_limit_middlewares: list[Any] = []
+        if settings.agent_model_call_run_limit > 0:
+            call_limit_middlewares.append(
+                ModelCallLimitMiddleware(
+                    run_limit=settings.agent_model_call_run_limit,
+                    exit_behavior=settings.agent_call_limit_exit_behavior,  # type: ignore[arg-type]
+                )
+            )
+        if settings.agent_tool_call_run_limit > 0:
+            call_limit_middlewares.append(
+                ToolCallLimitMiddleware(
+                    run_limit=settings.agent_tool_call_run_limit,
+                    exit_behavior=settings.agent_call_limit_exit_behavior,  # type: ignore[arg-type]
+                )
             )
 
-            # 构建调用限制中间件（防止Agent无限调用工具无法跳出）
-            call_limit_middlewares: list[Any] = []
-            if settings.agent_model_call_run_limit > 0:
-                call_limit_middlewares.append(
-                    ModelCallLimitMiddleware(
-                        run_limit=settings.agent_model_call_run_limit,
-                        exit_behavior=settings.agent_call_limit_exit_behavior,  # type: ignore[arg-type]
-                    )
-                )
-            if settings.agent_tool_call_run_limit > 0:
-                call_limit_middlewares.append(
-                    ToolCallLimitMiddleware(
-                        run_limit=settings.agent_tool_call_run_limit,
-                        exit_behavior=settings.agent_call_limit_exit_behavior,  # type: ignore[arg-type]
-                    )
-                )
+        middleware_list = [
+            *call_limit_middlewares,
+            summarization_middleware,
+            SkillMiddleware(db),
+            _create_context_warning_middleware(token_estimator),
+            PromptCompilerMiddleware(),
+        ]
+        if rag_middleware:
+            middleware_list.insert(0, rag_middleware)
 
-            middleware_list = [
-                *call_limit_middlewares,
-                summarization_middleware,
-                SkillMiddleware(db),
-                _create_context_warning_middleware(token_estimator),
-                PromptCompilerMiddleware(),
-            ]
-            if rag_middleware:
-                middleware_list.insert(0, rag_middleware)
+        return {
+            "llm": llm,
+            "tools": tools,
+            "system_prompt": system_prompt,
+            "middleware": middleware_list,
+        }
 
-            # 3. 本地 FastAPI 模式下手动创建 PostgresSaver；
-            #    LangGraph 托管模式下不在 graph 定义里显式绑定持久化资源。
+    def _initialize_agent(self) -> None:
+        """初始化 Agent（同步路径）。"""
+        try:
+            components = self._build_agent_components()
+
+            # 本地同步模式下手动创建 PostgresSaver
             self._initialize_persistence()
 
-            # 4. 持久化注入保持极简：
-            #    本地模式显式传入，托管模式留空，交给 LangGraph 运行时自动接管。
             agent_kwargs = (
                 {"store": self.store, "checkpointer": self.checkpointer}
                 if not self._managed_runtime
@@ -668,131 +680,23 @@ class SQLAgentService:
             )
 
             self.agent = create_agent(
-                model=llm,
-                tools=tools,
-                system_prompt=system_prompt,
-                middleware=middleware_list,
+                model=components["llm"],
+                tools=components["tools"],
+                system_prompt=components["system_prompt"],
+                middleware=components["middleware"],
                 **agent_kwargs,
             )
-
-            logger.info("SQL Agent 初始化成功")
-
+            logger.info("SQL Agent 同步路径初始化成功")
         except Exception as exc:
-            logger.error("SQL Agent 初始化失败: %s", exc)
+            logger.error("SQL Agent 同步路径初始化失败: %s", exc)
             raise
 
     async def _ainitialize_agent(self) -> None:
-        """异步初始化 Agent，供 FastAPI 本地模式使用。"""
+        """异步初始化 Agent（异步路径），供 FastAPI 本地独立模式使用。"""
         try:
-            _configure_proxy_settings()
+            components = self._build_agent_components()
 
-            llm = _create_llm(self._use_ollama)
-            db, _ = _create_database_connection()
-
-            logger.info("开始初始化业务知识 RAG 组件及 SQL 示例检索能力...")
-            rag_middleware = None
-            retriever: Optional[BaseRetriever] = None
-            reranker = None
-            try:
-                retriever, reranker = create_business_retriever_and_reranker()
-                if retriever is not None:
-                    # 在主线程/主事件循环环境下，提前对惰性初始化的检索器进行连接预热
-                    if hasattr(retriever, "warmup"):
-                        retriever.warmup()
-                    doc_k = 10 if reranker is not None else 5
-                    rag_middleware = BusinessRagMiddleware(
-                        retriever=retriever,
-                        reranker=reranker,
-                        doc_k=doc_k,
-                        score_threshold=getattr(
-                            settings, "rag_similarity_threshold", None
-                        ),
-                        db=db,
-                    )
-                    rerank_status = "Rerank 已启用" if reranker else "仅向量检索"
-                    logger.info("业务知识 RAG 中间件已启用（%s）", rerank_status)
-                else:
-                    logger.warning(
-                        "未获取到业务检索器实例，RAG 功能将不可用，同时无法提供 SQL 示例检索工具"
-                    )
-            except Exception as exc:
-                logger.warning(
-                    "业务知识 RAG 组件初始化失败，RAG 功能和 SQL 示例检索工具将不可用: %s",
-                    exc,
-                )
-                rag_middleware = None
-                retriever = None
-
-            lexicon_retriever = rag_middleware.lexicon_retriever if rag_middleware else None
-            tools = _prepare_tools(db, llm, retriever=retriever, lexicon_retriever=lexicon_retriever)
-            system_prompt = _build_system_prompt(db)
-
-            token_estimator = _create_token_estimator()
-
-            def exact_token_counter(messages: list) -> int:
-                formatted = []
-                system_contents = []
-
-                # 借鉴 PromptCompilerMiddleware 的思路：物理抽干并合并所有的 system 消息
-                for m in messages:
-                    msg_type = getattr(m, "type", "")
-                    if msg_type == "system":
-                        system_contents.append(str(m.content))
-                    else:
-                        role = "user"
-                        if msg_type == "human":
-                            role = "user"
-                        elif msg_type == "ai":
-                            role = "assistant"
-                        elif msg_type == "tool":
-                            role = "tool"
-                        formatted.append({"role": role, "content": str(m.content)})
-
-                # 如果收集到了任何 system 消息，将其统一合并成一条，强制放置在最头部 [0] 索引位置
-                if system_contents:
-                    formatted.insert(
-                        0, {"role": "system", "content": "\n\n".join(system_contents)}
-                    )
-
-                if hasattr(token_estimator, "count_messages_tokens"):
-                    return token_estimator.count_messages_tokens(formatted)
-                else:
-                    return token_estimator.count_json_like_tokens(formatted)
-
-            summarization_middleware = SummarizationMiddleware(
-                model=llm,
-                trigger=("tokens", settings.llm_context_summarize_trigger_tokens),
-                keep=("messages", 5),
-                token_counter=exact_token_counter,
-            )
-
-            # 构建调用限制中间件（防止Agent无限调用工具无法跳出）
-            call_limit_middlewares: list[Any] = []
-            if settings.agent_model_call_run_limit > 0:
-                call_limit_middlewares.append(
-                    ModelCallLimitMiddleware(
-                        run_limit=settings.agent_model_call_run_limit,
-                        exit_behavior=settings.agent_call_limit_exit_behavior,  # type: ignore[arg-type]
-                    )
-                )
-            if settings.agent_tool_call_run_limit > 0:
-                call_limit_middlewares.append(
-                    ToolCallLimitMiddleware(
-                        run_limit=settings.agent_tool_call_run_limit,
-                        exit_behavior=settings.agent_call_limit_exit_behavior,  # type: ignore[arg-type]
-                    )
-                )
-
-            middleware_list = [
-                *call_limit_middlewares,
-                summarization_middleware,
-                SkillMiddleware(db),
-                _create_context_warning_middleware(token_estimator),
-                PromptCompilerMiddleware(),
-            ]
-            if rag_middleware:
-                middleware_list.insert(0, rag_middleware)
-
+            # 本地异步模式下创建 AsyncPostgresSaver
             await self._ainitialize_persistence()
 
             agent_kwargs = (
@@ -802,17 +706,15 @@ class SQLAgentService:
             )
 
             self.agent = create_agent(
-                model=llm,
-                tools=tools,
-                system_prompt=system_prompt,
-                middleware=middleware_list,
+                model=components["llm"],
+                tools=components["tools"],
+                system_prompt=components["system_prompt"],
+                middleware=components["middleware"],
                 **agent_kwargs,
             )
-
-            logger.info("SQL Agent 异步初始化成功")
-
+            logger.info("SQL Agent 异步路径初始化成功")
         except Exception as exc:
-            logger.error("SQL Agent 异步初始化失败: %s", exc)
+            logger.error("SQL Agent 异步路径初始化失败: %s", exc)
             raise
 
     async def aclose(self) -> None:

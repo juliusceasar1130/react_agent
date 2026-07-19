@@ -1,3 +1,58 @@
+## 2026-07-19 15:32 +08:00 - SQL Agent 双轨初始化路径解耦与工厂化重构
+
+### 问题根因
+1. **初始化逻辑高度重复**：`SQLAgentService` 同步路径（`_initialize_agent`）与异步路径（`_ainitialize_agent`）之间存在超过 120 行高度相同的工具装配、中间件实例化、LLM 与 DB 组装等重复代码，造成冗余。
+2. **多端维护和逻辑分叉风险**：每当工具（如 DDL 信息传递）或中间件顺序发生变更时，都必须手动在两端同步修改，极易遗漏导致 LangGraph 托管端与本地 FastAPI 端的行为产生分叉。
+
+### 变更内容
+#### backend/app/agent/service.py [MODIFY]
+- 提取私有辅助方法 `_build_agent_components(self) -> dict`，将大模型加载、DB连接、工具装配与中间件组装的核心顺序逻辑收拢合并，保持纯逻辑组装职责。
+- 重构 `_initialize_agent` 与 `_ainitialize_agent` 核心入口，分别调用 `_build_agent_components` 并结合各自同步/异步 Persistence 创建 `agent`，完全消除了重复的样板代码。
+
+#### docs/StructuredOutput/refactor/dual_path_initialization_decoupling.md [NEW]
+- 新增本期重构的设计方案文档，详细论述重构背景、结构架构、变更方法、以及上线验证步骤。
+
+---
+
+## 2026-07-19 15:18 +08:00 - 统一 SQL 安全合规拦截校验与异常契约对齐
+
+### 问题根因
+1. **安全校验边界不一致**：数据预览（sql_db_query）、CSV 导出（export_to_csv）和图表生成（build_chart_artifact）三个数据库查询工具在 SQL 安全和合规校验方面的行为不一致（部分仅做正则校验，部分无 DDL 元数据注入）。
+2. **高危 SQL AST 绕过漏洞**：原 AST 校验规则仅检测 DML 类型的 AST 节点。如果传入 `TRUNCATE` 或 `GRANT`/`REVOKE` 等语句，解析成 AST 节点后无法匹配原规则节点，导致直接绕过校验。
+3. **异常自愈机制未对齐**：当 CSV 导出或图表工具报错时，原设计返回普通字符串而非抛出 `ToolException`，导致大模型无法识别错误进行自我修正（Self-Correction），且前端 Prompt 编译器中间件无法识别崩溃字段进行自动收折。
+4. **死代码遗留**：项目中残留了 `sql_tools_local.py` 与 `services_graph.py` 等不再使用或包含硬编码崩溃代码的文件。
+
+### 变更内容
+#### backend/app/agent/utils/sql_linter.py [MODIFY]
+- 新增 `SQLLintException` 专属异常。
+- 引入统一安全校验入口 `validate_readonly_query(query, db_custom_info)`。
+- **【核心漏洞加固】**：在解析前无条件应用 `FORBIDDEN_SQL_PATTERN` 正则第一道硬拦截，阻断 `TRUNCATE`/`GRANT` 等语句绕过 AST。
+
+#### backend/app/agent/tools/sql_tools.py [MODIFY]
+- 移除了冗余的 11 条 Linter 规则手动实例化与注册逻辑，将安全校验统一委托给 `validate_readonly_query` 核心，对齐异常捕获契约。
+
+#### backend/app/agent/tools/csv_export_tool.py [MODIFY]
+- 重构 `create_csv_export_tool` 以接收 `custom_table_info`。
+- 移除遗留的 `FORBIDDEN_SQL_PATTERN` 逻辑，在执行前接入 `validate_readonly_query` 校验。
+- 错误与拦截时统一抛出 `ToolException`，对齐自愈契约并启用 `handle_tool_error = True`。
+
+#### backend/app/agent/tools/chart_artifact_tool.py [MODIFY]
+- 执行与 CSV 导出工具一致的安全合规对齐改造，错误与安全拦截时统一抛出 `ToolException`，使大模型能够捕捉并自愈。
+
+#### backend/app/agent/service.py [MODIFY]
+- 在加载工具阶段，从 `db` 实例中提取 `_custom_table_info` DDL 表结构字典，并将其透明注入到 CSV 导出和图表生成工具的工厂函数中，确保语义级 Linter 校验正常执行。
+
+#### [NEW] backend/app/agent/tools/test_unified_linter.py
+- 新增 8 个全链路校验与异常契约的单元测试用例，覆盖 DML 拦截、`TRUNCATE` 漏洞拦截、多语句拼接拦截、表前缀别名缺失拦截以及 CSV/图表工具抛出 `ToolException` 被 `handle_tool_error` 成功转换为错误字符串的表现。
+
+#### [DELETE] backend/app/agent/tools/sql_tools_local.py
+- 物理删除无用的死代码复制文件。
+
+#### [DELETE] backend/app/services_graph.py
+- 物理删除包含硬编码 MySQL 连接且已废弃的旧图形服务模块，解决包加载阶段偶发崩溃的问题。
+
+---
+
 ## 2026-07-18 22:47 +08:00 - 优化人工输入气泡的视觉配色系统
 
 ### 变更内容
