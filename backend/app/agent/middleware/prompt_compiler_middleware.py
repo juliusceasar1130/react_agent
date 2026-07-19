@@ -144,9 +144,14 @@ class PromptCompilerMiddleware(AgentMiddleware[CustomState]):
             "runtime_header": "X-SQL-EXECUTION-STATUS: FAILED",
         },
         "build_chart_artifact": {
-            "has_linter": False,
+            "has_linter": True,
             "has_runtime": True,
             "runtime_header": "X-CHART-STATUS: FAILED",
+        },
+        "export_to_csv": {
+            "has_linter": True,
+            "has_runtime": True,
+            "runtime_header": "Error:",
         },
     }
 
@@ -207,11 +212,15 @@ class PromptCompilerMiddleware(AgentMiddleware[CustomState]):
         last_human_idx = self._find_last_human_index(projected)
         keep_count = settings.llm_context_redaction_keep_count
 
-        # Only scan sql_db_query messages within the current ReAct loop (after last HumanMessage)
+        # Scan messages in current ReAct loop that support Linter (after last HumanMessage)
         sql_tool_infos = []
         for idx in range(last_human_idx, len(projected)):
             msg = projected[idx]
-            if isinstance(msg, ToolMessage) and msg.name == "sql_db_query":
+            if (
+                isinstance(msg, ToolMessage)
+                and msg.name in self._DELETION_TARGET_CONFIG
+                and self._DELETION_TARGET_CONFIG[msg.name]["has_linter"]
+            ):
                 content_str = str(msg.content)
                 is_linter_error = (
                     "X-SQL-LINTER-STATUS: FAILED" in content_str or
@@ -256,7 +265,11 @@ class PromptCompilerMiddleware(AgentMiddleware[CustomState]):
         # Redact failures not in kept set (scans all messages, not just current loop)
         for idx in range(len(projected)):
             msg = projected[idx]
-            if not (isinstance(msg, ToolMessage) and msg.name == "sql_db_query"):
+            if not (
+                isinstance(msg, ToolMessage)
+                and msg.name in self._DELETION_TARGET_CONFIG
+                and self._DELETION_TARGET_CONFIG[msg.name]["has_linter"]
+            ):
                 continue
 
             content_str = str(msg.content)

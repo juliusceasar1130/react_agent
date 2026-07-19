@@ -707,3 +707,69 @@ def test_prompt_compiler_lexicon_retrieval_mixed_tool_calls_deletion():
     assert len(ai_msgs) == 1
     assert len(ai_msgs[0].tool_calls) == 1
     assert ai_msgs[0].tool_calls[0]["id"] == "c_sql"
+
+
+def test_stage_redaction_build_chart_artifact():
+    """测试 build_chart_artifact 的 Linter 错误消息也能够被正常折叠。"""
+    from langchain_core.messages import HumanMessage, AIMessage, ToolMessage
+    from backend.app.agent.middleware.prompt_compiler_middleware import _CollapseContext
+
+    messages = [
+        HumanMessage(content="Draw a chart"),
+        # 1. 第一步：画图因 Linter 失败 (应被折叠)
+        AIMessage(content="chart 1", tool_calls=[{"name": "build_chart_artifact", "args": {"query": "bad 1"}, "id": "call_chart_1"}]),
+        ToolMessage(content="X-SQL-LINTER-STATUS: FAILED\nError: SEM-001", name="build_chart_artifact", tool_call_id="call_chart_1"),
+        
+        # 2. 第二步：画图修改成功 (分水岭)
+        AIMessage(content="chart 2", tool_calls=[{"name": "build_chart_artifact", "args": {"query": "ok 2"}, "id": "call_chart_2"}]),
+        ToolMessage(content="{'chart_id': '123'}", name="build_chart_artifact", tool_call_id="call_chart_2"),
+        
+        # 3. 最新一轮尝试 (活跃，必须保留)
+        AIMessage(content="chart 3", tool_calls=[{"name": "build_chart_artifact", "args": {"query": "bad 3"}, "id": "call_chart_3"}]),
+        ToolMessage(content="X-SQL-LINTER-STATUS: FAILED\nError: SEM-001", name="build_chart_artifact", tool_call_id="call_chart_3"),
+    ]
+
+    middleware = PromptCompilerMiddleware()
+    ctx = _CollapseContext(messages=messages, boundary_index=0)
+    result = middleware._stage_redaction(messages, ctx)
+
+    # 验证：分水岭之前的 call_chart_1 确实被成功折叠为占位符！
+    assert result[1].content == "[Invalid SQL attempt. Redacted to save context space.]"
+    assert result[2].content == "[SQL validation failed by Linter. Previous invalid attempt redacted to save context space.]"
+    
+    # 验证：最新尝试 call_chart_3 作为调试线索被完好保留！
+    assert result[5].content == "chart 3"
+    assert result[6].content == "X-SQL-LINTER-STATUS: FAILED\nError: SEM-001"
+
+
+def test_stage_redaction_export_to_csv():
+    """测试 export_to_csv 的 Linter 错误消息也能够被正常折叠。"""
+    from langchain_core.messages import HumanMessage, AIMessage, ToolMessage
+    from backend.app.agent.middleware.prompt_compiler_middleware import _CollapseContext
+
+    messages = [
+        HumanMessage(content="Export to csv"),
+        # 1. 第一步：因 Linter 失败 (应被折叠)
+        AIMessage(content="csv 1", tool_calls=[{"name": "export_to_csv", "args": {"query": "bad 1"}, "id": "call_csv_1"}]),
+        ToolMessage(content="X-SQL-LINTER-STATUS: FAILED\nError: SEM-001", name="export_to_csv", tool_call_id="call_csv_1"),
+        
+        # 2. 第二步：修改成功 (分水岭)
+        AIMessage(content="csv 2", tool_calls=[{"name": "export_to_csv", "args": {"query": "ok 2"}, "id": "call_csv_2"}]),
+        ToolMessage(content="{'file_path': 'a.csv'}", name="export_to_csv", tool_call_id="call_csv_2"),
+        
+        # 3. 最新一轮尝试 (活跃，必须保留)
+        AIMessage(content="csv 3", tool_calls=[{"name": "export_to_csv", "args": {"query": "bad 3"}, "id": "call_csv_3"}]),
+        ToolMessage(content="X-SQL-LINTER-STATUS: FAILED\nError: SEM-001", name="export_to_csv", tool_call_id="call_csv_3"),
+    ]
+
+    middleware = PromptCompilerMiddleware()
+    ctx = _CollapseContext(messages=messages, boundary_index=0)
+    result = middleware._stage_redaction(messages, ctx)
+
+    # 验证：分水岭之前的 call_csv_1 确实被成功折叠为占位符！
+    assert result[1].content == "[Invalid SQL attempt. Redacted to save context space.]"
+    assert result[2].content == "[SQL validation failed by Linter. Previous invalid attempt redacted to save context space.]"
+    
+    # 验证：最新尝试 call_csv_3 作为调试线索被完好保留！
+    assert result[5].content == "csv 3"
+    assert result[6].content == "X-SQL-LINTER-STATUS: FAILED\nError: SEM-001"

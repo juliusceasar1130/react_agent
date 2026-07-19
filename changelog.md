@@ -1,4 +1,24 @@
+## 2026-07-19 15:39 +08:00 - 上下文编译器对齐图表与 CSV 工具与 Linter 折叠优化
+
+### 问题根因
+1. **Linter 状态检查未开启**：图表工具 `build_chart_artifact` 与 CSV 导出工具 `export_to_csv` 在中间件配置中的 `has_linter` 为 `False`，导致合规校验失败时的清理预检效率低下。
+2. **历史折叠缺失**：Stage 3 历史 Linter 错误折叠逻辑硬编码限制为仅处理 `sql_db_query` 消息。如果图表或 CSV 工具被多次拦截，生成的庞大 DDL 和 Linter 报错内容将无情地挤爆 LLM 窗口上下文。
+
+### 变更内容
+#### backend/app/agent/middleware/prompt_compiler_middleware.py [MODIFY]
+- 修改配置表 `_DELETION_TARGET_CONFIG`，将 `build_chart_artifact` 与 `export_to_csv` 显式开启 `has_linter: True` 拦截。
+- 重构 Stage 3 `_stage_redaction` 中的过滤检查与折叠循环，将原本硬编码的 `sql_db_query` 改为动态匹配所有配置为 `has_linter=True` 的支持工具，实现了逻辑泛化与对齐。
+
+#### backend/app/agent/middleware/test_prompt_compiler_middleware.py [MODIFY]
+- 新增单元测试用例 `test_stage_redaction_build_chart_artifact` 与 `test_stage_redaction_export_to_csv`，模拟多次调用失败并由 Linter 拦截后，旧失败尝试已被成功折叠替换为占位符的效果，目前 25 个用例全部绿灯通过。
+
+#### docs/StructuredOutput/refactor/prompt_compiler_middleware_alignment.md [NEW]
+- 新增上下文编译器对齐方案设计文档，系统阐述了重构背景、泛化判定重构、详细变更对比以及单元测试覆盖设计。
+
+---
+
 ## 2026-07-19 15:32 +08:00 - SQL Agent 双轨初始化路径解耦与工厂化重构
+
 
 ### 问题根因
 1. **初始化逻辑高度重复**：`SQLAgentService` 同步路径（`_initialize_agent`）与异步路径（`_ainitialize_agent`）之间存在超过 120 行高度相同的工具装配、中间件实例化、LLM 与 DB 组装等重复代码，造成冗余。
