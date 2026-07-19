@@ -773,3 +773,41 @@ def test_stage_redaction_export_to_csv():
     # 验证：最新尝试 call_csv_3 作为调试线索被完好保留！
     assert result[5].content == "csv 3"
     assert result[6].content == "X-SQL-LINTER-STATUS: FAILED\nError: SEM-001"
+
+
+def test_stage2_json_success_with_error_content():
+    """测试当成功查询的结果 JSON 中包含 'failed' 列名或值时，防御性解析能避免其被误判失败物理删除。"""
+    from langchain_core.messages import HumanMessage, AIMessage, ToolMessage
+    messages = [
+        HumanMessage(content="Query table"),
+        AIMessage(content="Checking table", tool_calls=[{"name": "sql_db_query", "args": {"query": "SELECT status FROM table"}, "id": "call_error_col"}]),
+        # 成功结果，但列名或数据包含 'failed'，且带时间戳前缀
+        ToolMessage(
+            content="[数据真实查询时刻: 2026-07-19 18:00:00]\n[{\"status\": \"failed\", \"count\": 2}]",
+            name="sql_db_query",
+            tool_call_id="call_error_col"
+        ),
+        
+        # 3 protected human messages to push the tool message out of sliding window
+        HumanMessage(content="M1"),
+        HumanMessage(content="M2"),
+        HumanMessage(content="M3"),
+    ]
+    
+    state = CustomState(messages=messages)
+    request = ModelRequest(
+        model=None,
+        messages=messages,
+        system_message=SystemMessage(content="Base system prompt"),
+        state=state
+    )
+    
+    middleware = PromptCompilerMiddleware()
+    new_request = middleware._modify_request(request)
+    
+    # 验证：因为 JSON 成功态防御性解析修复，该合法 JSON 消息不应被当作失败而被物理删除！它应该被保留。
+    tool_msgs = [m for m in new_request.messages if isinstance(m, ToolMessage) and m.tool_call_id == "call_error_col"]
+    assert len(tool_msgs) == 1
+    # 并且，由于它被滑动窗口移出，它应该被折叠为成功的占位符，而不是被物理删除
+    assert tool_msgs[0].content == "[SQL execution successful. Result content collapsed. Re-run query if details are needed.]"
+

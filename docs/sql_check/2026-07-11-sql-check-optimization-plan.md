@@ -6,7 +6,7 @@
 
 **Architecture:**
 1. 在 `backend/app/config.py` 与 `.env` 中新增 `sql_checker_mode` 环境变量（默认值为 `fast`）。
-2. 在 `backend/app/agent/tools/sql_tools.py` 与 `sql_tools_local.py` 中，将大模型 SQL 检查工具 `original_checker_tool` 的调用包装在 `settings.sql_checker_mode == "safety"` 逻辑分支中。
+2. 在 `backend/app/agent/tools/sql_tools.py` 中，将大模型 SQL 检查工具 `original_checker_tool` 的调用包装在 `settings.sql_checker_mode == "safety"` 逻辑分支中。（注：`sql_tools_local.py` 经证实是死代码已被彻底删除，无须修改）。
 
 **Tech Stack:** Python 3.12, pytest, LangChain Core Tools, Pydantic settings.
 
@@ -122,7 +122,7 @@ SQL_CHECKER_MODE="fast"
 
 **Files:**
 - Modify: `backend/app/agent/tools/sql_tools.py:263-270`
-- Modify: `backend/app/agent/tools/sql_tools_local.py:152-160`
+- [已废弃] Modify: `backend/app/agent/tools/sql_tools_local.py:152-160`（该文件已物理删除）
 
 - [ ] **Step 1: 修改 sql_tools.py 语法检查逻辑**
 
@@ -137,18 +137,10 @@ SQL_CHECKER_MODE="fast"
         if settings.sql_checker_mode == "safety" and original_checker_tool is not None:
 ```
 
-- [ ] **Step 2: 修改 sql_tools_local.py 语法检查逻辑**
+- [x] **Step 2: [已废弃] 修改 sql_tools_local.py 语法检查逻辑**
 
-在 [sql_tools_local.py](file:///f:/000_dev/Python/workplace/rearch_agent/.tree/features/agent/backend/app/agent/tools/sql_tools_local.py) 中，找到：
-```python
-        # 2. 自动执行 SQL 语法检查（如果 checker 工具可用）
-        if original_checker_tool is not None:
-```
-同样修改为根据配置选择性同步检查：
-```python
-        # 2. 自动执行 SQL 语法检查（如果配置为 safety 模式且 checker 工具可用）
-        if settings.sql_checker_mode == "safety" and original_checker_tool is not None:
-```
+> **注**：在 2026-07-19 的系统诊断重构中，`sql_tools_local.py` 经核实是 `sql_tools.py` 的死代码分叉副本，已被物理删除，故此步骤直接标记为已完成并废弃。
+
 
 ---
 

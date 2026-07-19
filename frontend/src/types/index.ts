@@ -54,6 +54,15 @@ export interface Message {
     content: string
   }> | null
   lexicon_context?: LexiconContext | null
+  tool_artifact?: {
+    kind: string
+    columns?: string[]
+    rows?: any[]
+    row_count?: number
+    truncated?: boolean
+    query_time?: string
+    source_tables?: string[]
+  } | null
 }
 
 export interface MessageCreate {
@@ -198,6 +207,10 @@ export type StreamEvent =
       type: 'lexicon_context'
       lexicon_context: LexiconContext
     }
+  | {
+      type: 'tool_artifact'
+      artifact: any
+    }
 
 export interface FinalizedStreamingMessage {
   id?: string
@@ -237,6 +250,15 @@ export interface StreamingMessage {
     content: string
   }> | null
   lexiconContext?: LexiconContext | null
+  tool_artifact?: {
+    kind: string
+    columns?: string[]
+    rows?: any[]
+    row_count?: number
+    truncated?: boolean
+    query_time?: string
+    source_tables?: string[]
+  } | null
 }
 
 // 聊天请求类型 - 2025-01-01

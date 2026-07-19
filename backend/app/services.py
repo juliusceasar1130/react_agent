@@ -800,6 +800,14 @@ class SQLAgentService:
                             if not isinstance(state_update, dict):
                                 continue
 
+                            if "tool_artifact" in state_update:
+                                artifact_val = state_update.get("tool_artifact")
+                                if artifact_val:
+                                    await _emit({
+                                        "type": "tool_artifact",
+                                        "artifact": artifact_val
+                                    })
+
                             if "context_warning" in state_update:
                                 warning_payload = state_update.get("context_warning")
                                 normalized_warning = (

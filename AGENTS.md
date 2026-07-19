@@ -53,6 +53,10 @@ Windows 下可直接运行 `start_langgraph_dev.bat`。
 - 使用 `<script setup>` + Pinia Setup Store
 - refs 在 store 中直接使用，不额外加 `.value`
 - 流式阶段与完成态展示职责分离
+- **流式事件注册与过滤防丢机制**：若后端新增流式事件（如 `tool_artifact`），前端必须同步更新三处地方，以防被网络拦截层静默过滤丢弃：
+  1) `@/types` 中的 `StreamEvent` 联合类型声明；
+  2) `@/api/chat` 中的 `STREAM_EVENT_TYPES` 白名单 Set 集合；
+  3) `@/api/chat` 中 `parseStreamEvent` 的 `switch` 解析分支。
 
 ### 文档维护
 

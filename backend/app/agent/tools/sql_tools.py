@@ -16,11 +16,14 @@ SQL 查询工具工厂
 
 import logging
 import re
+import json
 from typing import Any, List, Optional, Union
 
 import sqlglot
 from langchain.tools import ToolRuntime, tool as langchain_tool
 from langchain_core.tools import ToolException
+from langchain_core.messages import ToolMessage
+from langgraph.types import Command
 
 from backend.app.agent.utils.sql_linter import validate_readonly_query, SQLLintException
 
@@ -67,64 +70,6 @@ def _is_pure_dimension_query(query: str) -> bool:
     return involved_tables.issubset(dim_whitelist)
 
 
-def _estimate_row_count(result_text: str) -> int:
-    """
-    估算 LangChain sql_db_query 工具返回的结果字符串中的行数。
-
-    当前工具优先返回带列名的 Python 字典列表文本表示，例如：
-    "[{'col1': 'val1'}, {'col1': 'val2'}]"
-    同时兼容历史版本的元组列表表示：
-    "[('val1', 'val2'), ('val3', 'val4')]"
-    """
-    stripped = result_text.strip()
-    if not stripped.startswith("["):
-        return 0
-
-    if stripped.startswith("[{"):
-        count = result_text.count("}, {") + result_text.count("},\n{")
-        if count == 0 and "{" in stripped:
-            return 1
-        return count + 1 if count > 0 else 0
-
-    count = result_text.count("), (") + result_text.count("),\n(")
-
-    # 特殊情况处理：
-    # 1. 只有一行数据时，可能不包含分隔符
-    if count == 0 and stripped.startswith("[") and "(" in result_text:
-        return 1
-    # 2. 空结果集
-    return count + 1 if count > 0 else 0
-
-
-def _extract_preview_rows(result_text: str, n: int) -> str:
-    """
-    从结果字符串中提取前 n 行作为预览。
-
-    同时兼容元组列表与字典列表两种字符串表示。
-    """
-    stripped = result_text.strip()
-    separator_pattern = r"\),\s*\("
-    item_suffix = ")"
-
-    if stripped.startswith("[{"):
-        separator_pattern = r"\},\s*\{"
-        item_suffix = "}"
-
-    parts = re.split(separator_pattern, result_text)
-    if len(parts) <= n:
-        return result_text
-
-    # 截取前 n 个元素并重新使用分隔符拼接
-    preview_parts = parts[:n]
-    join_token = "}, {" if item_suffix == "}" else "), ("
-    preview = join_token.join(preview_parts)
-    
-    # re.split 会丢掉分隔符中匹配的部分，两端可能缺少闭合字符。
-    if not preview.rstrip().endswith(item_suffix):
-        preview += item_suffix
-    if not preview.rstrip().endswith("]"):
-        preview += "]"
-    return preview
 
 
 def create_wrapped_query_tool(
@@ -222,7 +167,6 @@ def create_wrapped_query_tool(
             )
         else:
             raw_result = original_query_tool.invoke({"query": query})
-        result_str = str(raw_result)
 
         # 4. 对查询结果的日期进行格式转换与时分秒查询时刻注入
         emit_stream_status(
@@ -230,12 +174,41 @@ def create_wrapped_query_tool(
             stage="writing",
             source="sql_db_query",
         )
-        cleaned_result = normalize_dates_in_text(result_str)
-        logger.debug("SQL 查询结果已清洗日期格式")
 
-        from datetime import datetime
-        db_query_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        time_prefix = f"[数据真实查询时刻: {db_query_time}]\n"
+        # 归一化并转换日期、Decimal 类型
+        import datetime
+        from decimal import Decimal
+        import ast
+
+        # 若 raw_result 是格式化的列表字符串表示，安全还原为 Python 列表
+        if isinstance(raw_result, str):
+            stripped = raw_result.strip()
+            if stripped.startswith("[") and stripped.endswith("]"):
+                try:
+                    raw_result = ast.literal_eval(stripped)
+                except Exception:
+                    try:
+                        raw_result = json.loads(stripped)
+                    except Exception:
+                        pass
+
+        cleaned_result = []
+        if isinstance(raw_result, list):
+            for row in raw_result:
+                if isinstance(row, dict):
+                    cleaned_row = {}
+                    for k, v in row.items():
+                        if isinstance(v, (datetime.datetime, datetime.date)):
+                            cleaned_row[k] = v.isoformat()
+                        elif isinstance(v, Decimal):
+                            cleaned_row[k] = float(v)
+                        else:
+                            cleaned_row[k] = v
+                    cleaned_result.append(cleaned_row)
+                else:
+                    cleaned_result.append(row)
+        else:
+            cleaned_result = raw_result
 
         # 5. 智能结果限流：防止数据库返回结果过大撑爆 LLM 上下文
         is_dim = _is_pure_dimension_query(query)
@@ -243,30 +216,68 @@ def create_wrapped_query_tool(
             settings.dimension_result_hard_limit if is_dim else settings.sql_result_hard_limit
         )
         preview_rows = settings.sql_result_preview_rows   # 获取超限时返还给大模型的预览数据行数（如 5 行）
-        estimated_rows = _estimate_row_count(cleaned_result) # 通过字符串特征估算查询结果的总行数
+        
+        row_count = len(cleaned_result) if isinstance(cleaned_result, list) else 0
+        truncated = row_count >= hard_limit
 
-        if estimated_rows >= hard_limit:
-            # 执行截断逻辑：只返回前 N 行预览数据 + 系统防御说明
-            preview_data = _extract_preview_rows(cleaned_result, preview_rows)
+        from datetime import datetime as dt
+        db_query_time = dt.now().strftime("%Y-%m-%d %H:%M:%S")
+        time_prefix = f"[数据真实查询时刻: {db_query_time}]\n"
+
+        # 提取 columns，若空集则降级
+        columns = []
+        if cleaned_result and isinstance(cleaned_result, list) and isinstance(cleaned_result[0], dict):
+            columns = list(cleaned_result[0].keys())
+        else:
+            try:
+                parsed = sqlglot.parse_one(query)
+                columns = [col.alias_or_name for col in parsed.find_all(sqlglot.exp.Column)]
+                columns = list(dict.fromkeys(columns))
+            except Exception:
+                pass
+
+        # 提取 source_tables
+        source_tables = list(_extract_table_names(query))
+
+        if truncated:
+            preview_rows_data = cleaned_result[:preview_rows]
+            preview_text = json.dumps(preview_rows_data, ensure_ascii=False)
             logger.warning(
-                "SQL 查询结果超限截断: 估算行数=%d, 硬限制=%d, 预览行数=%d",
-                estimated_rows, hard_limit, preview_rows,
+                "SQL 查询结果超限截断: 真实行数=%d, 硬限制=%d, 预览行数=%d",
+                row_count, hard_limit, preview_rows,
             )
-            # 这里的返回内容会被 Agent 直接作为观察内容 (Observation)，
-            # 注入 SYSTEM WARNING 的目的是通过 Prompt 强力引导模型不要产生错误的汇总逻辑。
-            return (
+            llm_content = (
                 f"{time_prefix}"
-                f"⚠️ SYSTEM WARNING: 查询共返回 {estimated_rows} 行结果，达到系统硬限制 ({hard_limit} 行) 并被强制截断。\n"
+                f"⚠️ SYSTEM WARNING: 查询共返回 {row_count} 行结果，达到系统硬限制 ({hard_limit} 行) 并被强制截断。\n"
                 f"以下仅展示前 {preview_rows} 行数据预览，基于此数据进行的汇总分析可能不完整或不准确。\n\n"
                 f"建议操作：\n"
                 f"1. 如果用户需要完整原始数据，请建议使用 export_to_csv 工具导出为 CSV 文件下载。\n"
                 f"2. 如果需要统计分析，请改写 SQL 使用 GROUP BY / COUNT / SUM 等聚合函数，让数据库完成计算。\n\n"
-                f"数据预览 (前 {preview_rows} 行):\n{preview_data}"
+                f"数据预览 (前 {preview_rows} 行):\n{preview_text}"
             )
+        else:
+            logger.debug("SQL 查询结果未超限 (真实行数=%d), 全量返回", row_count)
+            llm_content = f"{time_prefix}{json.dumps(cleaned_result, ensure_ascii=False)}"
 
-        # 情况 A: 未超限 - 说明结果集规模可控，全量返回（适合维度表查询或已聚合后的结果）
-        logger.debug("SQL 查询结果未超限 (估算行数=%d), 全量返回", estimated_rows)
-        return f"{time_prefix}{cleaned_result}"
+        rows_for_sse = cleaned_result[:hard_limit] if isinstance(cleaned_result, list) else []
+
+        return Command(update={
+            "messages": [
+                ToolMessage(
+                    content=llm_content,
+                    tool_call_id=str(runtime.tool_call_id) if hasattr(runtime, "tool_call_id") else "call_unknown",
+                )
+            ],
+            "tool_artifact": {
+                "kind": "query_result",
+                "columns": columns,
+                "rows": rows_for_sse,
+                "row_count": row_count,
+                "truncated": truncated,
+                "query_time": db_query_time,
+                "source_tables": source_tables,
+            }
+        })
 
     sql_db_query.handle_tool_error = True
     return sql_db_query

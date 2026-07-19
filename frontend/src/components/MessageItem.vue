@@ -287,6 +287,66 @@
         />
       </div>
 
+      <!-- 智能 SQL 数据预览表格模块 -->
+      <div
+        v-if="!isUser && queryResult"
+        class="mt-3 px-4 pb-3 text-left animate-fade-in"
+      >
+        <details class="group rounded-[24px] border border-neutral-200/80 bg-neutral-50/50 p-3.5 shadow-sm transition-all duration-200">
+          <summary class="flex cursor-pointer select-none items-center justify-between font-semibold text-neutral-800 list-none">
+            <div class="flex items-center gap-2">
+              <span class="flex h-5 w-5 items-center justify-center rounded-full bg-emerald-100 text-emerald-700 text-xs">📊</span>
+              <span class="text-sm font-semibold">
+                SQL 查询结果
+                <span v-if="queryResult.row_count !== undefined" class="text-xs text-neutral-400 font-normal">
+                  (共 {{ queryResult.row_count }} 行
+                  <span v-if="queryResult.truncated" class="text-amber-600 font-medium">· 已截断预览</span>)
+                </span>
+              </span>
+            </div>
+            <div class="flex items-center gap-2">
+              <span v-if="queryResult.query_time" class="text-[11px] text-neutral-400 font-normal">⏰ {{ queryResult.query_time }}</span>
+              <span class="text-neutral-400 transition-transform duration-200 group-open:rotate-180 text-[10px]">▼</span>
+            </div>
+          </summary>
+
+          <div class="mt-3 border-t border-neutral-200/60 pt-3">
+            <!-- 表格主体 -->
+            <div class="overflow-x-auto rounded-2xl border border-neutral-200/60 bg-white">
+              <table class="min-w-full text-xs text-left border-collapse">
+                <thead>
+                  <tr class="bg-neutral-100/80 text-neutral-700 font-bold border-b border-neutral-200/60">
+                    <th v-for="col in queryResult.columns" :key="col" class="px-3.5 py-2.5 font-mono">
+                      {{ col }}
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr v-for="(row, rIdx) in queryResult.rows" :key="rIdx" class="border-b border-neutral-100 hover:bg-neutral-50/50 transition-colors">
+                    <td v-for="col in queryResult.columns" :key="col" class="px-3.5 py-2.5 font-mono text-neutral-600">
+                      {{ row[col] !== undefined && row[col] !== null ? row[col] : '-' }}
+                    </td>
+                  </tr>
+                  <tr v-if="!queryResult.rows || queryResult.rows.length === 0">
+                    <td :colspan="queryResult.columns?.length || 1" class="px-3.5 py-6 text-center text-neutral-400 font-medium">
+                      暂无数据返回
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            <!-- 防御性聚合建议说明 -->
+            <div v-if="queryResult.truncated" class="mt-3 flex items-start gap-1.5 rounded-xl bg-amber-50/60 p-2.5 text-[11px] leading-relaxed text-amber-800">
+              <span class="text-[13px] leading-none">⚠️</span>
+              <div>
+                数据行数过多，页面仅承载展示前 {{ queryResult.rows?.length }} 行预览。如需获取完整分析结果，请使用 <strong>导出 CSV</strong> 或 <strong>聚合 SQL</strong> 重跑。
+              </div>
+            </div>
+          </div>
+        </details>
+      </div>
+
       <!-- 问答澄清卡片区域 -->
       <div
         v-if="!isUser && hasQuestions"
@@ -534,6 +594,17 @@ const parsedLexiconContext = computed(() => {
     return messagesStore.memoryLexiconMap[msgId]
   }
   return (props.message as Message).lexicon_context ?? { tables: [], values: [], rows: [] }
+})
+
+const queryResult = computed(() => {
+  if (streamingState.value?.tool_artifact) {
+    return streamingState.value.tool_artifact
+  }
+  const msgId = props.message.id
+  if (msgId && messagesStore.memoryArtifactMap[msgId]) {
+    return messagesStore.memoryArtifactMap[msgId]
+  }
+  return (props.message as Message).tool_artifact ?? null
 })
 
 const displayContent = computed(() => {

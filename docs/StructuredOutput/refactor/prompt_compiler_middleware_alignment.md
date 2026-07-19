@@ -1,6 +1,6 @@
 # PromptCompilerMiddleware 上下文编译器深度对齐方案
 
-> **状态**：草案 / 待评审  
+> **状态**：已落地并合入  
 > **议题**：图表工具 `build_chart_artifact` 的 Linter 错误历史折叠（Redaction）缺失与 Linter 状态标识未显式对齐  
 > **目标文件**：[prompt_compiler_middleware.py](file:///f:/000_dev/Python/workplace/rearch_agent/.tree/features/agent-llamaindex-rag/backend/app/agent/middleware/prompt_compiler_middleware.py)
 
@@ -32,7 +32,7 @@
 ## 三、 详细变更方案
 
 ### 3.1 修改 `_DELETION_TARGET_CONFIG` 声明
-将 `build_chart_artifact` 的 `has_linter` 改为 `True`：
+将 `build_chart_artifact` 的 `has_linter` 改为 `True`，并同步纳入 `export_to_csv` 以在物理删除时涵盖该工具：
 ```diff
      _DELETION_TARGET_CONFIG = {
          "sql_db_query": {
@@ -46,6 +46,11 @@
              "has_runtime": True,
              "runtime_header": "X-CHART-STATUS: FAILED",
          },
++        "export_to_csv": {
++            "has_linter": True,
++            "has_runtime": True,
++            "runtime_header": "Error:",
++        },
      }
 ```
 

@@ -1,6 +1,6 @@
 # SQL Agent 双轨初始化路径解耦与工厂化重构设计方案
 
-> **状态**：草案 / 待评审  
+> **状态**：已落地并合入（最终落地在中间件处采用 LangChain 原生 SummarizationMiddleware 结合 exact_token_counter 闭包实现）  
 > **议题**：双轨初始化（同步/异步）逻辑重复度高，维护成本与对齐风险较大  
 > **目标文件**：[service.py](file:///f:/000_dev/Python/workplace/rearch_agent/.tree/features/agent-llamaindex-rag/backend/app/agent/service.py)
 

@@ -197,6 +197,11 @@ class LexiconContextStreamEvent(BaseModel):
     lexicon_context: LexiconContextPayload
 
 
+class ToolArtifactStreamEvent(BaseModel):
+    type: Literal["tool_artifact"]
+    artifact: Dict[str, Any]
+
+
 class FinalStreamEvent(BaseModel):
     type: Literal["final"]
     content: str
@@ -232,6 +237,7 @@ ChatStreamEvent = Annotated[
         InterruptStreamEvent,
         RAGContextStreamEvent,
         LexiconContextStreamEvent,
+        ToolArtifactStreamEvent,
     ],
     Field(discriminator="type"),
 ]

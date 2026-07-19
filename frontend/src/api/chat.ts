@@ -66,7 +66,8 @@ const STREAM_EVENT_TYPES = new Set<StreamEvent['type']>([
   'error',
   'interrupt',
   'rag_context',
-  'lexicon_context'
+  'lexicon_context',
+  'tool_artifact'
 ])
 
 const STREAM_STAGES = new Set<StreamStage>(['thinking', 'retrieving', 'querying', 'writing'])
@@ -169,6 +170,15 @@ const parseStreamEvent = (payload: string): StreamEvent | null => {
       return {
         type: 'lexicon_context',
         lexicon_context: parsed.lexicon_context as any,
+      }
+
+    case 'tool_artifact':
+      if (!isRecord(parsed.artifact)) {
+        return null
+      }
+      return {
+        type: 'tool_artifact',
+        artifact: parsed.artifact,
       }
 
     case 'final':

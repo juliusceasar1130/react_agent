@@ -1,3 +1,55 @@
+## 2026-07-19 18:56 +08:00 - 单工具 sql_db_query 数据预览极简保结构与侧信道传输重构
+
+### 变更内容
+#### backend/app/agent/tools/sql_tools.py [MODIFY]
+- 移除了老旧且不稳定的 `_estimate_row_count` 估行与 `_extract_preview_rows` 字符串截断死代码。
+- 改为对结构化 `list[dict]` 结果执行物理 `len()` 计数与截断，并就地归一化日期及 `Decimal` 类型。支持将底层工具返回的格式化 `str` 列表静默反序列化，打通 rows 全量传输。
+- 引入了 `Command` 与 `tool_artifact` 侧信道，在超限截断时向大模型推送带 `⚠️ SYSTEM WARNING` 警告的预览数据（前 N 行），并将 `rows[:hard_limit]` 的完整有界行列表送入 `tool_artifact`。
+
+#### backend/app/agent/state.py [MODIFY]
+- 在 `CustomState` 状态 TypedDict 声明中注册了 `tool_artifact` 属性，保证在 LangGraph 节点和状态链路间的数据合规流转。
+
+#### backend/app/schemas.py [MODIFY]
+- 声明了 Pydantic 规范的 `ToolArtifactStreamEvent` 结构，并将其作为子项注册至 `ChatStreamEvent` Union 中。
+
+#### backend/app/services.py [MODIFY]
+- 在主 updates 状态流捕获处拦截 `tool_artifact` 字段，并将其封装为 unified 的 SSE 事件类型并广播。
+
+#### backend/app/api.py [MODIFY]
+- 在同步 `_stream_chat` 与异步 `_stream_chat_async` 双路径转发流式数据时，将 `tool_artifact` 纳入支持的事件类型列表中，确保前端的无阻碍接收。
+
+#### backend/app/agent/tools/test_sql_db_query_command.py [NEW]
+- 新增 TDD 单元测试用例，覆盖成功态、超限截断态、空查询降级 fallback 的 Command 及 tool_artifact 输出逻辑。
+
+#### backend/app/agent/middleware/prompt_compiler_middleware.py [MODIFY]
+- 修复了 loads 之前的时间戳正则剥离逻辑，防止对含敏感字眼的成功态 JSON 导致误删。
+
+#### frontend/src/types/index.ts [MODIFY]
+- 为 `Message` 和 `StreamingMessage` 声明了 `tool_artifact` 选填类型属性。
+
+#### frontend/src/composables/useChatStream.ts [MODIFY]
+- 在 SSE event 解析器的 `switch` 结构中新增 `case 'tool_artifact'` 分发逻辑。
+
+#### frontend/src/stores/messages.ts [MODIFY]
+- 声明了 `memoryArtifactMap` 前端内存响应式映射，在 `completeStreamingMessage` 转储逻辑里，将临时 `tool_artifact` 存入其中，实现当前会话在未刷新前的流畅表格渲染与刷新后的优雅纯文本回退。
+
+#### frontend/src/components/MessageItem.vue [MODIFY]
+- 新增 `queryResult` 局部 computed 计算属性，将表格视图与 `tool_artifact` 自动绑定。
+- 在 template 中追加现代化的极简 emerald 浅绿交互式表格模板及超限说明 Badge。
+
+---
+
+## 2026-07-19 16:20 +08:00 - 重构方案与代码对齐校准与文档引用修正
+
+### 变更内容
+#### docs/StructuredOutput/refactor/unified_sql_linter_safety_alignment.md [MODIFY]
+- 针对 `export_to_csv` 成功日志在滑动窗口外物理删除的决策进行同步更新：在设计方案中写明了将其纳入 `_DELETION_TARGET_CONFIG` 的合理性（即虽然可能有列名误判风险，但已导出完成的旧历史消息丢弃有利于极大节省大模型的上下文 token 空间，影响极其有限）。
+
+#### docs/sql_check/2026-07-11-sql-check-optimization-plan.md [MODIFY]
+- 修正对已物理删除的死代码 `sql_tools_local.py` 的引用。在第 9 行架构说明、第 125 行文件改动列表以及 Step 2 具体修改步骤中，同步将涉及该文件的部分标记为 `[已废弃]`，避免后续对其他开发者产生误导。
+
+---
+
 ## 2026-07-19 15:39 +08:00 - 上下文编译器对齐图表与 CSV 工具与 Linter 折叠优化
 
 ### 问题根因

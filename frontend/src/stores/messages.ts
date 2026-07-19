@@ -37,6 +37,7 @@ export const useMessagesStore = defineStore('messages', () => {
     content: string
   }>>>({})
   const memoryLexiconMap = ref<Record<string, LexiconContext>>({})
+  const memoryArtifactMap = ref<Record<string, any>>({})
 
   // Actions
   const fetchMessages = async (sessionId: string) => {
@@ -287,6 +288,9 @@ export const useMessagesStore = defineStore('messages', () => {
     if (finalizedId && temp.lexiconContext) {
       memoryLexiconMap.value[finalizedId] = temp.lexiconContext
     }
+    if (finalizedId && temp.tool_artifact) {
+      memoryArtifactMap.value[finalizedId] = temp.tool_artifact
+    }
 
     // 仅当前显示的会话才推入视图，防止污染其他会话
     if (sessionId !== latestRequestedSessionId.value) return null
@@ -308,7 +312,8 @@ export const useMessagesStore = defineStore('messages', () => {
           : null
       ),
       rag_context: payload.rag_context ?? temp.ragContext,
-      lexicon_context: payload.lexicon_context ?? temp.lexiconContext
+      lexicon_context: payload.lexicon_context ?? temp.lexiconContext,
+      tool_artifact: payload.tool_artifact ?? temp.tool_artifact
     }
 
     messages.value.push(finalizedMessage)
@@ -383,5 +388,6 @@ export const useMessagesStore = defineStore('messages', () => {
     isSessionStreaming,  // 🆕 新增会话状态判断 getter
     memoryRagMap,
     memoryLexiconMap,
+    memoryArtifactMap,
   }
 })

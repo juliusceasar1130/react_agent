@@ -1,7 +1,7 @@
 # 统一 SQL Linter 安全与合规校验对齐方案 (Unified SQL Linter Safety Alignment)
 
 > **修订日期**：2026-07-19（已根据评审修订 v2）  
-> **方案状态**：Proposal / 设计中  
+> **方案状态**：已落地并合入  
 > **文档位置**：`docs/StructuredOutput/refactor/unified_sql_linter_safety_alignment.md`  
 > **核心目标**：将预览、导出、画图三个数据库执行入口的 **SQL Linter 合规校验**对齐到同一套 11 条规则，并统一错误出口为 `ToolException` 以触发大模型自愈重写。
 >
@@ -282,7 +282,7 @@ Stage 2 对窗口外（`range(ctx.boundary_index)`，`:155`）的 ToolMessage，
 重构让 csv/chart 都跑 Linter，而 `_DELETION_TARGET_CONFIG` 仍是旧认知，需明确处理：
 
 - **`build_chart_artifact` 的 `has_linter: False`**：语义上已陈旧（chart 现在跑 Linter），但**功能上是 no-op**--无论 `has_linter` 取值，Linter 错误都会落到兜底分支被 `"error"/"failed"` 子串命中。可选改为 `True` 以对齐语义，但不影响行为。
-- **`export_to_csv` 不在配置表**：**不建议纳入**。原因：Stage 2 的 JSON 成功态识别只认 JSON **list**（`:182-183`），而 csv 成功结果是 JSON **dict**（`{"kind": "file_export", ..., "columns": [...]}`，含真实列名）。若纳入配置表，csv 成功结果会落到兜底子串匹配--一旦导出的列名含 "error"/"failed"（如 `error_count`、`failure_rate`），**成功的 csv 会被误判为失败并物理删除**，引入回归。保持不在配置表，csv 失败在当前循环内仍可见（自愈有效）。
+- **`export_to_csv` 在配置表中物理删除**：**决定纳入**。评估结论是：即使 CSV 列名中包含 "error" 或 "failed" 导致成功的 CSV 消息在滑动窗口外被误判为失败并物理删除，也是符合预期的。因为数据已经成功导出，用户也已经得到了下载链接，物理删除旧的历史消息对对话的后文无实质负面干扰，反而可以进一步清空冗余上下文节省 Token 空间。故最终在 `_DELETION_TARGET_CONFIG` 中将其设置为 `has_linter: True`。
 
 ### 4. 既有问题（不在本方案范围，记录备查）
 

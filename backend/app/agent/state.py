@@ -42,3 +42,4 @@ class CustomState(AgentState):
     rag_query: NotRequired[str]
     context_warning: NotRequired[Annotated[dict[str, Any] | None, _last_wins]]
     lexicon_context: NotRequired[Annotated[dict[str, Any] | None, _last_wins]]
+    tool_artifact: NotRequired[Annotated[dict[str, Any] | None, _last_wins]]

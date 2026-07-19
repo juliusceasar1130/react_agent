@@ -185,6 +185,12 @@ export function useChatStream() {
           }
           return
 
+        case 'tool_artifact':
+          if (messagesStore.streamingMessagesMap[sessionId]) {
+            messagesStore.streamingMessagesMap[sessionId].tool_artifact = event.artifact
+          }
+          return
+
         case 'final':
           hasTerminalEvent = true
           messagesStore.completeStreamingMessage(sessionId, {
