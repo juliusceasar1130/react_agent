@@ -1,3 +1,31 @@
+## 2026-07-19 23:15 +08:00 - 修复 Decimal/UUID 类型导致 SQL 结果截断机制失效的安全漏洞
+
+### 问题描述
+
+当 SQL 查询结果包含 `Decimal` 或 `UUID` 类型时，`MaterializedViewSQLDatabase.run()` 调用 `str(res)` 会产出 `Decimal('...')` 或 `UUID('...')` 格式字符串。这些是 AST 中的 Call 节点，`ast.literal_eval` 无法解析，抛出 `ValueError`。原始代码用 `except Exception: pass` 静默吞掉异常，导致 `cleaned_result` 保持为原始字符串、`row_count` 计算为 0，完全绕过 `SQL_RESULT_HARD_LIMIT` 行数限制，将全量数据静默传递给 LLM。
+
+### 变更内容
+
+#### backend/app/agent/utils/sql_database.py [MODIFY]
+- 在 `run()` 方法的结果序列化路径中，新增 `Decimal → float` 和 `UUID → str` 的显式类型转换，确保 `str(res)` 产出纯字面量格式，可被 `ast.literal_eval` 正确解析。
+
+#### backend/app/agent/tools/sql_tools.py [MODIFY]
+- 将解析失败时的 `except Exception: pass`（静默吞掉异常）替换为 `raise ToolException`，中断执行并向 LLM 返回明确的错误提示（含修复建议：减少列数或加 LIMIT），避免不可靠数据被静默传递。
+- 记录 `logger.error` 日志辅助排查。
+
+### 根因分析
+
+| 步骤 | 行为 |
+|------|------|
+| `str(res)` | 产出 `Decimal('2309.18...')` — Call 节点 |
+| `ast.literal_eval` | `ValueError: malformed node or string` |
+| `except Exception: pass` | 静默吞掉异常，`raw_result` 仍为字符串 |
+| `row_count = 0` | `isinstance(字符串, list)` → False |
+| `truncated = False` | 0 >= 30 → False |
+| `llm_content` | 全量数据字符串直接传递给 LLM |
+
+---
+
 ## 2026-07-19 18:56 +08:00 - 单工具 sql_db_query 数据预览极简保结构与侧信道传输重构
 
 ### 变更内容

@@ -157,6 +157,8 @@ class MaterializedViewSQLDatabase(SQLDatabase):
             return result
 
         import datetime
+        from decimal import Decimal
+        from uuid import UUID
         from langchain_community.utilities.sql_database import truncate_word
 
         res = []
@@ -167,6 +169,13 @@ class MaterializedViewSQLDatabase(SQLDatabase):
                     formatted_val = value.strftime("%Y-%m-%d %H:%M:%S")
                 elif isinstance(value, datetime.date):
                     formatted_val = value.strftime("%Y-%m-%d")
+                elif isinstance(value, Decimal):
+                    # Decimal 必须转为 float，否则 str(res) 会产出 Decimal('...') 字面量，
+                    # 下游 ast.literal_eval 无法解析 Call 节点，导致截断逻辑被完全绕过
+                    formatted_val = float(value)
+                elif isinstance(value, UUID):
+                    # UUID 同理：str(res) 会产出 UUID('...')，也是 Call 节点
+                    formatted_val = str(value)
                 else:
                     formatted_val = truncate_word(value, length=self._max_string_length)
                 row_dict[column] = formatted_val

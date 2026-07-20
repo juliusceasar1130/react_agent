@@ -186,11 +186,20 @@ def create_wrapped_query_tool(
             if stripped.startswith("[") and stripped.endswith("]"):
                 try:
                     raw_result = ast.literal_eval(stripped)
-                except Exception:
+                except Exception as eval_err:
                     try:
                         raw_result = json.loads(stripped)
                     except Exception:
-                        pass
+                        # 两种解析均失败：数据不可靠，直接抛出错误中断执行，
+                        # 避免将无法解析的原始字符串静默传递给 LLM
+                        logger.error(
+                            "查询结果字符串反序列化彻底失败 (长度=%d), ast.literal_eval 错误: %s",
+                            len(stripped), eval_err,
+                        )
+                        raise ToolException(
+                            "Error: 数据库返回结果无法解析为结构化数据，可能包含不支持的类型。"
+                            "请尝试简化查询（减少列数或使用 LIMIT 限制行数）后重试。"
+                        )
 
         cleaned_result = []
         if isinstance(raw_result, list):
