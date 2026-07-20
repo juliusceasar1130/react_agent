@@ -11,6 +11,8 @@ from typing import Any, Literal
 
 from langchain.tools import ToolRuntime, tool as langchain_tool
 from langchain_core.tools import ToolException
+from langgraph.types import Command
+from langchain_core.messages import ToolMessage
 from pydantic import BaseModel, ConfigDict, Field, TypeAdapter, ValidationError, model_validator
 from sqlalchemy import text
 from sqlalchemy.engine import Engine
@@ -355,11 +357,28 @@ def create_chart_artifact_tool(
             chart_ref = create_chart_record(payload=payload)
 
             emit_stream_status(
-                "图表 artifact 已生成",
+                "图表已生成",
                 stage="writing",
                 source="build_chart_artifact",
             )
-            return json.dumps(chart_ref, ensure_ascii=False)
+            return Command(update={
+                "messages": [
+                    ToolMessage(
+                        content=json.dumps(chart_ref, ensure_ascii=False),
+                        tool_call_id=str(runtime.tool_call_id) if runtime and hasattr(runtime, "tool_call_id") else "call_unknown",
+                    )
+                ],
+                "tool_artifact": {
+                    "kind": "chart_spec",
+                    "chart_id": chart_ref["chart_id"],
+                    "chart_type": resolved_chart_type,
+                    "title": title,
+                    "description": description,
+                    "x_field": x_field,
+                    "series": normalized_series,
+                    "rows": rows,
+                },
+            })
         except SQLLintException as exc:
             logger.warning(f"build_chart_artifact 校验未通过拦截: {exc}")
             raise ToolException(str(exc))

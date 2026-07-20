@@ -276,8 +276,14 @@
         </div>
       </div>
 
+      <!-- 新机制：侧信道直达的图表，无需二次 HTTP (流式渲染优先) -->
+      <div v-if="chartSpec" class="space-y-3 px-4 pb-3">
+        <ChartArtifactCard :chart-payload="chartSpec" />
+      </div>
+
+      <!-- 旧机制：历史消息懒加载 (兼容刷新及历史对话) -->
       <div
-        v-if="!isUser && chartArtifacts.length > 0"
+        v-else-if="!isUser && chartArtifacts.length > 0"
         class="space-y-3 px-4 pb-3"
       >
         <ChartArtifactCard
@@ -287,9 +293,9 @@
         />
       </div>
 
-      <!-- 智能 SQL 数据预览表格模块 -->
+      <!-- 智能 SQL 数据预览表格模块 (防冲突修改) -->
       <div
-        v-if="!isUser && queryResult"
+        v-if="!isUser && sqlQueryResult"
         class="mt-3 px-4 pb-3 text-left animate-fade-in"
       >
         <details class="group rounded-[24px] border border-neutral-200/80 bg-neutral-50/50 p-3.5 shadow-sm transition-all duration-200">
@@ -298,14 +304,14 @@
               <span class="flex h-5 w-5 items-center justify-center rounded-full bg-emerald-100 text-emerald-700 text-xs">📊</span>
               <span class="text-sm font-semibold">
                 SQL 查询结果
-                <span v-if="queryResult.row_count !== undefined" class="text-xs text-neutral-400 font-normal">
-                  (共 {{ queryResult.row_count }} 行
-                  <span v-if="queryResult.truncated" class="text-amber-600 font-medium">· 已截断预览</span>)
+                <span v-if="sqlQueryResult.row_count !== undefined" class="text-xs text-neutral-400 font-normal">
+                  (共 {{ sqlQueryResult.row_count }} 行
+                  <span v-if="sqlQueryResult.truncated" class="text-amber-600 font-medium">· 已截断预览</span>)
                 </span>
               </span>
             </div>
             <div class="flex items-center gap-2">
-              <span v-if="queryResult.query_time" class="text-[11px] text-neutral-400 font-normal">⏰ {{ queryResult.query_time }}</span>
+              <span v-if="sqlQueryResult.query_time" class="text-[11px] text-neutral-400 font-normal">⏰ {{ sqlQueryResult.query_time }}</span>
               <span class="text-neutral-400 transition-transform duration-200 group-open:rotate-180 text-[10px]">▼</span>
             </div>
           </summary>
@@ -316,19 +322,19 @@
               <table class="min-w-full text-xs text-left border-collapse">
                 <thead>
                   <tr class="bg-neutral-100/80 text-neutral-700 font-bold border-b border-neutral-200/60">
-                    <th v-for="col in queryResult.columns" :key="col" class="px-3.5 py-2.5 font-mono">
+                    <th v-for="col in sqlQueryResult.columns" :key="col" class="px-3.5 py-2.5 font-mono">
                       {{ col }}
                     </th>
                   </tr>
                 </thead>
                 <tbody>
-                  <tr v-for="(row, rIdx) in queryResult.rows" :key="rIdx" class="border-b border-neutral-100 hover:bg-neutral-50/50 transition-colors">
-                    <td v-for="col in queryResult.columns" :key="col" class="px-3.5 py-2.5 font-mono text-neutral-600">
+                  <tr v-for="(row, rIdx) in sqlQueryResult.rows" :key="rIdx" class="border-b border-neutral-100 hover:bg-neutral-50/50 transition-colors">
+                    <td v-for="col in sqlQueryResult.columns" :key="col" class="px-3.5 py-2.5 font-mono text-neutral-600">
                       {{ row[col] !== undefined && row[col] !== null ? row[col] : '-' }}
                     </td>
                   </tr>
-                  <tr v-if="!queryResult.rows || queryResult.rows.length === 0">
-                    <td :colspan="queryResult.columns?.length || 1" class="px-3.5 py-6 text-center text-neutral-400 font-medium">
+                  <tr v-if="!sqlQueryResult.rows || sqlQueryResult.rows.length === 0">
+                    <td :colspan="sqlQueryResult.columns?.length || 1" class="px-3.5 py-6 text-center text-neutral-400 font-medium">
                       暂无数据返回
                     </td>
                   </tr>
@@ -337,10 +343,10 @@
             </div>
 
             <!-- 防御性聚合建议说明 -->
-            <div v-if="queryResult.truncated" class="mt-3 flex items-start gap-1.5 rounded-xl bg-amber-50/60 p-2.5 text-[11px] leading-relaxed text-amber-800">
+            <div v-if="sqlQueryResult.truncated" class="mt-3 flex items-start gap-1.5 rounded-xl bg-amber-50/60 p-2.5 text-[11px] leading-relaxed text-amber-800">
               <span class="text-[13px] leading-none">⚠️</span>
               <div>
-                数据行数过多，页面仅承载展示前 {{ queryResult.rows?.length }} 行预览。如需获取完整分析结果，请使用 <strong>导出 CSV</strong> 或 <strong>聚合 SQL</strong> 重跑。
+                数据行数过多，页面仅承载展示前 {{ sqlQueryResult.rows?.length }} 行预览。如需获取完整分析结果，请使用 <strong>导出 CSV</strong> 或 <strong>聚合 SQL</strong> 重跑。
               </div>
             </div>
           </div>
@@ -605,6 +611,24 @@ const queryResult = computed(() => {
     return messagesStore.memoryArtifactMap[msgId]
   }
   return (props.message as Message).tool_artifact ?? null
+})
+
+// 判断 tool_artifact 是否为 chart_spec
+const chartSpec = computed(() => {
+  const artifact = queryResult.value
+  if (artifact && artifact.kind === 'chart_spec') {
+    return artifact
+  }
+  return null
+})
+
+// 仅在 kind === 'query_result'，或者具有 columns 时作为表格渲染数据，过滤掉图表
+const sqlQueryResult = computed(() => {
+  const artifact = queryResult.value
+  if (artifact && (artifact.kind === 'query_result' || (!artifact.kind && artifact.columns))) {
+    return artifact
+  }
+  return null
 })
 
 const displayContent = computed(() => {

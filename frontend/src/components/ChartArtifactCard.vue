@@ -2,21 +2,21 @@
   <div class="rounded-2xl border border-[#D8E2EE] bg-[#F6F9FC] px-4 py-3 shadow-sm">
     <div class="flex items-start justify-between gap-4">
       <div class="min-w-0">
-        <div class="text-sm font-semibold text-slate-900">{{ artifact?.title ?? artifactRef.title }}</div>
+        <div class="text-sm font-semibold text-slate-900">{{ displayTitle }}</div>
         <div
-          v-if="artifact?.description"
+          v-if="displayDescription"
           class="mt-1 text-xs leading-5 text-slate-600"
         >
-          {{ artifact.description }}
+          {{ displayDescription }}
         </div>
         <div class="mt-1 text-xs leading-5 text-slate-600">
-          {{ artifactRef.chart_type === 'line' ? '折线图' : '柱状图' }} · {{ artifactRef.point_count }} 个点
+          {{ displayChartType === 'line' ? '折线图' : '柱状图' }} · {{ displayPointCount }} 个点
         </div>
         <div
-          v-if="artifactRef.expires_at"
+          v-if="displayExpiresAt"
           class="mt-1 text-xs leading-5 text-slate-500"
         >
-          有效期至：{{ formatDateTime(artifactRef.expires_at) }}
+          有效期至：{{ formatDateTime(displayExpiresAt) }}
         </div>
       </div>
     </div>
@@ -39,10 +39,17 @@ import { useDateFormat } from '@/composables/useDateFormat'
 import type { ChartArtifact, ChartArtifactRef, ChartArtifactSeries } from '@/types'
 
 interface Props {
-  artifactRef: ChartArtifactRef
+  artifactRef?: ChartArtifactRef
+  chartPayload?: ChartArtifact
 }
 
 const props = defineProps<Props>()
+
+const displayTitle = computed(() => artifact.value?.title ?? props.artifactRef?.title ?? '')
+const displayDescription = computed(() => artifact.value?.description ?? '')
+const displayChartType = computed(() => artifact.value?.chart_type ?? props.artifactRef?.chart_type ?? 'line')
+const displayPointCount = computed(() => artifact.value?.rows?.length ?? props.artifactRef?.point_count ?? 0)
+const displayExpiresAt = computed(() => artifact.value?.expires_at ?? props.artifactRef?.expires_at ?? '')
 
 const chartRef = ref<HTMLDivElement | null>(null)
 const artifact = ref<ChartArtifact | null>(null)
@@ -193,7 +200,13 @@ const loadArtifact = async () => {
   loading.value = true
   error.value = null
   try {
-    artifact.value = await getChartArtifactApi(props.artifactRef.chart_id)
+    if (props.chartPayload) {
+      artifact.value = props.chartPayload
+    } else if (props.artifactRef) {
+      artifact.value = await getChartArtifactApi(props.artifactRef.chart_id)
+    } else {
+      throw new Error('未提供图表数据或引用')
+    }
   } catch (err) {
     error.value = err instanceof Error ? err.message : '图表加载失败'
   } finally {
@@ -202,7 +215,7 @@ const loadArtifact = async () => {
   await renderChart()
 }
 
-watch(() => props.artifactRef.chart_id, () => {
+watch(() => props.chartPayload?.chart_id ?? props.artifactRef?.chart_id, () => {
   void loadArtifact()
 })
 

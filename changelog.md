@@ -1,3 +1,30 @@
+## 2026-07-20 14:03 +08:00 - 图表工具 build_chart_artifact 改 Command 侧信道直推及前端防震重构 (MVP 简化版)
+
+### 变更内容
+
+#### backend/app/agent/tools/chart_artifact_tool.py [MODIFY]
+- 引入并改用 `langgraph.types.Command` 包装工具返回值。
+- 在 `tool_artifact` 中携带完整 `chart_spec`（包含 rows 与 series）发送流式 payload 供前端秒级渲染。
+- 在 `ToolMessage.content` 中保留 `chart_ref` 磁盘 JSON 引用以对齐 04 方案，让历史消息可通过 `tool_results` 顺利进行前向兼容懒加载。
+
+#### backend/app/agent/tools/test_chart_artifact_command.py [NEW]
+- 新建 TDD 单元测试用例，验证工具 invoke 返回 `Command` 的结构、流式 Payload 字段及 ToolMessage 内的历史回溯 JSON 数据格式。
+
+#### frontend/src/components/MessageItem.vue [MODIFY]
+- 拆分 computed 属性 `queryResult` 为专供图表的 `chartSpec` 和专供 SQL 表格的 `sqlQueryResult`。
+- 将模板表格预览的判断变更为 `sqlQueryResult`，物理隔离了图表 spec，彻底避免了图表生成时渲染出空表头残缺表格的 UI 冲突。
+- 新增 `chartSpec` 流式卡片直投区，并使其渲染优先级排在历史懒加载卡片之前。
+
+#### frontend/src/components/ChartArtifactCard.vue [MODIFY]
+- 扩充 Props 接口声明以接收可选的实时 `chartPayload` 属性。
+- 引入 `displayTitle`/`displayDescription`/`displayChartType` 等防空 `computed` 包装，对 Props 进行 `undefined` 安全防护，避免流式无引用时导致控制台崩溃。
+- 适配 `loadArtifact` 与 `watch` 监听器，支持直传装载与降级 API 局部拉取双轨制通道。
+
+#### docs/StructuredOutput/refactor/05_build_chart_artifact_side_channel_refactor.md [MODIFY]
+- 采纳评审意见，将重构实施方案更新为 MVP 简化版，推迟物理列持久化，避开 `_last_wins` 多工具冲突并完美对齐 04 架构一致性。
+
+---
+
 ## 2026-07-19 23:15 +08:00 - 修复 Decimal/UUID 类型导致 SQL 结果截断机制失效的安全漏洞
 
 ### 问题描述
