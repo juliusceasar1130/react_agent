@@ -127,6 +127,32 @@ def test_skill_middleware_injects_secondary_skeleton():
     assert "Secondary Domain Knowledge" in content
     assert "辅助关联技能表结构: paint_shop_vehicle_logistics" in content
     assert "CREATE TABLE fct_vehicle_position_current" in content
+def test_load_skill_tool_truncates_over_limit_with_duplicates():
+    from unittest.mock import MagicMock, patch
+    from langchain.tools import ToolRuntime
+    from backend.app.agent.tools.skill_tools import _build_load_skill_command
+
+    # 模拟已重复加载并且长度已超限的情况
+    initial_state = {
+        "messages": [],
+        "skills_loaded": ["skill_a", "skill_a", "skill_b", "skill_c"],
+        "active_skill": "skill_c"
+    }
+    runtime = MagicMock(spec=ToolRuntime)
+    runtime.state = initial_state
+    runtime.tool_call_id = "test_call_id"
+
+    # 此时加载第 5 个技能 "skill_d"，期望最终削减到恰好 3 个，且移除的是最老端的两个 A
+    with patch("backend.app.agent.tools.skill_tools.get_skill_by_name", return_value=MagicMock()):
+        cmd = _build_load_skill_command("skill_d", runtime)
+    
+    loaded = cmd.update["skills_loaded"]
+    
+    assert len(loaded) == 3
+    assert "skill_a" not in loaded
+    assert loaded == ["skill_b", "skill_c", "skill_d"]
+
+
 
 
 

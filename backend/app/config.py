@@ -137,6 +137,7 @@ class Settings(BaseSettings):
     )
     sql_export_ttl_hours: int = int(os.getenv("SQL_EXPORT_TTL_HOURS", "24"))
     sql_export_max_rows: int = int(os.getenv("SQL_EXPORT_MAX_ROWS", "100000"))
+    lexicon_similarity_top_k: int = int(os.getenv("LEXICON_SIMILARITY_TOP_K", "5"))
     chart_artifact_dir: str = os.getenv(
         "CHART_ARTIFACT_DIR",
         str(Path(tempfile.gettempdir()) / "sql_agent_charts"),

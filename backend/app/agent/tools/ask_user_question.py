@@ -21,15 +21,19 @@ class QuestionItem(BaseModel):
     options: Optional[List[QuestionOption]] = Field(None, description="备选项列表，推荐 2~4 个。如果为 None 或空，前端将只显示纯文本输入框供用户输入（例如车身号、日期输入等场景）。")
 
 class AskUserQuestionSchema(BaseModel):
-    questions: List[QuestionItem] = Field(description=(
-        "澄清问题卡片列表，支持 1~4 个。"
-        "【重要规则】：每个 QuestionItem 必须是单一维度的澄清，禁止混合模式。"
-        "如果你既需要用户做选择，又需要用户输入数据："
-        "- 【错误做法】：在 questions 列表中仅传入 1 个 QuestionItem，question 设为 '请选择读写站并提供车身号'，且提供 options 列表。这会导致前端交互断裂！"
-        "- 【正确做法】：在 questions 列表中传入 2 个 QuestionItem，例如："
-        "  1. 选项卡片: {\"question\": \"请选择要查询的读写站（Station ID）\", \"options\": [{\"label\": \"Station A\"}, ...]}"
-        "  2. 输入框卡片: {\"question\": \"请提供目标车身号（FIS，如782026xxxxxxxx）\"}"
-    ))
+    questions: List[QuestionItem] = Field(
+        description=(
+            "澄清问题卡片列表，支持 1~4 个。"
+            "【重要规则】：每个 QuestionItem 必须是单一维度的澄清，禁止混合模式。"
+            "如果你既需要用户做选择，又需要用户输入数据："
+            "- 【错误做法】：在 questions 列表中仅传入 1 个 QuestionItem，question 设为 '请选择读写站并提供车身号'，且提供 options 列表。这会导致前端交互断裂！"
+            "- 【正确做法】：在 questions 列表中传入 2 个 QuestionItem，例如："
+            "  1. 选项卡片: {\"question\": \"请选择要查询的读写站（Station ID）\", \"options\": [{\"label\": \"Station A\"}, ...]}"
+            "  2. 输入框卡片: {\"question\": \"请提供目标车身号（FIS，如782026xxxxxxxx）\"}"
+        ),
+        min_length=1,
+        max_length=4
+    )
 
     @field_validator("questions", mode="before")
     @classmethod
@@ -47,12 +51,16 @@ class AskUserQuestionSchema(BaseModel):
                 v = "\n".join(lines).strip()
             try:
                 v = json.loads(v)
-            except Exception:
+            except Exception as e_json:
                 try:
                     import ast
                     v = ast.literal_eval(v)
-                except Exception:
-                    pass
+                except Exception as e_ast:
+                    raise ValueError(
+                        f"澄清提问列表解析失败。传入的内容必须是标准的 JSON 数组格式。\n"
+                        f"JSON 解析错误: {e_json}\n"
+                        f"AST 解析错误: {e_ast}"
+                    )
         return v
 
 class AskUserQuestion(BaseTool):

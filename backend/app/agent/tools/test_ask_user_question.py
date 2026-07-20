@@ -68,5 +68,23 @@ def test_ask_user_question_optional_options():
     })
     assert validated.questions[0].options is None
 
+def test_ask_user_question_limit_boundaries():
+    tool = AskUserQuestion()
+    # 测试 0 个提问卡片拦截
+    with pytest.raises(Exception):
+        tool.args_schema.model_validate({"questions": []})
+
+    # 测试 5 个提问卡片拦截
+    oversized = [{"question": f"Q{i}"} for i in range(5)]
+    with pytest.raises(Exception):
+        tool.args_schema.model_validate({"questions": oversized})
 
 
+def test_ask_user_question_parser_error_exposure():
+    tool = AskUserQuestion()
+    broken_json = '{broken json string'
+    
+    # 传入解析失败的字符串，应当抛出 ValidationError，且错误内容中包含解析失败自定义文本
+    with pytest.raises(Exception) as excinfo:
+        tool.args_schema.model_validate({"questions": broken_json})
+    assert "澄清提问列表解析失败" in str(excinfo.value)

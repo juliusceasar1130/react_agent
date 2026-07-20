@@ -6,6 +6,7 @@ from typing import Any
 from langchain_core.tools import tool as langchain_tool
 
 from backend.app.agent.utils import emit_stream_status
+from backend.app.config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -35,7 +36,7 @@ def create_db_value_lexicon_tool(lexicon_retriever: Any) -> Any:
                 stage="retrieving",
                 source="search_db_value_lexicon",
             )
-            orig_top_k = getattr(lexicon_retriever.value_retriever, "similarity_top_k", 5)
+            orig_top_k = getattr(lexicon_retriever.value_retriever, "similarity_top_k", settings.lexicon_similarity_top_k)
             try:
                 if hasattr(lexicon_retriever.value_retriever, "similarity_top_k"):
                     lexicon_retriever.value_retriever.similarity_top_k = limit
@@ -97,7 +98,7 @@ def create_db_row_lexicon_tool(lexicon_retriever: Any) -> Any:
                 stage="retrieving",
                 source="search_db_row_lexicon",
             )
-            orig_top_k = getattr(lexicon_retriever.row_retriever, "similarity_top_k", 5)
+            orig_top_k = getattr(lexicon_retriever.row_retriever, "similarity_top_k", settings.lexicon_similarity_top_k)
             try:
                 if hasattr(lexicon_retriever.row_retriever, "similarity_top_k"):
                     lexicon_retriever.row_retriever.similarity_top_k = limit
@@ -142,7 +143,7 @@ def create_db_table_schema_tool(lexicon_retriever: Any) -> Any:
     """
 
     @langchain_tool
-    def search_db_table_schema(query: str) -> str:
+    def search_db_table_schema(query: str, limit: int = 5) -> str:
         """
         通过语义相似度在表结构字典中检索最相关的 DDL 表定义详情。
         
@@ -164,7 +165,7 @@ def create_db_table_schema_tool(lexicon_retriever: Any) -> Any:
                 return f"未找到与 '{query}' 相关的表结构定义。"
             
             lines = ["已找到以下最相关的表 DDL 定义：\n"]
-            for n in nodes[:2]:
+            for n in nodes[:limit]:
                 meta = n.node.metadata
                 t_name = meta.get("table_name", "")
                 score = getattr(n, "score", 0.0)

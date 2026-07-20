@@ -1,7 +1,8 @@
 # P2 阶段实施方案：提取 QueryResult 抽象与统一 SQL 结果交付通道
 
 > **修订日期**：2026-07-19（已根据评审修订 v2，砍掉 SQL_Hash 缓存总线，改为 result_id 显式复用 + 侧信道交付 + fetch limit+1）  
-> **状态**：MVP 已落地（侧信道 `tool_artifact` 交付 + 精准物理截断 + 前端折叠交互表格已通过）  
+> **状态**：已全面落地 (COMPLETED)（SQL 预览、ECharts 图表、CSV 导出三大工具的侧信道 Command 改造与前端 kind 分发已全面上线并测试通过）  
+
 > **文档位置**：`docs/StructuredOutput/refactor/query_result_abstraction_and_contract_alignment.md`  
 > **核心目标**：从源头不再销毁结构化数据，三工具共用单一只读执行入口 `execute_readonly_query_to_struct`；经 state 侧信道把结构化 payload 送往前端，LLM 仅看必要视图；统一 `kind` 分发取代前端鸭子类型守卫。  
 > **范围声明**：本方案仅统一 **三个 SQL 工具**（`sql_db_query` / `export_to_csv` / `build_chart_artifact`）的结果通道，对应诊断根因 **A**（`str()` 销毁）、**B-2/B-3**（重跑与三入口）、**D** 的 SQL 结果契约切片。`skill`/`lexicon`/`ask_user_question` 的返回类型与错误契约（根因 D 其余切片）不在本方案。

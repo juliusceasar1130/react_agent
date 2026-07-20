@@ -52,12 +52,9 @@ def _build_load_skill_command(skill_name: str, runtime: ToolRuntime) -> Command:
     if skill_name not in new_loaded:
         new_loaded.append(skill_name)
 
-    # 2. 限制辅助技能堆积上限为 3 个，超出截断最先进入的
-    if len(new_loaded) > 3:
-        for s in list(new_loaded):
-            if s != skill_name:
-                new_loaded.remove(s)
-                break
+    # 2. 限制辅助技能堆积上限为 3 个，超出截断最先进入的 (FIFO)
+    while len(new_loaded) > 3:
+        new_loaded.pop(0)
 
     return Command(
         update={

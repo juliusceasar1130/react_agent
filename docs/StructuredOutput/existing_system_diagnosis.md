@@ -1,8 +1,9 @@
 # 现有系统与工具诊断报告
 
-> **修订日期**：2026-07-18
-> **诊断范围**：`backend/app/agent/tools/*`、`backend/app/agent/service.py`、`backend/app/services.py`、`backend/app/services_graph.py`、`backend/app/api.py`、`backend/app/schemas.py`、`frontend/src/components/MessageItem.vue`、`frontend/src/utils/markdown.ts`、`frontend/src/composables/useChatStream.ts`
-> **证据方式**：直接读码核实，每条结论附 `file:line`。本文档不展开"轻量结构化输出"渲染方案（后续单独课题），仅诊断**现有系统/工具**的结构性问题并给出解决方案。
+> **修订日期**：2026-07-20（已根据 05、06、07 重构交付进行状态对齐）  
+> **诊断范围**：`backend/app/agent/tools/*`、`backend/app/agent/service.py`、`backend/app/services.py`、`backend/app/api.py`、`backend/app/schemas.py`、`frontend/src/components/MessageItem.vue`、`frontend/src/utils/markdown.ts`、`frontend/src/composables/useChatStream.ts`  
+> **证据方式**：直接读码核实。本文档不展开"轻量结构化输出"渲染方案（后续单独课题），仅诊断**现有系统/工具**的结构性问题并给出解决方案。  
+> **重大对齐提示**：原报告中指出的死代码 `sql_tools_local.py` 与 `services_graph.py` 已在仓库中被彻底删除；`SQLAgentService` 的双路径初始化逐字复制已被重构为 `_build_agent_components`，流式双分支已合并至 `_stream_execution_loop`；三个 SQL 工具的 Linter 已拉平对齐；技能淘汰已改为 FIFO pop(0)；澄清提问工具也已修复异常吞错。
 
 ---
 
@@ -136,8 +137,8 @@
 
 | 文件 | 状态 | 证据 | 风险 |
 |---|---|---|---|
-| `sql_tools_local.py` | **死代码** | 全仓 grep 仅文档引用（changelog/spec/plan），无 `.py` 导入；是 `sql_tools.py` 的分叉副本（无 Linter、无 `handle_tool_error`、`domain=None`、文件头注释写错） | 维护陷阱：`docs/sql_check/2026-07-11-sql-check-optimization-plan.md:125,140` 还把它当活代码写修改步骤 |
-| `services_graph.py` | **死代码** | `SQLGraphService`（`:67`）模块级自实例化（`:356`），但 `backend/` 内无任何模块 import 它；连 MySQL（`:113`）、Ollama 硬编码、注释残留 DeepSeek 切换块 | 埋雷：一旦误 import 即尝试连 MySQL；与现网 PostgreSQL 路线完全不符 |
+| `sql_tools_local.py` | **已于 2026-07-20 物理删除** | 全仓 grep 仅文档引用（changelog/spec/plan），无 `.py` 导入；是 `sql_tools.py` 的分叉副本（无 Linter、无 `handle_tool_error`、`domain=None`、文件头注释写错） | 维护陷阱：`docs/sql_check/2026-07-11-sql-check-optimization-plan.md:125,140` 还把它当活代码写修改步骤 |
+| `services_graph.py` | **已于 2026-07-20 物理删除** | `SQLGraphService`（`:67`）模块级自实例化（`:356`），但 `backend/` 内无任何模块 import 它；连 MySQL（`:113`）、Ollama 硬编码、注释残留 DeepSeek 切换块 | 埋雷：一旦误 import 即尝试连 MySQL；与现网 PostgreSQL 路线完全不符 |
 | `FORBIDDEN_SQL_PATTERN`（`sql_tools.py:40`） | **半死** | 在 `sql_tools.py` 中已死（Linter 接管 DML），但仍被 `csv_export_tool`/`chart_artifact_tool` 导入使用 | 定义与其唯一活跃消费者不在同一抽象层 |
 
 ---
@@ -148,12 +149,12 @@
 |---|---|---|
 | `sql_db_query` | God Function，单工具承担 10+ 职责（技能校验、11 规则 Linter 注册与执行、语法 checker、执行、日期标准化、时刻注入、字符串估行、字符串取预览、截断、警告拼装） | `sql_tools.py:165-339` |
 | `sql_db_query` | 每次调用现注册 11 条 Linter 规则，缺乏复用 | `sql_tools.py:211-226` |
-| `AskUserQuestion` | `field_validator` 解析失败时 `pass` 静默吞错，后续 Pydantic 抛不透明 `ValidationError` | `ask_user_question.py:49-55` |
-| `AskUserQuestion` | 文档声称"支持 1~4 个问题"，但 schema 未强制 `1 <= len(questions) <= 4` | `ask_user_question.py:23-56` |
+| `AskUserQuestion` | (已于07重构修复) `field_validator` 解析失败时抛明晰 ValueError，防静默吞错并限制 questions 数量 1~4 个 | `ask_user_question.py:49-55` |
+| `AskUserQuestion` | (已于07重构修复) Schema 强制 `1 <= len(questions) <= 4` 卡片拦截限制 | `ask_user_question.py:23-56` |
 | `AskUserQuestion` | 唯一用 `BaseTool` 子类而非 `@tool` 装饰器的工具，不用 `ToolRuntime`，框架层面异类 | `ask_user_question.py` 全文 |
-| `skill_tools` | 辅助技能上限 3 个的淘汰逻辑用 `list.remove(s)`，可能误删 `skill_name` 自身（微妙 bug） | `skill_tools.py:56-60` |
-| `sql_lexicon_tools` | `getattr(..., "similarity_top_k", 5)` 硬编码回退值 5，缺 `settings` 导入 | `sql_lexicon_tools.py:38`、`100` |
-| `sql_lexicon_tools` | `search_db_table_schema` 硬编码 `nodes[:2]`，与 value/row 工具尊重 `limit` 参数不一致 | `sql_lexicon_tools.py:167` |
+| `skill_tools` | (已于07重构修复) 改为基于 FIFO 索引的 `while len > 3: pop(0)` 机制，彻底闭环该 bug | `skill_tools.py:56-60` |
+| `sql_lexicon_tools` | (已于07重构修复) top_k 默认值改为读取 Settings，消除 5 硬编码 | `sql_lexicon_tools.py:38`、`100` |
+| `sql_lexicon_tools` | (已于07重构修复) 表结构工具引入 `limit` 参数并消除 `nodes[:2]` 硬编码，改为 `nodes[:limit]` | `sql_lexicon_tools.py:167` |
 | `sql_lexicon_tools` | `if lexicon_retriever is None` 守卫三处重复，`try/except` 结构三处重复 | `:30-31`、`92-93`、`154-155` |
 
 ---

@@ -1,7 +1,7 @@
 # 06_export_to_csv_side_channel_refactor.md - CSV 导出工具侧信道直推交付与契约对齐实施方案
 
 > **日期**：2026-07-20  
-> **状态**：待实施  
+> **状态**：已实施 (COMPLETED)  
 > **前置依赖**：`04_single_tool_query_result_decoupling.md`（SQL 预览直推已落地）与 `05_build_chart_artifact_side_channel_refactor.md`（图表直推已落地）  
 > **目标**：将 `export_to_csv` 导出工具由目前的老旧打字机返回大 JSON 机制，重构为 `Command + tool_artifact` 侧信道直推模式。让下载卡片零延迟即时呈现在前端，同时让 LLM 视图极净化以杜绝冗余 JSON 散文，并保持历史消息的磁盘寻址懒下载前向兼容。
 
@@ -69,14 +69,16 @@ graph TD
    ```
 3. **添加 OOM limit guard 机制**：
    在 `.env` 中声明 `SQL_EXPORT_MAX_ROWS=100000` (如果未定义则默认 100k)。如果执行结果长度超过该上限，抛出 `ToolException` 提前中断执行，防止内存溢出崩溃。
-4. **改写返回值**：
+4. **保持 runtime 签名以规避 Pydantic 2.x JSON Schema 崩溃**：
+   * **设计决策**：工具参数签名必须严格声明为非可选的必填参数 `runtime: ToolRuntime`。
+   * **避坑原因**：若声明为可选的 `runtime: ToolRuntime | None = None`，在 Pydantic 2.x 中该字段会进入 OpenAPI json schema 的自动推导流。由于 `ToolRuntime` 系统类内部含有 `core_schema.CallableSchema` (Python 函数/可调用属性)，会触发 Pydantic 崩溃导致大模型绑定工具失败。使用单一类型标注 `runtime: ToolRuntime` 能令 LangChain 内置的注入白名单成功将其在 Schema 推导阶段剔除，保证生产稳定性。
+   * **TDD 适配**：由于 `runtime` 为必填参数，单元测试中弃用了 `tool.invoke()` 字典校验，统一改为直接调用底层原生函数 `.func(...)`（如 `tool.func(..., runtime=runtime)`），成功绕过 Pydantic 字段校验约束并进行全量功能验证。
+5. **改写返回值**：
    在保留 CSV 写盘 `create_export_record` 行为后，将尾部直接返回 string 改为返回 `Command` 对象：
    ```python
             record = create_export_record(...)
             
-            # 元数据 record 的深拷贝用于 messages 持久化
-            llm_content = f"CSV 文件导出成功。文件名: {filename}, 包含 {row_count} 行数据, 文件 ID: {record['file_id']}"
-            
+            # 同时返回 messages 与 tool_artifact 用于流式直推与历史回溯兼容
             return Command(update={
                 "messages": [
                     ToolMessage(
