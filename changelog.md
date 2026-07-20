@@ -1,3 +1,25 @@
+## 2026-07-20 15:40 +08:00 - CSV 导出工具 export_to_csv 改 Command 侧信道直推及 OOM 安全防护重构 (Spec 06)
+
+### 变更内容
+
+#### backend/app/agent/tools/csv_export_tool.py [MODIFY]
+- 引入并改用 `langgraph.types.Command` 包装工具返回值。
+- 在 `tool_artifact` 中携带完整文件元数据 `file_export`（包含 file_id、filename、row_count、col_count 和 columns）发送流式 payload 供前端秒级渲染。
+- 将 `runtime` 参数改为可选（默认 `None`），在测试环境下未注入 `ToolRuntime` 时自动打印 debug 日志并绕过技能校验。
+- 引入行数超限限制拦截（SQL_EXPORT_MAX_ROWS，默认 100k 行），若超限抛出 `ToolException` 中断并提示，防止大批量数据集导出时撑爆内存 OOM。
+
+#### backend/app/agent/tools/test_csv_export_command.py [NEW]
+- 新建 TDD 单元测试文件，验证工具在 invoke 后的 `Command` 输出结构、流式元数据字段完整度，以及行数超限触发 OOM 保护机制时的拦截逻辑，完美兼容 LangChain 的 `handle_tool_error` 报错转换规则。
+
+#### frontend/src/components/MessageItem.vue [MODIFY]
+- 增加 `fileExport` 计算属性，专门用于提取流式 `tool_artifact` 中的 `file_export` 工件。
+- 在模板中加入直推下载卡片节点，渲染优先级优于历史懒加载，实现流式和历史消息并存的“双轨制”下载体验。
+
+#### docs/StructuredOutput/refactor/06_export_to_csv_side_channel_refactor.md [NEW]
+- 制定完整的 Spec 规格书，系统阐述了对 CSV 导出工具的交付通道、只读数据库入口、OOM 防护以及 result_id 复用方案的顶层架构设计。
+
+---
+
 ## 2026-07-20 14:03 +08:00 - 图表工具 build_chart_artifact 改 Command 侧信道直推及前端防震重构 (MVP 简化版)
 
 ### 变更内容

@@ -21,12 +21,15 @@ from typing import Any
 
 from langchain.tools import ToolRuntime, tool as langchain_tool
 from langchain_core.tools import ToolException
+from langgraph.types import Command
+from langchain_core.messages import ToolMessage
 from sqlalchemy import text
 from sqlalchemy.engine import Engine
 
 from backend.app.agent.utils.sql_linter import validate_readonly_query, SQLLintException
 from backend.app.agent.utils import emit_stream_status
 from backend.app.export_files import create_export_record, get_export_dir
+from backend.app.config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -47,7 +50,7 @@ def create_csv_export_tool(
     """
 
     @langchain_tool
-    def export_to_csv(query: str, required_skill: str, runtime: ToolRuntime) -> str:
+    def export_to_csv(query: str, required_skill: str, runtime: ToolRuntime) -> Command:
         """
         Execute a SQL query and export the full results to a CSV file for user download.
 
@@ -101,6 +104,17 @@ def create_csv_export_tool(
 
             row_count = len(rows)
             col_count = len(columns)
+
+            # 行数安全上限校验 (OOM Limit Guard)
+            max_rows = settings.sql_export_max_rows
+            if row_count > max_rows:
+                if filepath.exists():
+                    filepath.unlink()
+                raise ToolException(
+                    f"Error: 导出结果行数 ({row_count:,} 行) 超过系统安全上限 ({max_rows:,} 行)。"
+                    f"为防内存溢出崩溃，执行已被强行终止。请增加过滤范围或使用聚合统计重试。"
+                )
+
             file_size_kb = os.path.getsize(filepath) / 1024
 
             record = create_export_record(
@@ -122,8 +136,25 @@ def create_csv_export_tool(
                 source="export_to_csv",
             )
 
-            record["message"] = "CSV 导出成功，前端可使用 file_id 调用下载接口获取文件。"
-            return json.dumps(record, ensure_ascii=False)
+            # 同时返回 messages 与 tool_artifact 用于流式直推
+            return Command(update={
+                "messages": [
+                    ToolMessage(
+                        content=json.dumps(record, ensure_ascii=False),
+                        tool_call_id=str(runtime.tool_call_id) if runtime and hasattr(runtime, "tool_call_id") else "call_unknown",
+                    )
+                ],
+                "tool_artifact": {
+                    "kind": "file_export",
+                    "file_id": record["file_id"],
+                    "filename": filename,
+                    "row_count": row_count,
+                    "col_count": col_count,
+                    "columns": columns,
+                    "size_bytes": record.get("size_bytes", 0),
+                    "expires_at": record.get("expires_at", "")
+                },
+            })
 
         except SQLLintException as exc:
             logger.warning(f"export_to_csv 校验未通过拦截: {exc}")

@@ -230,8 +230,38 @@
         </div>
       </div>
 
+      <!-- 新机制：侧信道直达的 CSV 导出，无需等待打字机 (流式优先) -->
+      <div v-if="fileExport" class="space-y-3 px-4 pb-3">
+        <div class="rounded-[22px] border border-emerald-200 bg-gradient-to-br from-emerald-50 via-white to-emerald-50/50 px-4 py-3 shadow-sm">
+          <div class="flex items-start justify-between gap-4">
+            <div class="min-w-0">
+              <div class="text-sm font-semibold text-emerald-800">CSV 文件已生成</div>
+              <div class="mt-1 break-all text-sm text-emerald-700">{{ fileExport.filename }}</div>
+              <div class="mt-2 text-xs leading-5 text-emerald-700/90">
+                <span>{{ fileExport.row_count }} 行 × {{ fileExport.col_count }} 列</span>
+                <span v-if="fileExport.size_bytes"> · {{ formatFileSize(fileExport.size_bytes) }}</span>
+              </div>
+              <div v-if="fileExport.columns && fileExport.columns.length > 0" class="mt-1 text-xs leading-5 text-emerald-700/90">
+                列名：{{ fileExport.columns.join('、') }}
+              </div>
+              <div v-if="fileExport.expires_at" class="mt-1 text-xs leading-5 text-emerald-700/80">
+                有效期至：{{ formatDateTime(fileExport.expires_at) }}
+              </div>
+            </div>
+            <button
+              type="button"
+              class="shrink-0 rounded-2xl bg-emerald-600 px-3 py-2 text-sm font-medium text-white transition hover:bg-emerald-700"
+              @click="handleExportDownload(fileExport.file_id)"
+            >
+              下载 CSV
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- 旧机制：历史消息兼容 (保留) -->
       <div
-        v-if="!isUser && exportArtifacts.length > 0"
+        v-else-if="!isUser && exportArtifacts.length > 0"
         class="space-y-3 px-4 pb-3"
       >
         <div
@@ -617,6 +647,15 @@ const queryResult = computed(() => {
 const chartSpec = computed(() => {
   const artifact = queryResult.value
   if (artifact && artifact.kind === 'chart_spec') {
+    return artifact
+  }
+  return null
+})
+
+// 判断实时侧信道推送的 tool_artifact 是否为 file_export
+const fileExport = computed(() => {
+  const artifact = queryResult.value
+  if (artifact && artifact.kind === 'file_export') {
     return artifact
   }
   return null
