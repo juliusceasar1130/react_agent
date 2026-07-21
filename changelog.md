@@ -1,3 +1,13 @@
+## 2026-07-21 11:18 +08:00 - 统一消息卡片内各辅助组件与一键生成图表的水平对齐宽度
+
+### 变更内容
+
+#### frontend/src/components/MessageItem.vue [MODIFY]
+- 修复因双重 padding 缩进导致嵌套组件偏窄的问题：移除嵌套在 `px-5` 父容器内的 SQL 查询结果（`sqlQueryResult`）、工具调用列表（`toolCallList`）、工具结果展示（`toolResultEntries`）、澄清提问（`hasQuestions`）和错误块（`errorText`）的多余水平 padding 样式（如 `px-4` 或 `px-5`），使其统一继承父容器的 `20px` 留白。
+- 将“参考业务术语”与“参考数据库物理词典 (DB Lexicon)”折叠卡片的外层容器水平内边距由 `px-1.5` 调整为 `px-5`，以完美对齐一键生成图表 Banner 的 `20px` 留边。
+
+---
+
 ## 2026-07-20 21:36 +08:00 - 优化 SQL 查询结果组件默认折叠展示与本地冗余链接清洗
 
 ### 变更内容

@@ -50,7 +50,7 @@
 
       <div
         v-if="!isUser && sqlQueryResult"
-        class="mt-3 px-4 pb-3 text-left animate-fade-in"
+        class="mt-3 pb-3 text-left animate-fade-in"
       >
         <details class="group rounded-[24px] border border-neutral-200/80 bg-neutral-50/50 p-3.5 shadow-sm transition-all duration-200">
           <summary class="flex cursor-pointer select-none items-center justify-between font-semibold text-neutral-800 list-none">
@@ -110,7 +110,7 @@
       <!-- 问答澄清卡片区域 -->
       <div
         v-if="!isUser && hasQuestions"
-        class="px-4 pb-3 animate-fade-in"
+        class="pb-3 animate-fade-in"
       >
         <AskUserQuestionCard
           :questions="questions"
@@ -121,7 +121,7 @@
 
       <div
         v-if="showDebugDetails && !isUser && toolCallList.length > 0"
-        class="space-y-2 px-4 pb-3"
+        class="space-y-2 pb-3"
       >
         <div
           v-for="tool in toolCallList"
@@ -142,7 +142,7 @@
 
       <div
         v-if="showDebugDetails && !isUser && toolResultEntries.length > 0"
-        class="space-y-2 px-4 pb-3"
+        class="space-y-2 pb-3"
       >
         <details
           v-for="toolResult in toolResultEntries"
@@ -158,7 +158,7 @@
 
       <div
         v-if="showDebugDetails && errorText && !isUser"
-        class="px-4 pb-3"
+        class="pb-3"
       >
         <div class="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-600">
           {{ errorText }}
@@ -320,7 +320,7 @@
       </div>
 
         <!-- 第二阶段新增：参考业务术语折叠卡片 -->
-        <div v-if="!isUser && parsedRagContext.length > 0" class="mt-4 px-1.5 animate-fade-in text-left">
+        <div v-if="!isUser && parsedRagContext.length > 0" class="mt-4 px-5 animate-fade-in text-left">
           <details class="group rounded-[20px] border border-neutral-200/80 bg-neutral-50/50 p-3.5 text-xs text-neutral-600 transition-all duration-200">
             <summary class="flex cursor-pointer select-none items-center justify-between font-semibold text-neutral-700 hover:text-primary list-none">
               <span class="flex items-center gap-2">
@@ -353,7 +353,7 @@
         </div>
 
         <!-- 新增：参考数据库物理词典折叠卡片 -->
-        <div v-if="!isUser && parsedLexiconContext && (parsedLexiconContext.tables?.length || parsedLexiconContext.values?.length || parsedLexiconContext.rows?.length)" class="mt-3 px-1.5 animate-fade-in text-left">
+        <div v-if="!isUser && parsedLexiconContext && (parsedLexiconContext.tables?.length || parsedLexiconContext.values?.length || parsedLexiconContext.rows?.length)" class="mt-3 px-5 animate-fade-in text-left">
           <details class="group rounded-[20px] border border-neutral-200/80 bg-neutral-50/50 p-3.5 text-xs text-neutral-600 transition-all duration-200">
             <summary class="flex cursor-pointer select-none items-center justify-between font-semibold text-neutral-700 hover:text-primary list-none">
               <span class="flex items-center gap-2">
