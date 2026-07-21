@@ -136,11 +136,14 @@ def create_csv_export_tool(
                 source="export_to_csv",
             )
 
+            # 过滤掉 stored_path 物理路径，防止大模型上下文和前端 tool_results 泄露
+            safe_record = {k: v for k, v in record.items() if k != "stored_path"}
+
             # 同时返回 messages 与 tool_artifact 用于流式直推
             return Command(update={
                 "messages": [
                     ToolMessage(
-                        content=json.dumps(record, ensure_ascii=False),
+                        content=json.dumps(safe_record, ensure_ascii=False),
                         tool_call_id=str(runtime.tool_call_id) if runtime and hasattr(runtime, "tool_call_id") else "call_unknown",
                     )
                 ],

@@ -30,7 +30,11 @@
           :class="textClass"
         >
           <template v-if="isStreamingActive">
-            {{ content }}
+            <span v-if="!content" class="flex flex-col gap-2 w-full animate-pulse my-2">
+              <span class="h-3.5 bg-neutral-200/80 rounded-md w-2/3"></span>
+              <span class="h-3.5 bg-neutral-200/60 rounded-md w-1/2"></span>
+            </span>
+            <span v-else>{{ content }}</span>
             <span class="cursor-blink"></span>
           </template>
           <template v-else>
@@ -44,133 +48,125 @@
           v-html="renderedContent"
         ></div>
 
-        <!-- 第二阶段新增：参考业务术语折叠卡片 -->
-        <div v-if="!isUser && parsedRagContext.length > 0" class="mt-4 px-1.5 animate-fade-in text-left">
-          <details class="group rounded-[20px] border border-neutral-200/80 bg-neutral-50/50 p-3.5 text-xs text-neutral-600 transition-all duration-200">
-            <summary class="flex cursor-pointer select-none items-center justify-between font-semibold text-neutral-700 hover:text-primary list-none">
-              <span class="flex items-center gap-2">
-                <svg class="h-4 w-4 text-neutral-500 group-hover:text-primary transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
-                </svg>
-                <span class="text-xs font-semibold text-neutral-800">参考业务术语 ({{ parsedRagContext.length }} 条)</span>
+      <div
+        v-if="!isUser && sqlQueryResult"
+        class="mt-3 px-4 pb-3 text-left animate-fade-in"
+      >
+        <details class="group rounded-[24px] border border-neutral-200/80 bg-neutral-50/50 p-3.5 shadow-sm transition-all duration-200">
+          <summary class="flex cursor-pointer select-none items-center justify-between font-semibold text-neutral-800 list-none">
+            <div class="flex items-center gap-2">
+              <span class="flex h-5 w-5 items-center justify-center rounded-full bg-emerald-100 text-emerald-700 text-xs">📊</span>
+              <span class="text-sm font-semibold">
+                SQL 查询结果
+                <span v-if="sqlQueryResult.row_count !== undefined" class="text-xs text-neutral-400 font-normal">
+                  (共 {{ sqlQueryResult.row_count }} 行
+                  <span v-if="sqlQueryResult.truncated" class="text-amber-600 font-medium">· 已截断预览</span>)
+                </span>
               </span>
-              <svg class="h-3.5 w-3.5 text-neutral-400 transition-transform duration-200 group-open:rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
-              </svg>
-            </summary>
-            <div class="mt-3 space-y-4 border-t border-neutral-200/60 pt-3">
-              <div v-for="item in parsedRagContext" :key="item.title" class="space-y-1.5">
-                <div class="flex flex-wrap items-center gap-2">
-                  <span class="rounded-[6px] bg-primary/10 px-1.5 py-0.5 text-[10px] font-bold text-primary">
-                    {{ item.domain }}
-                  </span>
-                  <span class="font-bold text-neutral-800 text-[12px]">{{ item.title }}</span>
-                  <span v-if="item.aliases && item.aliases.length" class="text-[10px] text-neutral-400 font-medium">
-                    (别名: {{ item.aliases.join(', ') }})
-                  </span>
-                </div>
-                <p class="pl-0.5 text-[11px] leading-5 text-neutral-500 whitespace-pre-line font-medium">
-                  {{ item.content }}
-                </p>
+            </div>
+            <div class="flex items-center gap-2">
+              <span v-if="sqlQueryResult.query_time" class="text-[11px] text-neutral-400 font-normal">⏰ {{ sqlQueryResult.query_time }}</span>
+              <span class="text-neutral-400 transition-transform duration-200 group-open:rotate-180 text-[10px]">▼</span>
+            </div>
+          </summary>
+
+          <div class="mt-3 border-t border-neutral-200/60 pt-3">
+            <!-- 表格主体 -->
+            <div class="overflow-x-auto rounded-2xl border border-neutral-200/60 bg-white">
+              <table class="min-w-full text-xs text-left border-collapse">
+                <thead>
+                  <tr class="bg-neutral-100/80 text-neutral-700 font-bold border-b border-neutral-200/60">
+                    <th v-for="col in sqlQueryResult.columns" :key="col" class="px-3.5 py-2.5 font-mono">
+                      {{ col }}
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr v-for="(row, rIdx) in sqlQueryResult.rows" :key="rIdx" class="border-b border-neutral-100 hover:bg-neutral-50/50 transition-colors">
+                    <td v-for="col in sqlQueryResult.columns" :key="col" class="px-3.5 py-2.5 font-mono text-neutral-600">
+                      {{ row[col] !== undefined && row[col] !== null ? row[col] : '-' }}
+                    </td>
+                  </tr>
+                  <tr v-if="!sqlQueryResult.rows || sqlQueryResult.rows.length === 0">
+                    <td :colspan="sqlQueryResult.columns?.length || 1" class="px-3.5 py-6 text-center text-neutral-400 font-medium">
+                      暂无数据返回
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            <!-- 防御性聚合建议说明 -->
+            <div v-if="sqlQueryResult.truncated" class="mt-3 flex items-start gap-1.5 rounded-xl bg-amber-50/60 p-2.5 text-[11px] leading-relaxed text-amber-800">
+              <span class="text-[13px] leading-none">⚠️</span>
+              <div>
+                数据行数过多，页面仅承载展示前 {{ sqlQueryResult.rows?.length }} 行预览。如需获取完整分析结果，请使用 <strong>导出 CSV</strong> 或 <strong>聚合 SQL</strong> 重跑。
               </div>
             </div>
-          </details>
+          </div>
+        </details>
+      </div>
+
+      <!-- 问答澄清卡片区域 -->
+      <div
+        v-if="!isUser && hasQuestions"
+        class="px-4 pb-3 animate-fade-in"
+      >
+        <AskUserQuestionCard
+          :questions="questions"
+          :is-submitted="isQuestionSubmitted"
+          @submit="handleQuestionSubmit"
+        />
+      </div>
+
+      <div
+        v-if="showDebugDetails && !isUser && toolCallList.length > 0"
+        class="space-y-2 px-4 pb-3"
+      >
+        <div
+          v-for="tool in toolCallList"
+          :key="tool.id"
+          class="rounded-2xl border border-primary/15 bg-white/70 px-3 py-2 text-xs text-neutral-600"
+        >
+          <div class="flex items-center justify-between gap-3">
+            <span class="font-medium text-primary">{{ tool.name }}</span>
+            <span class="rounded-full bg-primary/10 px-2 py-0.5 text-[11px] text-primary">
+              {{ toolStatusText(tool) }}
+            </span>
+          </div>
+          <p v-if="getToolArgsText(tool)" class="mt-1 max-h-24 overflow-hidden whitespace-pre-wrap break-all text-neutral-500">
+            {{ getToolArgsText(tool) }}
+          </p>
         </div>
+      </div>
 
-        <!-- 新增：参考数据库物理词典折叠卡片 -->
-        <div v-if="!isUser && parsedLexiconContext && (parsedLexiconContext.tables?.length || parsedLexiconContext.values?.length || parsedLexiconContext.rows?.length)" class="mt-3 px-1.5 animate-fade-in text-left">
-          <details class="group rounded-[20px] border border-neutral-200/80 bg-neutral-50/50 p-3.5 text-xs text-neutral-600 transition-all duration-200">
-            <summary class="flex cursor-pointer select-none items-center justify-between font-semibold text-neutral-700 hover:text-primary list-none">
-              <span class="flex items-center gap-2">
-                <svg class="h-4 w-4 text-neutral-500 group-hover:text-primary transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4" />
-                </svg>
-                <span class="text-xs font-semibold text-neutral-800">参考数据库物理词典 (DB Lexicon)</span>
-              </span>
-              <svg class="h-3.5 w-3.5 text-neutral-400 transition-transform duration-200 group-open:rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
-              </svg>
-            </summary>
-            
-            <div class="mt-3 space-y-3.5 border-t border-neutral-200/60 pt-3">
-              <!-- 1. 表结构 DDL 模块 -->
-              <div v-if="parsedLexiconContext.tables && parsedLexiconContext.tables.length > 0" class="space-y-2">
-                <details class="sub-group">
-                  <summary class="flex cursor-pointer select-none items-center gap-1.5 font-bold text-neutral-700 hover:text-primary text-[11.5px] list-none">
-                    <span class="text-neutral-400">📂</span>
-                    <span>推荐的数据库表 DDL 结构 (已命中 {{ parsedLexiconContext.tables.length }} 张表)</span>
-                  </summary>
-                  <div class="mt-2 space-y-2.5 pl-3 border-l border-neutral-200/80">
-                    <div v-for="tbl in parsedLexiconContext.tables" :key="tbl.table_name" class="space-y-1">
-                      <div class="text-[11px] font-bold text-neutral-600 font-mono">{{ tbl.table_name }}</div>
-                      <pre class="bg-neutral-900 text-neutral-100 p-2.5 rounded-xl text-[10.5px] overflow-x-auto max-h-48 font-mono leading-normal whitespace-pre-wrap break-all"><code class="language-sql">{{ tbl.ddl }}</code></pre>
-                    </div>
-                  </div>
-                </details>
-              </div>
+      <div
+        v-if="showDebugDetails && !isUser && toolResultEntries.length > 0"
+        class="space-y-2 px-4 pb-3"
+      >
+        <details
+          v-for="toolResult in toolResultEntries"
+          :key="toolResult.id"
+          class="rounded-2xl border border-neutral-200 bg-surface/90 px-3 py-2 text-xs text-neutral-600"
+        >
+          <summary class="cursor-pointer select-none font-medium text-neutral-700">
+            工具结果: {{ getToolNameById(toolResult.id) }} ({{ toolResult.id }})
+          </summary>
+          <pre class="mt-2 max-h-48 overflow-auto whitespace-pre-wrap break-words text-[12px] leading-relaxed text-neutral-500">{{ formatToolResultContent(toolResult.content) }}</pre>
+        </details>
+      </div>
 
-              <!-- 2. 列值对照映射模块 -->
-              <div v-if="parsedLexiconContext.values && parsedLexiconContext.values.length > 0" class="space-y-2">
-                <details class="sub-group">
-                  <summary class="flex cursor-pointer select-none items-center gap-1.5 font-bold text-neutral-700 hover:text-primary text-[11.5px] list-none">
-                    <span class="text-neutral-400">🔄</span>
-                    <span>字段去重值对照参考 (已命中 {{ parsedLexiconContext.values.length }} 条)</span>
-                  </summary>
-                  <div class="mt-2 pl-3 border-l border-neutral-200/80 overflow-x-auto">
-                    <table class="min-w-full text-[10.5px] border-collapse text-left">
-                      <thead>
-                        <tr class="bg-neutral-100/80 text-neutral-600 border-b border-neutral-200">
-                          <th class="p-1.5 font-semibold">数据表</th>
-                          <th class="p-1.5 font-semibold">目标列名</th>
-                          <th class="p-1.5 font-semibold">物理字段值</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        <tr v-for="(val, idx) in parsedLexiconContext.values" :key="idx" class="border-b border-neutral-100 hover:bg-neutral-50/50">
-                          <td class="p-1.5 font-mono text-neutral-500">{{ val.table_name }}</td>
-                          <td class="p-1.5 font-mono text-neutral-700 font-semibold">{{ val.column_name }}</td>
-                          <td class="p-1.5"><code class="bg-primary/5 text-primary px-1 py-0.5 rounded font-mono font-bold">{{ val.exact_value }}</code></td>
-                        </tr>
-                      </tbody>
-                    </table>
-                  </div>
-                </details>
-              </div>
-
-              <!-- 3. 行实体关联模块 -->
-              <div v-if="parsedLexiconContext.rows && parsedLexiconContext.rows.length > 0" class="space-y-2">
-                <details class="sub-group">
-                  <summary class="flex cursor-pointer select-none items-center gap-1.5 font-bold text-neutral-700 hover:text-primary text-[11.5px] list-none">
-                    <span class="text-neutral-400">🔍</span>
-                    <span>实体主键与行属性参考 (已命中 {{ parsedLexiconContext.rows.length }} 条)</span>
-                  </summary>
-                  <div class="mt-2 pl-3 border-l border-neutral-200/80 overflow-x-auto">
-                    <table class="min-w-full text-[10.5px] border-collapse text-left">
-                      <thead>
-                        <tr class="bg-neutral-100/80 text-neutral-600 border-b border-neutral-200">
-                          <th class="p-1.5 font-semibold">数据表</th>
-                          <th class="p-1.5 font-semibold">主键列 / 主键值</th>
-                          <th class="p-1.5 font-semibold">关联行属性描述</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        <tr v-for="(row, idx) in parsedLexiconContext.rows" :key="idx" class="border-b border-neutral-100 hover:bg-neutral-50/50">
-                          <td class="p-1.5 font-mono text-neutral-500">{{ row.table_name }}</td>
-                          <td class="p-1.5 font-mono">
-                            <span class="text-neutral-700 font-medium">{{ row.primary_key_column }}</span>
-                            <span class="text-neutral-400 mx-1">:</span>
-                            <code class="bg-neutral-100 text-neutral-800 px-1 py-0.5 rounded font-bold">{{ row.primary_key_val }}</code>
-                          </td>
-                          <td class="p-1.5 text-neutral-600 whitespace-pre-line leading-relaxed">{{ row.row_content }}</td>
-                        </tr>
-                      </tbody>
-                    </table>
-                  </div>
-                </details>
-              </div>
-            </div>
-          </details>
+      <div
+        v-if="showDebugDetails && errorText && !isUser"
+        class="px-4 pb-3"
+      >
+        <div class="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-600">
+          {{ errorText }}
         </div>
+      </div>
+
+      <!-- 反馈操作按钮与时间状态展示行 -->
+
 
         <!-- 数据源与查询时刻脚标独立卡片化展示 -->
         <div
@@ -323,125 +319,135 @@
         />
       </div>
 
-      <!-- 智能 SQL 数据预览表格模块 (防冲突修改) -->
-      <div
-        v-if="!isUser && sqlQueryResult"
-        class="mt-3 px-4 pb-3 text-left animate-fade-in"
-      >
-        <details class="group rounded-[24px] border border-neutral-200/80 bg-neutral-50/50 p-3.5 shadow-sm transition-all duration-200">
-          <summary class="flex cursor-pointer select-none items-center justify-between font-semibold text-neutral-800 list-none">
-            <div class="flex items-center gap-2">
-              <span class="flex h-5 w-5 items-center justify-center rounded-full bg-emerald-100 text-emerald-700 text-xs">📊</span>
-              <span class="text-sm font-semibold">
-                SQL 查询结果
-                <span v-if="sqlQueryResult.row_count !== undefined" class="text-xs text-neutral-400 font-normal">
-                  (共 {{ sqlQueryResult.row_count }} 行
-                  <span v-if="sqlQueryResult.truncated" class="text-amber-600 font-medium">· 已截断预览</span>)
-                </span>
+        <!-- 第二阶段新增：参考业务术语折叠卡片 -->
+        <div v-if="!isUser && parsedRagContext.length > 0" class="mt-4 px-1.5 animate-fade-in text-left">
+          <details class="group rounded-[20px] border border-neutral-200/80 bg-neutral-50/50 p-3.5 text-xs text-neutral-600 transition-all duration-200">
+            <summary class="flex cursor-pointer select-none items-center justify-between font-semibold text-neutral-700 hover:text-primary list-none">
+              <span class="flex items-center gap-2">
+                <svg class="h-4 w-4 text-neutral-500 group-hover:text-primary transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+                </svg>
+                <span class="text-xs font-semibold text-neutral-800">参考业务术语 ({{ parsedRagContext.length }} 条)</span>
               </span>
-            </div>
-            <div class="flex items-center gap-2">
-              <span v-if="sqlQueryResult.query_time" class="text-[11px] text-neutral-400 font-normal">⏰ {{ sqlQueryResult.query_time }}</span>
-              <span class="text-neutral-400 transition-transform duration-200 group-open:rotate-180 text-[10px]">▼</span>
-            </div>
-          </summary>
-
-          <div class="mt-3 border-t border-neutral-200/60 pt-3">
-            <!-- 表格主体 -->
-            <div class="overflow-x-auto rounded-2xl border border-neutral-200/60 bg-white">
-              <table class="min-w-full text-xs text-left border-collapse">
-                <thead>
-                  <tr class="bg-neutral-100/80 text-neutral-700 font-bold border-b border-neutral-200/60">
-                    <th v-for="col in sqlQueryResult.columns" :key="col" class="px-3.5 py-2.5 font-mono">
-                      {{ col }}
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr v-for="(row, rIdx) in sqlQueryResult.rows" :key="rIdx" class="border-b border-neutral-100 hover:bg-neutral-50/50 transition-colors">
-                    <td v-for="col in sqlQueryResult.columns" :key="col" class="px-3.5 py-2.5 font-mono text-neutral-600">
-                      {{ row[col] !== undefined && row[col] !== null ? row[col] : '-' }}
-                    </td>
-                  </tr>
-                  <tr v-if="!sqlQueryResult.rows || sqlQueryResult.rows.length === 0">
-                    <td :colspan="sqlQueryResult.columns?.length || 1" class="px-3.5 py-6 text-center text-neutral-400 font-medium">
-                      暂无数据返回
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-
-            <!-- 防御性聚合建议说明 -->
-            <div v-if="sqlQueryResult.truncated" class="mt-3 flex items-start gap-1.5 rounded-xl bg-amber-50/60 p-2.5 text-[11px] leading-relaxed text-amber-800">
-              <span class="text-[13px] leading-none">⚠️</span>
-              <div>
-                数据行数过多，页面仅承载展示前 {{ sqlQueryResult.rows?.length }} 行预览。如需获取完整分析结果，请使用 <strong>导出 CSV</strong> 或 <strong>聚合 SQL</strong> 重跑。
+              <svg class="h-3.5 w-3.5 text-neutral-400 transition-transform duration-200 group-open:rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+              </svg>
+            </summary>
+            <div class="mt-3 space-y-4 border-t border-neutral-200/60 pt-3">
+              <div v-for="item in parsedRagContext" :key="item.title" class="space-y-1.5">
+                <div class="flex flex-wrap items-center gap-2">
+                  <span class="rounded-[6px] bg-primary/10 px-1.5 py-0.5 text-[10px] font-bold text-primary">
+                    {{ item.domain }}
+                  </span>
+                  <span class="font-bold text-neutral-800 text-[12px]">{{ item.title }}</span>
+                  <span v-if="item.aliases && item.aliases.length" class="text-[10px] text-neutral-400 font-medium">
+                    (别名: {{ item.aliases.join(', ') }})
+                  </span>
+                </div>
+                <p class="pl-0.5 text-[11px] leading-5 text-neutral-500 whitespace-pre-line font-medium">
+                  {{ item.content }}
+                </p>
               </div>
             </div>
-          </div>
-        </details>
-      </div>
-
-      <!-- 问答澄清卡片区域 -->
-      <div
-        v-if="!isUser && hasQuestions"
-        class="px-4 pb-3 animate-fade-in"
-      >
-        <AskUserQuestionCard
-          :questions="questions"
-          :is-submitted="isQuestionSubmitted"
-          @submit="handleQuestionSubmit"
-        />
-      </div>
-
-      <div
-        v-if="showDebugDetails && !isUser && toolCallList.length > 0"
-        class="space-y-2 px-4 pb-3"
-      >
-        <div
-          v-for="tool in toolCallList"
-          :key="tool.id"
-          class="rounded-2xl border border-primary/15 bg-white/70 px-3 py-2 text-xs text-neutral-600"
-        >
-          <div class="flex items-center justify-between gap-3">
-            <span class="font-medium text-primary">{{ tool.name }}</span>
-            <span class="rounded-full bg-primary/10 px-2 py-0.5 text-[11px] text-primary">
-              {{ toolStatusText(tool) }}
-            </span>
-          </div>
-          <p v-if="getToolArgsText(tool)" class="mt-1 max-h-24 overflow-hidden whitespace-pre-wrap break-all text-neutral-500">
-            {{ getToolArgsText(tool) }}
-          </p>
+          </details>
         </div>
-      </div>
 
-      <div
-        v-if="showDebugDetails && !isUser && toolResultEntries.length > 0"
-        class="space-y-2 px-4 pb-3"
-      >
-        <details
-          v-for="toolResult in toolResultEntries"
-          :key="toolResult.id"
-          class="rounded-2xl border border-neutral-200 bg-surface/90 px-3 py-2 text-xs text-neutral-600"
-        >
-          <summary class="cursor-pointer select-none font-medium text-neutral-700">
-            工具结果: {{ getToolNameById(toolResult.id) }} ({{ toolResult.id }})
-          </summary>
-          <pre class="mt-2 max-h-48 overflow-auto whitespace-pre-wrap break-words text-[12px] leading-relaxed text-neutral-500">{{ formatToolResultContent(toolResult.content) }}</pre>
-        </details>
-      </div>
+        <!-- 新增：参考数据库物理词典折叠卡片 -->
+        <div v-if="!isUser && parsedLexiconContext && (parsedLexiconContext.tables?.length || parsedLexiconContext.values?.length || parsedLexiconContext.rows?.length)" class="mt-3 px-1.5 animate-fade-in text-left">
+          <details class="group rounded-[20px] border border-neutral-200/80 bg-neutral-50/50 p-3.5 text-xs text-neutral-600 transition-all duration-200">
+            <summary class="flex cursor-pointer select-none items-center justify-between font-semibold text-neutral-700 hover:text-primary list-none">
+              <span class="flex items-center gap-2">
+                <svg class="h-4 w-4 text-neutral-500 group-hover:text-primary transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4" />
+                </svg>
+                <span class="text-xs font-semibold text-neutral-800">参考数据库物理词典 (DB Lexicon)</span>
+              </span>
+              <svg class="h-3.5 w-3.5 text-neutral-400 transition-transform duration-200 group-open:rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+              </svg>
+            </summary>
+            
+            <div class="mt-3 space-y-3.5 border-t border-neutral-200/60 pt-3">
+              <!-- 1. 表结构 DDL 模块 -->
+              <div v-if="parsedLexiconContext.tables && parsedLexiconContext.tables.length > 0" class="space-y-2">
+                <details class="sub-group">
+                  <summary class="flex cursor-pointer select-none items-center gap-1.5 font-bold text-neutral-700 hover:text-primary text-[11.5px] list-none">
+                    <span class="text-neutral-400">📂</span>
+                    <span>推荐的数据库表 DDL 结构 (已命中 {{ parsedLexiconContext.tables.length }} 张表)</span>
+                  </summary>
+                  <div class="mt-2 space-y-2.5 pl-3 border-l border-neutral-200/80">
+                    <div v-for="tbl in parsedLexiconContext.tables" :key="tbl.table_name" class="space-y-1">
+                      <div class="text-[11px] font-bold text-neutral-600 font-mono">{{ tbl.table_name }}</div>
+                      <pre class="bg-neutral-900 text-neutral-100 p-2.5 rounded-xl text-[10.5px] overflow-x-auto max-h-48 font-mono leading-normal whitespace-pre-wrap break-all"><code class="language-sql">{{ tbl.ddl }}</code></pre>
+                    </div>
+                  </div>
+                </details>
+              </div>
 
-      <div
-        v-if="showDebugDetails && errorText && !isUser"
-        class="px-4 pb-3"
-      >
-        <div class="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-600">
-          {{ errorText }}
+              <!-- 2. 列值对照映射模块 -->
+              <div v-if="parsedLexiconContext.values && parsedLexiconContext.values.length > 0" class="space-y-2">
+                <details class="sub-group">
+                  <summary class="flex cursor-pointer select-none items-center gap-1.5 font-bold text-neutral-700 hover:text-primary text-[11.5px] list-none">
+                    <span class="text-neutral-400">🔄</span>
+                    <span>字段去重值对照参考 (已命中 {{ parsedLexiconContext.values.length }} 条)</span>
+                  </summary>
+                  <div class="mt-2 pl-3 border-l border-neutral-200/80 overflow-x-auto">
+                    <table class="min-w-full text-[10.5px] border-collapse text-left">
+                      <thead>
+                        <tr class="bg-neutral-100/80 text-neutral-600 border-b border-neutral-200">
+                          <th class="p-1.5 font-semibold">数据表</th>
+                          <th class="p-1.5 font-semibold">目标列名</th>
+                          <th class="p-1.5 font-semibold">物理字段值</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <tr v-for="(val, idx) in parsedLexiconContext.values" :key="idx" class="border-b border-neutral-100 hover:bg-neutral-50/50">
+                          <td class="p-1.5 font-mono text-neutral-500">{{ val.table_name }}</td>
+                          <td class="p-1.5 font-mono text-neutral-700 font-semibold">{{ val.column_name }}</td>
+                          <td class="p-1.5"><code class="bg-primary/5 text-primary px-1 py-0.5 rounded font-mono font-bold">{{ val.exact_value }}</code></td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                </details>
+              </div>
+
+              <!-- 3. 行实体关联模块 -->
+              <div v-if="parsedLexiconContext.rows && parsedLexiconContext.rows.length > 0" class="space-y-2">
+                <details class="sub-group">
+                  <summary class="flex cursor-pointer select-none items-center gap-1.5 font-bold text-neutral-700 hover:text-primary text-[11.5px] list-none">
+                    <span class="text-neutral-400">🔍</span>
+                    <span>实体主键与行属性参考 (已命中 {{ parsedLexiconContext.rows.length }} 条)</span>
+                  </summary>
+                  <div class="mt-2 pl-3 border-l border-neutral-200/80 overflow-x-auto">
+                    <table class="min-w-full text-[10.5px] border-collapse text-left">
+                      <thead>
+                        <tr class="bg-neutral-100/80 text-neutral-600 border-b border-neutral-200">
+                          <th class="p-1.5 font-semibold">数据表</th>
+                          <th class="p-1.5 font-semibold">主键列 / 主键值</th>
+                          <th class="p-1.5 font-semibold">关联行属性描述</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <tr v-for="(row, idx) in parsedLexiconContext.rows" :key="idx" class="border-b border-neutral-100 hover:bg-neutral-50/50">
+                          <td class="p-1.5 font-mono text-neutral-500">{{ row.table_name }}</td>
+                          <td class="p-1.5 font-mono">
+                            <span class="text-neutral-700 font-medium">{{ row.primary_key_column }}</span>
+                            <span class="text-neutral-400 mx-1">:</span>
+                            <code class="bg-neutral-100 text-neutral-800 px-1 py-0.5 rounded font-bold">{{ row.primary_key_val }}</code>
+                          </td>
+                          <td class="p-1.5 text-neutral-600 whitespace-pre-line leading-relaxed">{{ row.row_content }}</td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                </details>
+              </div>
+            </div>
+          </details>
         </div>
-      </div>
 
-      <!-- 反馈操作按钮与时间状态展示行 -->
+            <!-- 智能 SQL 数据预览表格模块 (防冲突修改) -->
       <div
         v-if="!isUser && !isStreamingActive && props.message.id && !props.message.id.startsWith('temp-')"
         class="flex items-center justify-between px-5 pb-3.5 pt-0 text-neutral-400 border-t border-neutral-100/50 mt-1"

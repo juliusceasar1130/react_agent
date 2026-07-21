@@ -1,3 +1,28 @@
+## 2026-07-20 21:36 +08:00 - 优化 SQL 查询结果组件默认折叠展示与本地冗余链接清洗
+
+### 变更内容
+
+#### frontend/src/components/MessageItem.vue [MODIFY]
+- 去除 SQL 查询结果 `<details>` 卡片上的 `open` 属性，使其默认呈现折叠状态，优化初始阅读体验。
+- 新增“参考数据库物理词典 (DB Lexicon)”折叠卡片，分类展示命中表的 DDL 结构、字段去重值对照参考以及实体主键与行属性参考。
+
+#### frontend/src/utils/markdown.ts [MODIFY]
+- 在 `extractMetaData` 函数中新增 `fileLinkRegex` 正则匹配，用于在 Markdown 渲染前彻底过滤清洗大模型生成于正文中的冗余本地 `file:///` 协议链接，防止高危路径泄露和前端折行排版崩溃。
+
+#### backend/app/agent/tools/csv_export_tool.py [MODIFY]
+- 对 `export_to_csv` 工具在执行结束时向大模型返回的 `ToolMessage.content` 进行脱敏处理，剥离了物理文件绝对路径 `stored_path`，从根源上阻止了其泄露到大模型上下文和前端 `tool_results` 中。
+
+#### backend/app/agent/prompts/base_system_prompt.md [MODIFY]
+- 调整系统提示词，加入最终回复呈现格式的精确意图分流规则（数据明细查询类、数据分析与统计对比类、开放问题与知识问答类）。
+
+#### docs/StructuredOutput/refactor/09_lightweight_structured_output_feasibility.md [NEW]
+- 新增轻量结构化输出方案的可行性分析文档，确立“LLM 分析正文为主体、侧信道明细为证据底座”的分工模式。
+
+#### docs/StructuredOutput/refactor/10_lightweight_structured_output_implementation_plan.md [NEW]
+- 新增轻量结构化输出实施方案文档，规划 Prompt 规约、前端组件重排及防抖动占位等具体改造项。
+
+---
+
 ## 2026-07-20 15:40 +08:00 - CSV 导出工具 export_to_csv 改 Command 侧信道直推及 OOM 安全防护重构 (Spec 06)
 
 ### 变更内容

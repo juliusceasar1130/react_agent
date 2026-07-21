@@ -86,6 +86,10 @@ export const extractMetaData = (content: string): { cleanContent: string; meta: 
     cleanContent = cleanContent.replace(sourceRegex, '')
   }
 
+  // 3.5 清理冗余的本地 file:/// 链接（支持常规超链接或图片超链接语法，容忍括号间空格或换行）
+  const fileLinkRegex = /!?\[[^\]]*\]\s*\(file:\/\/\/[^\)]+\)/g
+  cleanContent = cleanContent.replace(fileLinkRegex, '')
+
   // 4. 清理残留的多余换行与逗号等垃圾标记并收拢为标准的双换行（保持段落、表格与正文的空行隔离）
   cleanContent = cleanContent.replace(/\n\s*[,，，、]\s*\n/g, '\n\n')
   cleanContent = cleanContent.replace(/\n\s*\n/g, '\n\n').trim()
