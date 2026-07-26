@@ -23,7 +23,8 @@ DOMAIN_META = {
         "ods.process_areas",
         "ods.vehicle_body_types",
         "ods.vehicle_color_codes",
-        "ods.vehicle_platforms"
+        "ods.vehicle_platforms",
+        "dim.carbody_registry"
     ],
     "rows_lexicon_whitelist": {       
         "ods.process_areas": {

@@ -1,3 +1,33 @@
+## 2026-07-24 10:14 +08:00 - 修复滞留车检测在制车查询 NULL 值与 SQL 模板注释干扰漏洞
+
+### 变更内容
+
+#### backend/app/skills/domains/paint_shop_vehicle_logistics/scenarios/stranded_vehicle_detection/sql/in_process.sql [MODIFY]
+- 修复在制滞留车查询条件中 `retention_checkpoint_station NOT IN (...)` 对 `NULL` 值的过滤漏洞，引入 `IS NULL` 容错处理。
+- 移除占位符前的 SQL 单行注释前缀 `--`，避免替换生成的 SQL 片段被直接当作注释忽略。
+
+#### backend/app/skills/domains/paint_shop_vehicle_logistics/scenarios/stranded_vehicle_detection/sql/historical.sql [MODIFY]
+- 移除占位符前的 SQL 单行注释前缀 `--`，防止生成的平台/天数过滤 SQL 被当成注释忽略。
+
+#### backend/app/skills/domains/paint_shop_vehicle_logistics/scenarios/stranded_vehicle_detection/scenario.py [MODIFY]
+- 精简重构场景元数据定义，合并冗余触发词与重复规则条目，将代码压缩约 40%，显著提升 LLM 提示词 Token 效率与阅读可维护性。
+- 通过了 `discover_scenarios` 自动发现与场景资产校验测试。
+
+---
+
+## 2026-07-22 13:10 +08:00 - 新增通用智能体架构选型可行性研究与前端改造综合报告
+
+### 变更内容
+
+#### docs/deepagent/generic_agent_architecture_report.md [NEW]
+- 新增通用智能体技术选型可行性研究与架构演进报告。
+- 校准并明确了后端现代依赖版本基线（`langchain 1.2.15`、`langgraph 1.1.8`、`langgraph-checkpoint-postgres 3.0.2` 等）。
+- 梳理项目背景、现有 Text-to-SQL 单 ReAct 瓶颈与演进诉求，对比研究 LangGraph 编排引擎与 Deep Agent 范式。
+- 提出 Top-Level Multi-Agent 状态图 Supervisor 架构设计，将 SQL Agent 降维降噪为专业子图。
+- 详述前端流式事件注册（`subagent_change`, `plan_update`）、Pinia 状态存储与 UI 可视化组件改造细则。
+
+---
+
 ## 2026-07-21 11:18 +08:00 - 统一消息卡片内各辅助组件与一键生成图表的水平对齐宽度
 
 ### 变更内容
