@@ -16,12 +16,9 @@
 - **SQL 预览结构化表格** - 当执行 `sql_db_query` 时，利用 `Command` 与 `tool_artifact` 侧信道实时分发结构化有界数据，前端以 Pinia 内存存储并在气泡视图下渲染高端交互式表格（支持超限警告与 preview_rows 限流预览），未刷新前在会话内保持激活渲染，刷新后退回纯文本展示，不侵入后端数据库，兼顾超大结果集的 SSE 通道健康度与绝佳的用户体验
 - **CSV 数据导出** - 支持将大量 SQL 结果直接导出为 CSV 文件供用户下载，全程不占 LLM 上下文
 - **聊天内嵌图表** - 当用户明确要求生成图表时，后端生成 chart artifact，前端按 `chart_id` 拉取并渲染折线图或柱状图
-- **方案 B 数据字典 Bento 抽屉** - 正式选用 Bento 磁贴网格仪表盘与平滑拉出毛玻璃 Drawer 抽屉的交互架构，将聊天与字典完美融合。白名单通过 `.env` `DIMENSION_TABLES` 配置，连接失败直接报错便于排查。
+- **快捷场景直通 SQL 查询与极简矢量图标 (Minimalist Icons)** - 解耦纯函数直通查询引擎（`resolver` / `executor` / `formatter`），绕过 LLM Agent 决策耗时，毫秒级响应固定查询场景。快捷直通悬浮卡片 (`FloatingScenarioCards`) 与直通弹窗 (`ScenarioModal`) 全面摒弃 Emoji/3D 图标，采用现代极简 Single-line SVG 矢量线条图标（支持 High Contrast & Accent Tone Stroke）与智能图标类型识别 (`getScenarioIconType`)，兼顾轻盈精致视觉与高效响应。支持通用零侵入服务端分页 (LIMIT/OFFSET) 与真实全量 COUNT(*) 计算，前端 **`ScenarioModal` 弹窗** 支持单层表格右上角区间展示、底部分页条（上一页/下一页/页码/每页条数选择器）与最左侧 `#` 物理绝对行号连续展示。
 - **双击联动注入与毛玻璃 Spark Toast 反馈** - 双击抽屉中维度表任何单元格或字段名，数据自动追加到聊天输入框光标停留处；输入框边缘泛起 `.input-glow` 呼吸灯发光，底端浮现毛玻璃 Transition Toast。
-- **前端安全下载** - 导出结果通过 `file_id` 映射到后端下载接口，前端可直接点击下载 CSV，而不暴露服务器绝对路径
-- **Markdown 结果展示** - 助手完成态消息支持 Markdown 渲染，适合表格、列表、代码块和统计摘要展示
-- **状态持久化** - FastAPI 本地模式使用 `AsyncPostgresSaver`，托管模式由 LangGraph 自动管理 Agent 状态
-- **Markdown 结果展示** - 助手完成态消息支持 Markdown 渲染，适合表格、列表、代码块和统计摘要展示
+- **1:1 LobeChat 风格 Markdown 渲染与 GFM Alert 警示卡片** - 助手完成态与流式消息支持原生 1:1 LobeChat 视觉排版（计算倍率变量、表格与代码块美化、流式呼吸光标），并通过 `markdown-it-alert.ts` 插件与后端系统提示词 (§ 4.5) 全链路打通 `> [!NOTE]` / `> [!TIP]` 等 5 种 GFM Callout 矢量图标警示卡片的实时渲染与防守
 - **状态持久化** - FastAPI 本地模式使用 `AsyncPostgresSaver`，托管模式由 LangGraph 自动管理 Agent 状态
 - **现代 UI/UX** - 基于 Neural Tones + AI Purple 设计系统，采用 **Arctic Glass (方案一)** 设计语言，支持毛玻璃效果、渐变光晕与流畅动画
 - **前后端分离** - FastAPI + Vue 3 + TypeScript
@@ -34,7 +31,7 @@
 - **反馈驱动型自演进 Few-Shot 案例库** - 前端支持用户对 AI 消息进行 👍 / 👎 / ⭐（收藏），管理员在审核面板对收藏的案例进行同步/异步审核。通过规则提取器（包括安全拦截、单步/多步 SQL 提取、空结果集过滤、澄清链路精准拓扑回溯和业务技能域隔离）及 LLM 提炼层（意图重写与 SQL 脱敏参数化），自动沉淀黄金案例入库，实现智能体在运行中自我学习与持续进化。
 - **多 System 消息终极合并自愈** - 在大模型调用前的临界时机，通过终极安全合并中间件（SafeMergeSystemMiddleware）利用原生的 `merge_message_runs` 自动将核心系统提示词与 RAG 背景知识合并，解决在 strict 模式的本地推理引擎（如 vLLM）中由于非首位 system 消息引发 of 400 校验报错，同时提升本地小参数大模型的 Attention 集中度与 Prefix Caching 效率
 - **vLLM 专属精确分词引擎** - 新增 `VllmTokenEstimator` 支持直接调用 vLLM 推理后端的 `/tokenize` 端点获取 100% 精确的 Token 计算结果，根治粗糙估算造成的边界溢出。可在 `.env` 中通过 `TOKEN_ESTIMATOR_ENGINE` 变量实现与 `llama_cpp` 引擎的平滑热切换。
-- **思考模式控制** - 支持 Qwen3.6 MoE 深度推理（Thinking）功能的开关控制。当前处于“隐藏阶段”，由后端 `.env` 中的 `LLM_ENABLE_THINKING=true/false` 静态变量进行全局默认配置，前端已预留磨砂玻璃质态 `ToggleSwitch` 交互组件与 API 协程透传通道，便于后续升级完善运行时动态切换能力
+- **思考模式控制与推理折叠面板** - 支持 DeepSeek / Qwen 深度推理（Thinking）功能的开关控制与思考 Token 结构化 SSE 推送。前端提供柔和低饱和色 `ToggleSwitch` 模式实时切换开关以及 `<ReasoningAccordion>` 交互组件（包含极简微光矢量图标、全过程决策耗时计时器、流式打字机效果、自动折叠与 100% 文本忠实度 Smart Punctuation Joiner 智能标点粘合），全链路打通大模型思考过程呈现。
 - **澄清问答卡片 (AskUserQuestion)** - 支持基于 LangGraph 1.1.8 原生 `interrupt` 中断控制流的澄清问答。当大模型遇到需求模糊或执行技术权衡时，挂起流式响应并向下游输出结构化问答卡片；前端以毛玻璃轻量卡片形式渲染，支持单选/多选/自定义输入互斥，并提供 Hover 实时 Markdown 对比预览。用户确认提交后，通过 `/api/chat/resume` 恢复流式生成，并对历史卡片进行 disabled 锁定。
 - **Agent 技能文档化** - 新增技能相关的领域文档、问题追踪与标签分诊手册，提升智能体在特定任务下的标准化执行能力
 - **数据库物理词典三层折叠面板 (DB Lexicon display)** - 在线 RAG 元数据检索打通了结构化流事件。在聊天卡片气泡底端提供嵌套折叠面板，清晰拆解推荐表 DDL 骨架（支持 SQL 代码高亮）、字段去重值映射对照表、主键与行属性关联表，极大提升 SQL 智能体执行过程透明度。
@@ -50,7 +47,7 @@
 | FastAPI       | 高性能异步 Web 框架          |
 | SQLAlchemy    | Python ORM                   |
 | PostgreSQL    | 关系型数据库                 |
-| LangGraph     | LLM 应用开发框架 (1.0+ 版本) |
+| LangGraph     | LLM 应用与 Agent 开发框架 (1.2+ 版本 & DeepAgents) |
 | DeepSeek      | 联网大语言模型 (API)         |
 | Ollama        | 本地大模型推理服务 (可选)    |
 | AsyncPostgresSaver / PostgresSaver | Agent 状态持久化 |

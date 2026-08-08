@@ -134,6 +134,12 @@ class TokenStreamEvent(BaseModel):
     node: Optional[str] = None
 
 
+class ReasoningStreamEvent(BaseModel):
+    type: Literal["reasoning"] = "reasoning"
+    text: str
+    node: Optional[str] = None
+
+
 class StatusStreamEvent(BaseModel):
     type: Literal["status"]
     stage: StreamStage
@@ -229,6 +235,7 @@ class InterruptStreamEvent(BaseModel):
 ChatStreamEvent = Annotated[
     Union[
         TokenStreamEvent,
+        ReasoningStreamEvent,
         StatusStreamEvent,
         ToolCallStreamEvent,
         ToolResultStreamEvent,
@@ -260,3 +267,74 @@ class MessageApproveRequest(BaseModel):
     """管理员审批并入库黄金案例的请求体"""
     custom_query: Optional[str] = None
     custom_sql: Optional[str] = None
+
+
+# ==================== 快捷场景面板 (Scenario Quick Panel) Schemas ====================
+
+class ScenarioItem(BaseModel):
+    name: str
+    title: str
+    description: str
+    direct_path_enabled: Optional[bool] = True
+
+
+class ScenarioSummary(BaseModel):
+    domain: str
+    domain_title: str
+    scenarios: List[ScenarioItem]
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class ParameterOptionSchema(BaseModel):
+    value: str
+    label: str
+
+
+class ParameterDefSchema(BaseModel):
+    type: str
+    widget: str
+    description: str
+    required: bool = False
+    default: Optional[Union[str, int, float]] = None
+    options: List[ParameterOptionSchema] = []
+
+
+class TemplateInfoSchema(BaseModel):
+    name: str
+    label: str
+
+
+class ScenarioParamsResponse(BaseModel):
+    name: str
+    title: str
+    output_type: str = "table"
+    templates: Optional[List[TemplateInfoSchema]] = None
+    default_template: Optional[str] = None
+    parameters: Dict[str, ParameterDefSchema]
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class ScenarioExecuteRequest(BaseModel):
+    params: Dict[str, Any] = {}
+    template_name: Optional[str] = None
+    page: Optional[int] = 1
+    page_size: Optional[int] = 50
+
+
+class ScenarioExecuteResponse(BaseModel):
+    type: str  # "table" or "scalar"
+    columns: Optional[List[str]] = None
+    rows: Optional[List[List[Any]]] = None
+    row_count: Optional[int] = None
+    total_count: Optional[int] = None
+    page: Optional[int] = 1
+    page_size: Optional[int] = 50
+    total_pages: Optional[int] = 1
+    is_truncated: Optional[bool] = False
+    value: Optional[Union[str, int, float]] = None
+    label: Optional[str] = None
+
+    model_config = ConfigDict(from_attributes=True)
+

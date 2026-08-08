@@ -1,20 +1,29 @@
 """
-车型缺陷趋势场景元数据。
-
-修改时间: 2026-05-15 Asia/Shanghai
-主要修改内容:
-- 补齐 title 和 example_questions 字段
+车型缺陷趋势场景定义 (model_defect_trend) - 纯 LLM 场景
 """
 
-SCENARIO = {
-    "skill_name": "paint_shop_defect_analysis",
-    "name": "model_defect_trend",
-    "title": "车型缺陷趋势",
-    "description": "基于 `mart_vehicle_quality_360` 统计某车型或各车型在时间维度上的缺陷趋势。",
+DIRECT_QUERY_META = {
+    "direct_path_enabled": False,       # [仅直通需要] 显式关闭直通，不下发到右侧直通弹窗面板
+    "output_type": "table",            # [仅直通需要]
+    "default_template": "main",         # [仅直通需要]
+    "sql_template_refs": [             # [两者都需要] SQL 模板清单
+        {
+            "type": "sql",
+            "name": "main",
+            "scope": "scenario",
+            "path": "sql/main.sql",
+            "description": "按日期和车型统计缺陷趋势的 SQL 模板。",
+        }
+    ],
+    "script_refs": [],
+    "parameters": {},
+}
+
+LLM_SKILL_META = {
     "example_questions": [
         "A7 车型最近的缺陷趋势",
         "各个车型的缺陷趋势对比",
-        "最近一周的缺陷波动情况"
+        "最近一周的缺陷波动情况",
     ],
     "triggers": [
         "某车型最近缺陷趋势",
@@ -22,15 +31,12 @@ SCENARIO = {
         "A7 最近缺陷是否升高",
     ],
     "intent_keywords": ["车型", "趋势", "缺陷", "最近", "波动"],
-    "required_inputs": [],
-    "optional_inputs": ["defect_type_name", "date_range", "tunnel", "cycle"],
-    "parameters": {},
     "workflow": [
-        "确认用户要的是趋势，而不是单次检测列表。",
-        "优先查询 `mart_vehicle_quality_360`。",
-        "按 DATE(detect_time) 和 defect_type_name 聚合检测次数与平均缺陷数。",
-        "如用户指定 tunnel 或 cycle，再增加条件。",
-        "输出时间趋势并说明统计口径。",
+        "1. 确认用户要的是趋势，而不是单次检测列表。",
+        "2. 优先查询 `mart_vehicle_quality_360`。",
+        "3. 按 DATE(detect_time) 和 defect_type_name 聚合检测次数与平均缺陷数。",
+        "4. 如用户指定 tunnel 或 cycle，再增加条件。",
+        "5. 输出时间趋势并说明统计口径。",
     ],
     "rules": [
         "优先使用 `defect_type_name` 作为车型名称展示字段。",
@@ -42,14 +48,17 @@ SCENARIO = {
         "如果要比较不同车型，输出时应保持时间粒度一致。",
     ],
     "output_contract": "输出字段至少包含 stat_date、defect_type_name、detection_count、avg_defect_per_detection。",
-    "sql_template_refs": [
-        {
-            "type": "sql",
-            "name": "main",
-            "scope": "scenario",
-            "path": "sql/main.sql",
-            "description": "按日期和车型统计缺陷趋势的 SQL 模板。",
-        }
-    ],
-    "script_refs": [],
 }
+
+SCENARIO = {
+    "skill_name": "paint_shop_defect_analysis",
+    "name": "model_defect_trend",
+    "title": "车型缺陷趋势",
+    "description": "基于 `mart_vehicle_quality_360` 统计某车型或各车型在时间维度上的缺陷趋势。",
+    "required_inputs": [],
+    "optional_inputs": ["defect_type_name", "date_range", "tunnel", "cycle"],
+    **DIRECT_QUERY_META,
+    **LLM_SKILL_META,
+}
+
+SCENARIO_META = SCENARIO

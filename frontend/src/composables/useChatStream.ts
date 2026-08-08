@@ -30,7 +30,7 @@ export function useChatStream() {
   const sessionsStore = useSessionsStore()
 
   const streamMode = ref(true)  // 流式模式开关状态
-  const enableThinking = ref(false) // 新增：思考模式开关状态，默认关闭
+  const enableThinking = ref(true) // 新增：思考模式开关状态，默认开启
   
   const activeStreamControllersMap = ref<Record<string, AbortController>>({})
   const sendingSessionsMap = ref<Record<string, boolean>>({})
@@ -118,7 +118,6 @@ export function useChatStream() {
       }
 
       console.error('发送消息失败:', error)
-      console.error('[diagnose] 流式请求异常类型:', (error as Error)?.constructor?.name, 'message:', (error as Error)?.message)
       // 发送失败时移除临时用户消息 - 2025-01-01
       const index = messagesStore.messages.findIndex(m => m.id === tempUserMessage.id)
       if (index !== -1) {
@@ -134,21 +133,20 @@ export function useChatStream() {
   }
 
   /**
-   * 处理流式消息
+   * 创建统一的流式事件处理回调（消除 handleStreamMessage / resumeMessage 的重复逻辑）
    */
-  const handleStreamMessage = async (sessionId: string, content: string) => {
-    let hasTerminalEvent = false
-    const controller = new AbortController()
-    activeStreamControllersMap.value[sessionId] = controller
-
-    // 开始流式消息（创建临时消息对象）
-    messagesStore.startStreamingMessage(sessionId)
-
-    const handleEvent = (event: StreamEvent) => {
+  const createEventHandler = (sessionId: string, hasTerminalEventRef: { value: boolean }) => {
+    return (event: StreamEvent) => {
       switch (event.type) {
         case 'token':
           if (event.text) {
             messagesStore.appendStreamingContent(sessionId, event.text)
+          }
+          return
+
+        case 'reasoning':
+          if (event.text) {
+            messagesStore.appendStreamingReasoning(sessionId, event.text)
           }
           return
 
@@ -192,7 +190,7 @@ export function useChatStream() {
           return
 
         case 'final':
-          hasTerminalEvent = true
+          hasTerminalEventRef.value = true
           messagesStore.completeStreamingMessage(sessionId, {
             id: event.message_id,
             created_at: event.created_at,
@@ -205,7 +203,7 @@ export function useChatStream() {
           return
 
         case 'error':
-          hasTerminalEvent = true
+          hasTerminalEventRef.value = true
           messagesStore.finalizeStreamingError(sessionId, {
             id: event.message_id,
             created_at: event.created_at,
@@ -216,7 +214,7 @@ export function useChatStream() {
           return
 
         case 'interrupt':
-          hasTerminalEvent = true
+          hasTerminalEventRef.value = true
           messagesStore.setStreamingInterrupt(sessionId, event.questions)
           syncMessagesIfCurrent(sessionId)
           void syncSessions()
@@ -225,6 +223,20 @@ export function useChatStream() {
 
       assertNever(event)
     }
+  }
+
+  /**
+   * 处理流式消息
+   */
+  const handleStreamMessage = async (sessionId: string, content: string) => {
+    const hasTerminalEvent = { value: false }
+    const controller = new AbortController()
+    activeStreamControllersMap.value[sessionId] = controller
+
+    // 开始流式消息（创建临时消息对象）
+    messagesStore.startStreamingMessage(sessionId)
+
+    const handleEvent = createEventHandler(sessionId, hasTerminalEvent)
 
     try {
       await sendChatStream(
@@ -238,7 +250,7 @@ export function useChatStream() {
         { signal: controller.signal }
       )
 
-      if (!hasTerminalEvent) {
+      if (!hasTerminalEvent.value) {
         throw new Error('流式响应未正常结束')
       }
     } finally {
@@ -287,86 +299,11 @@ export function useChatStream() {
       targetMsg.statusText = '恢复会话生成中'
     }
 
-    let hasTerminalEvent = false
+    let hasTerminalEvent = { value: false }
     const controller = new AbortController()
     activeStreamControllersMap.value[currentSession.id] = controller
 
-    const handleEvent = (event: StreamEvent) => {
-      const sessionId = currentSession.id
-      switch (event.type) {
-        case 'token':
-          if (event.text) {
-            messagesStore.appendStreamingContent(sessionId, event.text)
-          }
-          return
-
-        case 'status':
-          if (event.source === 'context_warning' && event.detail) {
-            contextWarningsMap.value[sessionId] = event.detail as unknown as ContextWarningPayload
-            return
-          }
-          messagesStore.updateStreamingStatus(sessionId, event.stage, event.text)
-          return
-
-        case 'tool_call':
-          messagesStore.upsertStreamingToolCall(sessionId, {
-            id: event.id,
-            name: event.name,
-            args_text: event.args_text,
-            status: event.status,
-          } satisfies StreamToolCall)
-          return
-
-        case 'tool_result':
-          messagesStore.setStreamingToolResult(sessionId, event.id, event.content)
-          return
-
-        case 'rag_context':
-          if (messagesStore.streamingMessagesMap[sessionId]) {
-            messagesStore.streamingMessagesMap[sessionId].ragContext = event.rag_context
-          }
-          return
-
-        case 'lexicon_context':
-          if (messagesStore.streamingMessagesMap[sessionId]) {
-            messagesStore.streamingMessagesMap[sessionId].lexiconContext = event.lexicon_context
-          }
-          return
-
-        case 'final':
-          hasTerminalEvent = true
-          messagesStore.completeStreamingMessage(sessionId, {
-            id: event.message_id,
-            created_at: event.created_at,
-            content: event.content,
-            tool_calls: event.tool_calls ? JSON.stringify(event.tool_calls) : null,
-            tool_results: event.tool_results ? JSON.stringify(event.tool_results) : null,
-          })
-          syncMessagesIfCurrent(sessionId)
-          void syncSessions()
-          return
-
-        case 'error':
-          hasTerminalEvent = true
-          messagesStore.finalizeStreamingError(sessionId, {
-            id: event.message_id,
-            created_at: event.created_at,
-            content: event.message,
-          })
-          syncMessagesIfCurrent(sessionId)
-          void syncSessions()
-          return
-
-        case 'interrupt':
-          hasTerminalEvent = true
-          messagesStore.setStreamingInterrupt(sessionId, event.questions)
-          syncMessagesIfCurrent(sessionId)
-          void syncSessions()
-          return
-      }
-
-      assertNever(event)
-    }
+    const handleEvent = createEventHandler(currentSession.id, hasTerminalEvent)
 
     try {
       await sendChatResumeStream(
@@ -378,7 +315,7 @@ export function useChatStream() {
         { signal: controller.signal }
       )
 
-      if (!hasTerminalEvent) {
+      if (!hasTerminalEvent.value) {
         throw new Error('流式响应未正常结束')
       }
     } catch (error) {
@@ -389,7 +326,6 @@ export function useChatStream() {
         return
       }
 
-      console.error('[diagnose] 恢复流式异常:', (error as Error)?.constructor?.name, (error as Error)?.message)
       console.error('恢复发送消息失败:', error)
       messagesStore.clearStreamingMessage(currentSession.id)
       syncMessagesIfCurrent(currentSession.id)

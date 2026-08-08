@@ -33,7 +33,7 @@ Windows 下可直接运行 `start_langgraph_dev.bat`。
 
 - `agent_docs/architecture.md` — 项目架构速览、后端/前端主链路、技术栈、目录结构（修改跨模块代码时读取）
 - `agent_docs/persistence_and_streaming.md` — 持久化双模式与 SSE 流式协议（修改 Agent 持久化或流式逻辑时读取）
-- `agent_docs/skills_guide.md` — Skills 开发约定（开发或修改 Skills 时读取，也参考 `docs/skills/guide.md`）
+- `agent_docs/skills_guide.md` — Skills 开发约定（开发或修改 Skills 时读取，权威规范参阅 `docs/skills/scenario_architecture_spec.md`）
 - `agent_docs/data_dictionary_guide.md` — 数据字典设计约定（修改数据字典功能时读取）
 - `openspec/project.md` — proposal / spec / plan / 架构性变更时优先查看
 

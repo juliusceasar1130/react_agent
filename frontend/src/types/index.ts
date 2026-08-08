@@ -34,11 +34,25 @@ export interface LexiconContext {
   rows: Array<{ table_name: string; primary_key_column: string; primary_key_val: string; row_content: string }>
 }
 
+// 工具产物类型（SQL 查询结果 / 图表 / 文件导出）
+export interface ToolArtifact {
+  kind: string
+  columns?: string[]
+  rows?: any[]
+  row_count?: number
+  truncated?: boolean
+  query_time?: string
+  source_tables?: string[]
+  [key: string]: unknown
+}
+
 // 消息类型
 export interface Message {
   id: string
   role: 'user' | 'assistant' | 'system' | 'tool'
   content: string
+  reasoningText?: string
+  reasoningDuration?: number
   session_id: string
   created_at: string
   tool_calls?: string | null
@@ -54,15 +68,7 @@ export interface Message {
     content: string
   }> | null
   lexicon_context?: LexiconContext | null
-  tool_artifact?: {
-    kind: string
-    columns?: string[]
-    rows?: any[]
-    row_count?: number
-    truncated?: boolean
-    query_time?: string
-    source_tables?: string[]
-  } | null
+  tool_artifact?: ToolArtifact | null
 }
 
 export interface MessageCreate {
@@ -142,16 +148,16 @@ export interface StreamToolCall {
   status?: StreamToolCallStatus
 }
 
-export interface StreamToolResult {
-  id: string
-  content: string
-}
-
 export type StreamToolCallStatus = 'started' | 'streaming' | 'completed'
 
 export type StreamEvent =
   | {
       type: 'token'
+      text: string
+      node?: string
+    }
+  | {
+      type: 'reasoning'
       text: string
       node?: string
     }
@@ -209,7 +215,7 @@ export type StreamEvent =
     }
   | {
       type: 'tool_artifact'
-      artifact: any
+      artifact: ToolArtifact
     }
 
 export interface FinalizedStreamingMessage {
@@ -225,6 +231,7 @@ export interface FinalizedStreamingMessage {
     content: string
   }> | null
   lexicon_context?: LexiconContext | null
+  tool_artifact?: Message['tool_artifact']
 }
 
 // 流式消息状态（临时显示）- 2025-01-01
@@ -239,6 +246,13 @@ export interface StreamingMessage {
   stage: StreamStage | null
   toolCalls: StreamToolCall[]
   toolResults: Record<string, string>
+  reasoningText?: string
+  reasoningDuration?: number
+  requestStartTime?: number | null
+  reasoningStartTime?: number | null
+  reasoningEndTime?: number | null
+  thinkingEnded?: boolean
+  needsReasoningSeparator?: boolean
   error: string | null
   isInterrupted?: boolean
   questions?: QuestionItem[]
@@ -250,15 +264,7 @@ export interface StreamingMessage {
     content: string
   }> | null
   lexiconContext?: LexiconContext | null
-  tool_artifact?: {
-    kind: string
-    columns?: string[]
-    rows?: any[]
-    row_count?: number
-    truncated?: boolean
-    query_time?: string
-    source_tables?: string[]
-  } | null
+  tool_artifact?: ToolArtifact | null
 }
 
 // 聊天请求类型 - 2025-01-01

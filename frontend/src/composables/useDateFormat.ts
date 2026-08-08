@@ -7,26 +7,6 @@ export function useDateFormat() {
     return parsed
   }
 
-  const formatDate = (dateString: string): string => {
-    const date = parseServerDate(dateString)
-    const now = new Date()
-    const diff = now.getTime() - date.getTime()
-    const days = Math.floor(diff / (1000 * 60 * 60 * 24))
-
-    if (days === 0) {
-      return '今天'
-    } else if (days === 1) {
-      return '昨天'
-    } else if (days < 7) {
-      return `${days} 天前`
-    } else {
-      return date.toLocaleDateString('zh-CN', {
-        month: 'short',
-        day: 'numeric'
-      })
-    }
-  }
-
   const formatTime = (dateString: string): string => {
     const date = parseServerDate(dateString)
     return date.toLocaleTimeString('zh-CN', {
@@ -48,8 +28,7 @@ export function useDateFormat() {
 
   return {
     parseServerDate,
-    formatDate,
     formatTime,
-    formatFullDateTime,  // 新增 - 2025-01-01
+    formatFullDateTime,
   }
 }

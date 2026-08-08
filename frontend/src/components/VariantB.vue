@@ -18,13 +18,13 @@
         class="flex border-b border-neutral-200/80 shrink-0"
         :class="isSlim ? 'flex-col items-center gap-4 px-2 py-5 justify-center' : 'items-center justify-between px-4 py-4 sm:px-5'"
       >
-        <div class="flex items-center" :class="isSlim ? 'flex-col gap-2' : 'gap-3'">
+        <div class="flex items-center" :class="isSlim ? 'flex-col gap-2' : 'gap-2.5'">
           <div
-            class="flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-br from-primary to-accent shadow-glow shrink-0"
+            class="flex h-8.5 w-8.5 items-center justify-center rounded-lg bg-neutral-900 text-white shadow-2xs shrink-0"
             :title="isSlim ? '智造分析专家' : ''"
           >
             <svg
-              class="h-5 w-5 text-white"
+              class="h-4.5 w-4.5 text-white"
               fill="none"
               stroke="currentColor"
               viewBox="0 0 24 24"
@@ -32,18 +32,18 @@
               <path
                 stroke-linecap="round"
                 stroke-linejoin="round"
-                stroke-width="1.8"
+                stroke-width="1.75"
                 d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"
               />
             </svg>
           </div>
           <div v-if="!isSlim" class="transition-opacity duration-300">
             <p
-              class="text-xs font-semibold uppercase tracking-[0.22em] text-neutral-400"
+              class="text-[10px] font-semibold uppercase tracking-[0.18em] text-neutral-400"
             >
               COPILOT
             </p>
-            <h2 class="text-lg font-bold text-text">智造分析专家</h2>
+            <h2 class="text-sm font-bold text-neutral-800 tracking-tight">智造分析专家</h2>
           </div>
         </div>
 

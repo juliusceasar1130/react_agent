@@ -84,7 +84,6 @@
           </label>
           <textarea
             v-model="customInputs[item.question]"
-            @input="onTextAreaInput(item)"
             :disabled="isSubmitted"
             class="w-full text-xs rounded-xl border border-slate-200 bg-white/60 p-2.5 focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20 outline-none resize-none transition-all duration-200 placeholder:text-slate-400 shadow-inner"
             :placeholder="item.options && item.options.length > 0 ? '若包含混合提问（如需同时输入车身号/时间等参数），请在此处填写...' : '请在此输入您的回答...'"
@@ -202,10 +201,6 @@ const onOptionClick = (item: QuestionItem, label: string) => {
   }
 }
 
-// 自定义框输入事件：不再清空选项选中值
-const onTextAreaInput = (_item: QuestionItem) => {
-  // 不做操作，保持选项和输入共存
-}
 
 // 表单提交完整性校验
 const canSubmit = computed(() => {

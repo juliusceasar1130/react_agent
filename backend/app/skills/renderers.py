@@ -71,7 +71,7 @@ def render_scenario_for_llm(scenario: ScenarioSkill) -> str:
         "",
     ]
 
-    # 新增：参数详细展示
+    # 新增：参数详细展示 (专为 LLM 提示词精简，不输出 widget/source_table 等纯 UI 元数据)
     if scenario.get("parameters"):
         lines.append("## 参数定义")
         for param_name, param_def in scenario["parameters"].items():
@@ -84,17 +84,15 @@ def render_scenario_for_llm(scenario: ScenarioSkill) -> str:
                     else ""
                 )
             )
-            lines.append(f"- 必填: {'是' if param_def['required'] else '否'}")
-            lines.append(f"- 说明: {param_def['description']}")
-            
-            if "source_table" in param_def or "source_column" in param_def:
-                table = param_def.get("source_table", "未知表")
-                col = param_def.get("source_column", "未知字段")
-                lines.append(f"- 来源表: {table}.{col}")
+            lines.append(f"- 必填: {'是' if param_def.get('required') else '否'}")
+            lines.append(f"- 说明: {param_def.get('description', '')}")
 
-            lines.append(f"- 示例值: {', '.join(str(v) for v in param_def['example_values'])}")
-            lines.append(f"- SQL 片段: {param_def['sql_fragment']}")
-            lines.append(f"- 使用方式: {param_def['usage']}")
+            if param_def.get("example_values"):
+                lines.append(f"- 示例值: {', '.join(str(v) for v in param_def['example_values'])}")
+            if param_def.get("sql_fragment"):
+                lines.append(f"- SQL 片段: {param_def['sql_fragment']}")
+            if param_def.get("usage"):
+                lines.append(f"- 使用方式: {param_def['usage']}")
             lines.append("")
 
     lines.extend([

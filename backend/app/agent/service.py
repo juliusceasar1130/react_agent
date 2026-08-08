@@ -29,7 +29,7 @@ from langchain.agents.middleware import (
 )
 from langchain_community.agent_toolkits import SQLDatabaseToolkit
 from langchain_core.prompts import PromptTemplate
-from langchain_openai import ChatOpenAI
+from backend.app.agent.llm import _create_llm
 
 from backend.app.agent.constants import EXCLUDED_TOOLS, ToolNames
 from backend.app.agent.middleware import (
@@ -125,79 +125,17 @@ def _is_langgraph_managed_runtime() -> bool:
     return is_langgraph_api
 
 
-def _create_llm(use_ollama: bool = False) -> Any:
-    """
-    创建 LLM 实例。
 
-    Args:
-        use_ollama: 是否使用 Ollama 本地模型，默认使用 DeepSeek
-
-    Returns:
-        配置好的 LLM 实例
-    """
-    if use_ollama:
-        from langchain_ollama import ChatOllama
-
-        return ChatOllama(
-            model=settings.ollama_model,
-            base_url=settings.ollama_base_url,
-            temperature=settings.agent_temperature,
-            num_ctx=settings.ollama_num_ctx,
-            keep_alive=settings.ollama_keep_alive,
-        )
-
-    # 1. 组装标准参数
-    kwargs: dict[str, Any] = {
-        "model": settings.deepseek_model,
-        "temperature": settings.agent_temperature,
-        "openai_api_key": settings.deepseek_api_key,
-        "openai_api_base": settings.deepseek_base_url,
-        "max_tokens": settings.agent_max_tokens,
-        "request_timeout": settings.llm_timeout,
-        "max_retries": settings.llm_max_retries,
-    }
-
-    # top_p 和 presence_penalty 属于 OpenAI 官方一级标准参数，直接在顶层参数传递以防触发 UserWarning
-    if settings.llm_top_p is not None:
-        kwargs["top_p"] = settings.llm_top_p
-    if settings.llm_presence_penalty is not None:
-        kwargs["presence_penalty"] = settings.llm_presence_penalty
-
-    # 2. 动态检测并将 vLLM 特有的非标准采样参数安全包裹在 extra_body 中透传，规避 OpenAI SDK 的参数强拦截
-    extra_body: dict[str, Any] = {}
-    if settings.llm_top_k is not None:
-        extra_body["top_k"] = settings.llm_top_k
-    if settings.llm_repetition_penalty is not None:
-        extra_body["repetition_penalty"] = settings.llm_repetition_penalty
-    if settings.llm_min_p is not None:
-        extra_body["min_p"] = settings.llm_min_p
-    if settings.llm_enable_thinking is not None:
-        extra_body["chat_template_kwargs"] = {
-            "enable_thinking": settings.llm_enable_thinking
-        }
-
-    if extra_body:
-        kwargs["extra_body"] = extra_body
-
-    logger.info(
-        "Initializing ChatOpenAI with arguments: %s",
-        {k: v for k, v in kwargs.items() if k != "openai_api_key"},
-    )
-    return ChatOpenAI(**kwargs)
 
 
 def _get_business_database_url() -> str:
-    """获取业务 SQL 查询入口，优先 analytics_db，回退 rollerbed 源库。"""
-    analytics_db_url = settings.analytics_database_url.strip()
-    if analytics_db_url:
-        return analytics_db_url
-    return settings.rollerbed_database_url
+    """获取业务 SQL 查询入口（analytics_db）。"""
+    return settings.analytics_database_url.strip()
 
 
 def _get_business_database_engine_args(db_url: str) -> dict[str, Any]:
     """为业务数据库连接生成 engine_args。"""
-    analytics_db_url = settings.analytics_database_url.strip()
-    if analytics_db_url and db_url == analytics_db_url:
+    if db_url:
         return build_postgres_search_path_engine_args(settings.analytics_db_search_path)
     return {}
 

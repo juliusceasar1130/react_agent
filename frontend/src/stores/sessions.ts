@@ -2,7 +2,8 @@ import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { createSessionApi, getSessionsApi, updateSessionApi, deleteSessionApi } from '@/api/sessions'
 import type { Session, SessionCreate } from '@/types'
-import { useMessagesStore } from './messages'  // 新增 - 2025-01-01
+import { useMessagesStore } from './messages'
+import { useRequestGuard } from '@/composables/useRequestGuard'
 
 export const useSessionsStore = defineStore('sessions', () => {
   // State
@@ -10,6 +11,7 @@ export const useSessionsStore = defineStore('sessions', () => {
   const currentSessionId = ref<string | null>(null)
   const loading = ref(false)
   const error = ref<string | null>(null)
+  const fetchGuard = useRequestGuard()  // 防竞态：快速切换时丢弃过期响应
 
   // Getters
   const currentSession = computed(() =>
@@ -18,15 +20,21 @@ export const useSessionsStore = defineStore('sessions', () => {
 
   // Actions
   const fetchSessions = async () => {
+    const requestId = fetchGuard.next()
     loading.value = true
     error.value = null
     try {
-      sessions.value = await getSessionsApi()
-    } catch (err) {
-      error.value = '加载会话失败'
+      const result = await getSessionsApi()
+      if (!fetchGuard.isFresh(requestId)) return
+      sessions.value = result
+    } catch (err: any) {
+      if (!fetchGuard.isFresh(requestId)) return
+      error.value = err.message || '加载会话失败'
       throw err
     } finally {
-      loading.value = false
+      if (fetchGuard.isFresh(requestId)) {
+        loading.value = false
+      }
     }
   }
 
@@ -38,8 +46,8 @@ export const useSessionsStore = defineStore('sessions', () => {
       sessions.value.unshift(newSession)
       currentSessionId.value = newSession.id
       return newSession
-    } catch (err) {
-      error.value = '创建会话失败'
+    } catch (err: any) {
+      error.value = err.message || '创建会话失败'
       throw err
     } finally {
       loading.value = false
@@ -56,8 +64,8 @@ export const useSessionsStore = defineStore('sessions', () => {
         sessions.value[index] = updated
       }
       return updated
-    } catch (err) {
-      error.value = '更新会话失败'
+    } catch (err: any) {
+      error.value = err.message || '更新会话失败'
       throw err
     } finally {
       loading.value = false
@@ -76,8 +84,8 @@ export const useSessionsStore = defineStore('sessions', () => {
         const messagesStore = useMessagesStore()
         messagesStore.clearMessages()
       }
-    } catch (err) {
-      error.value = '删除会话失败'
+    } catch (err: any) {
+      error.value = err.message || '删除会话失败'
       throw err
     } finally {
       loading.value = false

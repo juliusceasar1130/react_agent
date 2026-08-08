@@ -5,10 +5,6 @@ export const createMessageApi = (data: MessageCreate): Promise<Message> => {
   return api.post('/api/chat/messages', data)
 }
 
-export const getMessageApi = (id: string): Promise<Message> => {
-  return api.get(`/api/chat/messages/${id}`)
-}
-
 export const getMessagesBySessionApi = (sessionId: string): Promise<Message[]> => {
   return api.get(`/api/chat/sessions/${sessionId}/messages`)
 }

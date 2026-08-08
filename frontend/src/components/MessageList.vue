@@ -1,7 +1,7 @@
 <!-- 2026-04-19 23:40 Asia/Shanghai - 消息列表更新：聚焦阅读宽度与轻量空状态 -->
 <template>
-  <div class="relative min-h-0 flex-1">
-    <div ref="containerRef" class="h-full overflow-y-auto overscroll-contain" @scroll="updateScrollState">
+  <div class="relative min-h-0 flex-1 w-full">
+    <div ref="containerRef" class="h-full w-full overflow-y-auto overscroll-contain px-4 py-3" @scroll="updateScrollState">
       <div v-if="messages.length === 0" class="flex h-full flex-col items-center justify-center px-4 animate-fade-in">
         <div class="mb-12 text-center">
           <div class="mx-auto mb-6 flex h-20 w-20 items-center justify-center rounded-[28px] bg-gradient-to-br from-primary/10 via-white to-accent/10 shadow-glow">
@@ -26,7 +26,7 @@
           </template>
         </div>
       </div>
-      <div v-else class="mx-auto flex w-full max-w-5xl flex-col gap-5 px-1 py-2 sm:px-0">
+      <div v-else class="mx-auto flex w-full max-w-6xl flex-col gap-5 py-2">
         <MessageItem
           v-for="message in messages"
           :key="message.id"
@@ -53,10 +53,11 @@
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, onMounted, ref, watch, watchEffect } from 'vue'
+import { computed, nextTick, onMounted, onUnmounted, ref, watch, watchEffect } from 'vue'
 import { useMessagesStore } from '@/stores/messages'
 import { useSessionsStore } from '@/stores/sessions'
 import { useSkillsStore } from '@/stores/skills'
+import { copyToClipboard } from '@/utils/helpers'
 import MessageItem from './MessageItem.vue'
 
 const emit = defineEmits<{
@@ -122,7 +123,31 @@ watch(messages, async () => {
 
 onMounted(() => {
   updateScrollState()
+  document.addEventListener('click', handleCodeCopyClick)
 })
+
+onUnmounted(() => {
+  document.removeEventListener('click', handleCodeCopyClick)
+})
+
+// 代码块复制按钮事件委托（统一注册一次，避免 MessageItem 重复注册）
+const handleCodeCopyClick = async (e: MouseEvent) => {
+  const btn = (e.target as Element).closest('.code-copy-btn') as HTMLElement | null
+  if (!btn) return
+  const encodedContent = btn.getAttribute('data-copy-content')
+  if (!encodedContent) return
+  try {
+    const text = decodeURIComponent(encodedContent)
+    await copyToClipboard(text)
+    const span = btn.querySelector('span')
+    if (span) {
+      span.innerText = '已复制'
+      setTimeout(() => { span.innerText = '复制' }, 2000)
+    }
+  } catch (err) {
+    console.error('代码块复制失败:', err)
+  }
+}
 
 const handleScrollToBottom = () => {
   scrollToBottom('smooth')

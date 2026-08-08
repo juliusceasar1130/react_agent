@@ -8,6 +8,7 @@
 // - 2026-03-31 21:31 Asia/Shanghai: 新增事件 schema 运行时校验，拒绝未知流式事件
 
 import axios from 'axios'
+import { CHAT_DEBUG_STREAM } from '@/config/chat'
 import type {
   ChatRequest,
   ChatResponse,
@@ -16,6 +17,8 @@ import type {
   StreamToolCall,
   StreamToolCallStatus,
   QuestionItem,
+  LexiconContext,
+  ToolArtifact,
 } from '@/types'
 
 const API_BASE = '/rearch/api/chat'  // 使用相对路径，适配 Nginx 代理
@@ -59,6 +62,7 @@ const parseSsePayload = (rawEvent: string): string | null => {
 
 const STREAM_EVENT_TYPES = new Set<StreamEvent['type']>([
   'token',
+  'reasoning',
   'status',
   'tool_call',
   'tool_result',
@@ -106,6 +110,16 @@ const parseStreamEvent = (payload: string): StreamEvent | null => {
       }
       return {
         type: 'token',
+        text: parsed.text,
+        node: parsed.node,
+      }
+
+    case 'reasoning':
+      if (typeof parsed.text !== 'string' || !isOptionalString(parsed.node)) {
+        return null
+      }
+      return {
+        type: 'reasoning',
         text: parsed.text,
         node: parsed.node,
       }
@@ -169,16 +183,16 @@ const parseStreamEvent = (payload: string): StreamEvent | null => {
       }
       return {
         type: 'lexicon_context',
-        lexicon_context: parsed.lexicon_context as any,
+        lexicon_context: parsed.lexicon_context as unknown as LexiconContext,
       }
 
     case 'tool_artifact':
-      if (!isRecord(parsed.artifact)) {
+      if (!isRecord(parsed.artifact) || typeof parsed.artifact.kind !== 'string') {
         return null
       }
       return {
         type: 'tool_artifact',
-        artifact: parsed.artifact,
+        artifact: parsed.artifact as unknown as ToolArtifact,
       }
 
     case 'final':
@@ -266,22 +280,25 @@ const parseStreamEvent = (payload: string): StreamEvent | null => {
 }
 
 /**
- * 流式消息发送（SSE 流处理）
- * @param data 聊天请求
- * @param onEvent 接收到事件时的回调
+ * 通用 SSE 流读取循环
+ * @param url 请求地址
+ * @param body 请求体
+ * @param onEvent 事件回调
+ * @param signal AbortSignal
+ * @param logPrefix 日志前缀
  */
-export const sendChatStream = async (
-  data: ChatRequest,
+const readSSEStream = async (
+  url: string,
+  body: unknown,
   onEvent: (event: StreamEvent) => void,
-  options: {
-    signal?: AbortSignal
-  } = {}
+  signal: AbortSignal | undefined,
+  logPrefix: string
 ): Promise<void> => {
-  const response = await fetch(`${API_BASE}/stream`, {
+  const response = await fetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(data),
-    signal: options.signal
+    body: JSON.stringify(body),
+    signal
   })
 
   if (!response.ok) {
@@ -302,7 +319,7 @@ export const sendChatStream = async (
     while (true) {
       const { done, value } = await reader.read()
       if (done) {
-        console.debug('[sendChatStream] read done, buffer尾长:', buffer.length, 'sawTerminalEvent:', sawTerminalEvent)
+        if (CHAT_DEBUG_STREAM) console.debug(`[${logPrefix}] read done, buffer尾长:`, buffer.length, 'sawTerminalEvent:', sawTerminalEvent)
         break
       }
 
@@ -318,19 +335,19 @@ export const sendChatStream = async (
           if (!sawTerminalEvent) {
             throw new Error('流式响应在收到终止标记前未返回 final 或 error 事件')
           }
-          console.debug('[sendChatStream] 收到 [DONE], 正常结束, sawTerminalEvent:', sawTerminalEvent)
+          if (CHAT_DEBUG_STREAM) console.debug(`[${logPrefix}] 收到 [DONE], 正常结束, sawTerminalEvent:`, sawTerminalEvent)
           return
         }
 
         try {
           const parsed = parseStreamEvent(payload)
           if (!parsed) {
-            console.warn('忽略不符合协议的流式事件:', payload)
+            console.warn(`[${logPrefix}] 忽略不符合协议的流式事件:`, payload)
             continue
           }
           if (parsed.type === 'final' || parsed.type === 'error' || parsed.type === 'interrupt') {
             sawTerminalEvent = true
-            console.debug('[sendChatStream] 收到终端事件:', parsed.type)
+            if (CHAT_DEBUG_STREAM) console.debug(`[${logPrefix}] 收到终端事件:`, parsed.type)
           }
           onEvent(parsed)
         } catch (error) {
@@ -341,24 +358,50 @@ export const sendChatStream = async (
 
     const trailingPayload = parseSsePayload(buffer)
     if (trailingPayload && trailingPayload !== '[DONE]') {
-      const parsed = parseStreamEvent(trailingPayload)
-      if (!parsed) {
-        console.debug('[sendChatStream] 尾部非标准payload, buffer:', buffer)
+      try {
+        const parsed = parseStreamEvent(trailingPayload)
+        if (!parsed) {
+          if (CHAT_DEBUG_STREAM) console.debug(`[${logPrefix}] 尾部非标准payload, buffer:`, buffer)
+          throw new Error('流式连接尾部包含不符合协议的事件')
+        }
+        if (parsed.type === 'final' || parsed.type === 'error' || parsed.type === 'interrupt') {
+          sawTerminalEvent = true
+        }
+        onEvent(parsed)
+      } catch (error) {
+        console.error(`[${logPrefix}] 尾部 payload 解析异常:`, error, trailingPayload)
         throw new Error('流式连接尾部包含不符合协议的事件')
       }
-      if (parsed.type === 'final' || parsed.type === 'error' || parsed.type === 'interrupt') {
-        sawTerminalEvent = true
-      }
-      onEvent(parsed)
     }
 
     if (!sawTerminalEvent) {
-      console.error('[sendChatStream] 流结束但无终端事件, buffer:', buffer)
+      console.error(`[${logPrefix}] 流结束但无终端事件, buffer:`, buffer)
       throw new Error('流式连接已结束，但未收到 final、error 或 interrupt 事件')
     }
   } finally {
     reader.releaseLock()
   }
+}
+
+/**
+ * 流式消息发送（SSE 流处理）
+ * @param data 聊天请求
+ * @param onEvent 接收到事件时的回调
+ */
+export const sendChatStream = async (
+  data: ChatRequest,
+  onEvent: (event: StreamEvent) => void,
+  options: {
+    signal?: AbortSignal
+  } = {}
+): Promise<void> => {
+  return readSSEStream(
+    `${API_BASE}/stream`,
+    data,
+    onEvent,
+    options.signal,
+    'sendChatStream'
+  )
 }
 
 /**
@@ -373,87 +416,11 @@ export const sendChatResumeStream = async (
     signal?: AbortSignal
   } = {}
 ): Promise<void> => {
-  const response = await fetch(`${API_BASE}/resume`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(data),
-    signal: options.signal
-  })
-
-  if (!response.ok) {
-    throw new Error(`HTTP error! status: ${response.status}`)
-  }
-
-  const reader = response.body?.getReader()
-  const decoder = new TextDecoder()
-
-  if (!reader) {
-    throw new Error('Response body is null')
-  }
-
-  let buffer = ''
-  let sawTerminalEvent = false
-
-  try {
-    while (true) {
-      const { done, value } = await reader.read()
-      if (done) {
-        console.debug('[sendChatResume] read done, buffer尾长:', buffer.length, 'sawTerminalEvent:', sawTerminalEvent)
-        break
-      }
-
-      buffer += decoder.decode(value, { stream: true })
-      const { events, rest } = extractSseEvents(buffer)
-      buffer = rest
-
-      for (const rawEvent of events) {
-        const payload = parseSsePayload(rawEvent)
-        if (!payload) continue
-
-        if (payload === '[DONE]') {
-          if (!sawTerminalEvent) {
-            console.error('[sendChatResume] 收到 [DONE] 但无终端事件, buffer:', buffer)
-            throw new Error('流式响应在收到终止标记前未返回 final、error 或 interrupt 事件')
-          }
-          console.debug('[sendChatResume] 收到 [DONE], 正常结束')
-          return
-        }
-
-        try {
-          const parsed = parseStreamEvent(payload)
-          if (!parsed) {
-            console.warn('[sendChatResume] 忽略不符合协议的流式事件:', payload)
-            continue
-          }
-          if (parsed.type === 'final' || parsed.type === 'error' || parsed.type === 'interrupt') {
-            sawTerminalEvent = true
-            console.debug('[sendChatResume] 收到终端事件:', parsed.type)
-          }
-          onEvent(parsed)
-        } catch (error) {
-          console.error('Parse error:', error, payload)
-        }
-      }
-    }
-
-    const trailingPayload = parseSsePayload(buffer)
-    if (trailingPayload && trailingPayload !== '[DONE]') {
-      const parsed = parseStreamEvent(trailingPayload)
-      if (!parsed) {
-        console.debug('[sendChatResume] 尾部非标准payload, buffer:', buffer)
-        throw new Error('流式连接尾部包含不符合协议的事件')
-      }
-      if (parsed.type === 'final' || parsed.type === 'error' || parsed.type === 'interrupt') {
-        sawTerminalEvent = true
-      }
-      onEvent(parsed)
-    }
-
-    if (!sawTerminalEvent) {
-      console.error('[sendChatResume] 流结束但无终端事件, buffer:', buffer)
-      throw new Error('流式连接已结束，但未收到 final、error 或 interrupt 事件')
-    }
-  } finally {
-    reader.releaseLock()
-  }
+  return readSSEStream(
+    `${API_BASE}/resume`,
+    data,
+    onEvent,
+    options.signal,
+    'sendChatResume'
+  )
 }

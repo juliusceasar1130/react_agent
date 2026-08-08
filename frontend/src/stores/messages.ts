@@ -10,7 +10,14 @@ import type {
   StreamToolCall,
   QuestionItem,
   LexiconContext,
+  ToolArtifact,
 } from '@/types'
+import { useRequestGuard } from '@/composables/useRequestGuard'
+
+/** 过滤系统内部上下文标记，防止泄露到用户界面 */
+const INTERNAL_MARKER_RE = /<context_(?:redacted|collapsed)[^>]*\/>/g
+const stripInternalMarkers = (text: string): string =>
+  text.replace(INTERNAL_MARKER_RE, '')
 
 export const useMessagesStore = defineStore('messages', () => {
   // State
@@ -28,7 +35,7 @@ export const useMessagesStore = defineStore('messages', () => {
 
   const loading = ref(false)
   const error = ref<string | null>(null)
-  const latestFetchRequestId = ref(0)  // 2026-03-29 22:55 Asia/Shanghai: 防止会话切换时旧请求覆盖新消息
+  const fetchGuard = useRequestGuard()  // 2026-03-29 22:55 Asia/Shanghai: 防止会话切换时旧请求覆盖新消息
   const latestRequestedSessionId = ref<string | null>(null)
   const memoryRagMap = ref<Record<string, Array<{
     title: string
@@ -37,19 +44,20 @@ export const useMessagesStore = defineStore('messages', () => {
     content: string
   }>>>({})
   const memoryLexiconMap = ref<Record<string, LexiconContext>>({})
-  const memoryArtifactMap = ref<Record<string, any>>({})
+  const memoryArtifactMap = ref<Record<string, ToolArtifact>>({})
+  const memoryReasoningMap = ref<Record<string, string>>({})
+  const memoryReasoningDurationMap = ref<Record<string, number>>({})
 
   // Actions
   const fetchMessages = async (sessionId: string) => {
-    const requestId = latestFetchRequestId.value + 1
-    latestFetchRequestId.value = requestId
+    const requestId = fetchGuard.next()
     latestRequestedSessionId.value = sessionId
     loading.value = true
     error.value = null
     try {
       const fetchedMessages = await getMessagesBySessionApi(sessionId)
       if (
-        requestId !== latestFetchRequestId.value
+        !fetchGuard.isFresh(requestId)
         || latestRequestedSessionId.value !== sessionId
       ) {
         return null
@@ -57,14 +65,14 @@ export const useMessagesStore = defineStore('messages', () => {
 
       messages.value = fetchedMessages
       return fetchedMessages
-    } catch (err) {
-      if (requestId !== latestFetchRequestId.value) {
+    } catch (err: any) {
+      if (!fetchGuard.isFresh(requestId)) {
         return null
       }
-      error.value = '加载消息失败'
+      error.value = err.message || '加载消息失败'
       throw err
     } finally {
-      if (requestId === latestFetchRequestId.value) {
+      if (fetchGuard.isFresh(requestId)) {
         loading.value = false
       }
     }
@@ -77,8 +85,8 @@ export const useMessagesStore = defineStore('messages', () => {
       const newMessage = await createMessageApi(data)
       messages.value.push(newMessage)
       return newMessage
-    } catch (err) {
-      error.value = '创建消息失败'
+    } catch (err: any) {
+      error.value = err.message || '创建消息失败'
       throw err
     } finally {
       loading.value = false
@@ -91,8 +99,8 @@ export const useMessagesStore = defineStore('messages', () => {
     try {
       await deleteMessageApi(messageId)
       messages.value = messages.value.filter(m => m.id !== messageId)
-    } catch (err) {
-      error.value = '删除消息失败'
+    } catch (err: any) {
+      error.value = err.message || '删除消息失败'
       throw err
     } finally {
       loading.value = false
@@ -113,7 +121,7 @@ export const useMessagesStore = defineStore('messages', () => {
   }
 
   const clearMessages = () => {
-    latestFetchRequestId.value += 1
+    fetchGuard.next()
     latestRequestedSessionId.value = null
     messages.value = []
   }
@@ -137,6 +145,7 @@ export const useMessagesStore = defineStore('messages', () => {
       stage: 'thinking',
       toolCalls: [],
       toolResults: {},
+      requestStartTime: Date.now(),
       error: null
     }
   }
@@ -147,7 +156,41 @@ export const useMessagesStore = defineStore('messages', () => {
   const appendStreamingContent = (sessionId: string, content: string) => {
     const msg = streamingMessagesMap.value[sessionId]
     if (msg) {
-      msg.content += content
+      if (msg.requestStartTime && !msg.thinkingEnded) {
+        msg.thinkingEnded = true
+        msg.reasoningEndTime = Date.now()
+        msg.reasoningDuration = Math.max(0.1, (msg.reasoningEndTime - msg.requestStartTime) / 1000)
+      }
+      msg.content = stripInternalMarkers(msg.content + content)
+    }
+  }
+
+  /**
+   * 追加流式思考内容
+   */
+  const appendStreamingReasoning = (sessionId: string, text: string) => {
+    const msg = streamingMessagesMap.value[sessionId]
+    if (msg) {
+      const now = Date.now()
+      if (!msg.reasoningStartTime) {
+        msg.reasoningStartTime = now
+      }
+      msg.reasoningEndTime = now
+      const startTimeRef = msg.requestStartTime || msg.reasoningStartTime || now
+      msg.reasoningDuration = Math.max(0.1, (now - startTimeRef) / 1000)
+
+      if (msg.reasoningText && msg.needsReasoningSeparator) {
+        const trimmed = msg.reasoningText.trimEnd()
+        const isSentenceEnd = /[。！？;\n:]$/.test(trimmed)
+        if (isSentenceEnd && !msg.reasoningText.endsWith('\n')) {
+          msg.reasoningText += '\n\n'
+        } else if (!isSentenceEnd && /[a-zA-Z0-9]$/.test(trimmed) && /^[a-zA-Z0-9]/.test(text)) {
+          msg.reasoningText += ' '
+        }
+        msg.needsReasoningSeparator = false
+      }
+
+      msg.reasoningText = (msg.reasoningText || '') + text
     }
   }
 
@@ -167,6 +210,7 @@ export const useMessagesStore = defineStore('messages', () => {
   const upsertStreamingToolCall = (sessionId: string, toolCall: StreamToolCall) => {
     const msg = streamingMessagesMap.value[sessionId]
     if (!msg) return
+    msg.needsReasoningSeparator = true
 
     const index = msg.toolCalls.findIndex(item => item.id === toolCall.id)
     if (index === -1) {
@@ -186,6 +230,7 @@ export const useMessagesStore = defineStore('messages', () => {
   const setStreamingToolResult = (sessionId: string, toolCallId: string, content: string) => {
     const msg = streamingMessagesMap.value[sessionId]
     if (!msg) return
+    msg.needsReasoningSeparator = true
     msg.toolResults = {
       ...msg.toolResults,
       [toolCallId]: content
@@ -198,17 +243,6 @@ export const useMessagesStore = defineStore('messages', () => {
         status: 'completed'
       }
     }
-  }
-
-  /**
-   * 标记流式错误
-   */
-  const setStreamingError = (sessionId: string, message: string) => {
-    const msg = streamingMessagesMap.value[sessionId]
-    if (!msg) return
-    msg.error = message
-    msg.isStreaming = false
-    msg.statusText = '生成失败'
   }
 
   /**
@@ -253,11 +287,20 @@ export const useMessagesStore = defineStore('messages', () => {
     // 仅当前显示的会话才推入视图，防止污染其他会话
     if (sessionId !== latestRequestedSessionId.value) return null
 
+    const startTimeRef = temp.requestStartTime || temp.reasoningStartTime
+    const duration = temp.reasoningDuration || (
+      startTimeRef
+        ? Math.max(0.1, ((temp.reasoningEndTime || Date.now()) - startTimeRef) / 1000)
+        : undefined
+    )
+
     const interruptedMessage: Message = {
       id: `${temp.id}-interrupted`,
       session_id: sessionId,
       role: 'assistant',
       content: temp.content || '已停止生成',
+      reasoningText: temp.reasoningText,
+      reasoningDuration: duration,
       created_at: temp.created_at,
       tool_calls: temp.toolCalls.length
         ? JSON.stringify(temp.toolCalls)
@@ -266,6 +309,13 @@ export const useMessagesStore = defineStore('messages', () => {
         ? JSON.stringify(temp.toolResults)
         : null,
       is_interrupted: true,
+    }
+
+    if (temp.reasoningText) {
+      memoryReasoningMap.value[interruptedMessage.id] = temp.reasoningText
+    }
+    if (duration !== undefined) {
+      memoryReasoningDurationMap.value[interruptedMessage.id] = duration
     }
 
     messages.value.push(interruptedMessage)
@@ -282,6 +332,13 @@ export const useMessagesStore = defineStore('messages', () => {
     delete streamingMessagesMap.value[sessionId]
 
     const finalizedId = payload.id ?? temp.id
+    const startTimeRef = temp.requestStartTime || temp.reasoningStartTime
+    const duration = temp.reasoningDuration || (
+      startTimeRef
+        ? Math.max(0.1, ((temp.reasoningEndTime || Date.now()) - startTimeRef) / 1000)
+        : undefined
+    )
+
     if (finalizedId && temp.ragContext) {
       memoryRagMap.value[finalizedId] = temp.ragContext
     }
@@ -291,6 +348,12 @@ export const useMessagesStore = defineStore('messages', () => {
     if (finalizedId && temp.tool_artifact) {
       memoryArtifactMap.value[finalizedId] = temp.tool_artifact
     }
+    if (finalizedId && temp.reasoningText) {
+      memoryReasoningMap.value[finalizedId] = temp.reasoningText
+    }
+    if (finalizedId && duration !== undefined) {
+      memoryReasoningDurationMap.value[finalizedId] = duration
+    }
 
     // 仅当前显示的会话才推入视图，防止污染其他会话
     if (sessionId !== latestRequestedSessionId.value) return null
@@ -299,7 +362,9 @@ export const useMessagesStore = defineStore('messages', () => {
       id: finalizedId,
       session_id: sessionId,
       role: 'assistant',
-      content: payload.content ?? temp.content,
+      content: stripInternalMarkers(payload.content ?? temp.content),
+      reasoningText: temp.reasoningText,
+      reasoningDuration: duration,
       created_at: payload.created_at ?? temp.created_at,
       tool_calls: payload.tool_calls ?? (
         temp.toolCalls.length
@@ -324,13 +389,6 @@ export const useMessagesStore = defineStore('messages', () => {
    * 清除流式消息（错误时使用）
    */
   const clearStreamingMessage = (sessionId: string) => {
-    delete streamingMessagesMap.value[sessionId]
-  }
-
-  /**
-   * 清除特定会话的流式（会话删除时使用）
-   */
-  const clearStreamingForSession = (sessionId: string) => {
     delete streamingMessagesMap.value[sessionId]
   }
 
@@ -362,7 +420,7 @@ export const useMessagesStore = defineStore('messages', () => {
     messages,
     streamingMessage,  // 流式消息临时状态
     isStreaming,  // 是否正在流式输出
-    streamingMessagesMap, // 🆕 新增 Map 状态导出
+    streamingMessagesMap, // Map 状态导出
     loading,
     error,
     // Actions
@@ -374,20 +432,21 @@ export const useMessagesStore = defineStore('messages', () => {
     // 流式消息管理
     startStreamingMessage,
     appendStreamingContent,
+    appendStreamingReasoning,
     updateStreamingStatus,
     upsertStreamingToolCall,
     setStreamingToolResult,
-    setStreamingError,
     finalizeStreamingError,
     finalizeStreamingInterrupted,
     completeStreamingMessage,
     clearStreamingMessage,
-    clearStreamingForSession, // 🆕 新增清理 action
     setStreamingInterrupt,
     displayMessages,
-    isSessionStreaming,  // 🆕 新增会话状态判断 getter
+    isSessionStreaming, // 会话状态判断 getter
     memoryRagMap,
     memoryLexiconMap,
     memoryArtifactMap,
+    memoryReasoningMap,
+    memoryReasoningDurationMap,
   }
 })

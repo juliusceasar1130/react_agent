@@ -1,6 +1,7 @@
 // 2026-04-01 22:55 Asia/Shanghai - 统一 Markdown 展示渲染与安全清洗
 import MarkdownIt from 'markdown-it'
 import DOMPurify from 'dompurify'
+import { markdownItAlert } from '@/components/chat/plugins/markdown-it-alert'
 
 const markdown = new MarkdownIt({
   html: false,
@@ -8,6 +9,8 @@ const markdown = new MarkdownIt({
   breaks: true,
   typographer: false
 })
+
+markdown.use(markdownItAlert)
 
 const defaultLinkOpen =
   markdown.renderer.rules.link_open
@@ -37,14 +40,41 @@ markdown.renderer.rules.table_close = (tokens: any, idx: number, options: any, e
   return defaultTableClose(tokens, idx, options, env, self) + '</div>'
 }
 
+// 2026-08-02 - LobeChat 1:1 风格复刻：为 Markdown 代码块注入 IDE Header 顶栏 (小写语言标识 + 一键复制按钮)
+const defaultFence =
+  markdown.renderer.rules.fence
+  ?? ((tokens: any, idx: number, options: any, _env: any, self: any) => self.renderToken(tokens, idx, options))
+
+markdown.renderer.rules.fence = (tokens: any, idx: number, options: any, env: any, self: any) => {
+  const token = tokens[idx]
+  let lang = (token.info || '').trim().toLowerCase()
+  const content = token.content || ''
+
+  // 智能矫正 LLM 语言错标：如果错标为 sql 但代码包含 Python 标志词
+  if (lang === 'sql' && (content.includes('import ') || content.includes('plt.') || content.includes('def ') || content.includes('print('))) {
+    lang = 'python'
+  }
+  if (!lang) lang = 'code'
+
+  const rawCodeHtml = defaultFence(tokens, idx, options, env, self)
+  const encodedContent = encodeURIComponent(content)
+
+  return `<div class="code-block-wrapper"><div class="code-block-header"><span class="code-lang">${lang}</span><button class="code-copy-btn" data-copy-content="${encodedContent}"><svg class="w-3 h-3 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg><span>复制</span></button></div>${rawCodeHtml}</div>`
+}
+
 export const renderMarkdown = (source: string) => {
   if (!source.trim()) {
     return ''
   }
 
-  const rendered = markdown.render(source)
+  // 2026-08-02 - 自动断段预处理：当 Alert/Callout 关键字 (如 📝 NOTE / 💡 TIP / > [!NOTE]) 与前文黏连在单换行时，自动补齐 \n\n 确保其分割为独立的 Block 卡片
+  const alertPreprocessRe = new RegExp('([^\\n])\\s*\\n\\s*((?:[^\\w\\s]\\s*)?(?:\\[\\!)?(?:NOTE|TIP|IMPORTANT|WARNING|CAUTION)\\]?(?!\\w))', 'gi')
+  let processedSource = source.replace(alertPreprocessRe, '$1\n\n$2')
+
+  const rendered = markdown.render(processedSource)
   return DOMPurify.sanitize(rendered, {
-    USE_PROFILES: { html: true }
+    USE_PROFILES: { html: true },
+    ADD_ATTR: ['data-copy-content']
   })
 }
 
@@ -75,8 +105,8 @@ export const extractMetaData = (content: string): { cleanContent: string; meta: 
     cleanContent = cleanContent.replace(textTimeRegex, '')
   }
 
-  // 3. 提取并清除数据来源（消灭时间后，抓取“数据来源:”后面的整行文本，支持中英文混排、括号、逗号等）
-  const sourceRegex = /数据来源[:：]\s*([^\n\r]+)/g
+  // 3. 提取并清除数据来源（消灭时间后，抓取"数据来源:"后面的表名文本，遇句号、中括号 [ 或换行停止）
+  const sourceRegex = /数据来源[:：]\s*([^。\[\n\r]+)/g
   const sourceMatch = sourceRegex.exec(cleanContent)
   if (sourceMatch) {
     let ds = sourceMatch[1].trim()
@@ -91,8 +121,8 @@ export const extractMetaData = (content: string): { cleanContent: string; meta: 
   cleanContent = cleanContent.replace(fileLinkRegex, '')
 
   // 4. 清理残留的多余换行与逗号等垃圾标记并收拢为标准的双换行（保持段落、表格与正文的空行隔离）
-  cleanContent = cleanContent.replace(/\n\s*[,，，、]\s*\n/g, '\n\n')
-  cleanContent = cleanContent.replace(/\n\s*\n/g, '\n\n').trim()
+  cleanContent = cleanContent.replace(new RegExp('\\n\\s*[,，，、]\\s*\\n', 'g'), '\n\n')
+  cleanContent = cleanContent.replace(new RegExp('\\n\\s*\\n', 'g'), '\n\n').trim()
 
   return { cleanContent, meta }
 }

@@ -11,7 +11,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 from .database import get_db, create_tables
-from .api import router, init_analytics_engine
+from .api import router, scenarios_router, init_analytics_engine
 from .services import initialize_agent_service, shutdown_agent_service
 from .agent.utils import ensure_windows_selector_loop
 
@@ -57,6 +57,7 @@ app.add_middleware(
 
 # 注册 API 路由
 app.include_router(router)
+app.include_router(scenarios_router)
 
 
 # crud: create/read/update/delete

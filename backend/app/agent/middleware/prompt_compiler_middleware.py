@@ -289,7 +289,7 @@ class PromptCompilerMiddleware(AgentMiddleware[CustomState]):
                 if should_redact:
                     ctx.redacted_count += 1
                     projected[idx] = ToolMessage(
-                        content="[SQL validation failed by Linter. Previous invalid attempt redacted to save context space.]",
+                        content="<context_redacted reason=\"sql_linter_failure\"/>",
                         name=msg.name,
                         tool_call_id=msg.tool_call_id
                     )
@@ -298,7 +298,7 @@ class PromptCompilerMiddleware(AgentMiddleware[CustomState]):
                         if isinstance(aimsg, AIMessage) and hasattr(aimsg, "tool_calls"):
                             if any(tc.get("id") == msg.tool_call_id for tc in aimsg.tool_calls):
                                 projected[back_idx] = AIMessage(
-                                    content="[Invalid SQL attempt. Redacted to save context space.]",
+                                    content="<context_redacted reason=\"invalid_sql_attempt\"/>",
                                     tool_calls=aimsg.tool_calls
                                 )
                                 break
@@ -353,25 +353,25 @@ class PromptCompilerMiddleware(AgentMiddleware[CustomState]):
 
             if msg.name == "sql_db_query":
                 messages[idx] = ToolMessage(
-                    content="[SQL execution successful. Result content collapsed. Re-run query if details are needed.]",
+                    content="<context_collapsed reason=\"sql_result_omitted\"/>",
                     name=msg.name,
                     tool_call_id=msg.tool_call_id
                 )
             elif msg.name == "search_saved_correct_tool_uses":
                 messages[idx] = ToolMessage(
-                    content="[SQL examples retrieved and collapsed: reference examples shown in earlier step.]",
+                    content="<context_collapsed reason=\"sql_examples_omitted\"/>",
                     name=msg.name,
                     tool_call_id=msg.tool_call_id
                 )
             elif msg.name == "build_chart_artifact":
                 messages[idx] = ToolMessage(
-                    content="[Chart generated successfully. ECharts JSON config collapsed.]",
+                    content="<context_collapsed reason=\"chart_config_omitted\"/>",
                     name=msg.name,
                     tool_call_id=msg.tool_call_id
                 )
             elif msg.name in ("export_to_csv", "export_query_to_csv"):
                 messages[idx] = ToolMessage(
-                    content="[CSV export completed and collapsed. User has already received the download link.]",
+                    content="<context_collapsed reason=\"csv_export_completed\"/>",
                     name=msg.name,
                     tool_call_id=msg.tool_call_id
                 )

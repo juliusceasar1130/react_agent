@@ -36,25 +36,16 @@ class Settings(BaseSettings):
         "DATABASE_URL", "postgresql://root:root@localhost:5432/agent_memory"
     )
 
-    # PostgreSQL 数据库配置（用于 rollerbed tracking system）
-    rollerbed_database_url: str = os.getenv(
-        "ROLLERBED_DATABASE_URL",
-        "postgresql://root:root@localhost:5432/rollerbed_tracking_db",
-    )
+    # PostgreSQL 业务分析数据库配置（用于 SQL Agent 检索）
     analytics_database_url: str = os.getenv(
         "ANALYTICS_DATABASE_URL",
-        "",
+        "postgresql://root:root@localhost:5432/analytics_db",
     )
     analytics_db_search_path: str = os.getenv(
         "ANALYTICS_DB_SEARCH_PATH",
         "mart,fct,dim,ods,meta,public",
     )
 
-    # MySQL 生产数据库配置（SQL Agent 使用）
-    mysql_database_url: str = os.getenv(
-        "MYSQL_DATABASE_URL",
-        "mysql+pymysql://root:root@localhost:3306/mds?charset=utf8mb4",
-    )
     # SQL Agent 软限制：用于 System Prompt 引导 LLM 生成 SQL 时自带 LIMIT 子句的数量，默认为 2000
     sql_agent_top_k: int = int(os.getenv("SQL_AGENT_TOP_K", "1000"))
 
@@ -183,7 +174,7 @@ class Settings(BaseSettings):
     llm_enable_thinking: Optional[bool] = (
         os.getenv("LLM_ENABLE_THINKING", "").lower() == "true"
         if os.getenv("LLM_ENABLE_THINKING")
-        else None
+        else True
     )
     llm_context_warning_enabled: bool = (
         os.getenv("LLM_CONTEXT_WARNING_ENABLED", "false").lower() == "true"

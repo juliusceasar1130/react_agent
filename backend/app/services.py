@@ -758,6 +758,17 @@ class SQLAgentService:
 
                         # 🚨 仅允许 AIMessage 提取文本 token 发送给客户端，杜绝 RAG 提示词(SystemMessage)和工具返回值(ToolMessage)泄露
                         if isinstance(message_chunk, AIMessage):
+                            # 🚀 优先检测 message_chunk 是否包含思考 Token，若有则推送 type: reasoning 事件
+                            reasoning_text = message_chunk.additional_kwargs.get("reasoning_content")
+                            if reasoning_text:
+                                await _emit(
+                                    {
+                                        "type": "reasoning",
+                                        "text": reasoning_text,
+                                        "node": node_name,
+                                    }
+                                )
+
                             for text_segment in self._extract_text_segments(message_chunk):
                                 if not text_segment:
                                     continue

@@ -177,7 +177,7 @@
     }
   },
   {
-    "document": "车身号，也称FIS号码，是每一台产品车身的唯一ID，以782026为固定前缀，共14位，如<782026xxxxxxxx>。带有车身号的车身绝大多数是正式的产品车，也有可能是调试车或者项目车。",
+    "document": "车身号，也称FIS号码或vehicle_id，是车身的唯一ID标识。正式产品车身通常以782026为固定前缀（共14位），而项目车身前13位与FIS订单表ods.ods_fis_project_vehicle_orders的合成PIN码composite_pin_no匹配，关联获取项目车编号project_vehicle_no。车身统一通过entity_type划分为项目车、产品车和异常车。",
     "metadata": {
       "type": "documentation",
       "domain": "paint_shop_vehicle_logistics",
@@ -188,35 +188,26 @@
         "FIS",
         "vehicle_id",
         "车身ID",
-        "782026"
+        "782026",
+        "PIN",
+        "项目车编号"
       ]
     }
   },
   {
-    "document": "异常车辆第一种：vehicle_id的前缀不是'782026'开头且carrier_id不等于0。此类车辆不属于标准产品车。",
+    "document": "异常车(entity_type = 'abnormal_vehicle')：兜底分类，排除项目车和产品车的所有其余占位记录即为异常车。仅当判定为异常车时才记录异常分类abnormal_type（包含empty_vehicle_id_with_carrier, blank_vehicle_id_with_carrier, non_product_prefix），正常车(项目车/量产车)的abnormal_type与abnormal_reason恒为NULL。",
     "metadata": {
       "type": "documentation",
       "domain": "paint_shop_vehicle_logistics",
       "process": "common",
-      "term": "异常车_情景一",
+      "term": "异常车",
       "aliases": [
-        "非产品车",
+        "abnormal_vehicle",
         "异常车",
-        "非782026",
-        "调试车"
-      ]
-    }
-  },
-  {
-    "document": "异常车辆第二种：vehicle_id等于'--------------'（14个连字符）且carrier_id不等于0。默认两种情景分别计算并合并统计，除非用户指明哪种情景。",
-    "metadata": {
-      "type": "documentation",
-      "domain": "paint_shop_vehicle_logistics",
-      "process": "common",
-      "term": "异常车_情景二",
-      "aliases": [
+        "异常占位",
         "非产品车",
-        "异常车"
+        "abnormal_type",
+        "abnormal_reason"
       ]
     }
   },
@@ -626,6 +617,36 @@
       "term": "区域、工位、读写站关系|区别",
       "aliases": [
         "区域、工位、读写站关系|区别"
+      ]
+    }
+  },
+  {
+    "document": "项目车是指表ods.ods_fis_project_vehicle_orders中有登记的项目/试验车辆。关联条件为LEFT(trim(rb.vehicle_id), 13) = pvo.composite_pin_no。项目车拥有project_vehicle_no编号及kom_no订货号等属性，判定为最高优先级的正常车(entity_type = 'project_vehicle')。",
+    "metadata": {
+      "type": "documentation",
+      "domain": "paint_shop_vehicle_logistics",
+      "process": "common",
+      "term": "项目车",
+      "aliases": [
+        "project_vehicle",
+        "项目车",
+        "试验车"
+      ]
+    }
+  },
+  {
+    "document": "车辆在系统中通过entity_type统一进行分类：1) project_vehicle (项目车，优先级最高)；2) product_vehicle (产品车/量产车，project_vehicle_no为空且VIN为782026开头)；3) abnormal_vehicle (异常车，排除项目车和产品车的兜底记录)。项目车与量产车统称为正常车，查询正常车时使用WHERE entity_type IN ('project_vehicle', 'product_vehicle') 或 WHERE entity_type <> 'abnormal_vehicle'。",
+    "metadata": {
+      "type": "documentation",
+      "domain": "paint_shop_vehicle_logistics",
+      "process": "common",
+      "term": "车辆分类与实体类型",
+      "aliases": [
+        "正常车",
+        "项目车",
+        "量产车",
+        "产品车",
+        "异常车"
       ]
     }
   }

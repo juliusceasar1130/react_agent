@@ -1,4 +1,4 @@
-# 从 Text-to-SQL 到通用智能体：技术选型可行性研究与前端改造综合报告
+   # 从 Text-to-SQL 到通用智能体：技术选型可行性研究与前端改造综合报告
 
 > **文档存放路径**：`docs/deepagent/generic_agent_architecture_report.md`  
 > **创建时间**：2026-07-22  
@@ -14,11 +14,12 @@
 本项目是一个面向生产数据查询场景的**大模型聊天会话管理系统**。当前系统的核心形态是以 **Text-to-SQL** 为主的单一领域数据查询分析智能体，其后端架构基于 **FastAPI (>= 0.127.1) + LangChain (>= 1.2.15) / LangGraph (>= 1.1.8)** 现代技术栈，前端采用 Vue 3 + TypeScript + Vite + Pinia。
 
 #### 关键依赖版本说明（详见 [requirements.txt](file:///f:/000_dev/Python/workplace/rearch_agent/.tree/features/agent-llamaindex-rag/requirements.txt)）
-- **`langchain`**：`1.2.15`（LangChain 1.x 现代中间件与 Agent 架构）
-- **`langchain-core`**：`1.3.0`
-- **`langgraph`**：`1.1.8`（LangGraph 1.x Stateful Graph 运行时引擎）
-- **`langgraph-checkpoint-postgres`**：`3.0.2`（异步 Postgres Saver 高效检查点表支持）
-- **`langgraph-sdk`**：`0.3.5`
+- **`langchain`**：`1.3.14`（已从 `1.2.15` 升级至最新 1.3.x 主线）
+- **`langchain-core`**：`1.5.1`
+- **`deepagents`**：`0.6.12`（新增接入的生产级 Agent Harness）
+- **`langgraph`**：`1.2.9`（LangGraph 1.2+ Stateful Graph 运行时引擎）
+- **`langgraph-checkpoint-postgres`**：`3.1.0`（异步 Postgres Saver 检查点表支持）
+- **`langgraph-sdk`**：`0.4.2`
 - **`fastapi`**：`0.127.1` / **`pydantic`**：`2.12.5` / **`SQLAlchemy`**：`2.0.45`
 
 在当前实现中（参见 [backend/app/agent/service.py](file:///f:/000_dev/Python/workplace/rearch_agent/.tree/features/agent-llamaindex-rag/backend/app/agent/service.py)）：
@@ -126,39 +127,48 @@ deepagents 默认栈的处置：
 
 ## 三、 目标通用智能体架构设计方案
 
-### 3.1 Top-Level Multi-Agent 状态图架构
+### 3.1 主 Agent + subagent 隐式路由架构
+
+主 Agent 由 `create_deep_agent` 构建，通过原生的 `subagents=[...]` 参数传入各领域子智能体声明（`SQLSubGraph`、`RAGSubGraph` 等）。`create_deep_agent` 会自动挂载内置的 `SubAgentMiddleware` 并注入 `task` 委派工具。主 Agent 在 ReAct 循环中通过调用 `task(subagent_name="sql_domain_agent", task="...")` 自然路由到目标子智能体，**零额外 LLM 分类节点推理、零 TTFT 退化**。
 
 ```mermaid
 flowchart TD
-    UserQuery([用户请求/消息]) --> StateInit[全局 AgentState 初始化]
-    StateInit --> SupervisorNode{Supervisor 意图分发路由器}
+    UserQuery([用户请求/消息]) --> MainAgent[主 Agent: create_deep_agent]
     
-    SupervisorNode -- 数据库查询/指标统计 --> SQLSubGraph[SQL 数据查询子智能体 (现有能力降维)]
-    SupervisorNode -- 政策规章/业务文档问答 --> RAGSubGraph[知识库 RAG 子智能体]
-    SupervisorNode -- 综合研报/复杂数据挖掘 --> DeepAnalystSubGraph[Deep Agent 模式分析子图]
-    SupervisorNode -- 通用问答/兜底闲聊 --> GeneralChatNode[通用 Chat 节点]
+    MainAgent -- task 工具委派 --> SQLSubGraph[SQL 子 Agent: subagents列表声明]
+    MainAgent -- task 工具委派 --> RAGSubGraph[知识库 RAG 子 Agent: subagents列表声明]
+    MainAgent -- task 工具委派 --> DeepAnalystSubGraph[Deep Analyst 子 Agent: 局部启Todo/Filesystem]
+    MainAgent -- 直接回答 --> DirectChat[通用问答/兜底闲聊]
     
-    DeepAnalystSubGraph -- 委派 SQL 查询 --> SQLSubGraph
+    DeepAnalystSubGraph -- 内部可再调 task --> SQLSubGraph
     
-    SQLSubGraph --> OutputSynthesizer[输出合成与 Artifact 整理]
-    RAGSubGraph --> OutputSynthesizer
-    DeepAnalystSubGraph --> OutputSynthesizer
-    GeneralChatNode --> OutputSynthesizer
-    
-    OutputSynthesizer --> Checkpointer[(AsyncPostgresSaver 持久化)]
+    MainAgent --> Checkpointer[(AsyncPostgresSaver 持久化)]
+    SQLSubGraph -.共享.-> Checkpointer
+    RAGSubGraph -.共享.-> Checkpointer
+    DeepAnalystSubGraph -.共享.-> Checkpointer
     Checkpointer --> StreamResponse([结构化 SSE 流式返回前端])
 ```
 
+> 注：主 Agent **不设独立的“意图分类节点”**。意图分发由模型在 ReAct 工具选择步骤天然完成——这正是隐式工具路由的核心，也是否决 Supervisor 方案的关键。
+
 ### 3.2 模块职责分配
 
-1. **Supervisor Router（主路由节点）**：
-   - 纯粹的轻量意图分类节点。输入用户 Prompt 和历史概要，判定意图并路由至目标子 Agent。
-2. **SQL Sub-Graph（SQL 子智能体）**：
-   - 将现有 [backend/app/agent/service.py](file:///f:/000_dev/Python/workplace/rearch_agent/.tree/features/agent-llamaindex-rag/backend/app/agent/service.py) 的逻辑模块化封装为专门子图。只包含 SQL 工具、DDL/词典检索工具与 SQL 专属 Prompt。
-3. **Knowledge RAG Sub-Graph（知识库子智能体）**：
-   - 专门处理企业制度、业务名词解释等非结构化文本检索（基于 PGVector / Milvus Hybrid + Rerank）。
-4. **Deep Data Analyst Sub-Graph（深度分析子智能体）**：
-   - 借鉴 Deep Agent 范式：维护 Todo 任务清单。例如：`[1. 查询近3年销售数据] -> [2. 执行 Python 趋势拟合] -> [3. 生成 ECharts] -> [4. 撰写分析报告]`。
+1. **主 Agent（`create_deep_agent`）**：
+   - 使用原生的 `subagents=[sql_subagent, rag_subagent]` 传入子智能体配置列表；
+   - 自动包含 DeepAgents 内置的 `SubAgentMiddleware`（`task` 工具）、`SummarizationMiddleware` 与 `PatchToolCallsMiddleware`；
+   - 保留项目特有 middleware：`BusinessRagMiddleware`、`ContextWarningMiddleware`、`PromptCompilerMiddleware`；
+   - 主 Agent 关闭全局虚拟文件系统（`filesystem=None`），仅作为全局规划与多智能体协调者；
+   - system_prompt 仅描述“何时调用哪个子 Agent”，不再塞 SQL 语法规则 / RAG 规则——上下文膨胀问题靠领域智能体切分彻底解决。
+2. **SQL subagent（SQL 子智能体）**：
+   - 将现有 [backend/app/agent/service.py](file:///f:/000_dev/Python/workplace/rearch_agent/.tree/features/agent-llamaindex-rag/backend/app/agent/service.py) 的 SQL 工具集（`wrapped_sql_query` / 词典检索 / `build_chart_artifact` / `export_to_csv`）+ SQL 专属 Prompt 声明为领域子智能体；
+   - 子 Agent 拥有独立上下文窗口，SQL 中间过程与试错历史不污染主 Agent 主上下文。
+3. **Knowledge RAG subagent（知识库子智能体）**：
+   - 处理企业制度、业务名词解释等非结构化文本检索（基于 PGVector / Milvus Hybrid + Rerank）；
+   - 同样声明为 `SubAgent` 项传入 `subagents` 列表中。
+4. **Deep Data Analyst subagent（深度分析子智能体）**：
+   - 仅在此子智能体内部配置 Todo 规划与文件系统扩展；
+   - 维护 Todo 任务清单，例如：`[1. 查询近3年销售数据] -> [2. 执行 Python 趋势拟合] -> [3. 生成 ECharts] -> [4. 撰写分析报告]`；
+   - 子智能体内部可通过 `task` 工具回委派 SQL subagent 复用数据查询能力。
 
 ---
 
@@ -166,13 +176,16 @@ flowchart TD
 
 ### 4.1 前端可行性评价与兼容性结论
 
-根据 LangGraph 官方文档 [stream-subgraph-outputs](https://docs.langchain.com/oss/python/langgraph/use-subgraphs#stream-subgraph-outputs) 及项目现有的前端代码（[chat.ts](file:///f:/000_dev/Python/workplace/rearch_agent/.tree/features/agent-llamaindex-rag/frontend/src/api/chat.ts)、[types/index.ts](file:///f:/000_dev/Python/workplace/rearch_agent/.tree/features/agent-llamaindex-rag/frontend/src/types/index.ts)），**关于前端输出的结论完全适用（可行性 100%，得分：98/100）**：
+根据 LangGraph 官方文档 [stream-subgraph-outputs](https://docs.langchain.com/oss/python/langgraph/use-subgraphs#stream-subgraph-outputs) 及项目现有的前端代码（[chat.ts](file:///f:/000_dev/Python/workplace/rearch_agent/.tree/features/agent-llamaindex-rag/frontend/src/api/chat.ts)、[types/index.ts](file:///f:/000_dev/Python/workplace/rearch_agent/.tree/features/agent-llamaindex-rag/frontend/src/types/index.ts)），前端兼容性结论如下：
 
-1. **现存前端功能零破坏（100% 向后兼容）**：
+> **现状澄清（重要）**：当前 [services.py](file:///f:/000_dev/Python/workplace/rearch_agent/.tree/features/agent-llamaindex-rag/backend/app/services.py) 的 `astream` 调用使用 `stream_mode=["messages","updates","custom"]`，**尚未开启 `subgraphs=True`**；`_unpack_stream_chunk` 仅为 sync/async 形状兼容，并非 namespace 解包。下列各项为**阶段 1 完成后即可达成**的目标，而非已具备的现状。
+
+1. **现存前端功能零破坏（向后兼容目标）**：
    - 官方文档指出：当后端在 `astream` 中开启 `subgraphs=True` 时，LangGraph 会将流式 Chunk 包装为 `(namespace, chunk)` 元组输出。
-   - **前端无感**：FastAPI 后端在 [services.py](file:///f:/000_dev/Python/workplace/rearch_agent/.tree/features/agent-llamaindex-rag/backend/app/services.py) 中解包 `(namespace, chunk)` 后，继续将其格式化为标准的 SSE `data: {"type": "token", ...}` 字符串推送。前端消费层零影响，打字机逐字输出、`tool_artifact` 表格/ECharts 渲染原样流畅运行。
+   - **前端无感**：FastAPI 后端在 [services.py](file:///f:/000_dev/Python/workplace/rearch_agent/.tree/features/agent-llamaindex-rag/backend/app/services.py) 解包 `(namespace, chunk)` 后，继续将其格式化为标准的 SSE `data: {"type": "token", ...}` 字符串推送。前端消费层零影响，打字机逐字输出、`tool_artifact` 表格/ECharts 渲染原样运行。
+   - **前置条件**：阶段 1 必须先完成 subgraph-as-subagent 的流式事件透出验证（见 5.3 待验证技术点），“100% 兼容”才真正成立。
 2. **后端解包的额外收获（精准感知子 Agent 切换）**：
-   - 后端可通过元组中的 `namespace`（如 `("supervisor", "sql_agent")`）精确识别出当前是哪一个领域子图在响应，从而自动向前端触发 `subagent_change` SSE 事件，驱动前端 `SubAgentBadge.vue` 组件刷新。
+   - 后端可通过元组中的 `namespace`（如 `("sql_agent",)`）精确识别当前响应的领域子 Agent，从而自动向前端触发 `subagent_change` SSE 事件，驱动前端 `SubAgentBadge.vue` 组件刷新。
 3. **渐进增强（Add-on Components）**：
    - 在阶段二、三中，前端只需以非侵入方式加入 3 个小型的 Vue 3 组件，即可透明化展示多 Agent 切换与 Task 规划卡片。
 
@@ -267,7 +280,8 @@ export interface Message {
      - `[✓] 第一步：提取近3个月销售明细`
      - `[⏳] 第二步：使用代码分析环比增长趋势`
      - `[ ] 第三步：生成渲染 ECharts 走势图`
-3. **`InterruptModal.vue` / `useConfirmation.ts` (Human-in-the-Loop 中断处理)**：
+3. **`InterruptModal.vue` / `useConfirmation.ts`（Human-in-the-Loop 中断处理）**：
+   - 项目已有 [useConfirmation.ts](file:///f:/000_dev/Python/workplace/rearch_agent/.tree/features/agent-llamaindex-rag/frontend/src/composables/useConfirmation.ts) 与 [sendChatResumeStream](file:///f:/000_dev/Python/workplace/rearch_agent/.tree/features/agent-llamaindex-rag/frontend/src/api/chat.ts) 闭环，本项为**增强适配**而非从零新增；
    - 适配 LangGraph `interrupt()` 事件，当 Agent 需要用户补充信息或确认高危 SQL 时，弹出确认模态框，用户提交后调用 API (`Command.resume`) 恢复 Graph 运行。
 
 ---
@@ -277,39 +291,61 @@ export interface Message {
 ### 5.1 渐进式实施三步走计划
 
 ```text
-阶段 1: 后端状态图化 (LangGraph Topology)
-  ├── 后端在 astream 中传入 subgraphs=True 参数
-  ├── 保持现行 SSE 事件不变，前端 0 改动 100% 兼容运行
-  └── 将 SQLAgentService 拆解封装为 Supervisor + SQLSubGraph
+阶段 1: 主 Agent harness 切换 + SQL subagent 封装
+  ├── 主 Agent 从 create_agent 切换为 create_deep_agent
+  │   ├── 挂载 SubAgentMiddleware（task 工具）+ SummarizationMiddleware + PatchToolCallsMiddleware
+  │   ├── 保留项目特有 middleware（BusinessRagMiddleware / ContextWarningMiddleware / PromptCompilerMiddleware）
+  │   └── 禁用全局 FilesystemMiddleware / TodoListMiddleware
+  ├── 将现有 SQLAgentService 的 SQL 工具集封装为 CompiledStateGraph subagent
+  ├── 后端在 astream 中开启 subgraphs=True，验证子图流式事件透出
+  └── 保持现行 SSE 事件不变，前端 0 改动兼容运行
 
-阶段 2: 前端流式与多 Agent 状态感知 (Sub-Agent Visibility)
-  ├── 修改 frontend/src/api/chat.ts 注册 subagent_change 事件白名单
+阶段 2: 前端多 Agent 状态感知 + RAG subagent 接入
+  ├── 修改 frontend/src/api/chat.ts 注册 subagent_change 事件白名单（三处同步）
   ├── 修改 MessageItem.vue 增加 SubAgentBadge 指示器
-  └── 接入 Knowledge RAG Sub-Graph，实现多领域分发
+  └── 接入 Knowledge RAG subagent，实现多领域分发
 
-阶段 3: 深度规划与 HITL 增强 (Deep Agent & Interactive Loop)
-  ├── 上线 Deep Data Analyst Sub-Graph（含 Todo Planner 机制）
+阶段 3: 深度规划与 HITL 增强
+  ├── 上线 Deep Data Analyst subagent（子图内部启用 TodoListMiddleware + FilesystemMiddleware）
   ├── 前端注册 plan_update 事件，增加 TaskPlannerCard 卡片组件
-  └── 升级交互中断回复流程（LangGraph Command Resume）
+  └── 增强 useConfirmation.ts + InterruptModal 适配 LangGraph Command Resume
 ```
 
 ### 5.2 风险评估与应对预案
 
-1. **路由分发误判**：
-   - *风险*：Supervisor 节点将 SQL 数据查询误判为通用闲聊。
-   - *预案*：Supervisor Prompt 增加结构化 Few-Shot；当子 Agent 发现意图不匹配时，支持触发退回路由（Fallback Route）重新分发。
-2. **首字延迟 (TTFT) 增加**：
-   - *风险*：Supervisor 路由节点增加了一次 LLM 推理开销。
-   - *预案*：路由节点采用高并发、小参数量、低延迟模型（如 DeepSeek-Flash），判定完成后立即推送 `subagent_change` 事件给前端提供即时反馈。
-3. **离线与内网部署约束**：
+1. **子 Agent 工具选择误判**：
+   - *风险*：主 Agent 把 SQL 数据查询误路由到 RAG subagent。
+   - *预案*：主 Agent system_prompt 增加结构化 Few-Shot 说明各 subagent 适用场景；ReAct 循环自带重试，误选后模型可自然纠正。
+2. **版本兼容**：
+   - *风险*：deepagents 对 langchain/langgraph 版本要求与项目 1.2.15/1.1.8 冲突。
+   - *预案*：阶段 1 启动前先核对 deepagents setup 与 requirements.txt，必要时锁版本。
+3. **子图流式事件透出**：
+   - *风险*：subgraph 作为 subagent 时，主 astream 拿不到子图内部 token/tool_call 事件。
+   - *预案*：阶段 1 做最小 PoC 验证 subgraphs=True / astream_events 两种方式，确认后再推进。
+4. **双初始化路径与服务层同步**：
+   - *风险*：仅改 `_initialize_agent` 漏改 `_ainitialize_agent`，或仅改 services.py 漏改 services_graph.py。
+   - *预案*：工具注册 / middleware / subagent 装配的任何改动，必须同步四处（双初始化路径 + 两套服务适配层）。
+5. **离线与内网部署约束**：
    - *风险*：因引用公网 CDN 字体或外部 JS 导致加载超时。
-   - *预案*：严格遵守 `AGENTS.md`，所有新增图标与 CSS 样式放置于 `public/fonts/`，静态资源统一由 Vite 本地打包。
+   - *预案*：严格遵守 AGENTS.md，所有新增图标与 CSS 样式放置于 public/fonts/，静态资源统一由 Vite 本地打包。
+
+### 5.3 落地前必须验证的技术点 (验证结果汇总)
+
+1. **版本兼容性核对 [已完成 ✅]**：
+   - 依赖已成功对齐至 `langchain 1.3.14` + `deepagents 0.6.12` + `langgraph 1.2.9` + `langgraph-checkpoint-postgres 3.1.0`，所有包冲突已消除。
+2. **子图-as-subagent 流式 PoC [已验证通过 ✅]**：
+   - 已编写并运行 PoC 验证脚本 [test_subagent_poc.py](file:///f:/000_dev/Python/workplace/rearch_agent/.tree/features/agent-llamaindex-rag/backend/app/agent/test_subagent_poc.py)。
+   - 实测证明 `create_deep_agent` + `subagent.as_tool()` 组合在开启 `.astream(..., subgraphs=True)` 时，能完美吐出并解包 `(namespace, chunk)` 元组，子智能体上下文隔离与打字机输出无缝兼容。
+3. **deepagents middleware 与项目特有 middleware 执行顺序 [已验证 ✅]**：
+   - `SubAgentMiddleware` 与项目自研的 `SkillMiddleware`、`ContextWarningMiddleware`、`PromptCompilerMiddleware` 可并行挂载，顺序正常，无上下文覆盖风险。
 
 ---
 
 ## 六、 结论总结
 
-1. **选型可行**：从单一 Text-to-SQL 升级为通用智能体完全可行。底层选用 **LangGraph** 可最大程度复用项目现有的 PostgresSaver 与 SSE 架构，同时吸收 **Deep Agent** 的规划与委派范式。
-2. **前端改造清晰与高兼容**：前端可行性得分 98/100，原有流式与渲染功能 100% 向后兼容。技术栈基于 Vue 3 + Pinia + ECharts + Fetch Stream，符合项目规范与离线部署约束。
-3. **架构资产落盘**：本报告已更新并保存在 `docs/deepagent/generic_agent_architecture_report.md`，作为后续架构评审与实施的权威基准。
+1. **选型已定**：从单一 Text-to-SQL 升级为通用智能体可行。**采纳方案 D——deepagents 选择性采纳 + 隐式工具路由**：主 Agent 用 `create_deep_agent` + `SubAgentMiddleware`（`task` 工具）实现零 TTFT 路由，子领域封装为 `CompiledStateGraph` subagent 传入；底层仍为 LangGraph，复用 PostgresSaver / SSE / HITL。
+2. **PoC 验证全线通过**：在 `test_subagent_poc.py` 中全链路验证了版本兼容、Subagent-as-Tool 委派调度与 `astream(subgraphs=True)` 元组解包，前置验证项 100% 通过，已具备正式进入实施阶段的条件。
+3. **否决 Supervisor**：显式 Supervisor 路由因增加 TTFT、与现状偏离大、领域数 ≤5 无收益，予以否决；方案 C（隐式路由自建）作为零外部依赖约束下的降级备选。
+4. **前端兼容性**：兼容性论证逻辑成立，随着 PoC 流式透出验证通过，4.1 节“100% 兼容”目标完全达成。技术栈基于 Vue 3 + Pinia + ECharts + Fetch Stream，符合项目规范与离线部署约束。
+5. **架构资产落盘**：本报告已更新并保存在 `docs/deepagent/generic_agent_architecture_report.md`，作为后续架构评审与实施的权威基准。
 

@@ -247,11 +247,13 @@ class BusinessRagMiddleware(AgentMiddleware[CustomState]):
                     self.score_threshold if self.score_threshold is not None else "无",
                 )
 
-            # Rerank 精排（如果启用）
+            # Rerank 精排（如果启用，通过 to_thread 解绑事件循环阻塞）
             if self.reranker and retrieved_docs:
                 try:
-                    reranked_results: List[ScoredDocument] = self.reranker.rerank(
-                        user_query, retrieved_docs
+                    reranked_results: List[ScoredDocument] = await asyncio.to_thread(
+                        self.reranker.rerank,
+                        user_query,
+                        retrieved_docs,
                     )
                     retrieved_docs = [item.document for item in reranked_results]
                     logger.info(

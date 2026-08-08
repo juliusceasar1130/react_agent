@@ -30,6 +30,7 @@ class DatabaseLexiconRetriever:
         )
         self.schema_index = VectorStoreIndex.from_vector_store(self.schema_store)
         self.schema_retriever = self.schema_index.as_retriever(
+            vector_store_query_mode="hybrid",
             similarity_top_k=getattr(settings, "lexicon_schema_top_k", 3)
         )
         
@@ -42,6 +43,7 @@ class DatabaseLexiconRetriever:
         )
         self.value_index = VectorStoreIndex.from_vector_store(self.value_store)
         self.value_retriever = self.value_index.as_retriever(
+            vector_store_query_mode="hybrid",
             similarity_top_k=getattr(settings, "lexicon_value_top_k", 5)
         )
         
@@ -54,6 +56,7 @@ class DatabaseLexiconRetriever:
         )
         self.row_index = VectorStoreIndex.from_vector_store(self.row_store)
         self.row_retriever = self.row_index.as_retriever(
+            vector_store_query_mode="hybrid",
             similarity_top_k=getattr(settings, "lexicon_row_top_k", 5)
         )
         
@@ -69,12 +72,23 @@ class DatabaseLexiconRetriever:
                 self.schema_retriever.aretrieve(query),
                 self.value_retriever.aretrieve(query),
                 self.row_retriever.aretrieve(query),
-                return_exceptions=False
+                return_exceptions=True
             )
+            tables = results[0] if not isinstance(results[0], Exception) else []
+            values = results[1] if not isinstance(results[1], Exception) else []
+            rows = results[2] if not isinstance(results[2], Exception) else []
+
+            if isinstance(results[0], Exception):
+                logger.warning(f"⚠️ [DatabaseLexiconRetriever] schema_retriever 检索异常: {results[0]}")
+            if isinstance(results[1], Exception):
+                logger.warning(f"⚠️ [DatabaseLexiconRetriever] value_retriever 检索异常: {results[1]}")
+            if isinstance(results[2], Exception):
+                logger.warning(f"⚠️ [DatabaseLexiconRetriever] row_retriever 检索异常: {results[2]}")
+
             return {
-                "tables": results[0],
-                "values": results[1],
-                "rows": results[2]
+                "tables": tables,
+                "values": values,
+                "rows": rows
             }
         except Exception as e:
             logger.error(f"❌ [DatabaseLexiconRetriever] 三路数据库词典并发检索失败: {str(e)}", exc_info=True)
@@ -85,12 +99,15 @@ class DatabaseLexiconRetriever:
         if not query:
             return {"tables": [], "values": [], "rows": []}
             
-        try:
-            return {
-                "tables": self.schema_retriever.retrieve(query),
-                "values": self.value_retriever.retrieve(query),
-                "rows": self.row_retriever.retrieve(query)
-            }
-        except Exception as e:
-            logger.error(f"❌ [DatabaseLexiconRetriever] 三路数据库词典同步检索失败: {str(e)}", exc_info=True)
-            return {"tables": [], "values": [], "rows": []}
+        def _safe_retrieve(retriever, name: str) -> List[Any]:
+            try:
+                return retriever.retrieve(query)
+            except Exception as e:
+                logger.warning(f"⚠️ [DatabaseLexiconRetriever] {name} 同步检索异常: {e}")
+                return []
+
+        return {
+            "tables": _safe_retrieve(self.schema_retriever, "schema_retriever"),
+            "values": _safe_retrieve(self.value_retriever, "value_retriever"),
+            "rows": _safe_retrieve(self.row_retriever, "row_retriever")
+        }

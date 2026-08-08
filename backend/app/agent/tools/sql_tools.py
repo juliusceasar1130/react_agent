@@ -229,9 +229,10 @@ def create_wrapped_query_tool(
         row_count = len(cleaned_result) if isinstance(cleaned_result, list) else 0
         truncated = row_count >= hard_limit
 
-        from datetime import datetime as dt
-        db_query_time = dt.now().strftime("%Y-%m-%d %H:%M:%S")
-        time_prefix = f"[数据真实查询时刻: {db_query_time}]\n"
+        from datetime import datetime, timezone, timedelta
+        tz_utc8 = timezone(timedelta(hours=8))
+        db_query_time = datetime.now(tz_utc8).strftime("%Y-%m-%d %H:%M:%S")
+        time_prefix = f"[查询时刻: {db_query_time}]\n"
 
         # 提取 columns，若空集则降级
         columns = []

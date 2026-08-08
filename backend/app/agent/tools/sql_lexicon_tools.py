@@ -36,19 +36,12 @@ def create_db_value_lexicon_tool(lexicon_retriever: Any) -> Any:
                 stage="retrieving",
                 source="search_db_value_lexicon",
             )
-            orig_top_k = getattr(lexicon_retriever.value_retriever, "similarity_top_k", settings.lexicon_similarity_top_k)
-            try:
-                if hasattr(lexicon_retriever.value_retriever, "similarity_top_k"):
-                    lexicon_retriever.value_retriever.similarity_top_k = limit
-                elif hasattr(lexicon_retriever.value_retriever, "_similarity_top_k"):
-                    lexicon_retriever.value_retriever._similarity_top_k = limit
-                
+            if hasattr(lexicon_retriever, "value_index") and lexicon_retriever.value_index is not None:
+                nodes = lexicon_retriever.value_index.as_retriever(vector_store_query_mode="hybrid", similarity_top_k=limit).retrieve(query)
+            elif hasattr(lexicon_retriever, "value_retriever"):
                 nodes = lexicon_retriever.value_retriever.retrieve(query)
-            finally:
-                if hasattr(lexicon_retriever.value_retriever, "similarity_top_k"):
-                    lexicon_retriever.value_retriever.similarity_top_k = orig_top_k
-                elif hasattr(lexicon_retriever.value_retriever, "_similarity_top_k"):
-                    lexicon_retriever.value_retriever._similarity_top_k = orig_top_k
+            else:
+                nodes = []
 
             if not nodes:
                 return f"未在列值词典中找到与 '{query}' 相关的物理真实值。"
@@ -98,19 +91,12 @@ def create_db_row_lexicon_tool(lexicon_retriever: Any) -> Any:
                 stage="retrieving",
                 source="search_db_row_lexicon",
             )
-            orig_top_k = getattr(lexicon_retriever.row_retriever, "similarity_top_k", settings.lexicon_similarity_top_k)
-            try:
-                if hasattr(lexicon_retriever.row_retriever, "similarity_top_k"):
-                    lexicon_retriever.row_retriever.similarity_top_k = limit
-                elif hasattr(lexicon_retriever.row_retriever, "_similarity_top_k"):
-                    lexicon_retriever.row_retriever._similarity_top_k = limit
-                
+            if hasattr(lexicon_retriever, "row_index") and lexicon_retriever.row_index is not None:
+                nodes = lexicon_retriever.row_index.as_retriever(vector_store_query_mode="hybrid", similarity_top_k=limit).retrieve(query)
+            elif hasattr(lexicon_retriever, "row_retriever"):
                 nodes = lexicon_retriever.row_retriever.retrieve(query)
-            finally:
-                if hasattr(lexicon_retriever.row_retriever, "similarity_top_k"):
-                    lexicon_retriever.row_retriever.similarity_top_k = orig_top_k
-                elif hasattr(lexicon_retriever.row_retriever, "_similarity_top_k"):
-                    lexicon_retriever.row_retriever._similarity_top_k = orig_top_k
+            else:
+                nodes = []
 
             if not nodes:
                 return f"未在行实体词典中找到与 '{query}' 相关的记录。"
@@ -160,7 +146,12 @@ def create_db_table_schema_tool(lexicon_retriever: Any) -> Any:
                 stage="retrieving",
                 source="search_db_table_schema",
             )
-            nodes = lexicon_retriever.schema_retriever.retrieve(query)
+            if hasattr(lexicon_retriever, "schema_index") and lexicon_retriever.schema_index is not None:
+                nodes = lexicon_retriever.schema_index.as_retriever(vector_store_query_mode="hybrid", similarity_top_k=limit).retrieve(query)
+            elif hasattr(lexicon_retriever, "schema_retriever"):
+                nodes = lexicon_retriever.schema_retriever.retrieve(query)
+            else:
+                nodes = []
             if not nodes:
                 return f"未找到与 '{query}' 相关的表结构定义。"
             

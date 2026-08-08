@@ -9,10 +9,6 @@ export const getSessionsApi = (): Promise<Session[]> => {
   return api.get('/api/chat/sessions')
 }
 
-export const getSessionApi = (id: string): Promise<Session> => {
-  return api.get(`/api/chat/sessions/${id}`)
-}
-
 export const updateSessionApi = (id: string, data: SessionUpdate): Promise<Session> => {
   return api.put(`/api/chat/sessions/${id}`, data)
 }

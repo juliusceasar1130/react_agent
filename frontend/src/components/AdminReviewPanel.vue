@@ -218,6 +218,7 @@
 import { ref, onMounted, onUnmounted, watch } from 'vue'
 import api from '@/api'
 import type { Message } from '@/types'
+import { parseJson } from '@/utils/helpers'
 
 // ---- Props & Emits ----
 const props = withDefaults(
@@ -268,18 +269,17 @@ const handleKeyDown = (e: KeyboardEvent) => {
 // ---- Helpers ----
 function parseOriginalSql(item: Message): string {
   if (item.tool_calls) {
-    try {
-      const calls = JSON.parse(item.tool_calls)
-      const sqlCalls = calls.filter((tc: any) => tc.name === 'sql_db_query' && tc.args?.query)
+    const calls = parseJson<Array<{ name: string; args?: { query?: string } }>>(item.tool_calls)
+    if (!calls) return ''
+    const sqlCalls = calls.filter(tc => tc.name === 'sql_db_query' && tc.args?.query)
 
-      if (sqlCalls.length === 1) {
+      if (sqlCalls.length === 1 && sqlCalls[0].args?.query) {
         return sqlCalls[0].args.query
       } else if (sqlCalls.length > 1) {
         return sqlCalls.map((tc: any, idx: number) => {
           return `-- Step ${idx + 1}\n${tc.args.query.trim()};`
         }).join('\n\n')
       }
-    } catch (_) {}
   }
   return ''
 }
@@ -303,12 +303,12 @@ function initForm(item: Message) {
   let domain = 'general'
 
   if (item.refined_payload) {
-    try {
-      const data = JSON.parse(item.refined_payload)
+    const data = parseJson<{ rewritten_query?: string; desensitized_sql?: string; domain?: string }>(item.refined_payload)
+    if (data) {
       rewrittenQuery = data.rewritten_query || ''
       desensitizedSql = data.desensitized_sql || ''
       domain = data.domain || 'general'
-    } catch (_) {}
+    }
   }
 
   // 兜底：无草稿时用原始内容

@@ -46,10 +46,19 @@ export const useSkillsStore = defineStore('skills', () => {
     }
   }
 
+  /**
+   * 强制刷新技能列表（跳过缓存检查）
+   */
+  const refreshSkills = async () => {
+    domains.value = []
+    await fetchSkills()
+  }
+
   return {
     domains,
     isLoading,
     error,
-    fetchSkills
+    fetchSkills,
+    refreshSkills
   }
 })

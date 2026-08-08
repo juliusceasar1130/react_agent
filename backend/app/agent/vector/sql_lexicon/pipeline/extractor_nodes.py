@@ -144,7 +144,7 @@ class RowLexiconExtractorNode(PipelineNode):
                 limit = conf["limit"]
                 
                 all_cols = [pk] + semantic_cols
-                query = f"SELECT {', '.join(all_cols)} FROM {table} LIMIT {limit}"
+                query = f"SELECT {', '.join(all_cols)} FROM {table} ORDER BY {pk} ASC LIMIT {limit}"
                 results = conn.execute(text(query)).fetchall()
                 
                 for r in results:

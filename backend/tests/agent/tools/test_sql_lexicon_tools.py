@@ -10,10 +10,8 @@ from backend.app.agent.tools.sql_lexicon_tools import (
 
 
 def test_db_value_lexicon_tool():
-    # 1. Mock 物理词典检索器
+    # 1. Mock 物理词典检索器及其 index 对象
     mock_retriever = MagicMock()
-    mock_retriever.value_retriever.similarity_top_k = 5
-    
     mock_node = MagicMock()
     mock_node.node.metadata = {
         "table_name": "dim.dim_process_area",
@@ -22,10 +20,9 @@ def test_db_value_lexicon_tool():
     }
     mock_node.score = 0.9532
     
-    def mock_retrieve(query):
-        assert mock_retriever.value_retriever.similarity_top_k == 8
-        return [mock_node]
-    mock_retriever.value_retriever.retrieve.side_effect = mock_retrieve
+    mock_sub_retriever = MagicMock()
+    mock_sub_retriever.retrieve.return_value = [mock_node]
+    mock_retriever.value_index.as_retriever.return_value = mock_sub_retriever
 
     # 2. 实例化并运行工具
     tool = create_db_value_lexicon_tool(mock_retriever)
@@ -37,14 +34,13 @@ def test_db_value_lexicon_tool():
     assert "`process_area_name`" in result
     assert "`'前道电泳二区'`" in result
     assert "0.9532" in result
-    assert mock_retriever.value_retriever.similarity_top_k == 5
+    mock_retriever.value_index.as_retriever.assert_called_once_with(vector_store_query_mode="hybrid", similarity_top_k=8)
+    mock_sub_retriever.retrieve.assert_called_once_with("电泳二期")
 
 
 def test_db_row_lexicon_tool():
     # 1. Mock
     mock_retriever = MagicMock()
-    mock_retriever.row_retriever.similarity_top_k = 5
-    
     mock_node = MagicMock()
     mock_node.node.metadata = {
         "table_name": "dim.dim_process_area",
@@ -54,10 +50,9 @@ def test_db_row_lexicon_tool():
     }
     mock_node.score = 0.9248
     
-    def mock_retrieve(query):
-        assert mock_retriever.row_retriever.similarity_top_k == 12
-        return [mock_node]
-    mock_retriever.row_retriever.retrieve.side_effect = mock_retrieve
+    mock_sub_retriever = MagicMock()
+    mock_sub_retriever.retrieve.return_value = [mock_node]
+    mock_retriever.row_index.as_retriever.return_value = mock_sub_retriever
 
     # 2. 运行工具
     tool = create_db_row_lexicon_tool(mock_retriever)
@@ -70,7 +65,8 @@ def test_db_row_lexicon_tool():
     assert "`'1002'`" in result
     assert "area_name=前道电泳二区" in result
     assert "0.9248" in result
-    assert mock_retriever.row_retriever.similarity_top_k == 5
+    mock_retriever.row_index.as_retriever.assert_called_once_with(vector_store_query_mode="hybrid", similarity_top_k=12)
+    mock_sub_retriever.retrieve.assert_called_once_with("前道电泳二区")
 
 
 def test_db_table_schema_tool():
@@ -88,7 +84,10 @@ def test_db_table_schema_tool():
         "-- 1. {'id': 1, 'process_area_name': '电泳一区'}"
     )
     mock_node.score = 0.8876
-    mock_retriever.schema_retriever.retrieve.return_value = [mock_node]
+    
+    mock_sub_retriever = MagicMock()
+    mock_sub_retriever.retrieve.return_value = [mock_node]
+    mock_retriever.schema_index.as_retriever.return_value = mock_sub_retriever
 
     # 2. 运行工具
     tool = create_db_table_schema_tool(mock_retriever)

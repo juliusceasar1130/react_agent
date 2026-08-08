@@ -1,3 +1,547 @@
+## 2026-08-06 23:34 +08:00 - 行级实体数据提取确定性排序优化 (backend/app/agent/vector/sql_lexicon/pipeline/extractor_nodes.py)
+
+### 变更内容
+
+#### 1. 行级实体词典 SQL 抽取确定性排序 (`backend/app/agent/vector/sql_lexicon/pipeline/extractor_nodes.py`) [OPTIMIZE]
+- **保证全量同步确定性 [M3 FIX]**：将 `RowLexiconExtractorNode` 中抽取行实体数据的 SQL 语句从原有的 `SELECT ... FROM {table} LIMIT {limit}` 重构为 `SELECT ... FROM {table} ORDER BY {pk} ASC LIMIT {limit}`。
+- **杜绝随机跳变与数据漏发**：消除了原本缺乏 `ORDER BY` 时由关系型数据库物理存储页变化导致的行记录数据随机乱序或每次重新同步数据跳变的问题。
+- **单元测试通过 (`backend/tests/agent/vector/sql_lexicon/test_extractor_nodes.py`)**：测试 100% 绿色通过。
+
+---
+
+## 2026-08-06 23:33 +08:00 - Rerank 重排同步请求非阻塞优化 (backend/app/agent/middleware/rag_middleware.py)
+
+### 变更内容
+
+#### 1. Rerank 精排解绑 asyncio 事件循环阻塞 (`backend/app/agent/middleware/rag_middleware.py`) [OPTIMIZE]
+- **解绑同步网络请求阻塞 [M1 FIX]**：将 `BusinessRagMiddleware.abefore_model` 异步方法中直接同步调用基于 HTTP `requests` 的 `self.reranker.rerank(...)` 重构为 `await asyncio.to_thread(self.reranker.rerank, ...)`。
+- **提升并发吞吐量**：消除了在开启 `RERANK_ENABLED=true` 时，底层同步 POST 网络请求卡死 FastAPI/asyncio 主事件循环 1~10 秒的高危阻塞隐患。
+- **单元测试通过 (`backend/tests/agent/vector/sql_lexicon/test_rag_middleware.py`)**：测试 100% 绿色通过。
+
+---
+
+## 2026-08-06 23:20 +08:00 - 数据库词典三路混合检索正式激活 (backend/app/agent/vector/sql_lexicon/retriever.py)
+
+### 变更内容
+
+#### 1. 激活三路 Lexicon 数据库词典 BM25 + Dense 真实混合检索 (`backend/app/agent/vector/sql_lexicon/retriever.py` & `backend/app/agent/tools/sql_lexicon_tools.py`) [FEATURE]
+- **显式启用 `vector_store_query_mode="hybrid"`**：修复了原本 `DatabaseLexiconRetriever`（`schema_retriever` / `value_retriever` / `row_retriever`）与 3 个词典工具（`search_db_value_lexicon` / `search_db_row_lexicon` / `search_db_table_schema`）在调用 `as_retriever(...)` 时漏传 `vector_store_query_mode="hybrid"`，导致底层退化为纯 Dense 向量检索的缺陷。
+- **解锁 BM25 精确匹配与 RRF 融合能力**：正式激活已建好的 `BM25BuiltInFunction(tokenizer="jieba")` 稀疏索引与 `RRFRanker` 倒数排名重排器，极大提升了对 `E7`、`f1f1` 等英文/数字编码和短小物理真实值的精确命中与对齐召回能力。
+- **单元测试全量通过**：同步更新 `backend/tests/agent/tools/test_sql_lexicon_tools.py` 的测试断言，单元测试与集成测试 100% 绿色通过。
+
+---
+
+## 2026-08-06 23:01 +08:00 - 数据库词典三路检索异常隔离修复 (backend/app/agent/vector/sql_lexicon/retriever.py)
+
+### 变更内容
+
+#### 1. 数据库词典三路检索异常隔离修复 (`backend/app/agent/vector/sql_lexicon/retriever.py`) [FIX]
+- **实现真正的三路异常隔离 [H2 FIX]**：将 `DatabaseLexiconRetriever.retrieve_all` 异步方法中的 `asyncio.gather` 的 `return_exceptions` 从 `False` 修改为 `True`。当 3 路中任意 1 路发生异常时，不再强行抛出中断整体逻辑，而是将其捕获为异常对象并对该路进行 `[]` 空列表降级。
+- **同步路径防雪崩保护**：在 `retrieve_all_sync` 中为每路检索包裹独立的 `try...except` 保护层。
+- **杜绝单点故障牵连全盘**：解决了以往单路词典（如 `values`）因瞬态网络波动或重新加载抛错导致原本正常召回的 `tables`（DDL）与 `rows`（实体记录）被全盘抹除清空的问题。
+
+---
+
+## 2026-08-06 22:50 +08:00 - SQL Lexicon 工具多会话并发竞态修复 (backend/app/agent/tools/sql_lexicon_tools.py)
+
+### 变更内容
+
+#### 1. SQL Lexicon 工具多会话并发竞态修复 (`backend/app/agent/tools/sql_lexicon_tools.py`) [FIX]
+- **解决共享单例属性篡改漏洞 [H1 FIX]**：将 `search_db_value_lexicon`、`search_db_row_lexicon` 与 `search_db_table_schema` 中改写全局单例属性（如 `similarity_top_k`）的代码，重构为使用无状态的 `value_index.as_retriever(similarity_top_k=limit)`、`row_index.as_retriever(...)` 与 `schema_index.as_retriever(...)` 局部检索句柄。
+- **消灭高并发线程串台风险**：彻底杜绝多用户并发会话或后台 RAG 自动检索交错时，全局 `similarity_top_k` 被互相改写覆盖导致的 Top-K 乱序与 Context 溢出事故。
+- **单元测试同步覆盖 (`backend/tests/agent/tools/test_sql_lexicon_tools.py`) [FIX]**：同步重构单元测试 Mock 断言，确保准确覆盖线程安全的 `index.as_retriever(similarity_top_k=limit)` 调用，测试 100% 绿色通过。
+
+---
+
+## 2026-08-04 14:27 +08:00 - SQL 工具查询时刻时区校准：显式东八区 (UTC+8) 格式化 (backend/app/agent/tools/sql_tools.py)
+
+### 变更内容
+
+#### 1. SQL 工具查询时刻时区校准 (`backend/app/agent/tools/sql_tools.py`) [FIX]
+- **显式 UTC+8 (北京时间) 格式化** [FIX]：将原本基于系统本地时间 `dt.now().strftime("%Y-%m-%d %H:%M:%S")` 改为使用显式 `timezone(timedelta(hours=8))` 格式化。
+- **解决 UTC 环境 8 小时时差 Bug**：解决了后端在 UTC 时区服务器/容器中运行时，返回给 LLM 的 `[数据真实查询时刻: ...]` 和返回给前端的 `tool_artifact.query_time` 比实际北京时间晚 8 小时的缺陷。
+- **最省 Token 策略**：保持最简无冗余的 `YYYY-MM-DD HH:MM:SS` 格式（仅 19 字符），对大模型输入输出友好且无需前端额外进行 Date 解析开销。
+
+---
+
+## 2026-08-03 12:28 +08:00 - 智能状态追踪避让：兜底文案偶发误导修复 (backend/app/api.py)
+
+### 变更内容
+
+#### 1. 智能状态追踪避让：兜底文案偶发误导修复 (`backend/app/api.py`) [FIX]
+- **新增 `has_reasoning` / `has_tool_artifact` 状态追踪** [FIX]：在 `stream_chat_events`（`:530-531`）与 `stream_resume_chat_events`（`:864-865`）初始化两个布尔标记，用于感知本轮流式过程中是否产生过深度思考或 UI 卡片。
+- **事件捕获置位** [FIX]：监听 `reasoning` 事件（`:614-615` / `:948-949`）置位 `has_reasoning`；在 `tool_artifact` 事件分支（`:618-619` / `:952-953`）置位 `has_tool_artifact`。不拦截事件透传，不影响前端渲染。
+- **防御空字符串覆盖 final 事件** [FIX]：将 `final` 事件中 `if final_content is not None:` 改为 `if final_content and final_content.strip():`（`:645-646` / `:980-981`），防止空字符串抹除通过 token 累加的 `full_content`。
+- **智能兜底文案** [FIX]：当 `full_content` 为空时，根据状态追踪判断：若有 reasoning 或 artifact 则输出引导文案”（分析已完成，请查看上方思考过程与参考信息）”（`:664-665` / `:1004-1005`），完全无产出时保留原保底文案（`:666` / `:1006`）。
+- **不改动文件**：`services.py`、`messages.ts`、`MessageItem.vue` 均无修改，符合模块边界约束。
+
+---
+
+## 2026-08-03 11:35 +08:00 - “回答完成，但未生成可展示的文本内容” 偶发异常审查报告 V2 (docs/front_end)
+
+### 变更内容
+
+#### 1. 归档技术审查报告 (`docs/front_end/empty_fallback_text_analysis_v2.md`) [NEW]
+- **归档深度审查报告**：详细记录针对“回答完成，但未生成可展示的文本内容。”偶发保底弹框的根因分析、代码端 3 处缺陷位置（`api.py:L637/L958` 覆盖漏洞、`services.py:L856` 提取条件过严、`api.py:L654` 保底未避让思考框/卡片）、偶发性随机机制以及修复建议。
+
+---
+
+## 2026-08-03 10:50 +08:00 - 滞留车检测场景全分类筛选与解析层修复 (backend/app/skills)
+
+### 变更内容
+
+#### 1. 滞留车场景元定义扩展 (`scenarios/stranded_vehicle_detection/scenario.py`)
+- **完整四项车辆类型筛选 (`vehicle_type_filter`)** [NEW]：新增控件类型为下拉框 `select` 的车辆类型参数，支持 `产品车` (`product_vehicle`，默认)、`项目车` (`project_vehicle`)、`异常车` (`abnormal_vehicle`) 与 `不限` (`all`)。
+- **健全 SQL 判定片段 (`sql_fragment`)** [OPTIMIZE]：采用 `NULLIF(trim(...), '')` 函数严格判定 `cr."project_vehicle_no"` 与 `cr."vehicle_id"` 前缀，100% 对齐官方《车辆分类规则与 LLM 提示词规范指南》。
+- **更新 LLM 提示词与规则** [OPTIMIZE]：更新 `optional_inputs`、`workflow`、`rules` 与 `output_contract`，使 Agent 能隐式识别并正确透传筛选属性。
+
+#### 2. SQL 模板筛选逻辑重构 (`sql/in_process.sql` & `sql/historical.sql`)
+- **添加 `{vehicle_type_filter}` 占位符** [FEATURE]：在在制与历史滞留车模板的 `WHERE` 条件中插入 `{vehicle_type_filter}` 占位符。
+- **透传 `project_vehicle_no` 字段** [OPTIMIZE]：在 `SELECT` 输出列中包含 `cr."project_vehicle_no"`，便于前端表格展现车辆的项目属性。
+
+#### 3. 参数解析层 Label 穿透修复 (`direct_path/resolver.py`)
+- **优先读取显式 `options` 与 `default`** [FIX]：修复 `resolve_params()` 在生成场景参数元数据时未优先解析 `p_def.get("options")` 的缺陷，确保前端 UI 下拉框正确显示中文 Label（如“产品车”、“不限”）而非原始英文 key 值。
+
+---
+
+## 2026-08-02 23:50 +08:00 - 前端代码审查 9 项优化实施 (frontend/src)
+
+### 变更内容
+
+#### 1. SSE 流式通信层 DRY 重构 (`api/chat.ts`)
+- **提取 `readSSEStream` 公共函数** [REFACTOR]：将 `sendChatStream` 与 `sendChatResumeStream` 中 ~150 行重复的 SSE 读取 + 解析 + 分发逻辑提取为统一的 `readSSEStream()` 函数，两个入口各缩减至 ~10 行。
+- **tool_artifact 解析校验增强** [FIX]：新增 `kind` 字段类型校验（`typeof parsed.artifact.kind !== 'string'`），防止畸形 artifact 数据穿透到下游。
+- **lexicon_context 类型安全** [FIX]：将 `as any` 强转替换为 `as unknown as LexiconContext`，消除隐式 any 逃逸。
+
+#### 2. 流式事件处理 DRY 重构 (`composables/useChatStream.ts`)
+- **提取 `createEventHandler` 公共函数** [REFACTOR]：将 `handleStreamMessage` 与 `resumeMessage` 中 ~80 行重复的 11 种事件类型 switch-case 统一为 `createEventHandler()` 闭包工厂，`hasTerminalEvent` 从 `let boolean` 改为 `{ value: boolean }` 对象引用以支持闭包内修改。
+
+#### 3. 类型安全体系升级 (`types/index.ts`)
+- **新增 `ToolArtifact` 接口** [REFACTOR]：提取统一的 `ToolArtifact` 接口（含 `[key: string]: unknown` 索引签名），替换 `Message`、`StreamingMessage`、`StreamEvent` 中 3 处内联重复类型定义，兼容 `ChartArtifact` / `ExportArtifact` 扩展字段。
+
+#### 4. XSS 安全净化升级 (`utils/markdown.ts`)
+- **代码块复制按钮安全重构** [SECURITY]：移除内联 `onclick` 事件处理器（直接调用 `navigator.clipboard.writeText`），改用 `data-copy-content` 自定义属性存储编码内容，由 `MessageItem.vue` 事件委托统一处理。
+- **DOMPurify 白名单调整** [SECURITY]：`ADD_ATTR` 从 `['onclick']` 改为 `['data-copy-content']`，消除 `onclick` 属性放行带来的潜在 XSS 攻击面。
+
+#### 5. 消息组件安全与类型优化 (`components/MessageItem.vue`)
+- **事件委托替代内联事件** [SECURITY]：通过 `onMounted` / `onUnmounted` 注册 document 级 `click` 事件委托，统一处理代码块复制按钮点击，替代内联 `onclick`。
+- **工具函数提取** [REFACTOR]：将 `parseJson`、`formatFileSize`、`copyToClipboard` 3 个内联函数提取至 `utils/helpers.ts`。
+- **computed 类型标注** [FIX]：`chartSpec` / `fileExport` computed 添加泛型标注 `computed<ChartArtifact | null>` / `computed<ExportArtifact | null>`，消除类型推断歧义。
+
+#### 6. 通用工具函数模块 (`utils/helpers.ts`)
+- **新建 `helpers.ts`** [NEW]：集中放置从 `MessageItem.vue` 提取的 `parseJson<T>`（安全 JSON 解析）、`formatFileSize`（B/KB/MB 格式化）、`copyToClipboard`（剪贴板操作，兼容非安全上下文降级方案）3 个可复用纯函数。
+
+#### 7. 竞态防护补全 (`stores/sessions.ts` & `stores/scenarioPanel.ts`)
+- **`fetchSessions` 竞态防护** [FIX]：添加 `latestFetchRequestId` 请求 ID 计数器，与 `messages.ts` 已有的防护模式对齐，防止快速切换会话时旧请求覆盖新数据。
+- **`fetchDomainTree` 竞态防护** [FIX]：添加 `domainsFetchRequestId` 请求 ID 计数器，防止场景面板重复请求时树结构数据被旧响应覆盖。
+
+#### 8. 错误处理统一化 (全 stores)
+- **catch 块错误信息提取标准化** [REFACTOR]：`sessions.ts`、`messages.ts` 中所有 catch 块统一为 `catch (err: any)` + `err.message || 'fallback message'` 模式，消除 `String(err)` / `err.toString()` 等不一致写法。
+
+#### 9. 其他类型与代码质量修复
+- **`ChatView.vue` toastTimer 类型** [FIX]：`toastTimer: any` → `ReturnType<typeof setTimeout> | null`，消除 any 逃逸。
+- **`messages.ts` memoryArtifactMap 类型** [FIX]：`Record<string, any>` → `Record<string, ToolArtifact>`，强化类型约束。
+- **`skills.ts` 刷新方法** [NEW]：新增 `refreshSkills()` 强制刷新方法，清空缓存后重新拉取技能列表。
+
+### 验证结果
+- `vue-tsc --noEmit` 类型检查零错误通过
+
+---
+
+## 2026-08-02 17:28 +08:00 - LobeChat 风格一体化沉浸画布与悬浮卡片重构 (frontend/src)
+
+### 变更内容
+
+#### 1. 主视觉画布与 Header 无边框悬浮重构 (`frontend/src/views/ChatView.vue`)
+- **Header 无硬线悬浮 (Floating Header)** [OPTIMIZE]：移除 Header 的 `border-b` 物理强切割线与固定白底，升级为 `sticky top-0 z-20 bg-background/80 backdrop-blur-md` 沉浸式透明置顶栏，100% 完整保留会话标题、状态胶囊、`关于`、`数据字典看板` 与 `审核终端` 等既有功能按键。
+- **侧边栏折叠图标重构 (Lucide Icon)** [REFACTOR]：移除带有白色重框与阴影的旧版双箭头按钮，替换为 LobeChat / Claude 同款的精致矢量 SVG 面板折叠图标 (`panel-left-close` / `panel-left-open`)，搭配 `hover:bg-neutral-100` 极简悬浮反馈。
+
+#### 2. 居中悬浮卡片式输入框与内置工具栏 (`frontend/src/views/ChatView.vue`)
+- **悬浮卡片输入面板 (Floating Card Input)** [REFACTOR]：移除旧版横贯屏幕底部的 `border-t` 满宽横条，重构为居中悬浮卡片（`sticky bottom-3 sm:bottom-4 max-w-6xl`），配备 `rounded-2xl sm:!rounded-3xl` 大圆角、精细阴影与柔和微边框。
+- **内嵌工具栏集成 (Bottom Inner Toolbar)** [OPTIMIZE]：将「流式输出」与「深度思考」开关胶囊移入输入卡片内部底栏左侧，右侧整合发送/停止按键，对齐 LobeChat 布局内聚感。
+
+#### 3. 消息视图全宽与多字段表格体验提升 (`frontend/src/components/MessageList.vue` & `MessageItem.vue`)
+- **最右侧边缘滚动条 (Rightmost Scrollbar)** [FIX]：将 `MessageList.vue` 的 `overflow-y-auto` 滚动层扩展至全宽 `w-full`，使垂直滚动条精准显示在窗口最右侧边缘。
+- **多字段数据表格宽屏支持 (Expanded Table Space)** [OPTIMIZE]：主画布、Header 与输入框的统一宽度从 `max-w-4xl` 调宽至 **`max-w-6xl` (1152px)**，且 AI 回复气泡在 `MessageItem.vue` 中支持 `max-w-full` 全宽，极大提升 SQL 查询多列表格与数据字典的显示与阅读舒适度。
+- **小屏与边界像素级对齐 (Mobile & Border Alignment)** [FIX]：调整外围边距为 `px-4 sm:px-0`，实现输入框左右边界与 AI 消息左侧、用户消息右侧的物理严丝合缝对齐；并在移动/小屏下留出 `bottom-3 mb-3` (12px) 悬浮空隙与 rounded-2xl 圆角，告别底部贴边。
+
+---
+
+## 2026-08-02 16:55 +08:00 - 1:1 还原 LobeChat 风格 AI 消息 Markdown 渲染与 GFM Alert 警示卡片支持
+
+### 变更内容
+
+#### 1. 后端系统提示词升级 (`backend/app/agent/prompts/base_system_prompt.md`)
+- **系统级输出约束 (§ 4.5)** [NEW]：在基础提示词中追加 Markdown 结构化排版与 GFM Alert 约束规范，从系统层引导大模型在输出总结、提示、预警时自动产生 `> [!NOTE]` / `> [!TIP]` 等标准的 Callout 语法和规范列表。
+
+#### 2. 前端 GFM Alert 卡片解析插件 (`frontend/src/components/chat/plugins/markdown-it-alert.ts`)
+- **GFM Callout 解析插件** [NEW]：新增 `markdown-it-alert.ts` 插件，自动拦截捕获 `> [!NOTE]` / `> [!TIP]` / `> [!WARNING]` / `> [!CAUTION]` / `> [!IMPORTANT]` 语法，并注入带矢量图标与 5 种官方底色的卡片 DOM 结构。
+- **边界与转义鲁棒保护** [FIX]：使用 `[^\w\s]` 字符集与 `(?!\w)` 负向先行断言，消除了浏览器 `Invalid escape` 解析报错并完美解决了末尾中括号 `]` 字符残留在卡片内部的问题。
+
+#### 3. 视觉排版与组件样式解耦 (`frontend/src/style.css` & `MessageItem.vue`)
+- **1:1 LobeChat Chat 变体 CSS** [OPTIMIZE]：在 `style.css` 中注入官方计算倍率变量、卡片化 blockquote、代码块美化与流式打字呼吸光标（`is-streaming`）。
+- **样式解耦与冲突排查** [FIX]：清理 `MessageItem.vue` scoped 样式中对表格单元格居中的 `:deep(th/td)` 强制压制，移除过期的 `.cursor-blink` 死代码，使全局 `style.css` 的排版和表格左对齐正常生效。
+
+---
+
+## 2026-08-01 16:11 +08:00 - 代码审查属实项修复与测试健壮性提升 (backend & frontend)
+
+### 变更内容
+
+#### 1. 后端 LLM 适配器与集成测试修复 (`backend/tests/agent/test_chat_deepseek_integration.py` & `backend/app/agent/llm.py`)
+- **`BaseModel` 导入修复与 Mock 扩展** [FIX]：将 `test_chat_deepseek_integration.py` 中不存在的 `openai.BaseModel` 替换为 `pydantic.BaseModel`；并补充 `model_extra` Reasoning 提取后备逻辑测试用例 `test_chat_deepseek_model_extra_reasoning_fallback`，提升覆盖率。
+- **重命名中性适配器与别名兼容** [REFACTOR]：在 `backend/app/agent/llm.py` 中将 `QwenChatDeepSeek` 重命名为更具中性含义的 `ReasoningAwareChatDeepSeek`，同时保留 `QwenChatDeepSeek` 向后兼容别名。
+
+#### 2. 前端推理耗时与 UI 样式细节修补 (`ReasoningAccordion.vue` & `ToggleSwitch.vue`)
+- **`ReasoningAccordion.vue`** [FIX]：修复 `duration` 为 0 时被判定逻辑错误过滤退回到估算值的问题，显式支持 0 秒耗时展现。
+- **`ToggleSwitch.vue`** [FIX]：将非标准类名 `shadow-xs` 替换为 Tailwind CSS v3 标准的 `shadow-sm`，规避阴影渲染失效。
+
+#### 3. 根目录无用调试临时文件清理
+- **临时文件清理** [CLEANUP]：移除根目录下包含调试日志与测试脚本的 `tmp_vllm_test.py` 和 `vllm_response.json` 文件。
+
+---
+
+## 2026-08-01 16:01 +08:00 - 前端快捷直通场景与全局极简矢量图标升级 (FloatingScenarioCards.vue & ScenarioModal.vue)
+
+### 变更内容
+
+#### 1. 快捷场景悬浮卡片图标重构 (`frontend/src/components/FloatingScenarioCards.vue`)
+- **极简矢量图标替换 (Minimalist Vector Icons)** [OPTIMIZE]：彻底告别 3D 彩色/Emoji 图标（如 `🚙`、`⚡` 等），为项目车管理 (`project_vehicle_management`)、滞留车检测 (`stranded_vehicle_detection`)、统计分析、目标监控、智能检索等场景替换为精准匹配的 24x24 / 14x14 极简 Single-line SVG 矢量线条图标（支持 High Contrast & Accent Accent Tone Stroke）。
+- **动态图标智能映射 (Dynamic Icon Resolver)** [NEW]：新增 `getScenarioIconType` 场景图标类型选择逻辑，根据 scenario name 与 title 语义平滑归类，提供更具现代轻盈视觉哲学的快捷卡片。
+
+#### 2. 快捷直通弹窗、数据字典与复制按钮图标优化 (`ScenarioModal.vue`, `MessageItem.vue` & `DimensionTable.vue`)
+- **`ScenarioModal.vue`** [OPTIMIZE]：将直通弹窗头部标题栏与刷新按钮中的 Emoji 图标替换为极简 Stroke 矢量图标。
+- **`MessageItem.vue` & `DimensionTable.vue`** [OPTIMIZE]：去除消息气泡底栏与维度表头部的中文“复制”/“已复制”文本标签，保留纯极简 SVG 矢量图标（Tooltip 原生悬浮提示），视觉更加精简干净。
+
+---
+
+## 2026-08-01 14:42 +08:00 - 前端思考过程内存持久化与三级降级架构实现 (frontend/src/stores/messages.ts & MessageItem.vue)
+
+### 变更内容
+
+#### 1. Pinia Store 内存持久化与多轮 ReAct 智能标点粘合 (`frontend/src/stores/messages.ts`)
+- **`memoryReasoningMap` & `memoryReasoningDurationMap`** [NEW]：新增思考文本与决策时长内存映射表。
+- **100% 文本忠实度与智能标点粘合 (Smart Punctuation Joiner)** [OPTIMIZE]：彻底保证大模型思考文本 100% 原汁原味展现，杜绝任何字符误删。升级多轮 ReAct 思考追加逻辑，自动检测前文末尾是否为句末标点（`[。！？;\n:]`）：
+  - 若为完整句子，追加 `\n\n` 进行段落划开；
+  - 若为句中被工具调断（如“今天”或“用户”），保持流畅拼合（英文补空格），杜绝“句中强行断行”的视觉瑕疵，对齐 DeepSeek / Claude 3.7 官方排版标准。
+- **方案 B 耗时计算** [MODIFY]：在 `startStreamingMessage` 记录用户发送指令的时刻 `requestStartTime` ($t_0$)，当首个正文回答 Token 到达或流结束时算出 $t_{ans\_start} - t_0$ 的全过程决策时长，实现与 DeepSeek 官方标准对齐。
+
+#### 2. 开关控件与气泡组件视觉重构 (`frontend/src/components/ToggleSwitch.vue` & `ReasoningAccordion.vue`)
+- **`ToggleSwitch.vue`** [OPTIMIZE]：彻底告别高饱和度刺眼强蓝，重构为柔和**低饱和色配色方案**（Muted Low-Saturation Palette）。将开关键轨与圆圈滑块背景调淡为柔和同色系淡蓝（`bg-primary/10` 底轨 + `bg-primary/30` 淡蓝手柄），结合中性优雅文本（`text-neutral-700`），带来更高端沉稳的视觉质感。
+- **`ReasoningAccordion.vue`** [MODIFY]：替换 3D 🧠 Emoji 为极简微光矢量图标（Sparkles SVG Icon），并同步将头部标题精简优化为“**推理**”；在思考流式进行中自动保持展开呈现打字动画，思考完成/输出正文阶段自动平滑折叠面板。
+
+#### 3. 构建验证
+- 运行 `npm run build` 执行前端代码编译验证，787 个 Vue/TS 模块零报错构建成功（14.60s）。
+
+---
+
+## 2026-08-01 13:48 +08:00 - 前端深度思考（Reasoning）UI 组件集成与消息气泡挂载 (frontend/src/components/MessageItem.vue)
+
+### 变更内容
+
+#### 1. 前端类型定义扩展 (`frontend/src/types/index.ts`)
+- **`StreamingMessage`** [MODIFY]：在 `StreamingMessage` 接口中添加 `reasoningText?: string` 可选属性。
+
+#### 2. 前端消息气泡组件集成 (`frontend/src/components/MessageItem.vue`)
+- **`MessageItem.vue`** [MODIFY]：导入 `ReasoningAccordion` 组件，定义 `reasoningText` 计算属性，并在消息气泡模板顶部挂载 `<ReasoningAccordion>`，实现深度思考折叠面板、实时打字机动画及耗时计时器的端到端呈现。
+
+#### 3. 构建验证
+- 运行 `npm run build` 执行前端代码编译验证，787 个 Vue/TS 模块零报错构建成功。
+
+---
+
+## 2026-07-31 23:02 +08:00 - 后端 SSE 流式协议扩展：支持思考 Token (reasoning) 结构化事件推送
+
+### 变更内容
+
+#### 1. 后端数据 Schema 扩展 (`backend/app/schemas.py`)
+- **`ReasoningStreamEvent`** [NEW]：新建 `ReasoningStreamEvent` Pydantic v2 模型（包含 `type: Literal["reasoning"]`, `text: str`, `node: Optional[str]`），并加入 `ChatStreamEvent` Discriminated Union 序列化白名单。
+
+#### 2. SSE 流式解包与事件推送 (`backend/app/services.py`)
+- **`_stream_execution_loop`** [MODIFY]：在处理 `AIMessageChunk` 流式切片时，优先判断 `message_chunk.additional_kwargs.get("reasoning_content")`。若存在思考 Token，实时 `_emit` 推送 `type: "reasoning"` 的 SSE 事件给前端。
+
+#### 3. 单元测试与回归校验 (`backend/tests/agent/`)
+- **`test_sse_reasoning_events.py`** [NEW]：新增 `ReasoningStreamEvent` Pydantic 校验与思考 Token 提取单元测试。
+- 运行 Agent 全部 7 项单元测试，全量 100% PASS。
+
+---
+
+## 2026-07-31 22:41 +08:00 - 前端 ChatView 增加“深度思考”模式实时切换开关 (frontend/src/views/ChatView.vue)
+
+### 变更内容
+
+#### 1. 前端 UI 与交互控制 (`frontend/src/views/`)
+- **`ChatView.vue`** [MODIFY]：在输入框上方的模式控制栏中，解构并集成了 `enableThinking` 开关（使用 `ToggleSwitch` 组件），与“流式输出”平级展示。支持用户实时自由开启（DeepThink 深度思考模式，传 `enable_thinking: true`）或关闭（常规快速回答模式，传 `enable_thinking: false`）。
+
+#### 2. 构建验证
+- 运行 `npm run build` 执行前端代码编译验证，785 个 Vue/TS 模块零报错构建成功。
+
+---
+
+## 2026-07-31 22:38 +08:00 - LLM 模型适配器独立解耦抽取封装 (`backend/app/agent/llm.py`)
+
+### 变更内容
+
+#### 1. 后端模型架构重构 (`backend/app/agent/`)
+- **`llm.py`** [NEW]：新建独立的 `llm.py` 模块，封装 `QwenChatDeepSeek` 通信协议增强类与 `_create_llm` 工厂函数。将底层大模型通信逻辑与 `service.py` 中的上层 SQL Agent 业务图解耦。
+- **`service.py`** [MODIFY]：从 `llm.py` 导入 `QwenChatDeepSeek` 与 `_create_llm`，精简主服务逻辑。
+
+#### 2. 测试集与 Mock Patch 目标同步 (`backend/tests/agent/`)
+- **`test_chat_deepseek_integration.py`** [MODIFY]：更新导入路径与 Mock 拦截点至 `backend.app.agent.llm`。
+- **`test_persistence_integration.py`** [MODIFY]：更新 `patch` 目标为 `backend.app.agent.llm.QwenChatDeepSeek`。
+
+---
+
+## 2026-07-31 22:35 +08:00 - QwenChatDeepSeek 调试日志清理与代码精简 (backend/app/agent/service.py)
+
+### 变更内容
+
+#### 1. 后端模型适配器精简 (`backend/app/agent/`)
+- **`service.py`** [MODIFY]：彻底清理排查阶段在 `QwenChatDeepSeek` 中添加的临时 `DEBUG` 日志打印，保持生产代码无冗余与高可维护性。
+
+---
+
+## 2026-07-31 22:30 +08:00 - 前端 useChatStream 思考模式开关默认值纠偏 (frontend/src/composables/useChatStream.ts)
+
+### 变更内容
+
+#### 1. 前端状态默认值修复 (`frontend/src/composables/`)
+- **`useChatStream.ts`** [MODIFY]：将 `enableThinking` 的响应式默认值从 `ref(false)` 纠偏修改为 `ref(true)`，防止前端发送消息时静默向后端透传 `enable_thinking: false` 导致 vLLM 思考逻辑被关闭。
+
+---
+
+## 2026-07-31 22:09 +08:00 - QwenChatDeepSeek 流式 (Streaming) chunk 思考字段全通路适配 (backend/app/agent/service.py)
+
+### 变更内容
+
+#### 1. 后端模型适配器增强 (`backend/app/agent/`)
+- **`service.py`** [MODIFY]：在 `QwenChatDeepSeek` 中重写 `_convert_chunk_to_generation_chunk` 方法，抓取流式块 (`delta`) 中的 `reasoning` 字段，填入 `AIMessageChunk.additional_kwargs["reasoning_content"]`。打通流式模式 (astream) 下思考链的累加与 LangSmith Trace 终态可视化。
+
+#### 2. 测试用例补充 (`backend/tests/agent/`)
+- **`test_chat_deepseek_integration.py`** [MODIFY]：新增 `test_qwen_chat_deepseek_stream_chunk_mapping` 测试用例，验证流式 chunk 结构下的 `reasoning` 拦截逻辑，测试全量通过 (3/3 PASSED)。
+
+---
+
+## 2026-07-31 21:06 +08:00 - 阶段一：ChatDeepSeek LLM 适配与 reasoning_content 捕获落地 (backend/)
+
+### 变更内容
+
+#### 1. 后端模型工厂重构 (`backend/app/agent/`)
+- **`service.py`** [MODIFY]：在 `_create_llm` 函数中将 `ChatOpenAI` 替换为 `ChatDeepSeek` (`langchain-deepseek==1.0.1`)，将参数映射调整为 `api_key` / `api_base`，原生提取 vLLM 返回的 `reasoning_content` 到 `AIMessage.additional_kwargs`，打通 LangSmith Trace 思考链捕获。
+
+#### 2. 测试集更新与新增 (`backend/tests/agent/`)
+- **`test_chat_deepseek_integration.py`** [NEW]：新增单元测试，验证 `_create_llm` 实例化 `ChatDeepSeek` 及反序列化时保留 `reasoning_content` 的映射逻辑。
+- **`test_persistence_integration.py`** [MODIFY]：更新 Mock 拦截对象为 `ChatDeepSeek`，保证持久化集成测试 100% 通过。
+
+---
+
+## 2026-07-31 20:36 +08:00 - vLLM + Qwen/DeepSeek 思考过程 Trace 捕获与前端流式方案技术报告
+
+### 变更内容
+
+#### 1. 技术文档创建 (`docs/thinking_mode/`)
+- **`langsmith_thinking_process_integration_guide.md`** [NEW]：整理 vLLM + Qwen 3.6 / DeepSeek 推理模型在 LangSmith Trace 中丢失思考过程的根因分析报告，并提供 `langchain-deepseek` 与自定义 `QwenThinkingChatOpenAI` 类的补全方案及前端 SSE 流式渲染联动规划。
+
+---
+
+## 2026-07-31 20:06 +08:00 - 前端代码审查全面复核与重构修复 (frontend/src)
+
+### 变更内容
+
+#### 1. TypeScript 构建阻塞错误修复 (`frontend/src/`)
+- **`api/scenarios.ts`** [MODIFY]：修复 `description: str` 语法笔误为 `string`，在 `ScenarioItemSummary` 接口补全 `direct_path_enabled?: boolean` 字段，并导出 `ScenarioSummary` 类型别名。
+- **`types/index.ts`** [MODIFY]：在 `FinalizedStreamingMessage` 接口补全 `tool_artifact` 属性定义，移除无用接口 `StreamToolResult`。
+- **`composables/useChatStream.ts`** [MODIFY]：在 `resumeMessage` 的 `handleEvent` 补全 `case 'tool_artifact':` 逻辑，修复 `assertNever` TS 类型报错。
+- **`components/FloatingScenarioCards.vue`** [MODIFY]：正确类型引用 `ScenarioSummary`。
+
+#### 2. 死代码与废弃文件清理 (`frontend/src/`)
+- **`api/messages.ts`** & **`api/sessions.ts`** [MODIFY]：清理无引用的 `getMessageApi` 和 `getSessionApi` 函数。
+- **`stores/messages.ts`** [MODIFY]：清理无调用的 `setStreamingError` 和 `clearStreamingForSession` store actions。
+- **`stores/scenarioPanel.ts`** [MODIFY]：清理无调用的 `backToList` store action。
+- **`composables/useDateFormat.ts`** [MODIFY]：清理未被外部消费的 `formatDate` 函数。
+- **`utils/test_markdown.js`** [DELETE]：删除未接入构建体系的 Node 独立 `eval()` 测试脚本。
+
+#### 3. 调试日志与 UI 残留清理 (`frontend/src/`)
+- **`views/ChatView.vue`** [MODIFY]：清理永久隐藏UI `v-if="false"` `<ToggleSwitch v-model="enableThinking" />`。
+- **`composables/useChatStream.ts`** [MODIFY]：清理带有 `[diagnose]` 前缀的硬编码 console.error 日志。
+- **`api/chat.ts`** [MODIFY]：将 8 处流式解析 `console.debug` 日志统一挂载在 `CHAT_DEBUG_STREAM` 调试开关之下。
+- **`components/AskUserQuestionCard.vue`** [MODIFY]：清理空实现存根 `onTextAreaInput` 及模板事件绑定。
+
+#### 4. 组件重复实例化修复 (`frontend/src/components/`)
+- **`VariantB.vue`** [MODIFY]：移除内部重复渲染的 `<ScenarioModal>` 实例及其 import，统一由顶层 `ChatView.vue` 调度弹窗。
+
+---
+
+## 2026-07-30 12:40 +08:00 - 项目车综合管理技能 (project_vehicle_management) 落地、直通模式标准服务端分页与序号列支持
+
+### 变更内容
+
+#### 1. 项目车综合管理技能开发 (`backend/app/skills/domains/paint_shop_vehicle_logistics/scenarios/project_vehicle_management/`) [NEW]
+- **`scenario.py`** [NEW]：定义项目车综合管理场景，配置快捷直通查询参数（支持项目阶段 `project_stage`、编号模糊搜索 `project_vehicle_no`、工艺区域 `process_area` 及仅看缺陷 `has_defect_only_filter`）。
+- **`sql/current_positions.sql`** [NEW]：在制项目车实时位置与工艺分布 SQL 模板（默认模板）。
+- **`sql/orders_overview.sql`** [NEW]：项目车 FIS 订单台账与项目阶段汇总 SQL 模板。
+- **`sql/quality_defects.sql`** [NEW]：项目车缺陷检测与质量记录 SQL 模板。
+
+#### 2. 直通模式服务端分页与物理全量计算引擎 (`backend/app/skills/direct_path/`) [MODIFY]
+- **`executor.py`** [MODIFY]：使用 `SELECT COUNT(*) FROM (...)` 精确计算物理全量命中数，并采用 SQL 子查询 `LIMIT :page_size OFFSET :offset` 零侵入实现通用服务端分页。
+- **`formatter.py`** [MODIFY]：格式化器组装 `page`、`page_size`、`total_pages` 与 `total_count` 并透传至 API。
+- **`api.py`** & **`schemas.py`** [MODIFY]：路由与 Pydantic Schema 支持 `page` 与 `page_size` 请求/响应参数对齐。
+
+#### 3. 前端表格组件与分页控制条 (`frontend/src/`) [MODIFY]
+- **`stores/scenarioPanel.ts`** [MODIFY]：增加 `currentPage` 与 `pageSize` 响应式状态，支持动态翻页 actions 并在筛选重置时归零到第一页。
+- **`components/TableResult.vue`** [MODIFY]：单层表格右上角展示区间 (`显示 1-50 条 / 共 332 条记录`)，最左侧新增连续物理序号列 `#`（算式：`(page - 1) * pageSize + index + 1`），底部新增分页控制条（上一页/下一页/页码/每页条数选择器）。
+- **`components/ResultRenderer.vue`** & **`ScenarioModal.vue`** [MODIFY]：组件间事件与分页元数据透传。
+
+---
+
+## 2026-07-29 14:15 +08:00 - 全系统结构化对齐车辆分类新规则、RAG向量知识库语料与场景SQL契约
+
+### 变更内容
+
+#### 1. 向量知识库语料 (`backend/app/agent/vector/milvus_init/data/examples/`) [MODIFY]
+- **`example_documentation.json`** [MODIFY]：
+  1) 更新 `车身号` 条目，接入 FIS 订单 `composite_pin_no` 匹配与 `project_vehicle_no` 概念；
+  2) 合并并极致精简 `异常车` (entity_type = 'abnormal_vehicle') 条目，明确“排除项目车和产品车的所有其余占位记录即为异常车”，强调正常车 `abnormal_type` 恒为 `NULL`；
+  3) 新增 `项目车与FIS订单` (`ods_fis_project_vehicle_orders`) 向量知识条目；
+  4) 新增 `车辆分类与实体类型` (`entity_type` 三元组与正常车定义) 向量知识条目；
+  5) 新增 `滞留监控关键节点` (`retention_checkpoint_station`) 向量知识条目。
+
+#### 2. 领域元数据配置 (`backend/app/skills/domains/paint_shop_vehicle_logistics/`) [MODIFY]
+- **`meta.py`** [MODIFY]：
+  1) `description` 扩展“项目车”、“试验车”、“PIN”、“FIS订单”、“量产车”、“正常车”触发关键词；
+  2) `associated_tables` 和 `lexicon_enabled_tables` 加入 `ods.ods_fis_project_vehicle_orders`；
+  3) 配置 `ods.ods_fis_project_vehicle_orders` 的 RAG Lexicon 行级与列级抽取白名单 (`project_vehicle_no`, `composite_pin_no`, `project_stage`)。
+
+#### 3. 场景定义与 SQL 模板 (`scenarios/`) [MODIFY]
+- **`realtime_area_body_count/sql/main.sql`** [MODIFY]：SQL 条件更新为 `WHERE overview.entity_type IN ('project_vehicle', 'product_vehicle')`，包含项目车与量产车全量正常车；
+- **`realtime_area_body_count/scenario.py`** [MODIFY]：提示词 workflow 与 rules 同步升级为默认统计全量正常车；
+- **`daily_area_body_count/scenario.py`** [MODIFY]：清理 gotchas 说明中的旧 `BODY_ID LIKE '782026%'` 过滤范例；
+- **`abnormal_vehicle_monitor/scenario.py`** [MODIFY]：规则补充“正常车的 `abnormal_type` 恒为 `NULL`”。
+
+---
+
+## 2026-07-29 13:35 +08:00 - 重构与结构化对齐涂装车间车辆物流追踪领域架构文档 (domain.md)
+
+### 变更内容
+
+#### 领域架构文档 (`backend/app/skills/domains/paint_shop_vehicle_logistics/`) [MODIFY]
+- **`domain.md`** [MODIFY]：
+  1) 引入 FIS 项目车订单贴源表 `ods.ods_fis_project_vehicle_orders` 说明及关联规则（`composite_pin_no`）；
+  2) 升级车辆分类规则为 `project_vehicle`（项目车）、`product_vehicle`（产品车/量产车）、`abnormal_vehicle`（异常车）三元组体系；
+  3) 明确“正常车”包括项目车与量产车，正常车的 `abnormal_type` 恒为 `NULL`，消除规则矛盾冲突；
+  4) 为 `dim.dim_vehicle_profile`、`dim.carbody_registry` 和 `mart.mart_position_current_overview` 补齐 `project_vehicle_no` 与滞留监控关键节点等属性列；
+  5) 接入自然语言到 `entity_type` 标准条件的 LLM System Instruction 与 Few-Shot 映射表。
+
+---
+
+## 2026-07-27 14:10 +08:00 - 界面极简重构：取消右侧全高分栏，升级为右侧毛玻璃悬浮场景直通卡片堆叠
+
+### 变更内容
+
+#### 前端 UI / 布局重构 (`frontend/src/`) [NEW/MODIFY]
+- **`frontend/src/components/FloatingScenarioCards.vue`** [NEW]：新增右侧毛玻璃悬浮场景直通卡片堆叠组件，支持收起/展开，全亮闪电 Icon、黄色背景 Badge、精细化深度微型按钮与淡蓝全宽按键（与视觉设计稿 100% 对齐）。
+- **`frontend/src/components/VariantB.vue`** [MODIFY]：移除右侧固定 320px~384px 全高 `aside` 分栏，解放聊天主屏画布视野，大幅提升极简视觉感受。
+- **`frontend/src/views/ChatView.vue`** [MODIFY]：移除右侧分栏插槽关联，全局挂载 `FloatingScenarioCards` 与 `ScenarioModal` 弹窗。
+- **`ScenarioModal` 弹窗极简与数据区最大化重构** [MODIFY]：
+  1) **`ScenarioModal.vue`**：头部栏精简为单行，压缩 Padding；
+  2) **`ParameterForm.vue`**：重构为横向网格与行内提交按钮，纵向高度从 300px+ 骤降至 70px 左右；
+  3) **`ResultRenderer.vue` & `TableResult.vue`**：结果数据集占据 80%+ 全垂直空间，支持表格内部独立纵向/横向自适应滚动；
+- **清理无用死代码** [DELETE]：清理移除了旧版已废弃的 `ScenarioList.vue` 与 `ScenarioPanel.vue` 组件，保持前端组件库纯净。
+
+---
+
+## 2026-07-27 11:10 +08:00 - 完成业务场景技能与快捷直通查询通用架构设计规范及四阶段全量实施
+
+### 核心实施与优化
+
+#### 架构规范文档 (docs/快捷查询/) [NEW/MODIFY]
+- **`scenario_architecture_spec.md` (v3.4)** [NEW/MODIFY]：全量 12 场景三段解耦落地，并升格为 `docs/skills/scenario_architecture_spec.md` 项目唯一权威技能规范 (Single Source of Truth, SSoT)。
+- **`docs/skills/` 统一收拢重构** [MODIFY]：整合收拢散落在 `docs/backend/skills/` 与旧 `guide.md` 的场景文档，统一指向 `docs/skills/scenario_architecture_spec.md`，彻底消除文档漂移与多头维护风险。
+- **`README.md` & `AGENTS.md`** [MODIFY]：对齐全局与入口文档的技能规范指针。
+
+#### Phase 1: 基础契约对齐与直通场景过滤
+- **`backend/app/schemas.py`**：`ScenarioItem` 响应模型补充 `direct_path_enabled: Optional[bool] = True` 字段；
+- **`backend/app/api.py`**：`list_scenarios_tree()` 路由实现 `is_direct_path_enabled` 过滤，确保纯 LLM 场景不会泄露到快捷直通侧边栏；
+- **`stranded_vehicle_detection/scenario.py`** & **`vehicle_historical_trace/scenario.py`**：对应配置 `direct_path_enabled: True/False` 标志。
+
+#### Phase 2: 安全与占位符修补
+- 修复 `vehicle_historical_trace/sql/main.sql`、`daily_area_body_count/sql/main.sql` 和 `abnormal_vehicle_monitor/sql/main.sql` 的 `-- {placeholder}` 注释穿透严重漏洞（防止条件被注释导致全表扫描）；
+- 将对应场景 `scenario.py` 中的 `sql_fragment` 统一修补为 `:param_name` 命名参数安全绑定。
+
+#### Phase 3: Token 精简与渲染隔离 RFC
+- **`backend/app/skills/renderers.py`**：Prompt 渲染剥离纯 UI 属性（`source_table`、`source_column`），节省 50%+ 提示词 Token 消耗；
+- **`backend/app/skills/discovery.py`**：支持 `SCENARIO` 与 `SCENARIO_META` 别名容错，并增加 `required_inputs`/`optional_inputs` 内存派生兜底。
+
+#### Phase 4: 高级控件与 UI/数据契约扩展
+- **`backend/app/skills/direct_path/resolver.py`**：`infer_widget` 扩充 `date` 与 `daterange` 日期类型推断；
+- **`backend/app/skills/direct_path/formatter.py`**：`format_result` 扩充 `output_type=="chart"` 转换结构（支持 `categories` 与 `series`）；
+- **`frontend/src/components/widgets/DateWidget.vue` [NEW]** & **`ParameterForm.vue`**：创建日期选择控件并在表单中完成注册映射。
+
+---
+
+## 2026-07-26 21:38 +08:00 - 快捷场景直通 SQL 查询引擎与标准三栏 + 大屏弹窗 UI 全量完成
+
+### 变更内容
+
+#### 新增与重构文档
+- **`docs/快捷查询/README.md`** [NEW]：汇总快捷场景直通查询引擎架构设计、后端 `resolver` / `executor` / `formatter` 分层规范、前端 3 栏 + `ScenarioModal` 大屏弹窗交互与二次开发指导。
+- **`docs/superpowers/specs/2026-07-26-scenario-quick-panel-design.md`**：初始规范设计文档。
+
+#### 后端直通引擎 (`backend/app/skills/direct_path/`) [NEW]
+- **`resolver.py`**：参数解析层，动态推断 `text`/`number`/`select`/`multiselect` 控件，安全查询 `source_table`/`source_column` 去重选项（含 60s 缓存）。
+- **`executor.py`**：SQL 安全构建层，读取场景 `sql/*.sql` 模板，未传参数整行裁剪，有值参数使用命名绑定（`:param_name`），防 SQL 注入。
+- **`formatters.py`**：结构化结果转换层，支持 `table` 与 `scalar` 两种格式输出。
+- **`schemas.py` & `api.py`**：导出 `ScenarioSummary`, `ScenarioParamsResponse`, `ScenarioExecuteResponse` 模型，挂载 `/api/scenarios` 路由（`GET /`, `GET /{domain}/{scenario}/params`, `POST /{domain}/{scenario}/execute`）。
+- **`tests/test_scenario_quick_panel_engine.py` & `test_scenario_quick_panel_api.py`**：11 项单元/集成测试 100% 通过。
+
+#### 前端 3 栏与弹窗 UI (`frontend/src/`) [NEW/MODIFY]
+- **`components/ScenarioModal.vue`** [NEW]：`max-w-5xl` 3D 毛玻璃弹窗，包含多模板 Tab 切换条、`ParameterForm` 表单与宽屏 `ResultRenderer` 数据表格。
+- **`components/ScenarioList.vue`** [NEW]：右侧栏卡片列表组件，按领域分组展示场景卡片，带实时搜索与一键直通触发按钮。
+- **`components/VariantB.vue` & `views/ChatView.vue`**：布局重构为标准三栏（左：历史会话，中：主问答区，右：快捷场景卡片栏），首页 `!currentSession` 时展示右侧栏。
+
+---
+
+## 2026-07-26 15:46 +08:00 - 完成依赖库版本基线升级与 requirements.txt 对齐 (支持 DeepAgent 演进)
+
+### 变更内容
+
+#### requirements.txt [MODIFY]
+- **`langchain`**: `1.2.15` → `1.3.14`
+- **`langchain-core`**: `1.3.0` → `1.5.1`
+- **`langchain-community`**: `0.4.1` → `0.4.2`
+- **`langgraph`**: `1.1.8` → `1.2.9`
+- **`langgraph-checkpoint`**: `3.0.1` → `4.1.1`
+- **`langgraph-checkpoint-postgres`**: `3.0.2` → `3.1.0` (解决 Postgres Checkpoint 4.x 依赖冲突)
+- **`langgraph-sdk`**: `0.3.5` → `0.4.2`
+- **`langsmith`**: `0.6.4` → `0.10.10`
+#### backend/app/custom state.py [DELETE]
+- 使用 `git rm` 清理了无任何代码引用的 0 字节死文件 `backend/app/custom state.py`。
+
+---
+
+## 2026-07-26 13:46 +08:00 - 深度精简与清理 .env 环境变量配置文件
+
+### 变更内容
+
+#### .env [MODIFY]
+- 移除已废弃的 `ROLLERBED_DATABASE_URL` 与 `MYSQL_DATABASE_URL` 配置。
+- 移除闲置的 `OLLAMA_*` 系列配置项（`OLLAMA_BASE_URL`、`OLLAMA_MODEL`、`OLLAMA_NUM_CTX`、`OLLAMA_KEEP_ALIVE`、`OLLAMA_EMBED_MODEL`）。
+- 保留并整理 `LLAMA_CPP_TOKENIZE_BASE_URL` 配置（供 `TOKEN_ESTIMATOR_ENGINE="llama_cpp"` 模式切回时使用）。
+- 清理已淘汰的历史节点 IP 注释与在线 `NVIDIA_API_KEY`。
+- 按 10 大核心功能模块重构并新增统一风格的 `# ======...======` 顶级分组注释，提升整体美观度与可维护性。
+
+#### backend/app/ [DELETE]
+- 清理删除了散落在生产业务目录 `backend/app/` 及其子目录内部的 20 个临时 `test_*.py` 文件。
+- 清理删除了废弃的旧版代码目录 `backend/app/agent/utils/old/`（含 `rerank_service.py`、`pgvector_wrapper.py` 等归档文件），保持源码干净纯粹。
+
+#### backend/app/config.py [MODIFY]
+- 移除 `Settings` 模型中的 `rollerbed_database_url` 和 `mysql_database_url` 属性，并将 `analytics_database_url` 默认值设为分析库连接。
+
+#### backend/app/agent/service.py [MODIFY]
+- 清理 `_get_business_database_url()` 与 `_get_business_database_engine_args()` 中的回退逻辑，直连 `ANALYTICS_DATABASE_URL`。
+
+---
+
 ## 2026-07-24 10:14 +08:00 - 修复滞留车检测在制车查询 NULL 值与 SQL 模板注释干扰漏洞
 
 ### 变更内容

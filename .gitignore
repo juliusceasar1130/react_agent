@@ -21,6 +21,7 @@ env_exp
 .env.production
 .env.development
 .env.test
+.env_all
 
 # Python
 *.pyc

@@ -114,11 +114,6 @@
     animation: scaleIn 0.2s ease-out;
   }
 
-  .cursor-blink {
-    @apply ml-0.5 inline-block h-4 w-1.5 rounded-sm bg-primary;
-    animation: blink 1s infinite;
-  }
-
   @keyframes fadeIn {
     from { opacity: 0; }
     to { opacity: 1; }
@@ -148,104 +143,294 @@
     }
   }
 
-  @keyframes blink {
-    0%, 50% {
-      opacity: 1;
-    }
-
-    51%, 100% {
-      opacity: 0;
-    }
-  }
-
+  /* ==========================================================================
+     LobeHub Chat 变体 Markdown 样式 (1:1 原生还原 variant='chat')
+     ========================================================================== */
   .message-markdown {
+    --lobe-markdown-font-size: 14px;
+    --lobe-markdown-header-multiple: 1;
+    --lobe-markdown-margin-multiple: 1.4;
+    --lobe-markdown-line-height: 1.75;
+    --lobe-markdown-border-radius: 8px;
+
+    position: relative;
+    width: 100%;
+    max-width: 100%;
+    font-size: var(--lobe-markdown-font-size);
+    line-height: var(--lobe-markdown-line-height);
+    overflow-wrap: break-word;
     color: inherit;
   }
 
-  .message-markdown > :first-child {
-    margin-top: 0;
+  /* GFM Alert (Callout) 卡片样式 */
+  .message-markdown .markdown-alert {
+    margin-block: calc(var(--lobe-markdown-margin-multiple) * 0.5em);
+    padding: 0.7em 1em;
+    border-inline-start: solid 4px var(--alert-color, #3b82f6);
+    background-color: var(--alert-bg, rgba(59, 130, 246, 0.05));
+    border-radius: 0 var(--lobe-markdown-border-radius) var(--lobe-markdown-border-radius) 0;
+    color: var(--markdown-text, inherit);
+    box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.02);
   }
 
-  .message-markdown > :last-child {
-    margin-bottom: 0;
-  }
-
-  .message-markdown p,
-  .message-markdown ul,
-  .message-markdown ol,
-  .message-markdown blockquote,
-  .message-markdown pre,
-  .message-markdown .table-container,
-  .message-markdown h1,
-  .message-markdown h2,
-  .message-markdown h3,
-  .message-markdown h4 {
-    margin: 0 0 0.9rem;
-  }
-
-  .message-markdown strong {
-    font-weight: 700;
-  }
-
-  .message-markdown p {
-    line-height: 1.8;
-  }
-
-  .message-markdown p:has(> strong:only-child) {
-    margin-bottom: 0.7rem;
-    border-left: 4px solid rgb(37 99 235 / 0.72);
-    padding-left: 0.75rem;
-    font-size: 1rem;
-    font-weight: 700;
+  .message-markdown .markdown-alert-title {
+    display: flex;
+    align-items: center;
+    gap: 0.4em;
+    font-weight: 600;
+    font-size: 0.9em;
+    margin-bottom: 0.3em;
+    color: var(--alert-color, #3b82f6);
     letter-spacing: 0.01em;
   }
 
-  .message-markdown ul,
-  .message-markdown ol {
+  .message-markdown .markdown-alert-title .alert-icon {
+    font-size: 1.1em;
+    line-height: 1;
+  }
+
+  .message-markdown .markdown-alert p {
+    margin-block: 0.2em;
+  }
+
+  .message-markdown .markdown-alert p:last-child {
+    margin-bottom: 0;
+  }
+
+  .message-markdown .markdown-alert-note { --alert-color: #3b82f6; --alert-bg: rgba(59, 130, 246, 0.06); }
+  .message-markdown .markdown-alert-tip { --alert-color: #10b981; --alert-bg: rgba(16, 185, 129, 0.06); }
+  .message-markdown .markdown-alert-important { --alert-color: #a855f7; --alert-bg: rgba(168, 85, 247, 0.06); }
+  .message-markdown .markdown-alert-warning { --alert-color: #f59e0b; --alert-bg: rgba(245, 158, 11, 0.06); }
+  .message-markdown .markdown-alert-caution { --alert-color: #ef4444; --alert-bg: rgba(239, 68, 68, 0.06); }
+
+  /* 1. 消除首尾元素间距 (紧致贴合对话气泡) */
+  .message-markdown > *:first-child {
+    margin-top: 0 !important;
+  }
+
+  .message-markdown > *:last-child {
+    margin-bottom: 0 !important;
+  }
+
+  /* 2. 段落 (p) 与标题 (h1-h6) 紧凑边距与倍率计算 */
+  .message-markdown p {
+    margin-block: 4px;
+    line-height: var(--lobe-markdown-line-height);
+    letter-spacing: 0.01em;
+  }
+
+  .message-markdown p:not(:first-child) {
+    margin-block-start: calc(var(--lobe-markdown-margin-multiple) * 0.4em);
+  }
+
+  .message-markdown p:not(:last-child) {
+    margin-block-end: calc(var(--lobe-markdown-margin-multiple) * 0.4em);
+  }
+
+  .message-markdown p:has(> strong:only-child) {
+    margin-block: 0.5em 0.3em;
+    font-size: 1em;
+    font-weight: 600;
+    letter-spacing: 0.01em;
+  }
+
+  .message-markdown h1,
+  .message-markdown h2,
+  .message-markdown h3,
+  .message-markdown h4,
+  .message-markdown h5,
+  .message-markdown h6 {
+    margin-block: max(
+      calc(var(--lobe-markdown-header-multiple) * var(--lobe-markdown-margin-multiple) * 0.4em),
+      var(--lobe-markdown-font-size)
+    );
+    font-weight: bold;
+    line-height: 1.25;
+    color: var(--color-title, inherit);
+  }
+
+  .message-markdown h1 { font-size: calc(var(--lobe-markdown-font-size) * (1 + 0.5 * var(--lobe-markdown-header-multiple))); }
+  .message-markdown h2 { font-size: calc(var(--lobe-markdown-font-size) * (1 + 0.3 * var(--lobe-markdown-header-multiple))); }
+  .message-markdown h3 { font-size: calc(var(--lobe-markdown-font-size) * (1 + 0.15 * var(--lobe-markdown-header-multiple))); }
+
+  .message-markdown strong {
+    font-weight: 600;
+  }
+
+  /* 3. 列表美化与修饰标签还原 */
+  .message-markdown ul {
+    list-style-type: disc;
+    margin-block: calc(var(--lobe-markdown-margin-multiple) * 0.5em);
     padding-left: 1.4rem;
   }
 
-  .message-markdown li + li {
-    margin-top: 0.35rem;
+  .message-markdown ol {
+    list-style-type: decimal;
+    margin-block: calc(var(--lobe-markdown-margin-multiple) * 0.5em);
+    padding-left: 1.4rem;
   }
 
-  .message-markdown code {
-    border-radius: 0.45rem;
-    background: rgb(37 99 235 / 0.08);
-    padding: 0.12rem 0.38rem;
-    font-size: 0.92em;
-    color: rgb(29 78 216);
+  .message-markdown li::marker {
+    color: rgb(148 163 184);
+    font-weight: 500;
+  }
+
+  .message-markdown li + li {
+    margin-top: 0.25rem;
+  }
+
+  .message-markdown del {
+    text-decoration: line-through;
+    opacity: 0.75;
+  }
+
+  .message-markdown em,
+  .message-markdown i {
+    font-style: italic;
+  }
+
+  .message-markdown ins,
+  .message-markdown u {
+    text-decoration: underline;
+    text-underline-offset: 3px;
+  }
+
+  .message-markdown sub {
+    vertical-align: sub;
+    font-size: 0.75em;
+  }
+
+  .message-markdown sup {
+    vertical-align: super;
+    font-size: 0.75em;
+  }
+
+  .message-markdown hr {
+    border: 0;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, rgb(203 213 225 / 0.8), transparent);
+    margin-block: 1.2em;
+  }
+
+  .message-markdown input[type="checkbox"] {
+    margin-right: 0.4em;
+    vertical-align: middle;
+    accent-color: var(--color-primary, #3b82f6);
+  }
+
+  /* 4. LobeHub 官方风格 Blockquote 卡片 */
+  .message-markdown blockquote {
+    margin-block: calc(var(--lobe-markdown-margin-multiple) * 0.5em);
+    margin-inline: 0;
+    padding: 0.5em 1em;
+    border-inline-start: solid 4px rgb(148 163 184 / 0.6);
+    background-color: rgb(248 250 252);
+    border-radius: 0 var(--lobe-markdown-border-radius) var(--lobe-markdown-border-radius) 0;
+    color: rgb(71 85 105);
+  }
+
+  .message-markdown blockquote p {
+    margin: 0;
+  }
+
+  /* 5. 行内 Code 与 代码块 Pre (1:1 LobeChat 极简暗夜风) */
+  .message-markdown code:not(pre code) {
+    margin-inline: 0.2em;
+    padding: 0.15em 0.35em;
+    border: 1px solid rgb(226 232 240);
+    border-radius: 0.25em;
+    font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+    font-size: 0.875em;
+    background: rgb(241 245 249 / 0.8);
+    color: rgb(51 65 85);
   }
 
   .message-markdown pre {
+    margin-block: calc(var(--lobe-markdown-margin-multiple) * 0.5em);
     overflow-x: auto;
-    border-radius: 1rem;
-    background: linear-gradient(180deg, rgb(15 23 42 / 0.96), rgb(30 41 59 / 0.96));
-    padding: 0.95rem 1rem;
-    color: #e2e8f0;
+    border-radius: var(--lobe-markdown-border-radius);
+    background: #18181c !important;
+    border: 1px solid rgba(255, 255, 255, 0.08) !important;
+    padding: 0.85rem 1rem;
+    color: #e4e4e7;
+    font-size: calc(var(--lobe-markdown-font-size) * 0.875);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
   }
 
   .message-markdown pre code {
-    background: transparent;
-    padding: 0;
+    background: transparent !important;
+    padding: 0 !important;
+    border: none !important;
     color: inherit;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   }
 
-  .message-markdown blockquote {
-    border-left: 3px solid rgb(20 184 166 / 0.32);
-    background: linear-gradient(180deg, rgb(20 184 166 / 0.06), rgb(241 245 249 / 0.7));
-    padding: 0.75rem 0.95rem;
-    color: rgb(71 85 105);
-    border-radius: 0.9rem;
+  /* LobeChat 代码块包裹卡片与 IDE Header */
+  .code-block-wrapper {
+    position: relative;
+    border-radius: 8px;
+    overflow: hidden;
+    background-color: #18181c;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    margin-block: 0.75rem;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
   }
 
+  .code-block-wrapper pre {
+    margin: 0 !important;
+    border: none !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+  }
+
+  .code-block-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background-color: rgba(255, 255, 255, 0.04);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+    padding: 6px 12px;
+    font-size: 11px;
+    font-family: ui-monospace, SFMono-Regular, monospace;
+    color: #a1a1aa;
+    user-select: none;
+  }
+
+  .code-block-header .code-lang {
+    text-transform: lowercase;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    color: #cbd5e1;
+  }
+
+  .code-block-header .code-copy-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 11px;
+    color: #a1a1aa;
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    padding: 2px 6px;
+    border-radius: 4px;
+    transition: all 0.15s ease;
+  }
+
+  .code-block-header .code-copy-btn:hover {
+    color: #f4f4f5;
+    background-color: rgba(255, 255, 255, 0.1);
+  }
+
+  /* 6. 表格美化 (Table Container) */
   .message-markdown .table-container {
     width: 100%;
+    margin-block: calc(var(--lobe-markdown-margin-multiple) * 0.5em);
     overflow-x: auto;
     border: 1px solid rgb(219 229 240);
-    border-radius: 0.95rem;
+    border-radius: var(--lobe-markdown-border-radius);
     background: rgb(255 255 255 / 0.98);
-    box-shadow: 0 16px 30px -24px rgb(15 23 42 / 0.4);
+    box-shadow: 0 10px 25px -15px rgb(15 23 42 / 0.2);
     -webkit-overflow-scrolling: touch;
   }
 
@@ -264,26 +449,28 @@
     background: linear-gradient(180deg, rgb(250 251 252 / 1), rgb(241 245 249 / 1));
   }
 
+  /* 表格全列统一优雅水平居中对齐 (使用 !important 破除 markdown-it 生成的行内 style=text-align:left 压制) */
   .message-markdown th,
   .message-markdown td {
     min-width: 5rem;
     border-bottom: 1px solid rgb(219 229 240);
-    padding: 0.78rem 0.9rem;
+    padding: 0.65rem 0.9rem;
     text-align: center !important;
     vertical-align: middle;
     white-space: normal;
-    line-height: 1.6;
+    line-height: 1.5;
   }
 
   .message-markdown th {
-    font-size: 0.82rem;
-    font-weight: 700;
-    color: rgb(51 65 85);
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: rgb(30 41 59);
+    letter-spacing: 0.015em;
   }
 
   .message-markdown td {
-    font-size: 0.9rem;
-    color: rgb(30 41 59);
+    font-size: 0.875rem;
+    color: rgb(51 65 85);
   }
 
   .message-markdown th + th,
@@ -299,17 +486,9 @@
     border-bottom: none;
   }
 
-  .message-markdown th:nth-child(2),
-  .message-markdown td:nth-child(2) {
-    font-variant-numeric: tabular-nums;
-  }
-
-  /* 移除了 th:last-child, td:last-child 的强制 12rem 最小宽度限制，以防止非必要情况下的严重拉伸 */
-
-  /* 智能数据重点高亮：大模型使用 **加粗** 标记时自动渲染为品牌蓝色 */
   .message-markdown td strong {
-    color: var(--color-primary);
-    font-weight: 700;
+    color: rgb(15 23 42);
+    font-weight: 600;
   }
 
   .message-markdown a {
@@ -319,8 +498,22 @@
     text-underline-offset: 0.16rem;
   }
 
-  .message-markdown > p:last-child {
-    margin-bottom: 0;
+  /* 7. LobeHub 流式打字呼吸光标 (Streaming Caret) */
+  .message-markdown.is-streaming > *:last-child::after,
+  .message-markdown.is-streaming > p:last-child::after,
+  .message-markdown.is-streaming > li:last-child::after {
+    content: '▋';
+    display: inline-block;
+    margin-left: 3px;
+    vertical-align: baseline;
+    animation: lobe-caret-blink 0.8s steps(2, start) infinite;
+    color: var(--color-primary, #3b82f6);
+    font-weight: bold;
+  }
+
+  @keyframes lobe-caret-blink {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0; }
   }
 }
 

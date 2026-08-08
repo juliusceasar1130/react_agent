@@ -106,9 +106,9 @@ def discover_scenarios(domain: DiscoveredDomain) -> list[ScenarioSkill]:
             f"backend.app.skills.domains.{domain.name}.scenarios.{scenario_dir.name}.scenario",
             scenario_file,
         )
-        scenario = getattr(module, "SCENARIO", None)
+        scenario = getattr(module, "SCENARIO", None) or getattr(module, "SCENARIO_META", None)
         if not isinstance(scenario, dict):
-            raise ValueError(f"场景元数据必须定义 SCENARIO: {scenario_file}")
+            raise ValueError(f"场景元数据必须定义 SCENARIO 或 SCENARIO_META: {scenario_file}")
 
         scenario_name = scenario.get("name")
         if not isinstance(scenario_name, str) or not scenario_name:
@@ -130,6 +130,15 @@ def discover_scenarios(domain: DiscoveredDomain) -> list[ScenarioSkill]:
         scenario_payload.setdefault("parameters", {})
         scenario_payload.setdefault("sql_template_refs", [])
         scenario_payload.setdefault("script_refs", [])
+
+        # 自动派生 required_inputs / optional_inputs (防护缺漏引起 KeyError)
+        params_dict = scenario_payload["parameters"]
+        if "required_inputs" not in scenario_payload or "optional_inputs" not in scenario_payload:
+            req_inputs = [k for k, v in params_dict.items() if v.get("required")]
+            opt_inputs = [k for k, v in params_dict.items() if not v.get("required")]
+            scenario_payload.setdefault("required_inputs", req_inputs)
+            scenario_payload.setdefault("optional_inputs", opt_inputs)
+
         scenario_payload["scenario_root"] = str(scenario_dir.resolve())
         scenario_payload["domain_root"] = str(domain.domain_dir.resolve())
 

@@ -5,7 +5,7 @@ from unittest.mock import MagicMock, patch, AsyncMock
 from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
 from langgraph.checkpoint.memory import MemorySaver
 
-from langchain_openai import ChatOpenAI
+from langchain_deepseek import ChatDeepSeek
 from backend.app.agent.service import SQLAgentService
 from backend.app.agent.state import CustomState
 
@@ -28,7 +28,7 @@ async def test_agent_persistence_without_message_pollution():
     mock_retriever.retrieve = MagicMock(return_value=[mock_scored_result])
     
     # 3. 模拟 LLM 模型调用，直接返回完成的 AIMessage
-    mock_llm = MagicMock(spec=ChatOpenAI)
+    mock_llm = MagicMock(spec=ChatDeepSeek)
     mock_llm.bind_tools.return_value = mock_llm
     mock_llm.bind.return_value = mock_llm
     mock_llm.ainvoke = AsyncMock(return_value=AIMessage(content="查询验证已通过"))
@@ -38,7 +38,7 @@ async def test_agent_persistence_without_message_pollution():
 
     # 5. Mock 词典检索器，防止在测试期间发起外部网络请求
     with patch("backend.app.agent.middleware.rag_middleware.DatabaseLexiconRetriever") as mock_lexicon_class, \
-         patch("backend.app.agent.service.ChatOpenAI", return_value=mock_llm), \
+         patch("backend.app.agent.llm.QwenChatDeepSeek", return_value=mock_llm), \
          patch("backend.app.agent.service.create_business_retriever_and_reranker", return_value=(mock_retriever, None)):
          
         mock_lexicon_retriever = AsyncMock()
