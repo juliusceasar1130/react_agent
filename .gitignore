@@ -5,6 +5,8 @@ frontend/dist/
 .playwright-mcp
 .codex
 .qoder
+.agent/skills/
+.agent/workflows/
 
 # Node modules
 node_modules/
