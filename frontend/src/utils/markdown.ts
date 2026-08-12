@@ -87,8 +87,8 @@ export const extractMetaData = (content: string): { cleanContent: string; meta: 
   let cleanContent = content
   const meta: MessageMetaData = {}
 
-  // 1. 优先提取并清除时间（方括号格式：[数据真实查询时刻: ...]）
-  const bracketTimeRegex = /\[数据真实查询时刻[:：]\s*([^\]]+)\]/g
+  // 1. 优先提取并清除时间（方括号格式：[数据真实查询时刻: ...]，支持连带列表符与尾随标点擦除）
+  const bracketTimeRegex = /(?:^\s*[-*•]\s*)?\[数据真实查询时刻[:：]\s*([^\]]+)\][。.;；]?/g
   const bracketTimeMatch = bracketTimeRegex.exec(cleanContent)
   if (bracketTimeMatch) {
     meta.queryTime = bracketTimeMatch[1].trim()
@@ -96,7 +96,7 @@ export const extractMetaData = (content: string): { cleanContent: string; meta: 
   }
 
   // 2. 提取并清除普通文本时间（格式：查询时间：YYYY-MM-DD HH:MM:SS）
-  const textTimeRegex = /(?:查询时间|查询时刻)[:：]\s*([0-9\-\ :]+)/g
+  const textTimeRegex = /(?:^\s*[-*•]\s*)?(?:查询时间|查询时刻)[:：]\s*([0-9\-\ :]+)[。.;；]?/g
   const textTimeMatch = textTimeRegex.exec(cleanContent)
   if (textTimeMatch) {
     if (!meta.queryTime) {
@@ -105,8 +105,8 @@ export const extractMetaData = (content: string): { cleanContent: string; meta: 
     cleanContent = cleanContent.replace(textTimeRegex, '')
   }
 
-  // 3. 提取并清除数据来源（消灭时间后，抓取"数据来源:"后面的表名文本，遇句号、中括号 [ 或换行停止）
-  const sourceRegex = /数据来源[:：]\s*([^。\[\n\r]+)/g
+  // 3. 提取并清除数据来源（连同前缀列表前缀 -/* 与尾随句号/点号一并清除）
+  const sourceRegex = /(?:^\s*[-*•]\s*)?数据来源[:：]\s*([^。\[\n\r]+)[。.;；]?/g
   const sourceMatch = sourceRegex.exec(cleanContent)
   if (sourceMatch) {
     let ds = sourceMatch[1].trim()
@@ -120,7 +120,11 @@ export const extractMetaData = (content: string): { cleanContent: string; meta: 
   const fileLinkRegex = /!?\[[^\]]*\]\s*\(file:\/\/\/[^\)]+\)/g
   cleanContent = cleanContent.replace(fileLinkRegex, '')
 
-  // 4. 清理残留的多余换行与逗号等垃圾标记并收拢为标准的双换行（保持段落、表格与正文的空行隔离）
+  // 4. 后置管道清洗：清除因擦除元数据后残留的孤立空列表行 (-/*) 或孤立标点符号行 (。/.)
+  cleanContent = cleanContent.replace(/^[ \t]*[-*•][ \t]*$/gm, '')
+  cleanContent = cleanContent.replace(/^[ \t]*[。.,，;；][ \t]*$/gm, '')
+
+  // 5. 清理残留的多余换行与逗号等垃圾标记并收拢为标准的双换行（保持段落、表格与正文的空行隔离）
   cleanContent = cleanContent.replace(new RegExp('\\n\\s*[,，，、]\\s*\\n', 'g'), '\n\n')
   cleanContent = cleanContent.replace(new RegExp('\\n\\s*\\n', 'g'), '\n\n').trim()
 

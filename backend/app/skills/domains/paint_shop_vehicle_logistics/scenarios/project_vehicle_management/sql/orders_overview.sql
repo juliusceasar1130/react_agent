@@ -18,4 +18,5 @@ LEFT JOIN dim.dim_vehicle_profile vp
 WHERE 1=1
     {project_stage_filter}
     {project_vehicle_no_filter}
+    {has_defect_only_filter}
 ORDER BY pvo."created_at" DESC;

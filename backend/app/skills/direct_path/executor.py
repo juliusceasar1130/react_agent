@@ -14,12 +14,14 @@ logger = logging.getLogger(__name__)
 def build_executed_sql(
     raw_sql: str,
     parameters_def: dict[str, Any],
-    user_params: dict[str, Any]
+    user_params: dict[str, Any],
+    template_name: str | None = None,
 ) -> tuple[str, dict[str, Any]]:
     """
     解析 SQL 模板：
     1. 判定为空的参数（None, "", 纯空白）整行删除
-    2. 有值的参数使用 sql_fragment 替换，将 {value} 转化为命名参数 :param_name
+    2. 有值的参数使用 sql_fragment (优先读取 template_sql_fragments[template_name]) 替换，将 {value} 转化为命名参数 :param_name
+    3. 系统默认全局将 LIKE 转换为 ILIKE，实现不区分大小写的模糊匹配
     """
     bind_vars = {}
     lines = raw_sql.splitlines()
@@ -34,20 +36,27 @@ def build_executed_sql(
                 val = user_params.get(param_name)
                 # 判定非空值
                 if val is not None and str(val).strip() != "":
-                    sql_fragment = param_def.get("sql_fragment", "")
+                    # 优先获取模板专属的 SQL 片段，降级使用通用 sql_fragment
+                    template_fragments = param_def.get("template_sql_fragments", {})
+                    sql_fragment = (template_fragments.get(template_name) if template_name else None) or param_def.get("sql_fragment", "")
                     bind_placeholder = f":{param_name}"
                     
                     # 替换 {value}
                     replaced_fragment = sql_fragment.replace("{value}", bind_placeholder)
                     
-                    # 物理类型转换
-                    p_type = param_def.get("type", "string")
-                    if p_type == "integer":
-                        bind_vars[param_name] = int(val)
-                    elif p_type == "float":
-                        bind_vars[param_name] = float(val)
-                    else:
-                        bind_vars[param_name] = str(val)
+                    # 系统默认全局行为：将 LIKE 自动转换为 PostgreSQL 的 ILIKE (不区分大小写模糊匹配)
+                    if " LIKE " in replaced_fragment:
+                        replaced_fragment = replaced_fragment.replace(" LIKE ", " ILIKE ")
+
+                    # 仅当片段中实际包含占位符时进行物理类型转换与变量绑定
+                    if bind_placeholder in replaced_fragment:
+                        p_type = param_def.get("type", "string")
+                        if p_type == "integer":
+                            bind_vars[param_name] = int(val)
+                        elif p_type == "float":
+                            bind_vars[param_name] = float(val)
+                        else:
+                            bind_vars[param_name] = str(val)
 
                     line = line.replace(placeholder, replaced_fragment)
                     final_lines.append(line)
@@ -100,7 +109,7 @@ def execute_scenario(
     parameters_def = scenario.get("parameters", {})
 
     # 构建并净化 SQL
-    clean_sql, bind_vars = build_executed_sql(raw_sql, parameters_def, params)
+    clean_sql, bind_vars = build_executed_sql(raw_sql, parameters_def, params, template_name=target_template)
 
     from backend.app.config import settings
     from sqlalchemy import create_engine

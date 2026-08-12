@@ -16,5 +16,6 @@ FROM fct.fct_vehicle_defect_enriched vde
 WHERE 1=1
     AND vde."project_vehicle_no" IS NOT NULL
     {project_vehicle_no_filter}
+    {body_type_filter}
     {has_defect_only_filter}
 ORDER BY vde."detect_time" DESC;

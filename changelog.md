@@ -1,3 +1,22 @@
+## 2026-08-12 12:35 +08:00 - 项目车直通查询场景缺陷过滤修补与模糊搜索大小写敏感增强 (backend/app/skills/direct_path)
+
+### 变更内容
+
+#### 1. 项目车直通查询场景“仅看缺陷车”全视图过滤修补 [BUGFIX & FEATURE]
+- **修补在制位置与订单台账视图**：在 `current_positions.sql` 与 `orders_overview.sql` 模板的 `WHERE` 条件中补全 `{has_defect_only_filter}` 占位符，消除了以往切换“仅看缺陷项目车”时参数被静默丢弃的问题。
+- **关联判定优化 (`scenario.py`)**：使用 `EXISTS (SELECT 1 FROM fct.fct_vehicle_defect_enriched ...)` 通用子查询重构 `has_defect_only_filter` 片段，使所有视图均能精准过滤出存在缺陷记录的项目车。
+- **完善下拉选项**：补全 `options` 为 `[{"value": "", "label": "全部"}, {"value": "true", "label": "仅缺陷车"}]`。
+
+#### 2. 多模板别名动态适配 (`template_sql_fragments`) [BUGFIX & ARCHITECTURE]
+- **架构扩展 (`backend/app/skills/direct_path/executor.py`)**：在 `build_executed_sql` 中新增对 `template_sql_fragments` 的动态匹配支持。当同一个参数在不同 SQL 模板中的主表别名不同（如 `current_positions` 为 `fpc.`、`orders_overview` 为 `pvo.`、`quality_defects` 为 `vde.`）时，引擎会自动精准选择对应模板的表别名表达式。
+- **彻底消除 SQL 歧义与缺少表报错**：消除了在 `current_positions` 模板下两表同名字段引发的 PostgreSQL `AmbiguousColumn` 歧义报错，同时保证了在 `quality_defects` 模板下不会触发 `missing FROM-clause entry` 语法异常。
+
+#### 5. Markdown 元数据提取正则连带擦除与孤立点号管道清洗 [BUGFIX & OPTIMIZE]
+- **正则擦除强化 (`frontend/src/utils/markdown.ts`)**：在 `extractMetaData` 中升级 `sourceRegex`、`bracketTimeRegex` 与 `textTimeRegex`，在匹配元数据时连同前缀的列表符（`- `, `* `）与末尾的句号（`。`, `.`）整行剔除。
+- **后置管道清洗**：增加擦除后的管道扫尾规则，自动清理空列表符行 (`/^[ \t]*[-*•][ \t]*$/gm`) 与孤立标点行 (`/^[ \t]*[。.,，;；][ \t]*$/gm`)，彻底消除了擦除元数据后在正文末尾遗留单个句号或小圆点的随机样式瑕疵。
+
+---
+
 ## 2026-08-06 23:34 +08:00 - 行级实体数据提取确定性排序优化 (backend/app/agent/vector/sql_lexicon/pipeline/extractor_nodes.py)
 
 ### 变更内容

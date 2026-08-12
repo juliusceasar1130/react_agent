@@ -17,5 +17,7 @@ WHERE 1=1
     AND fpc."project_vehicle_no" IS NOT NULL
     {project_stage_filter}
     {project_vehicle_no_filter}
+    {body_type_filter}
     {process_area_filter}
+    {has_defect_only_filter}
 ORDER BY fpc."vehicle_updated_at" DESC;

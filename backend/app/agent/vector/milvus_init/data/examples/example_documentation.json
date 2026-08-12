@@ -649,5 +649,85 @@
         "异常车"
       ]
     }
+  },
+  {
+    "document": "涂装车间工艺路径【步骤1】：车身依次经过 电泳橇与面漆橇转换区域 → 200点1A横移叉 → 200点1B横移叉 → PVC入口储存线。本步骤为单线顺序流动，完成后车身进入步骤2。",
+    "metadata": {
+      "type": "documentation",
+      "domain": "paint_shop_vehicle_logistics",
+      "process": "process_flow",
+      "term": "步骤1-电泳后转运",
+      "aliases": []
+    }
+  },
+  {
+    "document": "涂装车间工艺路径【步骤2】：车身从PVC入口储存线分流至一线、二线或三线PVC线。一线路径：一线PVC预装→一线PVC预装进口离线口→一线PVC预装出口离线口→一线PVC吊架进口→一线PVC底部预装→一线PVC底部机器人站→一线PVC底部刷胶房→一线PVC吊架出口→一线PVC内腔机器人站→一线PVC细密封线→一线SDM站，完成后进入步骤3一线细密封出口。二线路径：二线PVC预装→二线PVC预装进口离线口→二线PVC预装出口离线口→二线PVC吊架进口→二线PVC底部预装→二线PVC底部机器人站→二线PVC底部刷胶房→二线PVC吊架出口→二线PVC内腔机器人站→二线PVC细密封线→二线SDM站→二线门槛机器人站→二线门槛及SDM自动检查工位，完成后进入步骤3二线细密封出口。三线路径：三线PVC预装→三线PVC预装进口离线口→三线PVC预装出口离线口→三线PVC吊架进口→三线PVC底部预装→三线PVC底部机器人站→三线PVC底部刷胶房→三线PVC吊架出口→三线PVC内腔机器人站→三线PVC细密封线→三线SDM站→三线门槛机器人站→三线门槛及SDM自动检查工位，完成后进入步骤3三线细密封出口。",
+    "metadata": {
+      "type": "documentation",
+      "domain": "paint_shop_vehicle_logistics",
+      "process": "process_flow",
+      "term": "步骤2-PVC涂胶分流",
+      "aliases": []
+    }
+  },
+{
+    "document": "涂装车间工艺路径【步骤3】：各线PVC完成的车身在此汇集并送入烘房。一线经一线细密封出口→一线出口离线口；二线经二线细密封出口→二线门槛出口离线口；三线经三线细密封出口→三线门槛出口离线口。三线车流通过0-4.5米升降机提升至4.5米层，经一线4.5米转台、二线4.5米转台、三线4.5米转台汇入PVC出口4.5米储存线，再送入PVC烘房进口9米储存线，最后分入PVC-9米一线烘房（含强冷）或PVC-9米二线烘房（含强冷）进行烘干。",
+    "metadata": {
+      "type": "documentation",
+      "domain": "paint_shop_vehicle_logistics",
+      "process": "process_flow",
+      "term": "步骤3-烘房入口汇合",
+      "aliases": []
+    }
+  },
+  {
+    "document": "涂装车间工艺路径【步骤4】：烘房完成后车身进入9米层整理。路径为：一线烘房9米储存线/二线烘房9米储存线 → 烘房9米储存线后，并行经过9米烘房出口储存线、9米防腐Audit1.1、9米防腐Audit1.2检查，随后通过9米到4.5米升降机降至4.5米打磨前储存线。",
+    "metadata": {
+      "type": "documentation",
+      "domain": "paint_shop_vehicle_logistics",
+      "process": "process_flow",
+      "term": "步骤4-烘房后储存与检查",
+      "aliases": []
+    }
+  },
+  {
+    "document": "涂装车间工艺路径【步骤5】：在4.5米打磨前储存线的车身，按需进入4.5米打磨返工返回线，并依次经过1B310RB（待确认工序）、1D170RB（待确认工序），准备进入打磨主线。",
+    "metadata": {
+      "type": "documentation",
+      "domain": "paint_shop_vehicle_logistics",
+      "process": "process_flow",
+      "term": "步骤5-打磨前过渡",
+      "aliases": []
+    }
+  },
+  {
+    "document": "涂装车间工艺路径【步骤6】：车身分流至打磨一线、打磨二线或打磨三线。打磨一线：打磨一线主线 → 打磨一线防腐奥迪特 → 打磨一线大返 → 一线分色线。打磨二线：打磨二线主线 → 打磨二线防腐奥迪特 → 打磨二线大返 → 二线分色线。打磨三线：打磨三线主线 → 打磨三线防腐奥迪特 → 打磨三线大返 → 三线分色线。",
+    "metadata": {
+      "type": "documentation",
+      "domain": "paint_shop_vehicle_logistics",
+      "process": "process_flow",
+      "term": "步骤6-打磨分流",
+      "aliases": []
+    }
+  },
+  {
+    "document": "涂装车间工艺路径【步骤7】：打磨完成的车身分流至报交一线、报交二线或报交三线。报交一线：报交一线主线前道 → 报交1.2 → 报交1.1 → 一线点修补返回线 → 点修补1.3 → 点修补1.2 → 点修补1.1 → 1I450RB（待确认）→ 报交一线离线口。报交二线：报交二线主线前道 → 报交2.2 → 报交2.1 → 二线点修补返回线 → 点修补2.2 → 点修补2.1 → 1G340RB（待确认）→ 二线报交出口。报交三线：报交三线主线前道 → 报交3.1 → 报交3.2 → 1D245RB（待确认）→ 1D250RB（待确认）→ 1D255RB（待确认）→ 三线点修补返回线 → 点修补3.3 → 点修补3.1 → 点修补3.2 → 三线离线口。",
+    "metadata": {
+      "type": "documentation",
+      "domain": "paint_shop_vehicle_logistics",
+      "process": "process_flow",
+      "term": "步骤7-报交分流与点修补",
+      "aliases": []
+    }
+  },
+  {
+    "document": "涂装车间工艺路径【步骤8】：各报交线完成的车身最终汇聚并进行奥迪特评审。一线：一线报交出口 → 奥迪特1.1 → 奥迪特1.2；二线：二线报交出口 → 奥迪特2.1 → 奥迪特2.2；三线：三线报交出口 → 奥迪特3.1 → 奥迪特3.2。三线车流汇入报交出口4.5米平台和报交出口9米平台，最后依次通过1K470RB（待确认）、1K475RB（待确认）完成全流程。",
+    "metadata": {
+      "type": "documentation",
+      "domain": "paint_shop_vehicle_logistics",
+      "process": "process_flow",
+      "term": "步骤8-最终报交与奥迪特",
+      "aliases": []
+    }
   }
 ]
