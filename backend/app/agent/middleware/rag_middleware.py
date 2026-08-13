@@ -73,21 +73,38 @@ class BusinessRagMiddleware(AgentMiddleware[CustomState]):
 
     @staticmethod
     def _is_human_message(msg: BaseMessage) -> bool:
-        """判断是否为用户消息"""
+        """判断是否为用户消息或 Task 输入消息"""
         msg_type = getattr(msg, "type", None) or getattr(msg, "role", None)
-        return msg_type == "human"
+        return msg_type in ("human", "user")
 
     def _extract_query(self, state: CustomState) -> tuple[List[BaseMessage], str] | None:
-        """提取用户消息和查询文本，非用户消息或空查询时跳过。"""
+        """提取用户消息和查询文本，自适应主 Agent 原始 HumanMessage 与 SubAgent 包装的 Task 消息。"""
         messages: List[BaseMessage] = state.get("messages", [])
         if not messages:
             return None
-        last_msg = messages[-1]
-        if not self._is_human_message(last_msg):
+
+        # 检查是否已包含业务知识系统消息标识，防止同一 Turn 内重复触发 RAG (Legacy 检查)
+        if self._has_rag_system_message(messages):
             return None
-        user_query = getattr(last_msg, "content", None) or getattr(last_msg, "text", "")
+
+        # 倒序查找最新的一条 Human/User 消息（主 Agent 匹配原始用户提问，SubAgent 匹配 Task 描述）
+        user_query = None
+        for msg in reversed(messages):
+            if self._is_human_message(msg):
+                content = getattr(msg, "content", None) or getattr(msg, "text", "")
+                if isinstance(content, str) and content.strip():
+                    user_query = content.strip()
+                    break
+
         if not user_query:
             return None
+
+        # 新架构防重复判定：若 state 中 rag_query 与当前 user_query 一致，证明当次 Turn 已做过 RAG 检索
+        existing_rag_query = state.get("rag_query")
+        if isinstance(existing_rag_query, str) and existing_rag_query == user_query:
+            logger.debug("BusinessRagMiddleware: 当前 query 已在当次 Turn 中完成 RAG 检索，跳过重复检索。")
+            return None
+
         return messages, user_query
 
     @staticmethod
@@ -188,7 +205,11 @@ class BusinessRagMiddleware(AgentMiddleware[CustomState]):
 
         except Exception as e:
             logger.error(f"BusinessRagMiddleware 同步检索失败: {e}", exc_info=True)
-            return None
+            return {
+                "rag_context": [],
+                "rag_query": user_query,
+                "lexicon_context": None,
+            }
 
         return self._format_and_assemble_state(user_query, messages, retrieved_docs, lexicon_results)
 
@@ -268,7 +289,11 @@ class BusinessRagMiddleware(AgentMiddleware[CustomState]):
 
         except Exception as e:
             logger.error(f"BusinessRagMiddleware 异步检索失败: {e}", exc_info=True)
-            return None
+            return {
+                "rag_context": [],
+                "rag_query": user_query,
+                "lexicon_context": None,
+            }
 
         return self._format_and_assemble_state(user_query, messages, retrieved_docs, lexicon_results)
 
@@ -439,7 +464,11 @@ class BusinessRagMiddleware(AgentMiddleware[CustomState]):
 
         if not rag_sections:
             logger.info("BusinessRagMiddleware: 未检索到任何相关辅助参考信息")
-            return None
+            return {
+                "rag_context": [],
+                "rag_query": user_query,
+                "lexicon_context": None,
+            }
 
         rag_system_content = (
             f"{self._rag_system_message_id}\n\n"

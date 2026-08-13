@@ -15,7 +15,8 @@
       "Bash(openspec validate add-sql-agent --strict)",
       "Bash(python:*)",
       "WebFetch(domain:docs.anthropic.com)",
-      "Bash(git add:*)"
+      "Bash(git add:*)",
+      "Bash(conda run -n py312_agent python -c ' *)"
     ]
   }
 }

@@ -16,7 +16,7 @@
 #### 关键依赖版本说明（详见 [requirements.txt](file:///f:/000_dev/Python/workplace/rearch_agent/.tree/features/agent-llamaindex-rag/requirements.txt)）
 - **`langchain`**：`1.3.14`（已从 `1.2.15` 升级至最新 1.3.x 主线）
 - **`langchain-core`**：`1.5.1`
-- **`deepagents`**：`0.6.12`（新增接入的生产级 Agent Harness）
+- **`deepagents`**：`0.7.5`（新增接入的生产级 Agent Harness）
 - **`langgraph`**：`1.2.9`（LangGraph 1.2+ Stateful Graph 运行时引擎）
 - **`langgraph-checkpoint-postgres`**：`3.1.0`（异步 Postgres Saver 检查点表支持）
 - **`langgraph-sdk`**：`0.4.2`
@@ -102,15 +102,16 @@
 
 deepagents 默认栈的处置：
 
-| deepagents 默认 middleware | 处置 | 理由 |
-| :--- | :--- | :--- |
-| `SubAgentMiddleware`（`task` 工具） | 挂载 ✅ | 核心路由机制 |
-| `SummarizationMiddleware` | 挂载 ✅ | 与项目自建功能一致，可复用/替换 |
-| `PatchToolCallsMiddleware` | 挂载 ✅ | 修补悬空 tool call，有益 |
-| `HumanInTheLoopMiddleware` | 评估对齐 | 项目已有 AskUserQuestion + interrupt |
-| `SkillsMiddleware` | 并存评估 | 与项目 `SkillMiddleware` 概念同构 |
-| `FilesystemMiddleware` | 禁用全局 🔴 | SQL 场景不需要；仅在 DeepAnalyst 子图内启用 |
-| `TodoListMiddleware` | 禁用全局 🔴 | 仅 DeepAnalyst 子图内需要 Todo 规划 |
+| middleware | 来源 | 处置 | 理由 |
+| :--- | :--- | :--- | :--- |
+| `SubAgentMiddleware`（`task` 工具） | deepagents | 挂载 ✅ | 核心路由机制；不可 `excluded_middleware` 移除 |
+| `FilesystemMiddleware` | deepagents | 完全开放 ✅ | 主 Agent `tools="all"`，可直接产出文件产物 |
+| `MemoryMiddleware` / `memory=` | deepagents | 评估 | deepagents 长对话记忆机制 |
+| `SummarizationMiddleware` | deepagents.middleware.summarization | 默认栈第4位 ✅ | 压缩消息历史；langchain 另有同名类（service.py:27 现用），迁移后用 deepagents 版 |
+| `TodoListMiddleware` | langchain.agents.middleware | 仅 DeepAnalyst 子图 | Todo 规划下沉子智能体 |
+| `HumanInTheLoopMiddleware` | deepagents | 评估对齐 | 项目已有 AskUserQuestion + interrupt |
+| `SkillsMiddleware` | deepagents | 并存评估 | 与项目 `SkillMiddleware` 概念同构 |
+| `PatchToolCallsMiddleware` | deepagents.middleware.patch_tool_calls | 默认栈第5位 | 修复悬空 tool call、中断时修补消息历史（deepagents 独有） |
 
 ### 2.3 最终选型结论
 
@@ -155,9 +156,9 @@ flowchart TD
 
 1. **主 Agent（`create_deep_agent`）**：
    - 使用原生的 `subagents=[sql_subagent, rag_subagent]` 传入子智能体配置列表；
-   - 自动包含 DeepAgents 内置的 `SubAgentMiddleware`（`task` 工具）、`SummarizationMiddleware` 与 `PatchToolCallsMiddleware`；
+   - 自动包含 DeepAgents 内置栈：`SubAgentMiddleware`（`task` 工具）、`SummarizationMiddleware`、`PatchToolCallsMiddleware`（三者均 deepagents 默认栈成员，本地 `inspect` 确认）；另有 `MemoryMiddleware`（传 `memory=` 时）、`HumanInTheLoopMiddleware`（传 `interrupt_on=` 时）；
    - 保留项目特有 middleware：`BusinessRagMiddleware`、`ContextWarningMiddleware`、`PromptCompilerMiddleware`；
-   - 主 Agent 关闭全局虚拟文件系统（`filesystem=None`），仅作为全局规划与多智能体协调者；
+   - 主 Agent 文件系统**完全开放**（`FilesystemMiddleware(tools="all")`），可直接产出文件产物；`execute` 依赖沙盒属范围外；
    - system_prompt 仅描述“何时调用哪个子 Agent”，不再塞 SQL 语法规则 / RAG 规则——上下文膨胀问题靠领域智能体切分彻底解决。
 2. **SQL subagent（SQL 子智能体）**：
    - 将现有 [backend/app/agent/service.py](file:///f:/000_dev/Python/workplace/rearch_agent/.tree/features/agent-llamaindex-rag/backend/app/agent/service.py) 的 SQL 工具集（`wrapped_sql_query` / 词典检索 / `build_chart_artifact` / `export_to_csv`）+ SQL 专属 Prompt 声明为领域子智能体；
@@ -181,11 +182,11 @@ flowchart TD
 > **现状澄清（重要）**：当前 [services.py](file:///f:/000_dev/Python/workplace/rearch_agent/.tree/features/agent-llamaindex-rag/backend/app/services.py) 的 `astream` 调用使用 `stream_mode=["messages","updates","custom"]`，**尚未开启 `subgraphs=True`**；`_unpack_stream_chunk` 仅为 sync/async 形状兼容，并非 namespace 解包。下列各项为**阶段 1 完成后即可达成**的目标，而非已具备的现状。
 
 1. **现存前端功能零破坏（向后兼容目标）**：
-   - 官方文档指出：当后端在 `astream` 中开启 `subgraphs=True` 时，LangGraph 会将流式 Chunk 包装为 `(namespace, chunk)` 元组输出。
-   - **前端无感**：FastAPI 后端在 [services.py](file:///f:/000_dev/Python/workplace/rearch_agent/.tree/features/agent-llamaindex-rag/backend/app/services.py) 解包 `(namespace, chunk)` 后，继续将其格式化为标准的 SSE `data: {"type": "token", ...}` 字符串推送。前端消费层零影响，打字机逐字输出、`tool_artifact` 表格/ECharts 渲染原样运行。
+   - 官方文档指出：当后端在 `astream` 中开启 `subgraphs=True` 并设 `version="v2"` 时，LangGraph 输出 `StreamPart` dict（含 `type`/`ns`/`data`，**非 v1 的 `(namespace, chunk)` 元组**）；需 LangGraph>=1.1，项目 1.2.9 满足。
+   - **前端无感**：FastAPI 后端在 [services.py](file:///f:/000_dev/Python/workplace/rearch_agent/.tree/features/agent-llamaindex-rag/backend/app/services.py) 解包 chunk 后，将 `type=="messages"` 的 token 格式化为标准 SSE `data: {"type": "token", ...}` 推送。前端消费层零影响，打字机逐字输出、`tool_artifact` 表格/ECharts 渲染原样运行。
    - **前置条件**：阶段 1 必须先完成 subgraph-as-subagent 的流式事件透出验证（见 5.3 待验证技术点），“100% 兼容”才真正成立。
 2. **后端解包的额外收获（精准感知子 Agent 切换）**：
-   - 后端可通过元组中的 `namespace`（如 `("sql_agent",)`）精确识别当前响应的领域子 Agent，从而自动向前端触发 `subagent_change` SSE 事件，驱动前端 `SubAgentBadge.vue` 组件刷新。
+   - 后端可通过 chunk 的 `ns`（子智能体为 `("tools:<task_call_id>",)`，**非子智能体 name**）识别当前响应来自子智能体；显示名需从 `task` 调用 args 的 `subagent_name` 或 metadata `lc_agent_name` 映射，据此向前端触发 `subagent_change` SSE 事件，驱动前端 `SubAgentBadge.vue` 组件刷新。
 3. **渐进增强（Add-on Components）**：
    - 在阶段二、三中，前端只需以非侵入方式加入 3 个小型的 Vue 3 组件，即可透明化展示多 Agent 切换与 Task 规划卡片。
 
@@ -293,9 +294,9 @@ export interface Message {
 ```text
 阶段 1: 主 Agent harness 切换 + SQL subagent 封装
   ├── 主 Agent 从 create_agent 切换为 create_deep_agent
-  │   ├── 挂载 SubAgentMiddleware（task 工具）+ SummarizationMiddleware + PatchToolCallsMiddleware
+  │   ├── deepagents 默认栈自动挂载 SubAgentMiddleware（task 工具）+ SummarizationMiddleware + PatchToolCallsMiddleware
   │   ├── 保留项目特有 middleware（BusinessRagMiddleware / ContextWarningMiddleware / PromptCompilerMiddleware）
-  │   └── 禁用全局 FilesystemMiddleware / TodoListMiddleware
+  │   └── FilesystemMiddleware 完全开放（tools="all"）；TodoListMiddleware 仅 DeepAnalyst 子图内启用
   ├── 将现有 SQLAgentService 的 SQL 工具集封装为 CompiledStateGraph subagent
   ├── 后端在 astream 中开启 subgraphs=True，验证子图流式事件透出
   └── 保持现行 SSE 事件不变，前端 0 改动兼容运行
@@ -332,10 +333,10 @@ export interface Message {
 ### 5.3 落地前必须验证的技术点 (验证结果汇总)
 
 1. **版本兼容性核对 [已完成 ✅]**：
-   - 依赖已成功对齐至 `langchain 1.3.14` + `deepagents 0.6.12` + `langgraph 1.2.9` + `langgraph-checkpoint-postgres 3.1.0`，所有包冲突已消除。
-2. **子图-as-subagent 流式 PoC [已验证通过 ✅]**：
+   - 依赖已成功对齐至 `langchain 1.3.14` + `deepagents 0.7.5` + `langgraph 1.2.9` + `langgraph-checkpoint-postgres 3.1.0`，所有包冲突已消除。
+2. **子图-as-subagent 流式 PoC [部分验证 ⚠️]**：
    - 已编写并运行 PoC 验证脚本 [test_subagent_poc.py](file:///f:/000_dev/Python/workplace/rearch_agent/.tree/features/agent-llamaindex-rag/backend/app/agent/test_subagent_poc.py)。
-   - 实测证明 `create_deep_agent` + `subagent.as_tool()` 组合在开启 `.astream(..., subgraphs=True)` 时，能完美吐出并解包 `(namespace, chunk)` 元组，子智能体上下文隔离与打字机输出无缝兼容。
+   - 实测证明 `create_deep_agent` + `subagent.as_tool()` 组合在开启 `.astream(..., subgraphs=True)` 时，能吐出并解包 `(namespace, chunk)` 元组，打字机输出兼容。**但 PoC 走的是 `as_tool`（普通 tool）路径，未验证生产采用的 `SubAgentMiddleware` + `CompiledSubAgent` + `task` 委派路径**；后者需补 PoC 覆盖 `general-purpose` 兜底、namespace 隔离、`interrupt_on` HITL。
 3. **deepagents middleware 与项目特有 middleware 执行顺序 [已验证 ✅]**：
    - `SubAgentMiddleware` 与项目自研的 `SkillMiddleware`、`ContextWarningMiddleware`、`PromptCompilerMiddleware` 可并行挂载，顺序正常，无上下文覆盖风险。
 
@@ -344,7 +345,7 @@ export interface Message {
 ## 六、 结论总结
 
 1. **选型已定**：从单一 Text-to-SQL 升级为通用智能体可行。**采纳方案 D——deepagents 选择性采纳 + 隐式工具路由**：主 Agent 用 `create_deep_agent` + `SubAgentMiddleware`（`task` 工具）实现零 TTFT 路由，子领域封装为 `CompiledStateGraph` subagent 传入；底层仍为 LangGraph，复用 PostgresSaver / SSE / HITL。
-2. **PoC 验证全线通过**：在 `test_subagent_poc.py` 中全链路验证了版本兼容、Subagent-as-Tool 委派调度与 `astream(subgraphs=True)` 元组解包，前置验证项 100% 通过，已具备正式进入实施阶段的条件。
+2. **PoC 验证部分通过**：`test_subagent_poc.py` 验证了版本兼容与 `as_tool` 路径的 `astream(subgraphs=True)` 元组解包；但 `SubAgentMiddleware` + `CompiledSubAgent` + `task` 委派的生产路径尚未验证，实施前需补 PoC。
 3. **否决 Supervisor**：显式 Supervisor 路由因增加 TTFT、与现状偏离大、领域数 ≤5 无收益，予以否决；方案 C（隐式路由自建）作为零外部依赖约束下的降级备选。
 4. **前端兼容性**：兼容性论证逻辑成立，随着 PoC 流式透出验证通过，4.1 节“100% 兼容”目标完全达成。技术栈基于 Vue 3 + Pinia + ECharts + Fetch Stream，符合项目规范与离线部署约束。
 5. **架构资产落盘**：本报告已更新并保存在 `docs/deepagent/generic_agent_architecture_report.md`，作为后续架构评审与实施的权威基准。

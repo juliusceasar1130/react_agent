@@ -69,6 +69,8 @@ export interface Message {
   }> | null
   lexicon_context?: LexiconContext | null
   tool_artifact?: ToolArtifact | null
+  active_subagent?: string | null
+  subagent_display_name?: string | null
 }
 
 export interface MessageCreate {
@@ -217,6 +219,15 @@ export type StreamEvent =
       type: 'tool_artifact'
       artifact: ToolArtifact
     }
+  | {
+      type: 'subagent_change'
+      active_subagent: string
+      display_name: string
+    }
+  | {
+      type: 'plan_update'
+      plan: Record<string, unknown>
+    }
 
 export interface FinalizedStreamingMessage {
   id?: string
@@ -265,6 +276,8 @@ export interface StreamingMessage {
   }> | null
   lexiconContext?: LexiconContext | null
   tool_artifact?: ToolArtifact | null
+  active_subagent?: string | null
+  subagent_display_name?: string | null
 }
 
 // 聊天请求类型 - 2025-01-01

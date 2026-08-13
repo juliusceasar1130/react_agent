@@ -180,7 +180,7 @@ frontend/src/
 ### 7.5 为 DeepAgent 铺路的正确顺序 (最新进度)
 
 ```text
-1. 升级 langchain 到 >= 1.3.11 以兼容 deepagents   ← 【已完成 ✅】(langchain 1.3.14 + deepagents 0.6.12)
+1. 升级 langchain 到 >= 1.3.11 以兼容 deepagents   ← 【已完成 ✅】(langchain 1.3.14 + deepagents 0.7.5)
 2. 在兼容基线上做 DeepAgent PoC，跑通单个子智能体   ← 【已完成 ✅】(test_subagent_poc.py 验证通过)
 3. 由 PoC 需求驱动目录演进                           ← 【当前进行中 🚀】按需重构，而非猜测
 ```

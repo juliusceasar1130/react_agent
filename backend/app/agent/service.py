@@ -22,6 +22,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, Optional
 
 from langchain.agents import create_agent
+from deepagents import create_deep_agent, CompiledSubAgent
 from langchain.agents.middleware import (
     ModelCallLimitMiddleware,
     SummarizationMiddleware,
@@ -37,6 +38,7 @@ from backend.app.agent.middleware import (
     ContextWarningMiddleware,
     SkillMiddleware,
     PromptCompilerMiddleware,
+    RagPromptInjectorMiddleware,
 )
 from backend.app.agent.tools import (
     create_chart_artifact_tool,
@@ -527,10 +529,65 @@ class SQLAgentService:
             retriever = None
 
         lexicon_retriever = rag_middleware.lexicon_retriever if rag_middleware else None
-        tools = _prepare_tools(db, llm, retriever=retriever, lexicon_retriever=lexicon_retriever)
-        system_prompt = _build_system_prompt(db)
+        sql_tools = _prepare_tools(db, llm, retriever=retriever, lexicon_retriever=lexicon_retriever)
+        sql_system_prompt = _build_system_prompt(db)
 
         token_estimator = _create_token_estimator()
+
+        # 构建调用限制中间件（同时为子智能体和主 Agent 提供防死循环熔断保护）
+        call_limit_middlewares: list[Any] = []
+        if settings.agent_model_call_run_limit > 0:
+            call_limit_middlewares.append(
+                ModelCallLimitMiddleware(
+                    run_limit=settings.agent_model_call_run_limit,
+                    exit_behavior=settings.agent_call_limit_exit_behavior,  # type: ignore[arg-type]
+                )
+            )
+        if settings.agent_tool_call_run_limit > 0:
+            call_limit_middlewares.append(
+                ToolCallLimitMiddleware(
+                    run_limit=settings.agent_tool_call_run_limit,
+                    exit_behavior=settings.agent_call_limit_exit_behavior,  # type: ignore[arg-type]
+                )
+            )
+
+        # 1. 构建专门属于 SQL 子智能体 (sql_subgraph) 的领域中间件列表
+        # (子智能体继承父 Agent 深拷贝的 State.lexicon_context，由 PromptCompilerMiddleware 直接注入，不再装配 BusinessRagMiddleware 避免重复检索与指令噪声)
+        subagent_middleware_list = [
+            *call_limit_middlewares,
+            SkillMiddleware(db),
+            PromptCompilerMiddleware(),
+        ]
+
+        # 编译 SQL 领域子图，并将领域中间件、SQL 工具与 SQL Prompt 装配给子智能体
+        sql_subgraph = create_agent(
+            model=llm,
+            tools=sql_tools,
+            system_prompt=sql_system_prompt,
+            middleware=subagent_middleware_list,
+        )
+        sql_subagent = CompiledSubAgent(
+            name="sql_domain_agent",
+            description="【SQL 数据查询分析专家子智能体】专用于处理与数据库查询、SQL 执行、在制车统计、图表生成与 CSV 导出相关的请求。",
+            runnable=sql_subgraph,
+        )
+
+        main_system_prompt = (
+            "你是一个企业级通用数据智能体编排助手。\n\n"
+            "当你收到用户关于数据库查询、数据统计分析、车间在制车数量、生成图表或导出 CSV 文件的请求时，"
+            "请通过 task 工具委派给 sql_domain_agent 子智能体处理。\n\n"
+            "# 任务委派协议 (Task Delegation Protocol)\n"
+            "在通过 task 工具向 sql_domain_agent 委派任务时，必须严格遵守以下分工协议：\n\n"
+            "1. **主子职责分离**：\n"
+            "   - 描述中只传递用户的【业务目标】、【业务意图】、【业务过滤条件】（如颜色代码、车间名称）以及【期望产物格式】（如表格/图表）。\n"
+            "   - **严禁强行指定数据库物理表名、视图名或具体的 SQL 语法结构**（SQL 子智能体是专业的数据库分析专家，具备完备的 Schema 自愈与物理表选择能力，不需要也不应当由你指定物理表/视图名）。\n\n"
+            "2. **自适应意图与探查授权**：\n"
+            "   - **确切需求**：若用户提供了明确确切的过滤参数（如 FIS 号、具体时间范围），精准转达业务参数。\n"
+            "   - **模糊/探索性需求**（如用户问题较宽泛、名称存疑或可能存在多种数据来源）：\n"
+            "     - 转达用户的核心业务意图；\n"
+            "     - **显式授权探查**：在 task 描述中补充提示：“该需求属于探索性查询，请充分利用 search_db_value_lexicon 和物理词典工具探查数据库中数据的真实落地点与列值映射后再生成 SQL。”\n\n"
+            "对于日常问候、通用知识解答或普通文本问答，可以直接友好地回答用户。"
+        )
 
         def exact_token_counter(messages: list) -> int:
             formatted = []
@@ -569,38 +626,21 @@ class SQLAgentService:
             token_counter=exact_token_counter,
         )
 
-        # 构建调用限制中间件（防止Agent无限调用工具无法跳出）
-        call_limit_middlewares: list[Any] = []
-        if settings.agent_model_call_run_limit > 0:
-            call_limit_middlewares.append(
-                ModelCallLimitMiddleware(
-                    run_limit=settings.agent_model_call_run_limit,
-                    exit_behavior=settings.agent_call_limit_exit_behavior,  # type: ignore[arg-type]
-                )
-            )
-        if settings.agent_tool_call_run_limit > 0:
-            call_limit_middlewares.append(
-                ToolCallLimitMiddleware(
-                    run_limit=settings.agent_tool_call_run_limit,
-                    exit_behavior=settings.agent_call_limit_exit_behavior,  # type: ignore[arg-type]
-                )
-            )
-
-        middleware_list = [
+        # 2. 构建属于主 Agent (create_deep_agent) 的全局长会话管理与全量 RAG 中间件列表
+        main_middleware_list = [
             *call_limit_middlewares,
             summarization_middleware,
-            SkillMiddleware(db),
             _create_context_warning_middleware(token_estimator),
-            PromptCompilerMiddleware(),
+            RagPromptInjectorMiddleware(),
         ]
         if rag_middleware:
-            middleware_list.insert(0, rag_middleware)
+            main_middleware_list.insert(0, rag_middleware)
 
         return {
             "llm": llm,
-            "tools": tools,
-            "system_prompt": system_prompt,
-            "middleware": middleware_list,
+            "subagents": [sql_subagent],
+            "system_prompt": main_system_prompt,
+            "middleware": main_middleware_list,
         }
 
     def _initialize_agent(self) -> None:
@@ -617,14 +657,14 @@ class SQLAgentService:
                 else {}
             )
 
-            self.agent = create_agent(
+            self.agent = create_deep_agent(
                 model=components["llm"],
-                tools=components["tools"],
+                subagents=components["subagents"],
                 system_prompt=components["system_prompt"],
                 middleware=components["middleware"],
                 **agent_kwargs,
             )
-            logger.info("SQL Agent 同步路径初始化成功")
+            logger.info("SQL Agent 同步路径初始化成功 (create_deep_agent + CompiledSubAgent)")
         except Exception as exc:
             logger.error("SQL Agent 同步路径初始化失败: %s", exc)
             raise
@@ -643,14 +683,14 @@ class SQLAgentService:
                 else {}
             )
 
-            self.agent = create_agent(
+            self.agent = create_deep_agent(
                 model=components["llm"],
-                tools=components["tools"],
+                subagents=components["subagents"],
                 system_prompt=components["system_prompt"],
                 middleware=components["middleware"],
                 **agent_kwargs,
             )
-            logger.info("SQL Agent 异步路径初始化成功")
+            logger.info("SQL Agent 异步路径初始化成功 (create_deep_agent + CompiledSubAgent)")
         except Exception as exc:
             logger.error("SQL Agent 异步路径初始化失败: %s", exc)
             raise

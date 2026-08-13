@@ -71,7 +71,9 @@ const STREAM_EVENT_TYPES = new Set<StreamEvent['type']>([
   'interrupt',
   'rag_context',
   'lexicon_context',
-  'tool_artifact'
+  'tool_artifact',
+  'subagent_change',
+  'plan_update'
 ])
 
 const STREAM_STAGES = new Set<StreamStage>(['thinking', 'retrieving', 'querying', 'writing'])
@@ -193,6 +195,25 @@ const parseStreamEvent = (payload: string): StreamEvent | null => {
       return {
         type: 'tool_artifact',
         artifact: parsed.artifact as unknown as ToolArtifact,
+      }
+
+    case 'subagent_change':
+      if (typeof parsed.active_subagent !== 'string') {
+        return null
+      }
+      return {
+        type: 'subagent_change',
+        active_subagent: parsed.active_subagent,
+        display_name: typeof parsed.display_name === 'string' ? parsed.display_name : '智能体',
+      }
+
+    case 'plan_update':
+      if (!isRecord(parsed.plan)) {
+        return null
+      }
+      return {
+        type: 'plan_update',
+        plan: parsed.plan,
       }
 
     case 'final':

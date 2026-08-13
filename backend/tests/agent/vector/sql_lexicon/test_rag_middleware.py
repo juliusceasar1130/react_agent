@@ -86,3 +86,34 @@ async def test_business_rag_middleware_abefore_model():
         assert len(detail["tables"]) == 2  # 1个主表 + 1个辅助表
         assert detail["tables"][0]["table_name"] == "dim.dim_test_table"
         assert detail["tables"][1]["table_name"] == "dim.dim_value_table"
+
+        # 2. 测试二次调用 (同一 Turn 内相同 query 与已有 lexicon_context)：应直接跳过 RAG 检索返回 None
+        state_after_first = {
+            "messages": [HumanMessage(content="查询测试")],
+            "rag_query": "查询测试",
+            "lexicon_context": result["lexicon_context"]
+        }
+        second_result = await middleware.abefore_model(state_after_first, runtime)
+        assert second_result is None
+
+
+@pytest.mark.asyncio
+async def test_business_rag_middleware_exception_handling():
+    """测试 3: 当 RAG 检索抛出异常时，仍更新 rag_query 并将 lexicon_context 置为 None，防止同 Turn 内循环重试"""
+    mock_retriever = MagicMock()
+    mock_retriever.retrieve.side_effect = RuntimeError("Milvus connection failed")
+
+    middleware = BusinessRagMiddleware(
+        retriever=mock_retriever,
+        doc_k=1,
+    )
+    state = {"messages": [HumanMessage(content="异常测试")]}
+    runtime = MagicMock()
+
+    result = await middleware.abefore_model(state, runtime)
+    assert result is not None
+    assert result["rag_query"] == "异常测试"
+    assert result["lexicon_context"] is None
+    assert result["rag_context"] == []
+
+

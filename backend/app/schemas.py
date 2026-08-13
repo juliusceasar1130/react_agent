@@ -208,6 +208,17 @@ class ToolArtifactStreamEvent(BaseModel):
     artifact: Dict[str, Any]
 
 
+class SubagentChangeStreamEvent(BaseModel):
+    type: Literal["subagent_change"] = "subagent_change"
+    active_subagent: str
+    display_name: str
+
+
+class PlanUpdateStreamEvent(BaseModel):
+    type: Literal["plan_update"] = "plan_update"
+    plan: Dict[str, Any]
+
+
 class FinalStreamEvent(BaseModel):
     type: Literal["final"]
     content: str
@@ -245,6 +256,8 @@ ChatStreamEvent = Annotated[
         RAGContextStreamEvent,
         LexiconContextStreamEvent,
         ToolArtifactStreamEvent,
+        SubagentChangeStreamEvent,
+        PlanUpdateStreamEvent,
     ],
     Field(discriminator="type"),
 ]

@@ -24,6 +24,14 @@
       </div>
 
       <div class="px-5 py-3.5">
+        <div v-if="!isUser && message.active_subagent" class="mb-2.5">
+          <SubAgentBadge
+            :subagent="message.active_subagent"
+            :display-name="message.subagent_display_name"
+            :is-streaming="isStreamingActive"
+          />
+        </div>
+
         <ReasoningAccordion
           v-if="!isUser && reasoningText"
           :reasoning-text="reasoningText"
@@ -549,6 +557,7 @@
 
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
+import SubAgentBadge from '@/components/SubAgentBadge.vue'
 import ChartArtifactCard from '@/components/ChartArtifactCard.vue'
 import AskUserQuestionCard from '@/components/AskUserQuestionCard.vue'
 import ReasoningAccordion from '@/components/ReasoningAccordion.vue'

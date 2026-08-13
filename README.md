@@ -410,16 +410,15 @@ config = {"configurable": {"thread_id": str(session_id)}}
 result = await agent.ainvoke({"messages": [...]}, config=config)
 ```
 
-### Agent 模块化架构 (Agent V2)
+### DeepAgent 多智能体架构 (Agent Architecture)
 
-该系统已升级为高度模块化的 Agent V2 架构，替代了传统的 Multi-Step 模式，核心流程如下：
+系统基于 `deepagents` (0.7.5) 升级为模块化 DeepAgent 多智能体架构，主 Agent (`create_deep_agent`) 与领域子智能体 (`CompiledSubAgent`) 分工协作，核心流程如下：
 
-1. **预加载 Schema**: 移除了原生的 `sql_db_list_tables` 和 `sql_db_schema` 工具，在服务启动时全量解析表结构与中文注释，提升响应速度和准确度。
-2. **技能路由增强 (SkillMiddleware)**: 在核心 Agent 前置中间件拦截请求，动态加载特定业务领域（如订单、物流）的 Schema 上下文，防止全局全量 Schema 注入导致 LLM 上下文溢出 (Token Limit)。
-3. **二级技能披露 (Domain + Scenario)**: 领域 skill 只提供公共业务知识与场景摘要；固定统计、固定报表类问题可按需再加载场景 skill，获取固定 workflow、统计口径、易错点与模板引用。当前场景已按目录聚合组织，并通过自动发现接入，新增场景不再手改注册中心。
-4. **知识与示例检索 (BusinessRagMiddleware)**: 基于 PGVector 或 Milvus 的混合检索，智能匹配相关的业务术语解释或历史相似的优质 SQL 示例。
-5. **安全与弹性 SQL 执行 (Wrapped Query Tool)**: 深度封装了执行节点，强制进行基于正则黑名单的语法与安全检查（拦截 `DROP` 等命令），并带有智能行数截断限流机制，大结果自动总结为预览。
-6. **异步/大文件导出**: 针对巨量查询结果请求，系统提供单独的 `export_to_csv` 工具让 Agent 可以选择生成下载文件而非污染对话历史；前端会根据工具结果自动展示下载卡片。
+1. **主 Agent 隐式路由编排 (`create_deep_agent`)**：作为顶层路由与上下文集中编排中枢，集成默认虚拟文件系统 `FilesystemMiddleware`，托管 `task` 工具进行领域子智能体任务委派。
+2. **SQL 领域子智能体 (`CompiledSubAgent`)**：将 Text-to-SQL 逻辑独立编译为 `sql_subgraph`，专注处理 SQL 生成、安全校验、语法试错自愈、图表生成与 CSV 导出，保持主对话历史干净高效。
+3. **主 Agent 单点 RAG 检索与 State 继承透传 (`BusinessRagMiddleware`)**：基于原始用户提问在主 Agent 入口统一触发全量 RAG（向量知识库 + 三层数据库物理词典），通过 State 深拷贝透传给子智能体，由子智能体 `PromptCompilerMiddleware` 无痕注入，**实现 0 次重复检索开销与 100% 纯净 Query 召回**。
+4. **思考模式动态注入 (`RagPromptInjectorMiddleware`)**：打捞运行时 `RunnableConfig` 中的 `enable_thinking` 参数，支持发包层级动态控制推理引擎思考模式。
+5. **安全与弹性 SQL 执行 (Wrapped Query Tool)**：深度封装 SQL 执行节点，强制进行黑名单语法检查（拦截 `DROP` / `DELETE` 等命令），带有智能行数截断限流机制与图表/下载卡片渲染。
 
 ### 日期标准化清洗 (Strategy A)
 

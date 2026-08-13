@@ -1,3 +1,57 @@
+## 2026-08-10 22:15 +08:00 - DeepAgent 思考模式注入、RAG 防重复与流式领域识别精细化修缮
+
+### 变更内容
+
+#### 1. 主 Agent `enable_thinking` 思考模式动态注入修复 (`backend/app/agent/middleware/rag_prompt_injector_middleware.py`) [FIX]
+- **思考模式补齐**：在 `RagPromptInjectorMiddleware` 中新增 `_inject_thinking_config`，从运行期 `RunnableConfig` 捕获客户端传入的 `enable_thinking` 并动态写入模型发包参数 `extra_body.chat_template_kwargs`。
+- **单元测试补充**：在 `test_rag_prompt_injector_middleware.py` 中补充思考模式参数注入断言，测试 100% 绿色通过。
+
+#### 2. RAG 同 Turn 检索防重复与异常分支标记机制修复 (`backend/app/agent/middleware/rag_middleware.py`) [FIX]
+- **防重复判定修正**：在 `BusinessRagMiddleware._extract_query` 中，增加当次 `user_query` 与 `state.get("rag_query")` 的对比逻辑。
+- **提升 SQL 试错性能**：当子智能体进行 SQL 试错多轮 ReAct 思考/工具回包时，自动跳过二次 RAG 检索，避免了同一 Turn 内重复跑向量检索+三层词典检索的高额开销。
+- **异常捕获分支容错**：当向量库/数据库抛出连接异常时，返回 `{"rag_context": [], "rag_query": user_query, "lexicon_context": None}` 标记当次 Turn 已尝试，彻底解决故障期间模型多轮 ReAct 循环反复打卡重试的隐患。
+- **单元测试补充**：在 `test_rag_middleware.py` 中增加同 Turn 内二次调用防重断言与异常捕获标记断言，测试 100% 绿色通过。
+
+#### 3. 流式 `subagent_change` 领域目标动态解析精细化 (`backend/app/services.py`) [FIX]
+- **委派目标动态字典追踪**：在 `SQLAgentService` 的流式解析代码中，将 ID 追踪升级为 `active_task_targets: dict[str, str]`，从 `task` 工具调用参数 `args` 中动态打捞真实委派目标子智能体名称（如 `sql_domain_agent` 或 `general-purpose`）。
+- **多子智能体徽章精准映射**：精细区分 `sql_domain_agent` (展示 `SQL数据助手`) 与 `general-purpose` (展示 `通用助手`) 以及主 Agent 自身执行普通文件工具（`read_file` / `write_file`），彻底解决了多子智能体架构下的 UI 徽章误报与闪烁。
+
+---
+
+## 2026-08-09 17:25 +08:00 - DeepAgent 多智能体架构升级（阶段一：核心功能与 UI 徽章全量落地）
+
+### 变更内容
+
+#### 1. 后端主 Agent 工厂升级为 `create_deep_agent` (`backend/app/agent/service.py`) [UPGRADE]
+- **隐式路由编排**：将 `SQLAgentService` 的主 Agent 升级为 `create_deep_agent`（移除根参数误传的 `tools="all"`，继承默认 `FilesystemMiddleware` 全量文件读写能力，解决 `AttributeError: 'function' object has no attribute 'name'` 初始化报错）。
+- **SQL 领域子图封装**：将原 SQL 工具集与 System Prompt 隔离编译为 `sql_subgraph`，并使用 `CompiledSubAgent(name="sql_domain_agent", runnable=sql_subgraph)` 包装传入 `subagents=[...]`，由框架自动托管 `task` 工具与 `SubAgentMiddleware`。
+- **中间件层级精准分层与全量 RAG**：将包含业务术语与三层数据库物理词典（`table_schema_store`, `db_value_lexicon`, `db_row_lexicon`）的 `BusinessRagMiddleware` 同时挂载给主 Agent 与 `sql_subgraph` 子智能体；在 `_extract_query` 升级为倒序扫描算法，自适应主 Agent 的 `HumanMessage` 与子 Agent 的 Task 描述。
+- **主 Agent 任务委派协议 (`Task Delegation Protocol`)**：在 `main_system_prompt` 增加主 Agent 委派约束规则，限定主 Agent 仅传递业务目标、过滤条件与期望产物格式，严禁强行硬编码物理表名/视图名或 SQL 结构；针对模糊需求追加“探查授权 (Exploration License)”，让 SQL 子智能体发挥专业 Schema 自愈与词典探查能力。
+- **防死循环双重熔断**：将 `call_limit_middlewares` (`ModelCallLimitMiddleware` / `ToolCallLimitMiddleware`) 同时装配给子智能体与主 Agent，防止 SQL 试错与主路由陷入死循环。
+- **双初始化路径同步**：同步更新 `_initialize_agent`（同步模式）与 `_ainitialize_agent`（异步模式）。
+
+#### 2. 服务层 StreamPart 流式 v2 字典解包与 Schema 注册 (`backend/app/services.py` & `backend/app/schemas.py`) [FEAT]
+- **流式 v2 模式开启**：调用 `astream(input_data, config=config, stream_mode=["messages", "updates", "custom"], subgraphs=True, version="v2")`。
+- **`ns` 领域识别与事件派发**：解析 StreamPart 字典中的 `ns` 路径，当包含 `tools:<call_id>` 时判定进入子智能体输出阶段，向前端推发 `subagent_change` SSE 事件。
+- **Pydantic Schema 白名单**：在 `backend/app/schemas.py` 定义 `SubagentChangeStreamEvent` 与 `PlanUpdateStreamEvent`，并注册入 `ChatStreamEvent` 联合校验器，确保 SSE 序列化 100% 通过。
+
+#### 3. 前端多智能体感知与 `SubAgentBadge.vue` 徽章集成 (`frontend/src/`) [FEAT]
+- **类型与白名单**：在 `types/index.ts` 增加 `active_subagent` 与 `subagent_display_name` 字段；在 `api/chat.ts` 的 `STREAM_EVENT_TYPES` 白名单 Set 中注册 `subagent_change`。
+- **智能体徽章组件**：新建 `SubAgentBadge.vue` 组件，使用本地 SVG 矢量图标（零外网 CDN 依赖），呈现 `🤖 [SQL数据助手]` 徽章；在 `MessageItem.vue` 中成功挂载。
+
+---
+
+## 2026-08-09 14:40 +08:00 - DeepAgent 依赖升级至 0.7.5 版本 (requirements.txt & docs/deepagent)
+
+### 变更内容
+
+#### 1. 核心依赖升级 `deepagents==0.7.5` (`requirements.txt`) [UPGRADE]
+- **升版锁定**：将 `deepagents` 依赖从 `0.6.12` 升级并锁定至最新的 `0.7.5` 生产发布版。
+- **解锁全新特性**：正式解锁 `FilesystemMiddleware` 原生 `tools` 白名单控制能力与新增的 `delete` 文件工具。
+- **平滑兼容**：与现有 `langchain 1.3.14` + `langgraph 1.2.9` 完全对齐，通过 PoC 与依赖干跑（dry-run）全量校验。
+
+---
+
 ## 2026-08-06 23:34 +08:00 - 行级实体数据提取确定性排序优化 (backend/app/agent/vector/sql_lexicon/pipeline/extractor_nodes.py)
 
 ### 变更内容

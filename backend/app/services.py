@@ -525,6 +525,8 @@ class SQLAgentService:
                 "tool_result",
                 "final",
                 "error",
+                "subagent_change",
+                "plan_update",
             }:
                 return data
             return None
@@ -679,14 +681,70 @@ class SQLAgentService:
                     input_data,
                     config=resolved_config,
                     stream_mode=["messages", "updates", "custom"],
+                    subgraphs=True,
                     version="v2",
                 )
 
                 has_sent_rag = False
                 has_sent_lexicon = False
+                current_subagent = None
+                active_task_targets: dict[str, str] = {}
+
                 async for chunk in source_iter:
                     if not chunk:
                         continue
+
+                    # 🤖 检测流式 chunk 的 namespace 路径，解析子智能体领域切换并向前端推送 subagent_change
+                    if isinstance(chunk, dict):
+                        ns = chunk.get("ns", ())
+                        chunk_type = chunk.get("type")
+                        data = chunk.get("data")
+
+                        # 捕捉主 Agent 发起的 task 委派工具调用 ID 与其目标子智能体名称 (subagent)
+                        if chunk_type == "messages" and isinstance(data, tuple) and len(data) == 2:
+                            msg_chunk, _ = data
+                            if hasattr(msg_chunk, "tool_calls") and msg_chunk.tool_calls:
+                                for tc in msg_chunk.tool_calls:
+                                    if isinstance(tc, dict):
+                                        tc_name = tc.get("name", "")
+                                        tc_id = tc.get("id")
+                                        tc_args = tc.get("args") or {}
+                                        if tc_name == "task" and tc_id:
+                                            target_subagent = (
+                                                tc_args.get("subagent")
+                                                or tc_args.get("subagent_type")
+                                                or "sql_domain_agent"
+                                            )
+                                            active_task_targets[tc_id] = target_subagent
+
+                        # 精确匹配当前 namespace 指向的具体子智能体
+                        matched_subagent = None
+                        if ns:
+                            for segment in ns:
+                                if isinstance(segment, str):
+                                    if segment.startswith("tools:"):
+                                        call_id = segment.split("tools:", 1)[1]
+                                        if call_id in active_task_targets:
+                                            matched_subagent = active_task_targets[call_id]
+                                            break
+                                    elif "sql_domain_agent" in segment:
+                                        matched_subagent = "sql_domain_agent"
+                                        break
+                                    elif "general-purpose" in segment:
+                                        matched_subagent = "general-purpose"
+                                        break
+
+                        new_subagent = matched_subagent if matched_subagent else "main"
+                        if new_subagent != current_subagent:
+                            current_subagent = new_subagent
+                            display_name = (
+                                "SQL数据助手" if current_subagent == "sql_domain_agent" else "通用助手"
+                            )
+                            await _emit({
+                                "type": "subagent_change",
+                                "active_subagent": current_subagent,
+                                "display_name": display_name,
+                            })
 
                     # 🚀 在流式早期，如检测到状态中 RAG 已就绪且未发送，提前触发自定义 RAG 事件发送给客户端
                     if not has_sent_rag:

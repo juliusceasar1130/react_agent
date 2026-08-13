@@ -189,6 +189,16 @@ export function useChatStream() {
           }
           return
 
+        case 'subagent_change':
+          if (messagesStore.streamingMessagesMap[sessionId]) {
+            messagesStore.streamingMessagesMap[sessionId].active_subagent = event.active_subagent
+            messagesStore.streamingMessagesMap[sessionId].subagent_display_name = event.display_name
+          }
+          return
+
+        case 'plan_update':
+          return
+
         case 'final':
           hasTerminalEventRef.value = true
           messagesStore.completeStreamingMessage(sessionId, {
