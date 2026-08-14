@@ -1,3 +1,4 @@
+<!-- 2026-04-10 Asia/Shanghai - 子智能体角色动态切换 Badge (支持通用/SQL/规划器等角色标识) -->
 <template>
   <div
     v-if="subagent"

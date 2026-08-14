@@ -557,10 +557,10 @@
 
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
-import SubAgentBadge from '@/components/SubAgentBadge.vue'
-import ChartArtifactCard from '@/components/ChartArtifactCard.vue'
-import AskUserQuestionCard from '@/components/AskUserQuestionCard.vue'
-import ReasoningAccordion from '@/components/ReasoningAccordion.vue'
+import SubAgentBadge from '@/components/agent/SubAgentBadge.vue'
+import ChartArtifactCard from '@/components/artifacts/ChartArtifactCard.vue'
+import AskUserQuestionCard from './AskUserQuestionCard.vue'
+import ReasoningAccordion from './ReasoningAccordion.vue'
 import { useChatStream } from '@/composables/useChatStream'
 import { triggerExportDownload } from '@/api/exports'
 import { CHAT_DEBUG_STREAM } from '@/config/chat'

@@ -256,17 +256,17 @@
 
 <script setup lang="ts">
 import { computed, nextTick, ref, onMounted, onUnmounted } from 'vue'
-import VariantB from '@/components/VariantB.vue'
+import VariantB from '@/components/chat/VariantB.vue'
 import { useSessionsStore } from '@/stores/sessions'
 import { useChatStream } from '@/composables/useChatStream'
-import ToggleSwitch from '@/components/ToggleSwitch.vue'
-import SessionList from '@/components/SessionList.vue'
-import MessageList from '@/components/MessageList.vue'
-import WelcomeDashboard from '@/components/WelcomeDashboard.vue'
-import VersionChangelogModal from '@/components/VersionChangelogModal.vue'
-import AdminReviewPanel from '@/components/AdminReviewPanel.vue'
-import FloatingScenarioCards from '@/components/FloatingScenarioCards.vue'
-import ScenarioModal from '@/components/ScenarioModal.vue'
+import ToggleSwitch from '@/components/common/ToggleSwitch.vue'
+import SessionList from '@/components/common/SessionList.vue'
+import MessageList from '@/components/chat/MessageList.vue'
+import WelcomeDashboard from '@/components/chat/WelcomeDashboard.vue'
+import VersionChangelogModal from '@/components/common/VersionChangelogModal.vue'
+import AdminReviewPanel from '@/components/agent/AdminReviewPanel.vue'
+import FloatingScenarioCards from '@/components/chat/FloatingScenarioCards.vue'
+import ScenarioModal from '@/components/common/ScenarioModal.vue'
 import { useScenarioPanelStore } from '@/stores/scenarioPanel'
 
 const sessionsStore = useSessionsStore()

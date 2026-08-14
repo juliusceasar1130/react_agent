@@ -247,42 +247,34 @@ rearch_agent/
 ├── backend/                      # 后端应用
 │   ├── app/
 │   │   ├── main.py                # FastAPI 应用入口
-│   │   ├── api.py                 # RESTful API 路由
+│   │   ├── routers/               # 模块化 API 路由包 (chat/sessions/skills/admin/artifacts/_analytics/scenarios)
 │   │   ├── crud.py                # 数据库 CRUD 操作
 │   │   ├── models.py              # SQLAlchemy ORM 模型
 │   │   ├── schemas.py             # Pydantic Schema
 │   │   ├── database.py            # 数据库连接
 │   │   ├── config.py              # 配置管理
 │   │   ├── chart_artifacts.py     # 图表 artifact 存储与读取
-│   │   ├── services.py            # FastAPI Agent 兼容适配层
+│   │   ├── services/              # FastAPI Agent 服务包 (chat_service.py)
 │   │   ├── services_graph.py      # LangGraph SQL Agent 服务
 │   │   ├── test_*.py              # 后端冒烟 / 功能测试脚本
 │   │   ├── agent/                 # Agent 模块化架构核心
+│   │   │   ├── service.py             # Agent V2 核心运行时（兼容 LangGraph CLI）
+│   │   │   ├── service_llama.cpp.py   # 本地 llama.cpp 适配服务实验入口
+│   │   │   ├── state.py               # Graph 状态定义
+│   │   │   ├── constants.py           # 常量定义
+│   │   │   ├── subagents/             # 领域子智能体包 (sql/ 包含 tools.py, prompts.py, base_system_prompt.md)
+│   │   │   ├── middleware/            # 中间件（包含技能、上下文警报、业务 RAG 与安全合并自愈）
+│   │   │   ├── tools/                 # 专用工具集
+│   │   │   ├── utils/                 # 底层工具库 (vllm_token_estimator.py 等)
+│   │   │   ├── development/           # 实验与开发模块
+│   │   │   └── vector/                # RAG 向量检索与精排引擎
 │   │   └── skills/                # 业务技能注册中心（领域 + 场景 + 资产）
-│   │       ├── service.py             # Agent V2 核心运行时（兼容 LangGraph CLI）
-│   │       ├── service_llama.cpp.py   # 本地 llama.cpp 适配服务实验入口
-│   │       ├── state.py               # Graph 状态定义
-│   │       ├── constants.py           # 常量定义
-│   │       ├── middleware/            # 中间件（包含技能、上下文警报、业务 RAG 与安全合并自愈）
-│   │       ├── tools/                 # 专用工具集
-│   │       ├── utils/                 # 底层工具库
-│   │       │   ├── vllm_token_estimator.py # vLLM 专属精准分词估算器
-│   │       ├── development/           # 实验与开发模块
-│   │       └── vector/                # RAG 向量检索与精排引擎
-│   │           ├── base.py                # 检索器与精排器抽象基类
-│   │           ├── embedding_provider.py  # Milvus Embedding Provider 统一入口
-│   │           ├── factory.py             # 检索 / 精排工厂
-│   │           ├── milvus_hybrid/         # Milvus 混合检索实现
-│   │           ├── milvus_init/           # Milvus 数据导入工具集
-│   │           ├── pgvector/              # PGVector 纯向量检索实现
-│   │           ├── pgvector_init/         # PGVector 数据导入工具集
-│   │           └── rerank/                # NVIDIA Rerank 精排器封装
 │   ├── llamaCpp/                # llama.cpp 本地部署脚本
 │   └── Dockerfile               # 后端 Docker 镜像配置
 ├── frontend/                    # 前端应用
 │   ├── src/
 │   │   ├── api/                 # API 请求封装
-│   │   ├── components/          # Vue 公用组件
+│   │   ├── components/          # Vue 领域分层组件包 (chat/ agent/ artifacts/ common/ widgets/)
 │   │   ├── views/               # 页面视图
 │   │   ├── stores/              # Pinia 状态管理
 │   │   └── types/               # TypeScript 类型定义

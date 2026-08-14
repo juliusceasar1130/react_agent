@@ -459,8 +459,8 @@ import { ref, computed } from "vue";
 import {
   getDimensionTableApi,
   type DimensionTableData,
-} from "../api/dimensions";
-import DimensionTable from "./DimensionTable.vue";
+} from "@/api/dimensions";
+import DimensionTable from "@/components/artifacts/DimensionTable.vue";
 
 const props = defineProps<{
   isSidebarOpen: boolean;

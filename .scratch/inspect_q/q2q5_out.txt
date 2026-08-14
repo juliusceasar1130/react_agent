@@ -1,0 +1,267 @@
+=== deepagents.middleware.subagents.SubAgent ===
+class file: D:\000_software_install\miniconda3\envs\py312_agent\Lib\site-packages\deepagents\middleware\subagents.py
+signature error: no signature found for builtin type <class 'dict'>
+--- source (first 60 lines) ---
+   1 class SubAgent(TypedDict):
+   2     """Specification for an agent.
+   3 
+   4     When using `create_deep_agent`, subagents automatically receive
+   5     a default middleware stack before any custom `middleware` specified in
+   6     this spec.
+   7 
+   8     Required fields:
+   9         name: Unique identifier for the subagent.
+  10 
+  11             The main agent uses this name when calling the `task()` tool.
+  12         description: What this subagent does.
+  13 
+  14             Be specific and action-oriented. The main agent uses this
+  15             to decide when to delegate.
+  16         system_prompt: Instructions for the subagent.
+  17 
+  18             Include tool usage guidance and output format requirements.
+  19 
+  20     Optional fields:
+  21         tools: Tools the subagent can use.
+  22 
+  23             If not specified, inherits tools from the main agent
+  24             via `default_tools`.
+  25         model: Override the main agent's model.
+  26 
+  27             Use the format `'provider:model-name'` (e.g., `'openai:gpt-5.5'`).
+  28         middleware: Additional middleware for custom behavior, logging,
+  29             or rate limiting. To restrict filesystem tools, include a
+  31             will be used as the subagent's filesystem middleware instead of
+  32             the default one.
+  33         interrupt_on: Configure human-in-the-loop for specific tools.
+  34 
+  35             Requires a checkpointer.
+  36         skills: Skill source paths for `SkillsMiddleware`.
+  37 
+  38             List of paths to skill directories
+  39             (e.g., `["/skills/user/", "/skills/project/"]`).
+  40         permissions: Filesystem permission rules for this subagent.
+  41 
+  42             If omitted, inherits the parent agent's permissions. If provided,
+  43             replaces the parent agent's rules entirely for this subagent.
+  44 
+  45             Rules are evaluated in declaration order; the first match wins.
+  46     """
+  47 
+  48     name: str
+  49     """Unique identifier for the subagent."""
+  50 
+  51     description: str
+  52     """What this subagent does.
+  53 
+  54     The main agent uses this to decide when to delegate.
+  55     """
+  56 
+  57     system_prompt: str
+  58     """Instructions for the subagent."""
+  59 
+  60     tools: NotRequired[Sequence[BaseTool | Callable | dict[str, Any]]]
+
+=== deepagents.middleware.subagents.CompiledSubAgent ===
+class file: D:\000_software_install\miniconda3\envs\py312_agent\Lib\site-packages\deepagents\middleware\subagents.py
+signature error: no signature found for builtin type <class 'dict'>
+--- source (first 60 lines) ---
+   1 class CompiledSubAgent(TypedDict):
+   2     """A pre-compiled agent spec.
+   3 
+   4     !!! note
+   5 
+   6         The `runnable`'s state schema must include a 'messages' key.
+   7 
+   8         This is required for the subagent to communicate results back to
+   9         the main agent.
+  10 
+  11     !!! note
+  12 
+  13         `CompiledSubAgent` runnables are used as provided. They do not
+  14         inherit `create_deep_agent(state_schema=...)`; if the runnable
+  15         needs custom state fields, compile it with a compatible state
+  16         schema yourself.
+  17 
+  18     When the subagent completes, the parent reads the returned state:
+  19     if `structured_response` is non-`None`, it is JSON-serialized and used as
+  20     the `ToolMessage` content; otherwise, the last non-empty `AIMessage`
+  21     text is used.
+  22 
+  23     Examples:
+  24         Using `create_agent` with `response_format`:
+  25 
+  26         ```python
+  27         from pydantic import BaseModel
+  28         from langchain.agents import create_agent
+  29 
+  30 
+  31         class Findings(BaseModel):
+  32             summary: str
+  33             confidence: float
+  34 
+  35 
+  36         researcher: CompiledSubAgent = {
+  37             "name": "researcher",
+  38             "description": "Researches a topic and returns findings.",
+  39             "runnable": create_agent(
+  40                 "openai:gpt-5.5",
+  41                 tools=[],  # your tools here
+  42                 response_format=Findings,
+  43             ),
+  44         }
+  45         ```
+  46 
+  47         Custom `langgraph` graph (write `structured_response` directly):
+  48 
+  49         ```python
+  50         def node(state):
+  51             return {
+  52                 "messages": [...],
+  53                 "structured_response": Findings(summary="...", confidence=0.9),
+  54             }
+  55         ```
+  56     """
+  57 
+  58     name: str
+  59     """Unique identifier for the subagent."""
+  60 
+
+################ SubAgentMiddleware ################
+file: D:\000_software_install\miniconda3\envs\py312_agent\Lib\site-packages\deepagents\middleware\subagents.py
+class SubAgentMiddleware(AgentMiddleware[Any, ContextT, ResponseT]):
+    """Middleware for providing subagents to an agent via a `task` tool.
+
+    This middleware adds a `task` tool to the agent that can be used
+    to invoke subagents.
+
+    Subagents are useful for handling complex tasks that require multiple steps,
+    or tasks that require a lot of context to resolve.
+
+    A chief benefit of subagents is that they can handle multi-step tasks,
+    and then return a clean, concise response to the main agent.
+
+    Subagents are also great for different domains of expertise that require
+    a narrower subset of tools and focus.
+
+    Args:
+        backend: Backend for file operations and execution.
+        subagents: List of fully-specified subagent configs.
+
+            Each SubAgent must specify `model` and `tools`.
+
+            Optional `interrupt_on` on individual subagents is respected.
+        system_prompt: Instructions appended to main agent's system prompt
+            about how to use the task tool.
+        task_description: Custom description for the task tool.
+        state_schema: Base graph state schema forwarded to raw `SubAgent`
+            specs when their runnables are compiled.
+
+            Leave unset to use `create_agent`'s default. `CompiledSubAgent`
+
+    Example:
+        ```python
+        from deepagents.middleware import SubAgentMiddleware
+        from langchain.agents import create_agent
+
+        agent = create_agent(
+            "openai:gpt-5.5",
+            middleware=[
+                SubAgentMiddleware(
+                    backend=my_backend,
+                    subagents=[
+                        {
+                            "name": "researcher",
+                            "description": "Research agent",
+                            "system_prompt": "You are a researcher.",
+                            "model": "openai:gpt-5.5",
+                            "tools": [search_tool],
+                        }
+                    ],
+                )
+            ],
+        )
+        ```
+
+    """
+
+    def __init__(
+        self,
+        *,
+        backend: BackendProtocol,
+        subagents: Sequence[SubAgent | CompiledSubAgent],
+        system_prompt: str | None = None,
+        task_description: str | None = None,
+        private_state_keys: frozenset[str] | None = None,
+        state_schema: type | None = None,
+    ) -> None:
+        """Initialize the `SubAgentMiddleware`."""
+        super().__init__()
+
+        if not subagents:
+            msg = "At least one subagent must be specified"
+            raise ValueError(msg)
+        self._backend = backend
+        self._subagents = subagents
+        self._private_state_keys = private_state_keys or frozenset()
+        self._task_description = task_description
+        self._state_schema = state_schema
+        self.subagent_names: frozenset[str] = frozenset(spec["name"] for spec in subagents)
+        """Declared subagent names. Public so streamers can discover them
+        without introspecting the `task` tool's closure."""
+
+        task_tool = _build_task_tool(
+            self._subagents,
+            task_description,
+            private_state_keys=self._private_state_keys,
+            state_schema=self._state_schema,
+        )
+
+        # Build system prompt with available agents
+        if system_prompt and subagents:
+            agents_desc = "\n".join(f"- {s['name']}: {s['description']}" for s in subagents)
+            self.system_prompt = system_prompt + "\n\nAvailable subagent types:\n\n" + agents_desc
+        else:
+            self.system_prompt = system_prompt
+
+        self.tools = [task_tool]
+
+    @property
+    def private_state_keys(self) -> frozenset[str]:
+        """State keys stripped from parent state before invoking subagents."""
+        return self._private_state_keys
+
+    @private_state_keys.setter
+    def private_state_keys(self, value: frozenset[str]) -> None:
+        self._private_state_keys = value
+        task_tool = _build_task_tool(
+            self._subagents,
+            task_description=self._task_description,
+            private_state_keys=value,
+            state_schema=self._state_schema,
+        )
+        self.tools = [task_tool]
+
+    def wrap_model_call(
+        self,
+        request: ModelRequest[ContextT],
+        handler: Callable[[ModelRequest[ContextT]], ModelResponse[ResponseT]],
+    ) -> ModelResponse[ResponseT]:
+        """Update the system message to include instructions on using subagents."""
+        if self.system_prompt is not None:
+            new_system_message = append_to_system_message(request.system_message, self.system_prompt)
+            return handler(request.override(system_message=new_system_message))
+        return handler(request)
+
+    async def awrap_model_call(
+        self,
+        request: ModelRequest[ContextT],
+        handler: Callable[[ModelRequest[ContextT]], Awaitable[ModelResponse[ResponseT]]],
+    ) -> ModelResponse[ResponseT]:
+        """(async) Update the system message to include instructions on using subagents."""
+        if self.system_prompt is not None:
+            new_system_message = append_to_system_message(request.system_message, self.system_prompt)
+            return await handler(request.override(system_message=new_system_message))
+        return await handler(request)
+
+Binary file (standard input) matches

@@ -38,12 +38,12 @@
 
 <script setup lang="ts">
 import type { ParameterDef } from '@/api/scenarios'
-import TextWidget from './widgets/TextWidget.vue'
-import NumberWidget from './widgets/NumberWidget.vue'
-import SelectWidget from './widgets/SelectWidget.vue'
-import MultiSelectWidget from './widgets/MultiSelectWidget.vue'
+import TextWidget from '@/components/widgets/TextWidget.vue'
+import NumberWidget from '@/components/widgets/NumberWidget.vue'
+import SelectWidget from '@/components/widgets/SelectWidget.vue'
+import MultiSelectWidget from '@/components/widgets/MultiSelectWidget.vue'
 
-import DateWidget from './widgets/DateWidget.vue'
+import DateWidget from '@/components/widgets/DateWidget.vue'
 
 const props = defineProps<{
   parameters: Record<string, ParameterDef>

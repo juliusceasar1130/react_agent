@@ -112,7 +112,7 @@
 <script setup lang="ts">
 import { useScenarioPanelStore } from '@/stores/scenarioPanel'
 import ParameterForm from './ParameterForm.vue'
-import ResultRenderer from './ResultRenderer.vue'
+import ResultRenderer from '@/components/artifacts/ResultRenderer.vue'
 
 const store = useScenarioPanelStore()
 </script>

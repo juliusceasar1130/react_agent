@@ -1,3 +1,67 @@
+## 2026-08-14 14:40 +08:00 - DeepAgent 架构重构收官：Wave 4 前后端 Shim 垫片全量清理与直通路径落地
+
+### 变更内容
+
+#### 1. 前端调用点全量直通与深度思考组件原生渲染恢复 (`frontend/src/`) [REFACTOR]
+- **调用点直连**：`ChatView.vue`, `MessageItem.vue`, `ScenarioModal.vue`, `VariantB.vue` 中的所有组件 `import` 路径全面重构为领域显式直连路径（`@/components/chat/`, `@/components/agent/`, `@/components/artifacts/`, `@/components/common/`）。
+- **解决渲染丢失缺陷**：彻底消除了 Vue 3 SFC 经无模板 `.vue` Shim 转发导致的 `ReasoningAccordion`（深度思考折叠面板）、`SubAgentBadge` 等子组件 Render 函数丢失与无法挂载问题。
+- **物理清理 20 个 Shim**：删除 `frontend/src/components/` 根目录下的 20 个过渡 `.vue` 兼容垫片文件。
+
+#### 2. 后端 API 路由直连与 Tools Shim 清理 (`backend/app/`) [REFACTOR]
+- **主入口直连**：`main.py` 路由挂载直接改为 `from .routers import router, scenarios_router, init_analytics_engine`。
+- **SQL 工具链直连**：`agent/tools/__init__.py`, `service.py` 及测试用例直接从 `subagents/sql/tools.py` 导入 SQL 领域工具。
+- **后端 Shim 物理删除**：删除 `backend/app/api.py`、`backend/app/agent/tools/sql_tools.py` 与 `sql_lexicon_tools.py` 垫片文件。
+
+---
+
+## 2026-08-14 14:00 +08:00 - DeepAgent 前端架构重构：Wave 3 组件按领域目录拆分与 Shim 兼容落地
+
+### 变更内容
+
+#### 1. 前端 20 个根组件按领域拆分 (`frontend/src/components/`) [REFACTOR]
+- **`chat/` 聊天领域**：迁移 `MessageItem.vue`, `MessageList.vue`, `VariantB.vue`, `AskUserQuestionCard.vue`, `ReasoningAccordion.vue`, `WelcomeDashboard.vue`, `FloatingScenarioCards.vue`。
+- **`agent/` 智能体领域**：迁移 `SubAgentBadge.vue`, `AdminReviewPanel.vue`。
+- **`artifacts/` 结果与图表领域**：迁移 `ChartArtifactCard.vue`, `DimensionTable.vue`, `ResultRenderer.vue`, `ScalarResult.vue`, `TableResult.vue`。
+- **`common/` 通用 UI 领域**：迁移 `ToggleSwitch.vue`, `ParameterForm.vue`, `ScenarioModal.vue`, `SessionList.vue`, `SessionItem.vue`, `VersionChangelogModal.vue`。
+
+#### 2. 原路径 Re-export Shim 与模块解析修正 [REFACTOR]
+- **全量 Shim 保留**：在原 `components/` 根目录为 20 个组件保留了向后兼容 Re-export Shim Vue 组件，保证全量 View 组件（如 `ChatView.vue`）零破坏运行。
+- **相对路径修正**：修正 `VariantB.vue` 与 `ScenarioModal.vue` 中跨目录引用的路径，Vite 前端构建 100% 成功通过。
+
+---
+
+## 2026-08-14 11:23 +08:00 - DeepAgent 后端架构重构：Wave 2 services/ 包重构与 SQL 子智能体目录填充
+
+### 变更内容
+
+#### 1. Services 单文件转包与导出重定向 (`backend/app/services/`) [REFACTOR]
+- **`services.py` 拆解**：将 1070+ 行的单文件 `services.py` 迁移至 `backend/app/services/chat_service.py`。
+- **包级聚合重导出**：创建 `backend/app/services/__init__.py` 重新导出 `SQLAgentService`, `initialize_agent_service`, `get_agent_service`, `shutdown_agent_service` 符号，物理删除原 `services.py`，保持导入路径无缝兼容。
+
+#### 2. SQL 领域子智能体 Tools & Prompts 归纳 (`backend/app/agent/subagents/sql/`) [REFACTOR]
+- **SQL 工具集中**：创建 `subagents/sql/tools.py` 聚合全量 SQL 查询、历史样例与三层物理词典 (value/row/schema) 工具工厂；`agent/tools/sql_tools.py` 与 `sql_lexicon_tools.py` 改写为向后兼容 Shim。
+- **SQL Prompt 模板与加载器迁移**：迁移系统提示词至 `subagents/sql/base_system_prompt.md`；抽取 `SystemPromptLoader` 和 `_build_system_prompt` 到 `subagents/sql/prompts.py`；更新 `config.py` 默认模板路径与 `service.py` 组合根导入。
+- **环境配置同步修缮**：将 `.env` 环境变量 `SYSTEM_PROMPT_PATH` 同步修正为 `backend/app/agent/subagents/sql/base_system_prompt.md`。
+
+---
+
+## 2026-08-14 11:15 +08:00 - DeepAgent 后端架构重构：Stage 0 测试基线与 Wave 1 API 路由解耦落地
+
+### 变更内容
+
+#### 1. Stage 0 测试基线与冒烟守护建立 (`backend/pyproject.toml`, `requirements-dev.txt`) [CHORE]
+- **pytest 配置与环境隔离**：创建 `backend/pyproject.toml` 配置 `asyncio_mode = "auto"` 与 `not integration` 标记，默认隔离需外部 Milvus/Postgres/LLM 的测试；创建 `requirements-dev.txt` 声明开发测试依赖。
+- **循环引用重构**：修复 `llm_refiner.py` 中向上 import `service.py` 循环依赖，重定向至 `backend.app.agent.llm`。
+- **Agent 初始化路径去重**：提取 `service.py` 共享 helper `_create_agent_from_components()`，去重 `_initialize_agent` / `_ainitialize_agent` 尾部组合逻辑。
+- **黄金路径冒烟脚本**：新增 `backend/tests/smoke/test_smoke_golden_path.py`，全量单元测试达到 35 passed, 4 deselected 绿灯基线。
+
+#### 2. Wave 1 `api.py → routers/` 包解耦与 SubAgent 骨架 (`backend/app/routers/` & `agent/subagents/`) [REFACTOR]
+- **1300+ 行单块解耦**：将 `api.py` 按业务领域拆分为 `routers/` 包（`chat.py`, `sessions.py`, `skills.py`, `admin.py`, `artifacts.py`, `_analytics.py`, `scenarios.py`）。
+- **向后兼容 Shim**：将 `backend/app/api.py` 压缩为 4 行 re-export Shim，对 `main.py` 及外部导入零破损。
+- **SubAgent 物理骨架**：创建 `backend/app/agent/subagents/sql/` 基础目录。
+
+---
+
 ## 2026-08-10 22:15 +08:00 - DeepAgent 思考模式注入、RAG 防重复与流式领域识别精细化修缮
 
 ### 变更内容
