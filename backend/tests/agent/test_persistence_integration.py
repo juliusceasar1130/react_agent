@@ -9,6 +9,9 @@ from langchain_deepseek import ChatDeepSeek
 from backend.app.agent.service import SQLAgentService
 from backend.app.agent.state import CustomState
 
+# Stage 0: 构造 SQLAgentService 时 _build_agent_components() 需连接 analytics Postgres，
+# 属集成测试（需要 live 基础设施），标记 integration 默认跳过
+@pytest.mark.integration
 @pytest.mark.asyncio
 async def test_agent_persistence_without_message_pollution():
     # 1. 模拟数据库连接

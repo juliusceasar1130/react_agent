@@ -17,8 +17,6 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
-import threading
-from pathlib import Path
 from typing import TYPE_CHECKING, Any, Optional
 
 from langchain.agents import create_agent
@@ -29,8 +27,8 @@ from langchain.agents.middleware import (
     ToolCallLimitMiddleware,
 )
 from langchain_community.agent_toolkits import SQLDatabaseToolkit
-from langchain_core.prompts import PromptTemplate
 from backend.app.agent.llm import _create_llm
+from backend.app.agent.subagents.sql.prompts import _build_system_prompt
 
 from backend.app.agent.constants import EXCLUDED_TOOLS, ToolNames
 from backend.app.agent.middleware import (
@@ -322,7 +320,7 @@ def _prepare_tools(
 
     if lexicon_retriever is not None:
         try:
-            from backend.app.agent.tools.sql_lexicon_tools import (
+            from backend.app.agent.subagents.sql.tools import (
                 create_db_value_lexicon_tool,
                 create_db_row_lexicon_tool,
                 create_db_table_schema_tool,
@@ -338,56 +336,6 @@ def _prepare_tools(
             logger.warning("注入物理词典工具失败: %s", exc)
 
     return tools
-
-
-class SystemPromptLoader:
-    """系统提示词动态加载器，支持缓存和热重载。"""
-
-    _lock = threading.Lock()
-
-    def __init__(self, template_path: str):
-        self.template_path = Path(template_path)
-        self._cached_prompt: str = ""
-        self._last_modified_time: float = 0.0
-
-    def load(self, force_reload: bool = False) -> str:
-        """加载提示词模板并返回（带缓存和热重载）。"""
-        if not self.template_path.exists():
-            raise FileNotFoundError(f"系统提示词模板文件不存在: {self.template_path}")
-
-        mtime = self.template_path.stat().st_mtime
-        should_reload = (
-            not self._cached_prompt
-            or force_reload
-            or (settings.debug and mtime > self._last_modified_time)
-        )
-
-        if should_reload:
-            with self._lock:
-                # 双重检查，避免并发重复加载
-                if (
-                    not self._cached_prompt
-                    or force_reload
-                    or (settings.debug and mtime > self._last_modified_time)
-                ):
-                    logger.info("加载系统提示词模板: %s", self.template_path)
-                    self._cached_prompt = self.template_path.read_text(encoding="utf-8")
-                    self._last_modified_time = mtime
-
-        return self._cached_prompt
-
-
-_system_prompt_loader = SystemPromptLoader(settings.system_prompt_path)
-
-
-def _build_system_prompt(db: MaterializedViewSQLDatabase) -> str:
-    """构建 Agent 系统提示词。"""
-    template_str = _system_prompt_loader.load()
-    template = PromptTemplate.from_template(template_str)
-    return template.format(
-        dialect=db.dialect,
-        top_k=settings.sql_agent_top_k,
-    )
 
 
 class SQLAgentService:
@@ -643,6 +591,16 @@ class SQLAgentService:
             "middleware": main_middleware_list,
         }
 
+    def _create_agent_from_components(self, components: dict, agent_kwargs: dict) -> None:
+        """从已构建的组件创建 DeepAgent（同步/异步初始化路径共享，保持 100% 同步）。"""
+        self.agent = create_deep_agent(
+            model=components["llm"],
+            subagents=components["subagents"],
+            system_prompt=components["system_prompt"],
+            middleware=components["middleware"],
+            **agent_kwargs,
+        )
+
     def _initialize_agent(self) -> None:
         """初始化 Agent（同步路径）。"""
         try:
@@ -657,13 +615,7 @@ class SQLAgentService:
                 else {}
             )
 
-            self.agent = create_deep_agent(
-                model=components["llm"],
-                subagents=components["subagents"],
-                system_prompt=components["system_prompt"],
-                middleware=components["middleware"],
-                **agent_kwargs,
-            )
+            self._create_agent_from_components(components, agent_kwargs)
             logger.info("SQL Agent 同步路径初始化成功 (create_deep_agent + CompiledSubAgent)")
         except Exception as exc:
             logger.error("SQL Agent 同步路径初始化失败: %s", exc)
@@ -683,13 +635,7 @@ class SQLAgentService:
                 else {}
             )
 
-            self.agent = create_deep_agent(
-                model=components["llm"],
-                subagents=components["subagents"],
-                system_prompt=components["system_prompt"],
-                middleware=components["middleware"],
-                **agent_kwargs,
-            )
+            self._create_agent_from_components(components, agent_kwargs)
             logger.info("SQL Agent 异步路径初始化成功 (create_deep_agent + CompiledSubAgent)")
         except Exception as exc:
             logger.error("SQL Agent 异步路径初始化失败: %s", exc)

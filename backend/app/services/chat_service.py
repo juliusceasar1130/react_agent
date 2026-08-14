@@ -1,4 +1,4 @@
-# backend/app/services.py
+# backend/app/services/chat_service.py
 """
 FastAPI 兼容 Agent 服务适配层。
 
@@ -316,18 +316,15 @@ class SQLAgentService:
             actual_id = block.get("id") or ""
             message_id = getattr(message, "id", None) or ""
 
-            # 确定这轮调用的唯一标识 tool_call_id
             tool_call_id = ""
             if actual_id:
                 tool_call_id = actual_id
             else:
-                # 后续碎片根据 message_id 和 block_index 查找之前已经绑定的原生 ID
                 for key, item in tool_calls.items():
                     if item.get("message_id") == message_id and item.get("block_index") == block_index:
                         tool_call_id = key
                         break
                 
-                # 如果没有找到绑定的 ID（极端边界情况），fallback 生成唯一键
                 if not tool_call_id:
                     tool_call_id = f"tool_{message_id}_{block_index}" if message_id else f"tool_call_chunk_{len(tool_calls)}"
 
@@ -340,7 +337,6 @@ class SQLAgentService:
                 args_text_delta=block.get("args") or "",
             )
             
-            # 在内存中记录其 message_id 和 block_index 用于后续碎片匹配
             tool_info["message_id"] = message_id
             tool_info["block_index"] = block_index
 
@@ -550,7 +546,6 @@ class SQLAgentService:
             if len(chunk) == 2 and isinstance(chunk[0], str):
                 return chunk[0], chunk[1]
 
-            # 兼容 subgraphs=True 时可能出现的 (namespace, mode, data) 形状。
             if (
                 len(chunk) == 3
                 and isinstance(chunk[1], str)
@@ -660,7 +655,6 @@ class SQLAgentService:
             nonlocal source_iter
             nonlocal context_warning
             try:
-                # 提取当前的提问词以进行 RAG 口径时序分水岭校验
                 user_query = None
                 if isinstance(input_data, dict) and "messages" in input_data:
                     last_msg = input_data["messages"][-1]
@@ -694,13 +688,11 @@ class SQLAgentService:
                     if not chunk:
                         continue
 
-                    # 🤖 检测流式 chunk 的 namespace 路径，解析子智能体领域切换并向前端推送 subagent_change
                     if isinstance(chunk, dict):
                         ns = chunk.get("ns", ())
                         chunk_type = chunk.get("type")
                         data = chunk.get("data")
 
-                        # 捕捉主 Agent 发起的 task 委派工具调用 ID 与其目标子智能体名称 (subagent)
                         if chunk_type == "messages" and isinstance(data, tuple) and len(data) == 2:
                             msg_chunk, _ = data
                             if hasattr(msg_chunk, "tool_calls") and msg_chunk.tool_calls:
@@ -717,7 +709,6 @@ class SQLAgentService:
                                             )
                                             active_task_targets[tc_id] = target_subagent
 
-                        # 精确匹配当前 namespace 指向的具体子智能体
                         matched_subagent = None
                         if ns:
                             for segment in ns:
@@ -746,7 +737,6 @@ class SQLAgentService:
                                 "display_name": display_name,
                             })
 
-                    # 🚀 在流式早期，如检测到状态中 RAG 已就绪且未发送，提前触发自定义 RAG 事件发送给客户端
                     if not has_sent_rag:
                         try:
                             state = await self.agent.aget_state(resolved_config)
@@ -755,8 +745,6 @@ class SQLAgentService:
                             if isinstance(rag_query, str):
                                 rag_query = rag_query.strip()
 
-                            # 只有当 RAG 检索到的提问词 rag_query 与本轮实际用户提问 user_query 匹配时，才证明最新数据已写入 Checkpoint 并可被提前发出
-                            # 如果 user_query 为 None（例如恢复流 Resume），本前置流中本来就无需重发 RAG
                             if rag_context_list and (user_query is None or rag_query == user_query):
                                 rag_context_payload = [
                                     {
@@ -774,9 +762,8 @@ class SQLAgentService:
                                 has_sent_rag = True
                         except Exception as e:
                             logger.warning("流式执行中提前提取并发送 RAG 状态失败: %s", e)
-                            has_sent_rag = True  # 真实报错异常时才设为 True 避免产生崩溃死循环
+                            has_sent_rag = True
 
-                    # 🚀 在流式早期，检测物理词典是否已就绪且未发送，提前触发自定义 Lexicon 事件发送给客户端
                     if not has_sent_lexicon:
                         try:
                             state = await self.agent.aget_state(resolved_config)
@@ -814,9 +801,7 @@ class SQLAgentService:
                             else None
                         )
 
-                        # 🚨 仅允许 AIMessage 提取文本 token 发送给客户端，杜绝 RAG 提示词(SystemMessage)和工具返回值(ToolMessage)泄露
                         if isinstance(message_chunk, AIMessage):
-                            # 🚀 优先检测 message_chunk 是否包含思考 Token，若有则推送 type: reasoning 事件
                             reasoning_text = message_chunk.additional_kwargs.get("reasoning_content")
                             if reasoning_text:
                                 await _emit(
@@ -944,7 +929,6 @@ class SQLAgentService:
 
                         await _emit(custom_event)
 
-                # 检查 Graph 是否因 AskUserQuestion 挂起
                 state = await self.agent.aget_state(resolved_config)
                 state_next = state.next if state else []
                 state_tasks = state.tasks if state else []
@@ -1026,6 +1010,7 @@ class SQLAgentService:
             if source_iter is not None:
                 with suppress(Exception):
                     await source_iter.aclose()
+
 
 _agent_service: Optional[SQLAgentService] = None
 _agent_service_lock: Optional[asyncio.Lock] = None

@@ -1,0 +1,13 @@
+[tool.pytest.ini_options]
+# Stage 0: 重构前可重复的 pytest 基线配置
+# - pythonpath=[".."]: 允许从 backend/ 目录直接运行 `python -m pytest`，
+#   并将 repo 根加入 sys.path，使测试中的 `backend.app...` 导入可用。
+# - integration marker: 依赖外部基础设施（Milvus / Postgres / LLM）的测试默认跳过。
+testpaths = ["tests"]
+asyncio_mode = "auto"
+pythonpath = [".."]
+addopts = "-m 'not integration'"
+markers = [
+    "integration: requires external infra (Milvus/Postgres/LLM)",
+    "smoke: golden-path end-to-end smoke against a running backend",
+]

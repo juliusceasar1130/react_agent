@@ -4,6 +4,8 @@ from pymilvus import connections, utility
 from backend.app.config import settings
 from backend.app.agent.vector.sql_lexicon.init_script import main as run_init
 
+# Stage 0: 依赖 live Milvus，标记为 integration 默认跳过
+@pytest.mark.integration
 @pytest.mark.asyncio
 async def test_milvus_collections_initialization():
     # 1. 运行物理创建

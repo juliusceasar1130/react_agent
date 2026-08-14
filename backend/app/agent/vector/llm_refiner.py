@@ -2,7 +2,7 @@ import json
 import logging
 from typing import Tuple
 from pydantic import BaseModel, Field
-from backend.app.agent.service import _create_llm
+from backend.app.agent.llm import _create_llm
 
 logger = logging.getLogger(__name__)
 

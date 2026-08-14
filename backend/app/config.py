@@ -52,7 +52,7 @@ class Settings(BaseSettings):
     # 系统提示词模板文件路径
     system_prompt_path: str = os.getenv(
         "SYSTEM_PROMPT_PATH",
-        str(Path(__file__).resolve().parent / "agent" / "prompts" / "base_system_prompt.md"),
+        str(Path(__file__).resolve().parent / "agent" / "subagents" / "sql" / "base_system_prompt.md"),
     )
 
     # SQL Checker 模式：fast(仅本地Linter) | safety(同步checker=当前默认)

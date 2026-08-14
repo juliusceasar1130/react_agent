@@ -4,6 +4,8 @@ from pymilvus import connections, utility, Collection
 from backend.app.config import settings
 from backend.app.agent.vector.sql_lexicon.tasks import run_metadata_lexicon_sync
 
+# Stage 0: 依赖 live Milvus 与数据库词典同步，标记为 integration 默认跳过
+@pytest.mark.integration
 def test_metadata_lexicon_synchronization():
     # 1. 运行同步程序
     run_metadata_lexicon_sync(overwrite=True)

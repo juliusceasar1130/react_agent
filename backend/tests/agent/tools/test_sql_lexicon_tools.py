@@ -2,7 +2,7 @@
 import pytest
 from unittest.mock import MagicMock
 
-from backend.app.agent.tools.sql_lexicon_tools import (
+from backend.app.agent.subagents.sql.tools import (
     create_db_value_lexicon_tool,
     create_db_row_lexicon_tool,
     create_db_table_schema_tool,

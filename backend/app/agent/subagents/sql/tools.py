@@ -1,22 +1,16 @@
-# backend/app/agent/tools/sql_tools.py
+# backend/app/agent/subagents/sql/tools.py
 """
-SQL 查询工具工厂
+SQL 子智能体专用工具工厂集合
 
-提供包装后的 SQL 查询工具，集成：
-1. 技能加载检查
-2. 自动 SQL 语法检查
-3. 日期格式标准化
-4. 智能结果限流与超限预警
-
-修改时间: 2026-04-12 03:00 Asia/Shanghai
-主要修改内容:
-- 默认返回带列名的结构化查询结果，降低 LLM 对 SELECT * 结果的误判风险
-- 结果限流逻辑同时兼容旧元组格式与新字典格式
+聚合 SQL 查询包装工具、历史样例检索工具以及数据库物理词典（值/行/表结构）探索工具。
 """
 
 import logging
 import re
 import json
+import ast
+import datetime
+from decimal import Decimal
 from typing import Any, List, Optional, Union
 
 import sqlglot
@@ -26,9 +20,8 @@ from langchain_core.messages import ToolMessage
 from langgraph.types import Command
 
 from backend.app.agent.utils.sql_linter import validate_readonly_query, SQLLintException
-
 from backend.app.agent.constants import SQL_ERROR_KEYWORDS
-from backend.app.agent.utils import emit_stream_status, normalize_dates_in_text
+from backend.app.agent.utils import emit_stream_status
 from backend.app.agent.vector.base import BaseRetriever
 from backend.app.config import settings
 
@@ -48,7 +41,6 @@ def _extract_table_names(query: str) -> set[str]:
             tables.add(table.name.lower())
         return tables
     except Exception:
-        # AST 解析失败时回退到保守策略
         return set()
 
 
@@ -59,17 +51,13 @@ def _is_pure_dimension_query(query: str) -> bool:
     """
     involved_tables = _extract_table_names(query)
     if not involved_tables:
-        # 解析失败或空查询，回退到保守策略（严格截断）
         return False
 
     dim_whitelist = settings.dimension_tables
     if not dim_whitelist:
         return False
 
-    # 只有当所有涉及的表都在维度白名单内，才算纯维度查询
     return involved_tables.issubset(dim_whitelist)
-
-
 
 
 def create_wrapped_query_tool(
@@ -79,20 +67,6 @@ def create_wrapped_query_tool(
 ) -> Any:
     """
     创建包装后的 SQL 查询工具
-
-    将原始的 sql_db_query 工具包装，添加以下功能：
-    1. 检查是否已加载相关业务技能
-    2. 执行 SQL Linter 静态/语义校验并使用 ToolException 拦截
-    3. 自动执行 SQL 语法检查（如果 checker 工具可用）
-    4. 对查询结果进行日期格式标准化
-
-    Args:
-        original_query_tool: 原始的 sql_db_query 工具
-        original_checker_tool: 可选的 sql_db_query_checker 工具
-        custom_table_info: 可选的表定义注释字典
-
-    Returns:
-        包装后的 sql_db_query 工具
     """
 
     @langchain_tool
@@ -112,7 +86,6 @@ def create_wrapped_query_tool(
             query: A valid SQL query string.
             required_skill: The name of the skill/domain this query belongs to.
         """
-        # 1. 精确技能加载校验：确认当前查询所需的特定技能已被加载
         skills_loaded = runtime.state.get("skills_loaded", [])
         if required_skill not in skills_loaded:
             return (
@@ -121,14 +94,12 @@ def create_wrapped_query_tool(
                 "可用技能请查看系统提示中的 Available Skills 部分。"
             )
 
-        # 2. SQL Linter 安全合规校验
         if settings.sql_linter_enabled:
             emit_stream_status(
                 "正在执行 SQL 合规检查",
                 stage="querying",
                 source="sql_db_query",
             )
-            # 获取 DDL 字典
             db_custom_info = custom_table_info
             if not db_custom_info and hasattr(original_query_tool, "db"):
                 db_custom_info = getattr(original_query_tool.db, "_custom_table_info", None) or {}
@@ -138,7 +109,6 @@ def create_wrapped_query_tool(
             except SQLLintException as exc:
                 raise ToolException(str(exc))
 
-        # 3. 自动执行 SQL 语法检查（如果配置为 safety 模式且 checker 工具可用）
         if settings.sql_checker_mode == "safety" and original_checker_tool is not None:
             emit_stream_status(
                 "正在检查 SQL 语法",
@@ -154,7 +124,6 @@ def create_wrapped_query_tool(
 
             logger.debug("SQL 语法检查通过")
 
-        # 4. 执行查询
         emit_stream_status(
             "正在执行 SQL 查询",
             stage="querying",
@@ -168,19 +137,12 @@ def create_wrapped_query_tool(
         else:
             raw_result = original_query_tool.invoke({"query": query})
 
-        # 4. 对查询结果的日期进行格式转换与时分秒查询时刻注入
         emit_stream_status(
             "已收到查询结果，正在整理数据",
             stage="writing",
             source="sql_db_query",
         )
 
-        # 归一化并转换日期、Decimal 类型
-        import datetime
-        from decimal import Decimal
-        import ast
-
-        # 若 raw_result 是格式化的列表字符串表示，安全还原为 Python 列表
         if isinstance(raw_result, str):
             stripped = raw_result.strip()
             if stripped.startswith("[") and stripped.endswith("]"):
@@ -190,8 +152,6 @@ def create_wrapped_query_tool(
                     try:
                         raw_result = json.loads(stripped)
                     except Exception:
-                        # 两种解析均失败：数据不可靠，直接抛出错误中断执行，
-                        # 避免将无法解析的原始字符串静默传递给 LLM
                         logger.error(
                             "查询结果字符串反序列化彻底失败 (长度=%d), ast.literal_eval 错误: %s",
                             len(stripped), eval_err,
@@ -219,22 +179,20 @@ def create_wrapped_query_tool(
         else:
             cleaned_result = raw_result
 
-        # 5. 智能结果限流：防止数据库返回结果过大撑爆 LLM 上下文
         is_dim = _is_pure_dimension_query(query)
         hard_limit = (
             settings.dimension_result_hard_limit if is_dim else settings.sql_result_hard_limit
         )
-        preview_rows = settings.sql_result_preview_rows   # 获取超限时返还给大模型的预览数据行数（如 5 行）
+        preview_rows = settings.sql_result_preview_rows
         
         row_count = len(cleaned_result) if isinstance(cleaned_result, list) else 0
         truncated = row_count >= hard_limit
 
-        from datetime import datetime, timezone, timedelta
+        from datetime import timezone, timedelta
         tz_utc8 = timezone(timedelta(hours=8))
-        db_query_time = datetime.now(tz_utc8).strftime("%Y-%m-%d %H:%M:%S")
+        db_query_time = datetime.datetime.now(tz_utc8).strftime("%Y-%m-%d %H:%M:%S")
         time_prefix = f"[查询时刻: {db_query_time}]\n"
 
-        # 提取 columns，若空集则降级
         columns = []
         if cleaned_result and isinstance(cleaned_result, list) and isinstance(cleaned_result[0], dict):
             columns = list(cleaned_result[0].keys())
@@ -246,7 +204,6 @@ def create_wrapped_query_tool(
             except Exception:
                 pass
 
-        # 提取 source_tables
         source_tables = list(_extract_table_names(query))
 
         if truncated:
@@ -300,18 +257,6 @@ def create_sql_example_search_tool(
 ) -> Any:
     """
     创建 SQL 示例检索工具 search_saved_correct_tool_uses。
-
-    该工具用于根据用户的自然语言问题，检索历史上「已验证成功」的 SQL 示例，
-    供 Agent 在编写最终 SQL 之前进行参考和改写（few-shot 学习）。
-
-    返回结果为一个列表，每个元素包含：
-      - question: 历史问题或说明文本
-      - sql: 已成功执行的 SQL 语句
-      - description: 示例的中文描述（如果有）
-      - domain: 业务域（如果有）
-      - score: 相似度/融合得分
-    注意：调用前需要先使用 load_skill() 加载相关业务技能；
-    如果未加载技能，本工具会返回错误信息字符串而不是示例列表。
     """
 
     @langchain_tool
@@ -319,17 +264,10 @@ def create_sql_example_search_tool(
         """
         根据当前用户问题检索历史 SQL 示例。
 
-        使用向量检索（doc_type='sql_example'）从业务知识库中召回
-        与当前问题语义接近、且已验证成功的 SQL 示例。
-
-        IMPORTANT: 必须通过 required_skill 参数声明本次检索依赖的技能名称（与 sql_db_query 保持一致）。
-        该技能必须已通过 load_skill() 预先加载，否则返回错误提示。
-
         Args:
             question: 当前用户问题的自然语言描述。
             required_skill: 本次检索依赖的技能/业务域名称，必须与 sql_db_query 的 required_skill 保持一致。
         """
-        # 0. 精确技能加载校验（与 sql_db_query 保持一致）
         skills_loaded = runtime.state.get("skills_loaded", [])
         if required_skill not in skills_loaded:
             return (
@@ -366,7 +304,6 @@ def create_sql_example_search_tool(
             doc = scored.document
             metadata = doc.metadata or {}
 
-            # 优先从 metadata["sql"] 读取 SQL；兼容旧结构中的 tool_args.sql
             sql_text = metadata.get("sql", "")
             if not sql_text:
                 tool_args = metadata.get("tool_args") or {}
@@ -390,3 +327,150 @@ def create_sql_example_search_tool(
         return examples
 
     return search_saved_correct_tool_uses
+
+
+def create_db_value_lexicon_tool(lexicon_retriever: Any) -> Any:
+    """
+    创建列值语义纠偏工具。
+    """
+
+    @langchain_tool
+    def search_db_value_lexicon(query: str, limit: int = 10) -> str:
+        """
+        通过语义相似度在去重列值字典中检索数据库字段物理真实值。
+        """
+        if lexicon_retriever is None:
+            return "Error: Database lexicon retriever is not initialized or disabled."
+        try:
+            emit_stream_status(
+                f"正在进行列值检索纠偏: {query}",
+                stage="retrieving",
+                source="search_db_value_lexicon",
+            )
+            if hasattr(lexicon_retriever, "value_index") and lexicon_retriever.value_index is not None:
+                nodes = lexicon_retriever.value_index.as_retriever(vector_store_query_mode="hybrid", similarity_top_k=limit).retrieve(query)
+            elif hasattr(lexicon_retriever, "value_retriever"):
+                nodes = lexicon_retriever.value_retriever.retrieve(query)
+            else:
+                nodes = []
+
+            if not nodes:
+                return f"未在列值词典中找到与 '{query}' 相关的物理真实值。"
+            
+            lines = [
+                "已找到相似的真实物理列值映射参考：\n",
+                "| 数据表 | 目标列名 | 真实物理字段值 (SQL Literal) | 相似度得分 |",
+                "| :--- | :--- | :--- | :--- |"
+            ]
+            for n in nodes[:limit]:
+                meta = n.node.metadata
+                t_name = meta.get("table_name", "")
+                c_name = meta.get("column_name", "")
+                val = meta.get("exact_value", "")
+                score = getattr(n, "score", 0.0)
+                lines.append(f"| `{t_name}` | `{c_name}` | `'{val}'` | {score:.4f} |")
+                
+            return "\n".join(lines)
+        except Exception as e:
+            logger.error(f"Error retrieving value lexicon: {e}", exc_info=True)
+            return f"Error retrieving value lexicon: {str(e)}"
+
+    return search_db_value_lexicon
+
+
+def create_db_row_lexicon_tool(lexicon_retriever: Any) -> Any:
+    """
+    创建行级实体对齐工具。
+    """
+
+    @langchain_tool
+    def search_db_row_lexicon(query: str, limit: int = 10) -> str:
+        """
+        通过语义相似度在行实体字典中检索对应记录的主键及核心属性描述。
+        """
+        if lexicon_retriever is None:
+            return "Error: Database lexicon retriever is not initialized or disabled."
+        try:
+            emit_stream_status(
+                f"正在进行行级实体检索对齐: {query}",
+                stage="retrieving",
+                source="search_db_row_lexicon",
+            )
+            if hasattr(lexicon_retriever, "row_index") and lexicon_retriever.row_index is not None:
+                nodes = lexicon_retriever.row_index.as_retriever(vector_store_query_mode="hybrid", similarity_top_k=limit).retrieve(query)
+            elif hasattr(lexicon_retriever, "row_retriever"):
+                nodes = lexicon_retriever.row_retriever.retrieve(query)
+            else:
+                nodes = []
+
+            if not nodes:
+                return f"未在行实体词典中找到与 '{query}' 相关的记录。"
+            
+            lines = [
+                "已找到相似的数据库行记录映射参考：\n",
+                "| 数据表 | 主键列 | 真实主键值 | 关联行核心属性描述 | 相似度得分 |",
+                "| :--- | :--- | :--- | :--- | :--- |"
+            ]
+            for n in nodes[:limit]:
+                meta = n.node.metadata
+                t_name = meta.get("table_name", "")
+                pk_col = meta.get("primary_key_column", "")
+                pk_val = meta.get("primary_key_val", "")
+                row_content = meta.get("row_content", "")
+                score = getattr(n, "score", 0.0)
+                lines.append(f"| `{t_name}` | `{pk_col}` | `'{pk_val}'` | {row_content} | {score:.4f} |")
+                
+            return "\n".join(lines)
+        except Exception as e:
+            logger.error(f"Error retrieving row lexicon: {e}", exc_info=True)
+            return f"Error retrieving row lexicon: {str(e)}"
+
+    return search_db_row_lexicon
+
+
+def create_db_table_schema_tool(lexicon_retriever: Any) -> Any:
+    """
+    创建表结构补充探索工具。
+    """
+
+    @langchain_tool
+    def search_db_table_schema(query: str, limit: int = 5) -> str:
+        """
+        通过语义相似度在表结构字典中检索最相关的 DDL 表定义详情。
+        """
+        if lexicon_retriever is None:
+            return "Error: Database lexicon retriever is not initialized or disabled."
+        try:
+            emit_stream_status(
+                f"正在进行表结构 DDL 检索: {query}",
+                stage="retrieving",
+                source="search_db_table_schema",
+            )
+            if hasattr(lexicon_retriever, "schema_index") and lexicon_retriever.schema_index is not None:
+                nodes = lexicon_retriever.schema_index.as_retriever(vector_store_query_mode="hybrid", similarity_top_k=limit).retrieve(query)
+            elif hasattr(lexicon_retriever, "schema_retriever"):
+                nodes = lexicon_retriever.schema_retriever.retrieve(query)
+            else:
+                nodes = []
+            if not nodes:
+                return f"未找到与 '{query}' 相关的表结构定义。"
+            
+            lines = ["已找到以下最相关的表 DDL 定义：\n"]
+            for n in nodes[:limit]:
+                meta = n.node.metadata
+                t_name = meta.get("table_name", "")
+                score = getattr(n, "score", 0.0)
+                ddl = n.node.text
+                
+                clean_ddl = re.sub(r"-- \d+\. \{.*?\}", "", ddl, flags=re.DOTALL).strip()
+                clean_ddl = re.sub(r"VARCHAR\(\d+\)", "VARCHAR", clean_ddl, flags=re.IGNORECASE)
+                
+                lines.append(f"### 表: {t_name} (相似度得分: {score:.4f})")
+                lines.append(f"```sql\n{clean_ddl}\n```\n")
+                
+            return "\n".join(lines)
+        except Exception as e:
+            logger.error(f"Error retrieving table schema lexicon: {e}", exc_info=True)
+            return f"Error retrieving table schema lexicon: {str(e)}"
+
+    return search_db_table_schema

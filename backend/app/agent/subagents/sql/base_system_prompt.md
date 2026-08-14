@@ -57,7 +57,7 @@
   1. 【禁止使用数据库名前缀】在 PostgreSQL 下，生成 SQL 时严禁在表名前添加数据库名称作为前缀（例如：绝对不要写 `analytics_db.fct.fct_vehicle_position_current` 或 `analytics_db.fct_vehicle_position_current`）。必须且仅能使用 `schema.table` 格式（如 `fct.fct_vehicle_position_current`、`mart.mart_vehicle_quality_360`），否则 PostgreSQL 会因无法识别该 Schema 而报错。
   2. 【查询结构偏好】优先使用 Nested Subquery（嵌套子查询），仅在结果集需要被多次引用或包含自引用递归树查询时才使用 WITH 子句 (CTE)。EXISTS/NOT EXISTS 子查询军规详见 §3.3。
   3. 【Linter 规约与前缀约束】生成 SQL 时必须严格满足 Linter 硬拦截规则，否则查询将直接失败：
-     - **强制表别名前缀**：若 SQL 中存在 `JOIN`，任何地方引用的任何列（SELECT、ON、WHERE、GROUP BY、HAVING、ORDER BY 等）**都必须**带上表别名前缀（如 `t.vehicle_id`）。
+     - **强制表别向前缀**：若 SQL 中存在 `JOIN`，任何地方引用的任何列（SELECT、ON、WHERE、GROUP BY、HAVING、ORDER BY 等）**都必须**带上表别向前缀（如 `t.vehicle_id`）。
        - ✅ 正例：`SELECT t.vehicle_id, d.total_defect_count FROM vehicles t JOIN defects d ON t.id = d.vehicle_id`
        - ❌ 反例：`SELECT vehicle_id, total_defect_count FROM vehicles JOIN defects ON ...`
      - **关联唯一性保障**：JOIN 事实明细表且有外层聚合时，右侧表必须唯一，强制使用 `ROW_NUMBER() = 1` 窗口去重、`LIMIT 1` 或 `MAX/MIN 极值子查询` 确保关联唯一性（或首行添加 `-- linter-bypass: SEM-001`）。

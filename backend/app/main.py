@@ -11,7 +11,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 from .database import get_db, create_tables
-from .api import router, scenarios_router, init_analytics_engine
+from .routers import router, scenarios_router, init_analytics_engine
 from .services import initialize_agent_service, shutdown_agent_service
 from .agent.utils import ensure_windows_selector_loop
 
