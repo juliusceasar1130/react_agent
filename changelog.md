@@ -1,3 +1,34 @@
+## 2026-08-15 19:10 +08:00 - 修复子智能体工具结果泄露至主消息底部的重复渲染问题
+
+### 变更内容
+
+#### 1. 前端主消息工具结果计算属性作用域对齐 (`frontend/src/components/chat/MessageItem.vue`) [FIX]
+- **主工具作用域严格对齐**：`toolResultEntries` 改为基于主消息可见工具集合 `toolCallList` 的 ID 进行严格过滤匹配，杜绝子智能体内部的 `load_skill`、`sql_db_query` 等工具执行结果溢出泄露至主消息底部。
+- **工具名称获取健壮性提升**：`getToolNameById` 新增回退防御逻辑，避免未知工具 ID 导致退化展示极长 hash 字符串。
+- **子卡片内聚展示**：子智能体工具结果继续安全收拢于 `SubagentCard` 内展示，保证主卡片与子卡片职责分明、视觉整洁。
+
+---
+
+## 2026-08-15 15:35 +08:00 - 主 Agent 与子智能体流式显示解耦与独立卡片渲染落地
+
+### 变更内容
+
+#### 1. 后端流式协议打标与作用域分流 (`backend/app/schemas.py`, `backend/app/services/chat_service.py`) [FEATURE]
+- **作用域元数据打标**：在 `StreamToolCallPayload`, `TokenStreamEvent`, `ReasoningStreamEvent`, `ToolCallStreamEvent`, `ToolResultStreamEvent` 中扩展 `subagent_id`, `subagent_name` 可选字段（序列化 `exclude_none=True` 向后兼容）。
+- **命名空间与子任务映射**：`_stream_execution_loop` 实时维护主 Agent 派发的 `task` 工具调用映射表，自动解析图命名空间 `ns` 中的 `tools:<call_id>`，将子智能体产生的思考（Reasoning）、输出 Token 及内部工具调用（SQL/词典查询）精准打标为对应子智能体作用域。
+
+#### 2. 前端 Store 隔离与事件解析分流 (`frontend/src/types/`, `frontend/src/api/chat.ts`, `frontend/src/stores/messages.ts`, `frontend/src/composables/useChatStream.ts`) [FEATURE]
+- **类型系统扩展**：新增 `SubagentSessionState` 接口与 `subagents` 字典映射，支持子智能体独立的执行状态、专属思考、工具链调用与输出内容。
+- **状态会话槽隔离**：`messagesStore` 引入 `ensureSubagentState` 状态槽管理，流式接收到子智能体 token/reasoning/tool_call 时独立分流，彻底杜绝主气泡与子智能体思考过程与计时器串槽。
+- **中断与错误优雅收尾**：用户中途 Abort 停止或执行出错时，子智能体卡片优雅进入 `interrupted` 或 `error` 状态并完整保留已执行内容。
+
+#### 3. 子智能体独立卡片 UI 组件与历史回放无损还原 (`frontend/src/components/chat/SubagentCard.vue`, `MessageItem.vue`) [FEATURE]
+- **`SubagentCard.vue` 原生卡片**：提供专属执行状态指示（执行中/已完成/已中断/执行失败）、独立耗时计时器、专属深度思考折叠面板、工具调用参数与结果追踪，以及 Markdown 总结输出。
+- **主气泡委派折叠与视图净化**：主气泡内仅保留主 Agent 的思考与最终业务结论，`task` 调用自动折叠为委派摘要徽标，消除界面双份冗余。
+- **历史回放持久化**：新增 `chat_messages.subagents` 列（`create_tables` 幂等 `ADD COLUMN IF NOT EXISTS` 迁移），`final` 事件随流携带子智能体会话快照（思考/输出/工具链）落库；刷新或切换历史会话时优先还原完整快照，旧数据基于 `tool_calls` 中的作用域元数据兜底重构工具链。
+
+---
+
 ## 2026-08-14 14:40 +08:00 - DeepAgent 架构重构收官：Wave 4 前后端 Shim 垫片全量清理与直通路径落地
 
 ### 变更内容

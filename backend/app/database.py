@@ -1,4 +1,4 @@
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, text
 
 from sqlalchemy.orm import sessionmaker
 from .models import Base
@@ -23,3 +23,12 @@ def get_db():
 def create_tables():
 
     Base.metadata.create_all(bind=engine)
+
+    # 幂等迁移：create_all 不会为已存在的表补列，这里用 PG 的 IF NOT EXISTS 补全新列
+    with engine.begin() as conn:
+        conn.execute(
+            text(
+                "ALTER TABLE chat_messages "
+                "ADD COLUMN IF NOT EXISTS subagents TEXT"
+            )
+        )

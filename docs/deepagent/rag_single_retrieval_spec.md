@@ -1,6 +1,9 @@
 # DeepAgent 多智能体单点 RAG 检索与状态继承优化规范 (RAG Optimization Spec)
 
+> [!IMPORTANT]
+> **文档状态**：🏛️ **核心技术规范 / 权威基石**（多智能体单点 RAG 检索与 State 深拷贝继承的标准规范）。  
 > **文档路径**：`docs/deepagent/rag_single_retrieval_spec.md`  
+> **全局索引**：[DeepAgent 文档中心](file:///f:/000_dev/Python/workplace/rearch_agent/.tree/features/agent-deepagent/docs/deepagent/README.md)  
 > **关联规范**：`docs/deepagent/phase1_implementation_spec.md`  
 > **更新时间**：2026-08-10  
 > **技术基线**：`deepagents 0.7.5` + `langchain 1.3.14` + `langgraph 1.2.9`  

@@ -231,6 +231,8 @@ class SQLAgentService:
         name: str = "",
         args: Any = None,
         args_text_delta: str = "",
+        subagent_id: Optional[str] = None,
+        subagent_name: Optional[str] = None,
     ) -> dict[str, Any]:
         """更新工具调用聚合信息。"""
         existing = tool_calls.get(
@@ -255,6 +257,10 @@ class SQLAgentService:
             parsed = self._safe_load_json(existing["args_text"])
             if parsed is not None:
                 existing["args"] = parsed
+        if subagent_id is not None:
+            existing["subagent_id"] = subagent_id
+        if subagent_name is not None:
+            existing["subagent_name"] = subagent_name
 
         tool_calls[tool_call_id] = existing
         return existing
@@ -277,6 +283,8 @@ class SQLAgentService:
         self,
         message: Any,
         tool_calls: dict[str, dict[str, Any]],
+        subagent_id: Optional[str] = None,
+        subagent_name: Optional[str] = None,
     ) -> None:
         """从 AIMessage / 完整消息中提取工具调用。"""
         raw_tool_calls = getattr(message, "tool_calls", None) or []
@@ -297,6 +305,8 @@ class SQLAgentService:
                     actual_id=actual_id,
                     name=tool_name,
                     args=tool_call.get("args"),
+                    subagent_id=subagent_id,
+                    subagent_name=subagent_name,
                 )
             except (KeyError, TypeError, AttributeError) as exc:
                 logger.warning("提取工具调用信息失败: %s", exc)
@@ -305,6 +315,8 @@ class SQLAgentService:
         self,
         message: Any,
         tool_calls: dict[str, dict[str, Any]],
+        subagent_id: Optional[str] = None,
+        subagent_name: Optional[str] = None,
     ) -> list[dict[str, Any]]:
         """从流式消息块中提取 tool_call_chunk 事件。"""
         events: list[dict[str, Any]] = []
@@ -335,6 +347,8 @@ class SQLAgentService:
                 actual_id=actual_id or tool_call_id,
                 name=block.get("name") or "",
                 args_text_delta=block.get("args") or "",
+                subagent_id=subagent_id,
+                subagent_name=subagent_name,
             )
             
             tool_info["message_id"] = message_id
@@ -343,15 +357,21 @@ class SQLAgentService:
             if not tool_info.get("name") and not tool_info.get("args_text"):
                 continue
 
-            events.append(
-                {
-                    "type": "tool_call",
-                    "id": tool_info["id"],
-                    "name": tool_info.get("name") or f"tool_call_{block_index}",
-                    "args_text": tool_info.get("args_text") or "",
-                    "status": "started" if is_new else "streaming",
-                }
-            )
+            event_dict: dict[str, Any] = {
+                "type": "tool_call",
+                "id": tool_info["id"],
+                "name": tool_info.get("name") or f"tool_call_{block_index}",
+                "args_text": tool_info.get("args_text") or "",
+                "status": "started" if is_new else "streaming",
+            }
+            resolved_subagent_id = subagent_id or tool_info.get("subagent_id")
+            resolved_subagent_name = subagent_name or tool_info.get("subagent_name")
+            if resolved_subagent_id:
+                event_dict["subagent_id"] = resolved_subagent_id
+            if resolved_subagent_name:
+                event_dict["subagent_name"] = resolved_subagent_name
+
+            events.append(event_dict)
 
         return events
 
@@ -360,6 +380,8 @@ class SQLAgentService:
         message: Any,
         tool_calls: dict[str, dict[str, Any]],
         tool_results: dict[str, str],
+        subagent_id: Optional[str] = None,
+        subagent_name: Optional[str] = None,
     ) -> Optional[dict[str, Any]]:
         """从 ToolMessage 中提取工具结果事件。"""
         if not isinstance(message, ToolMessage):
@@ -380,11 +402,19 @@ class SQLAgentService:
         if previous == content:
             return None
 
-        return {
+        event_dict: dict[str, Any] = {
             "type": "tool_result",
             "id": tool_call_id,
             "content": content,
         }
+        matched_call_id = subagent_id or tool_calls.get(tool_call_id, {}).get("subagent_id")
+        matched_sub_name = subagent_name or tool_calls.get(tool_call_id, {}).get("subagent_name")
+        if matched_call_id:
+            event_dict["subagent_id"] = matched_call_id
+        if matched_sub_name:
+            event_dict["subagent_name"] = matched_sub_name
+
+        return event_dict
 
     @staticmethod
     def _serialize_tool_calls(
@@ -395,15 +425,18 @@ class SQLAgentService:
         """将工具调用聚合结果序列化为列表。"""
         serialized = []
         for item in tool_calls.values():
-            serialized.append(
-                {
-                    "id": item.get("id", ""),
-                    "name": item.get("name", ""),
-                    "args": item.get("args", {}) or {},
-                    "args_text": item.get("args_text", "") or "",
-                    "status": "completed" if final else (item.get("status") or "streaming"),
-                }
-            )
+            call_entry: dict[str, Any] = {
+                "id": item.get("id", ""),
+                "name": item.get("name", ""),
+                "args": item.get("args", {}) or {},
+                "args_text": item.get("args_text", "") or "",
+                "status": "completed" if final else (item.get("status") or "streaming"),
+            }
+            if item.get("subagent_id"):
+                call_entry["subagent_id"] = item["subagent_id"]
+            if item.get("subagent_name"):
+                call_entry["subagent_name"] = item["subagent_name"]
+            serialized.append(call_entry)
         return serialized
 
     def _extract_tool_data_from_result(self, result: dict) -> tuple[str, list, dict]:
@@ -555,12 +588,13 @@ class SQLAgentService:
         return None, chunk
 
     @staticmethod
-    def _status_signature(event: dict[str, Any]) -> tuple[str, str, str]:
+    def _status_signature(event: dict[str, Any]) -> tuple[str, str, str, str]:
         """构建状态事件签名，用于去重。"""
         return (
             event.get("stage", ""),
             event.get("text", ""),
             event.get("source", ""),
+            str(event.get("subagent_id") or ""),
         )
 
     async def process_message(
@@ -683,6 +717,8 @@ class SQLAgentService:
                 has_sent_lexicon = False
                 current_subagent = None
                 active_task_targets: dict[str, str] = {}
+                # 按 task call_id 聚合子智能体会话（reasoning/content），final 时随事件落库
+                accumulated_subagents: dict[str, dict[str, Any]] = {}
 
                 async for chunk in source_iter:
                     if not chunk:
@@ -710,24 +746,33 @@ class SQLAgentService:
                                             active_task_targets[tc_id] = target_subagent
 
                         matched_subagent = None
+                        matched_call_id = None
                         if ns:
                             for segment in ns:
                                 if isinstance(segment, str):
                                     if segment.startswith("tools:"):
                                         call_id = segment.split("tools:", 1)[1]
-                                        if call_id in active_task_targets:
-                                            matched_subagent = active_task_targets[call_id]
-                                            break
-                                    elif "sql_domain_agent" in segment:
-                                        matched_subagent = "sql_domain_agent"
+                                        matched_call_id = call_id
+                                        # 未知 call_id 不打标（宁可回落 main，也不静默归属 sql_domain_agent）
+                                        matched_subagent = active_task_targets.get(call_id)
+                                        if matched_subagent is None:
+                                            logger.warning(
+                                                "ns 含未登记的 tools:%s，不归属子智能体（active_task_targets=%s）",
+                                                call_id,
+                                                sorted(active_task_targets.keys()),
+                                            )
                                         break
-                                    elif "general-purpose" in segment:
-                                        matched_subagent = "general-purpose"
+                                    elif "sql_domain_agent" in segment:
+                                        # ns 中出现子智能体名（CompiledSubAgent run_name 可能注入）时的兜底：
+                                        # 只标记归属、不猜测 call_id，避免并行委派时错配会话
+                                        matched_subagent = "sql_domain_agent"
                                         break
 
                         new_subagent = matched_subagent if matched_subagent else "main"
                         if new_subagent != current_subagent:
                             current_subagent = new_subagent
+                            # 子智能体识别与显示名目前仅覆盖 sql_domain_agent；
+                            # 新增子智能体时需同步扩展 active_task_targets 来源、本映射与前端 title 映射
                             display_name = (
                                 "SQL数据助手" if current_subagent == "sql_domain_agent" else "通用助手"
                             )
@@ -804,29 +849,48 @@ class SQLAgentService:
                         if isinstance(message_chunk, AIMessage):
                             reasoning_text = message_chunk.additional_kwargs.get("reasoning_content")
                             if reasoning_text:
-                                await _emit(
-                                    {
-                                        "type": "reasoning",
-                                        "text": reasoning_text,
-                                        "node": node_name,
-                                    }
-                                )
+                                reasoning_dict: dict[str, Any] = {
+                                    "type": "reasoning",
+                                    "text": reasoning_text,
+                                    "node": node_name,
+                                }
+                                if matched_call_id:
+                                    reasoning_dict["subagent_id"] = matched_call_id
+                                    reasoning_dict["subagent_name"] = matched_subagent
+                                    sub_state = accumulated_subagents.setdefault(
+                                        matched_call_id,
+                                        {"name": matched_subagent, "reasoning": "", "content": "", "_reasoning_len": 0},
+                                    )
+                                    # reasoning_content 可能以完整消息重复出现，按长度增量去重
+                                    if len(reasoning_text) > sub_state["_reasoning_len"]:
+                                        sub_state["reasoning"] += reasoning_text[sub_state["_reasoning_len"]:]
+                                        sub_state["_reasoning_len"] = len(reasoning_text)
+                                await _emit(reasoning_dict)
 
                             for text_segment in self._extract_text_segments(message_chunk):
                                 if not text_segment:
                                     continue
                                 has_stream_tokens = True
-                                await _emit(
-                                    {
-                                        "type": "token",
-                                        "text": text_segment,
-                                        "node": node_name,
-                                    }
-                                )
+                                token_dict: dict[str, Any] = {
+                                    "type": "token",
+                                    "text": text_segment,
+                                    "node": node_name,
+                                }
+                                if matched_call_id:
+                                    token_dict["subagent_id"] = matched_call_id
+                                    token_dict["subagent_name"] = matched_subagent
+                                    sub_state = accumulated_subagents.setdefault(
+                                        matched_call_id,
+                                        {"name": matched_subagent, "reasoning": "", "content": "", "_reasoning_len": 0},
+                                    )
+                                    sub_state["content"] += text_segment
+                                await _emit(token_dict)
 
                         for event in self._collect_tool_call_chunk_events(
                             message_chunk,
                             accumulated_tool_calls,
+                            subagent_id=matched_call_id,
+                            subagent_name=matched_subagent,
                         ):
                             await _emit(event)
 
@@ -834,6 +898,8 @@ class SQLAgentService:
                             message_chunk,
                             accumulated_tool_calls,
                             accumulated_tool_results,
+                            subagent_id=matched_call_id,
+                            subagent_name=matched_subagent,
                         )
                         if tool_result_event:
                             await _emit(tool_result_event)
@@ -846,6 +912,9 @@ class SQLAgentService:
                                 has_tokens=has_stream_tokens,
                             )
                             if status_event:
+                                if matched_call_id:
+                                    status_event["subagent_id"] = matched_call_id
+                                    status_event["subagent_name"] = matched_subagent
                                 status_signature = self._status_signature(status_event)
                                 if status_signature != last_status_signature:
                                     await _emit(status_event)
@@ -895,6 +964,8 @@ class SQLAgentService:
                                 self._collect_tool_calls_from_message(
                                     last_message,
                                     accumulated_tool_calls,
+                                    subagent_id=matched_call_id,
+                                    subagent_name=matched_subagent,
                                 )
                                 if not getattr(last_message, "tool_calls", None):
                                     latest_ai_content = self._extract_message_content(
@@ -905,6 +976,8 @@ class SQLAgentService:
                                 last_message,
                                 accumulated_tool_calls,
                                 accumulated_tool_results,
+                                subagent_id=matched_call_id,
+                                subagent_name=matched_subagent,
                             )
                             if tool_result_event:
                                 await _emit(tool_result_event)
@@ -964,12 +1037,31 @@ class SQLAgentService:
                     len(tool_calls),
                     len(accumulated_tool_results),
                 )
+                # 组装子智能体会话快照：reasoning/content 来自循环聚合，工具链从打标后的 tool_calls 过滤
+                subagents_payload: dict[str, dict[str, Any]] = {}
+                for cid, sess in accumulated_subagents.items():
+                    agent_tools = [tc for tc in tool_calls if tc.get("subagent_id") == cid]
+                    sub_results = {
+                        tid: accumulated_tool_results[tid]
+                        for tid in (tc.get("id") for tc in agent_tools)
+                        if tid in accumulated_tool_results
+                    }
+                    subagents_payload[cid] = {
+                        "id": cid,
+                        "name": sess["name"],
+                        "status": "completed",
+                        "reasoningText": sess["reasoning"],
+                        "content": sess["content"],
+                        "toolCalls": agent_tools,
+                        "toolResults": sub_results,
+                    }
                 await _emit(
                     {
                         "type": "final",
                         "content": final_content,
                         "tool_calls": tool_calls or None,
                         "tool_results": accumulated_tool_results or None,
+                        "subagents": subagents_payload or None,
                         "context_warning": context_warning,
                     }
                 )

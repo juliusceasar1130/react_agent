@@ -1,8 +1,10 @@
 # DeepAgent 通用多智能体系统 (Generic Multi-Agent System) 规范文档 (Spec)
 
+> [!TIP]
+> **文档状态**：🚀 **核心系统规范 (Spec) / 活跃演进**（规定主/子智能体上下文隔离、SSE 流式事件协议与 HITL 人机协同中断恢复机制）。  
 > **文档路径**：`docs/deepagent/multi_agent_system_spec.md`  
+> **全局索引**：[DeepAgent 文档中心](file:///f:/000_dev/Python/workplace/rearch_agent/.tree/features/agent-deepagent/docs/deepagent/README.md)  
 > **更新时间**：2026-08-09  
-> **重构策略**：功能优先（在现行目录中跑通核心功能），而后物理解耦（纯代码搬家）  
 > **技术栈基线**：`deepagents 0.7.5` + `langchain 1.3.14` + `langgraph 1.2.9` + `fastapi 0.127.1` + `Vue 3.4`
 
 ---

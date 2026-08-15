@@ -1,9 +1,10 @@
-   # 从 Text-to-SQL 到通用智能体：技术选型可行性研究与前端改造综合报告
+# 从 Text-to-SQL 到通用智能体：技术选型可行性研究与前端改造综合报告
 
-> **文档存放路径**：`docs/deepagent/generic_agent_architecture_report.md`  
-> **创建时间**：2026-07-22  
-> **最近修订**：2026-07-26 Asia/Shanghai  
-> **文档状态**：架构决策已落定（未修改项目源码）  
+> [!TIP]
+> **文档状态**：🚀 **前瞻规划 / 演进总蓝图**（指导企业知识库问答、Python/ECharts 数据研报与异构模型混合调度等未来能力的演进总路线）。  
+> **文档路径**：`docs/deepagent/generic_agent_architecture_report.md`  
+> **全局索引**：[DeepAgent 文档中心](file:///f:/000_dev/Python/workplace/rearch_agent/.tree/features/agent-deepagent/docs/deepagent/README.md)  
+> **创建时间**：2026-07-22（最近修订：2026-07-26）  
 > **修订摘要**：经官方资料复核与架构评审，**否决 Supervisor 显式路由方案**，**采纳 deepagents 作为主 Agent harness（选择性挂载）+ 隐式工具路由**。原"混合架构 LangGraph Engine + Deep Agent Pattern"章节整体重写为四种架构方案比较；第三章架构图去除 Supervisor Router，改为 `create_deep_agent` + subagent 隐式路由；第四章前端兼容性措辞修正；第五章实施路线图按新决策调整。
 
 ---

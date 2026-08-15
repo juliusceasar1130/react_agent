@@ -1,5 +1,10 @@
 # DeepAgent 项目结构重构演进路线图
 
+> [!IMPORTANT]
+> **文档状态**：🏛️ **已落地基线 / 重构全景记录**（Stage 0 ~ Wave 4 全波次物理重构与测试基线已全部完成）。  
+> **文档路径**：`docs/deepagent/refactoring_roadmap.md`  
+> **全局索引**：[DeepAgent 文档中心](file:///f:/000_dev/Python/workplace/rearch_agent/.tree/features/agent-deepagent/docs/deepagent/README.md)  
+
 **Goal:** 在不改变业务功能、不改变 SSE 契约与 Agent 初始化语义的前提下，将当前单块式 backend/frontend 目录演进为按职责拆分、低耦合、易扩展的结构；每一阶段都可独立回滚、可验证。
 
 **Architecture:** 采用「功能优先已落地 → 物理目录纯搬家」的波次（wave）策略。先建立可重复的测试/冒烟基线，再按风险由低到高拆分 `api.py` → `routers/`、`services.py` → `services/`、SQL 子智能体目录化，最后进行前端组件领域化拆分。每一波通过兼容 shim / re-export 保持旧 import 路径可用，降低对其他分支和运行时的影响。

@@ -11,13 +11,63 @@ import type {
   QuestionItem,
   LexiconContext,
   ToolArtifact,
+  SubagentSessionState,
 } from '@/types'
 import { useRequestGuard } from '@/composables/useRequestGuard'
+import { formatSubagentTitle, parseJson } from '@/utils/helpers'
 
 /** 过滤系统内部上下文标记，防止泄露到用户界面 */
 const INTERNAL_MARKER_RE = /<context_(?:redacted|collapsed)[^>]*\/>/g
 const stripInternalMarkers = (text: string): string =>
   text.replace(INTERNAL_MARKER_RE, '')
+
+/** 从持久化的 tool_calls 和 tool_results 中无损重构子智能体卡片数据 */
+const reconstructSubagents = (
+  toolCallsJson: string | null | undefined,
+  toolResultsJson: string | null | undefined
+): Record<string, SubagentSessionState> | undefined => {
+  if (!toolCallsJson) return undefined
+  try {
+    const parsed = JSON.parse(toolCallsJson)
+    if (!Array.isArray(parsed)) return undefined
+    let toolResults: Record<string, string> = {}
+    if (toolResultsJson) {
+      try {
+        toolResults = JSON.parse(toolResultsJson)
+      } catch {
+        toolResults = {}
+      }
+    }
+
+    const subagents: Record<string, SubagentSessionState> = {}
+    for (const tool of parsed) {
+      if (tool && tool.subagent_id) {
+        const subId = tool.subagent_id
+        if (!subagents[subId]) {
+          const name = tool.subagent_name || 'sql_domain_agent'
+          const title = formatSubagentTitle(name)
+          subagents[subId] = {
+            id: subId,
+            name,
+            title,
+            status: 'completed',
+            reasoningText: '',
+            toolCalls: [],
+            toolResults: {},
+            content: '',
+          }
+        }
+        subagents[subId].toolCalls.push(tool)
+        if (toolResults[tool.id]) {
+          subagents[subId].toolResults[tool.id] = toolResults[tool.id]
+        }
+      }
+    }
+    return Object.keys(subagents).length > 0 ? subagents : undefined
+  } catch {
+    return undefined
+  }
+}
 
 export const useMessagesStore = defineStore('messages', () => {
   // State
@@ -47,6 +97,7 @@ export const useMessagesStore = defineStore('messages', () => {
   const memoryArtifactMap = ref<Record<string, ToolArtifact>>({})
   const memoryReasoningMap = ref<Record<string, string>>({})
   const memoryReasoningDurationMap = ref<Record<string, number>>({})
+  const memorySubagentsMap = ref<Record<string, Record<string, SubagentSessionState>>>({})
 
   // Actions
   const fetchMessages = async (sessionId: string) => {
@@ -63,8 +114,31 @@ export const useMessagesStore = defineStore('messages', () => {
         return null
       }
 
-      messages.value = fetchedMessages
-      return fetchedMessages
+      messages.value = fetchedMessages.map((msg) => {
+        // 后端返回的 subagents 为 JSON 字符串，解析为对象；
+        // 旧数据（无 subagents 列）走 tool_calls 兜底重构（仅工具链）
+        const rawSubagents = (msg as { subagents?: unknown }).subagents
+        const subagentsObj = typeof rawSubagents === 'string'
+          ? (parseJson<Record<string, SubagentSessionState>>(rawSubagents) ?? undefined)
+          : (rawSubagents as Record<string, SubagentSessionState> | undefined)
+        if (subagentsObj) {
+          return {
+            ...msg,
+            subagents: subagentsObj,
+          }
+        }
+        if (msg.tool_calls) {
+          const reconstructed = reconstructSubagents(msg.tool_calls, msg.tool_results)
+          if (reconstructed) {
+            return {
+              ...msg,
+              subagents: reconstructed,
+            }
+          }
+        }
+        return msg
+      })
+      return messages.value
     } catch (err: any) {
       if (!fetchGuard.isFresh(requestId)) {
         return null
@@ -151,11 +225,50 @@ export const useMessagesStore = defineStore('messages', () => {
   }
 
   /**
+   * 辅助方法：确保 subagent 会话状态对象已初始化
+   */
+  const ensureSubagentState = (
+    msg: StreamingMessage,
+    subagentId: string,
+    subagentName?: string
+  ): SubagentSessionState => {
+    if (!msg.subagents) {
+      msg.subagents = {}
+    }
+    if (!msg.subagents[subagentId]) {
+      const name = subagentName || 'sql_domain_agent'
+      const title = formatSubagentTitle(name)
+      msg.subagents[subagentId] = {
+        id: subagentId,
+        name,
+        title,
+        status: 'running',
+        reasoningText: '',
+        toolCalls: [],
+        toolResults: {},
+        content: ''
+      }
+    }
+    return msg.subagents[subagentId]
+  }
+
+  /**
    * 追加流式内容
    */
-  const appendStreamingContent = (sessionId: string, content: string) => {
+  const appendStreamingContent = (
+    sessionId: string,
+    content: string,
+    subagentId?: string,
+    subagentName?: string
+  ) => {
     const msg = streamingMessagesMap.value[sessionId]
     if (msg) {
+      if (subagentId) {
+        const subagent = ensureSubagentState(msg, subagentId, subagentName)
+        subagent.content = stripInternalMarkers((subagent.content || '') + content)
+        return
+      }
+
       if (msg.requestStartTime && !msg.thinkingEnded) {
         msg.thinkingEnded = true
         msg.reasoningEndTime = Date.now()
@@ -168,10 +281,27 @@ export const useMessagesStore = defineStore('messages', () => {
   /**
    * 追加流式思考内容
    */
-  const appendStreamingReasoning = (sessionId: string, text: string) => {
+  const appendStreamingReasoning = (
+    sessionId: string,
+    text: string,
+    subagentId?: string,
+    subagentName?: string
+  ) => {
     const msg = streamingMessagesMap.value[sessionId]
     if (msg) {
       const now = Date.now()
+      if (subagentId) {
+        const subagent = ensureSubagentState(msg, subagentId, subagentName)
+        if (!subagent.reasoningStartTime) {
+          subagent.reasoningStartTime = now
+        }
+        subagent.reasoningEndTime = now
+        const startTimeRef = subagent.reasoningStartTime || now
+        subagent.reasoningDuration = Math.max(0.1, (now - startTimeRef) / 1000)
+        subagent.reasoningText = (subagent.reasoningText || '') + text
+        return
+      }
+
       if (!msg.reasoningStartTime) {
         msg.reasoningStartTime = now
       }
@@ -212,6 +342,20 @@ export const useMessagesStore = defineStore('messages', () => {
     if (!msg) return
     msg.needsReasoningSeparator = true
 
+    if (toolCall.subagent_id) {
+      const subagent = ensureSubagentState(msg, toolCall.subagent_id, toolCall.subagent_name)
+      const index = subagent.toolCalls.findIndex(item => item.id === toolCall.id)
+      if (index === -1) {
+        subagent.toolCalls.push(toolCall)
+      } else {
+        subagent.toolCalls[index] = {
+          ...subagent.toolCalls[index],
+          ...toolCall
+        }
+      }
+      return
+    }
+
     const index = msg.toolCalls.findIndex(item => item.id === toolCall.id)
     if (index === -1) {
       msg.toolCalls.push(toolCall)
@@ -227,10 +371,51 @@ export const useMessagesStore = defineStore('messages', () => {
   /**
    * 写入流式工具结果
    */
-  const setStreamingToolResult = (sessionId: string, toolCallId: string, content: string) => {
+  const setStreamingToolResult = (
+    sessionId: string,
+    toolCallId: string,
+    content: string,
+    subagentId?: string,
+    subagentName?: string
+  ) => {
     const msg = streamingMessagesMap.value[sessionId]
     if (!msg) return
     msg.needsReasoningSeparator = true
+
+    if (subagentId) {
+      const subagent = ensureSubagentState(msg, subagentId, subagentName)
+      subagent.toolResults = {
+        ...subagent.toolResults,
+        [toolCallId]: content
+      }
+      const index = subagent.toolCalls.findIndex(item => item.id === toolCallId)
+      if (index !== -1) {
+        subagent.toolCalls[index] = {
+          ...subagent.toolCalls[index],
+          status: 'completed'
+        }
+      }
+      return
+    }
+
+    // 检查是否属于某个子智能体
+    if (msg.subagents) {
+      for (const sub of Object.values(msg.subagents)) {
+        const index = sub.toolCalls.findIndex(item => item.id === toolCallId)
+        if (index !== -1) {
+          sub.toolResults = {
+            ...sub.toolResults,
+            [toolCallId]: content
+          }
+          sub.toolCalls[index] = {
+            ...sub.toolCalls[index],
+            status: 'completed'
+          }
+          return
+        }
+      }
+    }
+
     msg.toolResults = {
       ...msg.toolResults,
       [toolCallId]: content
@@ -246,7 +431,7 @@ export const useMessagesStore = defineStore('messages', () => {
   }
 
   /**
-   * 完成流式错误消息（不保留过程态信息）
+   * 完成流式错误消息（保留子智能体过程态信息）
    */
   const finalizeStreamingError = (sessionId: string, payload: {
     id?: string
@@ -261,6 +446,15 @@ export const useMessagesStore = defineStore('messages', () => {
     // 仅当前显示的会话才推入视图，防止污染其他会话
     if (sessionId !== latestRequestedSessionId.value) return null
 
+    if (temp.subagents) {
+      for (const sub of Object.values(temp.subagents)) {
+        if (sub.status === 'running') {
+          sub.status = 'error'
+          sub.error = payload.content
+        }
+      }
+    }
+
     const finalizedMessage: Message = {
       id: payload.id ?? temp.id,
       session_id: sessionId,
@@ -269,9 +463,13 @@ export const useMessagesStore = defineStore('messages', () => {
       created_at: payload.created_at ?? temp.created_at,
       tool_calls: null,
       tool_results: null,
+      subagents: temp.subagents
     }
 
     messages.value.push(finalizedMessage)
+    if (temp.subagents) {
+      memorySubagentsMap.value[finalizedMessage.id] = temp.subagents
+    }
     return finalizedMessage
   }
 
@@ -294,6 +492,14 @@ export const useMessagesStore = defineStore('messages', () => {
         : undefined
     )
 
+    if (temp.subagents) {
+      for (const sub of Object.values(temp.subagents)) {
+        if (sub.status === 'running') {
+          sub.status = 'interrupted'
+        }
+      }
+    }
+
     const interruptedMessage: Message = {
       id: `${temp.id}-interrupted`,
       session_id: sessionId,
@@ -309,6 +515,7 @@ export const useMessagesStore = defineStore('messages', () => {
         ? JSON.stringify(temp.toolResults)
         : null,
       is_interrupted: true,
+      subagents: temp.subagents,
     }
 
     if (temp.reasoningText) {
@@ -316,6 +523,9 @@ export const useMessagesStore = defineStore('messages', () => {
     }
     if (duration !== undefined) {
       memoryReasoningDurationMap.value[interruptedMessage.id] = duration
+    }
+    if (temp.subagents) {
+      memorySubagentsMap.value[interruptedMessage.id] = temp.subagents
     }
 
     messages.value.push(interruptedMessage)
@@ -339,6 +549,14 @@ export const useMessagesStore = defineStore('messages', () => {
         : undefined
     )
 
+    if (temp.subagents) {
+      for (const sub of Object.values(temp.subagents)) {
+        if (sub.status === 'running') {
+          sub.status = 'completed'
+        }
+      }
+    }
+
     if (finalizedId && temp.ragContext) {
       memoryRagMap.value[finalizedId] = temp.ragContext
     }
@@ -353,6 +571,9 @@ export const useMessagesStore = defineStore('messages', () => {
     }
     if (finalizedId && duration !== undefined) {
       memoryReasoningDurationMap.value[finalizedId] = duration
+    }
+    if (finalizedId && (payload.subagents || temp.subagents)) {
+      memorySubagentsMap.value[finalizedId] = payload.subagents ?? temp.subagents!
     }
 
     // 仅当前显示的会话才推入视图，防止污染其他会话
@@ -378,7 +599,8 @@ export const useMessagesStore = defineStore('messages', () => {
       ),
       rag_context: payload.rag_context ?? temp.ragContext,
       lexicon_context: payload.lexicon_context ?? temp.lexiconContext,
-      tool_artifact: payload.tool_artifact ?? temp.tool_artifact
+      tool_artifact: payload.tool_artifact ?? temp.tool_artifact,
+      subagents: payload.subagents ?? temp.subagents,
     }
 
     messages.value.push(finalizedMessage)
@@ -448,5 +670,6 @@ export const useMessagesStore = defineStore('messages', () => {
     memoryArtifactMap,
     memoryReasoningMap,
     memoryReasoningDurationMap,
+    memorySubagentsMap,
   }
 })

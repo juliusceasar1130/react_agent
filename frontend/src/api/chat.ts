@@ -114,6 +114,8 @@ const parseStreamEvent = (payload: string): StreamEvent | null => {
         type: 'token',
         text: parsed.text,
         node: parsed.node,
+        subagent_id: typeof parsed.subagent_id === 'string' ? parsed.subagent_id : undefined,
+        subagent_name: typeof parsed.subagent_name === 'string' ? parsed.subagent_name : undefined,
       }
 
     case 'reasoning':
@@ -124,6 +126,8 @@ const parseStreamEvent = (payload: string): StreamEvent | null => {
         type: 'reasoning',
         text: parsed.text,
         node: parsed.node,
+        subagent_id: typeof parsed.subagent_id === 'string' ? parsed.subagent_id : undefined,
+        subagent_name: typeof parsed.subagent_name === 'string' ? parsed.subagent_name : undefined,
       }
 
     case 'status':
@@ -141,6 +145,8 @@ const parseStreamEvent = (payload: string): StreamEvent | null => {
         text: parsed.text,
         source: parsed.source,
         detail: parsed.detail,
+        subagent_id: typeof parsed.subagent_id === 'string' ? parsed.subagent_id : undefined,
+        subagent_name: typeof parsed.subagent_name === 'string' ? parsed.subagent_name : undefined,
       }
 
     case 'tool_call':
@@ -158,6 +164,8 @@ const parseStreamEvent = (payload: string): StreamEvent | null => {
         name: parsed.name,
         args_text: parsed.args_text,
         status: parsed.status,
+        subagent_id: typeof parsed.subagent_id === 'string' ? parsed.subagent_id : undefined,
+        subagent_name: typeof parsed.subagent_name === 'string' ? parsed.subagent_name : undefined,
       }
 
     case 'tool_result':
@@ -168,6 +176,8 @@ const parseStreamEvent = (payload: string): StreamEvent | null => {
         type: 'tool_result',
         id: parsed.id,
         content: parsed.content,
+        subagent_id: typeof parsed.subagent_id === 'string' ? parsed.subagent_id : undefined,
+        subagent_name: typeof parsed.subagent_name === 'string' ? parsed.subagent_name : undefined,
       }
 
     case 'rag_context':

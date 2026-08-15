@@ -140,13 +140,13 @@ export function useChatStream() {
       switch (event.type) {
         case 'token':
           if (event.text) {
-            messagesStore.appendStreamingContent(sessionId, event.text)
+            messagesStore.appendStreamingContent(sessionId, event.text, event.subagent_id, event.subagent_name)
           }
           return
 
         case 'reasoning':
           if (event.text) {
-            messagesStore.appendStreamingReasoning(sessionId, event.text)
+            messagesStore.appendStreamingReasoning(sessionId, event.text, event.subagent_id, event.subagent_name)
           }
           return
 
@@ -164,11 +164,19 @@ export function useChatStream() {
             name: event.name,
             args_text: event.args_text,
             status: event.status,
+            subagent_id: event.subagent_id,
+            subagent_name: event.subagent_name,
           } satisfies StreamToolCall)
           return
 
         case 'tool_result':
-          messagesStore.setStreamingToolResult(sessionId, event.id, event.content)
+          messagesStore.setStreamingToolResult(
+            sessionId,
+            event.id,
+            event.content,
+            event.subagent_id,
+            event.subagent_name
+          )
           return
 
         case 'rag_context':
@@ -207,6 +215,7 @@ export function useChatStream() {
             content: event.content,
             tool_calls: event.tool_calls ? JSON.stringify(event.tool_calls) : null,
             tool_results: event.tool_results ? JSON.stringify(event.tool_results) : null,
+            subagents: event.subagents ?? undefined,
           })
           syncMessagesIfCurrent(sessionId)
           void syncSessions()

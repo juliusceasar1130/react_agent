@@ -305,6 +305,11 @@ async def stream_message_post(
                                 if final_tool_results
                                 else None
                             ),
+                            subagents=(
+                                json.dumps(event.get("subagents"), ensure_ascii=False)
+                                if event.get("subagents")
+                                else None
+                            ),
                         ),
                     )
                     assistant_persisted = True
@@ -636,6 +641,11 @@ async def stream_message_resume(
                             tool_results=(
                                 json.dumps(final_tool_results, ensure_ascii=False)
                                 if final_tool_results
+                                else None
+                            ),
+                            subagents=(
+                                json.dumps(event.get("subagents"), ensure_ascii=False)
+                                if event.get("subagents")
                                 else None
                             ),
                         ),

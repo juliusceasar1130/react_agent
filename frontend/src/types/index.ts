@@ -46,6 +46,22 @@ export interface ToolArtifact {
   [key: string]: unknown
 }
 
+export interface SubagentSessionState {
+  id: string // task call_id
+  name: string // e.g. "sql_domain_agent"
+  title?: string // human readable display name e.g. "SQL数据助手"
+  description?: string
+  status: 'running' | 'completed' | 'error' | 'interrupted'
+  reasoningText: string
+  reasoningStartTime?: number
+  reasoningEndTime?: number
+  reasoningDuration?: number
+  toolCalls: StreamToolCall[]
+  toolResults: Record<string, string>
+  content: string
+  error?: string
+}
+
 // 消息类型
 export interface Message {
   id: string
@@ -71,6 +87,7 @@ export interface Message {
   tool_artifact?: ToolArtifact | null
   active_subagent?: string | null
   subagent_display_name?: string | null
+  subagents?: Record<string, SubagentSessionState>
 }
 
 export interface MessageCreate {
@@ -148,6 +165,8 @@ export interface StreamToolCall {
   args?: Record<string, unknown> | unknown[] | string
   args_text?: string
   status?: StreamToolCallStatus
+  subagent_id?: string
+  subagent_name?: string
 }
 
 export type StreamToolCallStatus = 'started' | 'streaming' | 'completed'
@@ -157,11 +176,15 @@ export type StreamEvent =
       type: 'token'
       text: string
       node?: string
+      subagent_id?: string
+      subagent_name?: string
     }
   | {
       type: 'reasoning'
       text: string
       node?: string
+      subagent_id?: string
+      subagent_name?: string
     }
   | {
       type: 'status'
@@ -169,6 +192,8 @@ export type StreamEvent =
       text: string
       source?: string
       detail?: Record<string, unknown>
+      subagent_id?: string
+      subagent_name?: string
     }
   | {
       type: 'tool_call'
@@ -176,17 +201,22 @@ export type StreamEvent =
       name: string
       args_text?: string
       status: StreamToolCallStatus
+      subagent_id?: string
+      subagent_name?: string
     }
   | {
       type: 'tool_result'
       id: string
       content: string
+      subagent_id?: string
+      subagent_name?: string
     }
   | {
       type: 'final'
       content: string
       tool_calls?: StreamToolCall[] | null
       tool_results?: Record<string, string> | null
+      subagents?: Record<string, SubagentSessionState> | null
       message_id?: string
       created_at?: string
     }
@@ -243,6 +273,7 @@ export interface FinalizedStreamingMessage {
   }> | null
   lexicon_context?: LexiconContext | null
   tool_artifact?: Message['tool_artifact']
+  subagents?: Record<string, SubagentSessionState>
 }
 
 // 流式消息状态（临时显示）- 2025-01-01
@@ -278,6 +309,7 @@ export interface StreamingMessage {
   tool_artifact?: ToolArtifact | null
   active_subagent?: string | null
   subagent_display_name?: string | null
+  subagents?: Record<string, SubagentSessionState>
 }
 
 // 聊天请求类型 - 2025-01-01

@@ -9,6 +9,7 @@
 - **多会话管理** - 创建、删除、切换聊天会话
 - **流式/非流式输出** - 支持 SSE 实时流式响应
 - **结构化流式事件** - 流式聊天升级为 `token/status/tool_call/tool_result/final/error` 事件协议，默认界面仅展示最终结论，过程细节仅用于轻量状态提示或内部调试
+- **主 Agent 与子智能体流式显示解耦与独立卡片渲染** - 支持 Deep Agents 架构下主 Coordinator 与领域子智能体（如 SQL Agent）的流式与 UI 解耦。流式数据帧按 `subagent_id` 自动分流，主气泡仅保留主 Agent 思考与最终业务结论（任务委派折叠为摘要标签）；子智能体以独立的 `<SubagentCard>` 呈现专属执行状态、独立耗时、专属深度思考与内部工具调用链；支持用户中断/异常状态保留与页面刷新/切换历史会话零 DDL 迁移无损还原。
 - **SQL Agent** - 官方推荐的多步骤工作流（表探测、Schema 解析、查询生成、SQL 校验、执行）
 - **SQL 安全拦截** - 统一对齐数据预览、CSV 导出及图表生成工具的安全校验边界。采用“正则强拦截 + 11 条 AST 合规规则”双层防线，防止通过 `TRUNCATE`/`GRANT` 等关键字绕过 AST 判定，并统一抛出 `ToolException` 激活 LLM 自愈纠错。
 - **日期标准化** - 针对数据库日期字段（如 `DD/MM/YYYY`）的自动 ISO 8601 转换清洗
@@ -255,7 +256,6 @@ rearch_agent/
 │   │   ├── config.py              # 配置管理
 │   │   ├── chart_artifacts.py     # 图表 artifact 存储与读取
 │   │   ├── services/              # FastAPI Agent 服务包 (chat_service.py)
-│   │   ├── services_graph.py      # LangGraph SQL Agent 服务
 │   │   ├── test_*.py              # 后端冒烟 / 功能测试脚本
 │   │   ├── agent/                 # Agent 模块化架构核心
 │   │   │   ├── service.py             # Agent V2 核心运行时（兼容 LangGraph CLI）

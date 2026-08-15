@@ -1,6 +1,9 @@
 # DeepAgent 多智能体架构设计评审与选型建议报告
 
+> [!IMPORTANT]
+> **文档状态**：🏛️ **核心架构决策 (ADR) / 权威基石**（确立否决 Supervisor 显式路由、采纳 `deepagents` 隐式工具调度与 Tool Artifact 安全透传的权威依据）。  
 > **文档路径**：`docs/deepagent/architecture_review_report.md`  
+> **全局索引**：[DeepAgent 文档中心](file:///f:/000_dev/Python/workplace/rearch_agent/.tree/features/agent-deepagent/docs/deepagent/README.md)  
 > **评审对象**：`docs/deepagent/generic_agent_architecture_report.md`  
 > **评审时间**：2026-08-09  
 > **基准参考文件与来源**：

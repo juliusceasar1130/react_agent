@@ -1,9 +1,11 @@
 # 第一阶段：DeepAgent 多智能体核心功能落地与全链路验证规范 (Phase 1 Spec)
 
+> [!NOTE]
+> **文档状态**：🚀 **已落地基线 / Phase 2 演进参考**（Phase 1 核心多智能体机制已全面落地，作为后续 Phase 2 接入知识库与高级分析子智能体的基线范式）。  
 > **文档路径**：`docs/deepagent/phase1_implementation_spec.md`  
+> **全局索引**：[DeepAgent 文档中心](file:///f:/000_dev/Python/workplace/rearch_agent/.tree/features/agent-deepagent/docs/deepagent/README.md)  
 > **关联规范**：`openspec/changes/deepagent-multi-agent-system/phase1_spec.md`  
 > **更新时间**：2026-08-09  
-> **实施策略**：功能优先（在现行文件结构中动刀，不改变物理文件路径），零破坏落地核心多智能体机制  
 > **技术栈基线**：`deepagents 0.7.5` + `langchain 1.3.14` + `langgraph 1.2.9` + `fastapi 0.127.1` + `Vue 3.4`
 
 ---

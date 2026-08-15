@@ -100,6 +100,7 @@ def create_message(db: Session, message: MessageCreate) -> ChatMessage:
         session_id=message.session_id,
         tool_calls=message.tool_calls,
         tool_results=message.tool_results,
+        subagents=message.subagents,
     )
     db.add(db_message)
 

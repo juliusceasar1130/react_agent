@@ -24,7 +24,7 @@
       </div>
 
       <div class="px-5 py-3.5">
-        <div v-if="!isUser && message.active_subagent" class="mb-2.5">
+        <div v-if="!isUser && message.active_subagent && subagentsList.length === 0" class="mb-2.5">
           <SubAgentBadge
             :subagent="message.active_subagent"
             :display-name="message.subagent_display_name"
@@ -38,6 +38,15 @@
           :is-streaming="isStreamingActive"
           :duration="reasoningDuration"
         />
+
+        <!-- 子智能体独立卡片列表 -->
+        <div v-if="!isUser && subagentsList.length > 0" class="my-2.5 space-y-2">
+          <SubagentCard
+            v-for="sub in subagentsList"
+            :key="sub.id"
+            :subagent="sub"
+          />
+        </div>
 
         <p
           v-if="isUser"
@@ -561,6 +570,7 @@ import SubAgentBadge from '@/components/agent/SubAgentBadge.vue'
 import ChartArtifactCard from '@/components/artifacts/ChartArtifactCard.vue'
 import AskUserQuestionCard from './AskUserQuestionCard.vue'
 import ReasoningAccordion from './ReasoningAccordion.vue'
+import SubagentCard from './SubagentCard.vue'
 import { useChatStream } from '@/composables/useChatStream'
 import { triggerExportDownload } from '@/api/exports'
 import { CHAT_DEBUG_STREAM } from '@/config/chat'
@@ -571,7 +581,8 @@ import type {
   ExportArtifact,
   Message,
   StreamToolCall,
-  StreamingMessage
+  StreamingMessage,
+  SubagentSessionState,
 } from '@/types'
 import { useDateFormat } from '@/composables/useDateFormat'
 import { renderMarkdown, extractMetaData } from '@/utils/markdown'
@@ -755,21 +766,38 @@ const isInterruptedMessage = computed(() => {
   return Boolean((props.message as Message).is_interrupted)
 })
 
+const subagentsList = computed<SubagentSessionState[]>(() => {
+  if (streamingState.value?.subagents) {
+    return Object.values(streamingState.value.subagents)
+  }
+  const msgId = props.message.id
+  if (msgId && messagesStore.memorySubagentsMap[msgId]) {
+    return Object.values(messagesStore.memorySubagentsMap[msgId])
+  }
+  const msg = props.message as Message
+  if (msg.subagents) {
+    return Object.values(msg.subagents)
+  }
+  return []
+})
+
 const toolCallList = computed<StreamToolCall[]>(() => {
   if (streamingState.value) {
-    return streamingState.value.toolCalls
+    return streamingState.value.toolCalls.filter(t => !t.subagent_id)
   }
-
   const message = props.message as Message
   const parsed = parseJson<StreamToolCall[]>(message.tool_calls)
-  return Array.isArray(parsed) ? parsed : []
+  return (Array.isArray(parsed) ? parsed : []).filter(t => !t.subagent_id)
 })
 
 const toolResultEntries = computed<ToolResultEntry[]>(() => {
-  return Object.entries(rawToolResults.value).map(([id, result]) => ({
-    id,
-    content: String(result)
-  }))
+  const mainToolIds = new Set(toolCallList.value.map(t => t.id))
+  return Object.entries(rawToolResults.value)
+    .filter(([id]) => mainToolIds.has(id))
+    .map(([id, result]) => ({
+      id,
+      content: String(result)
+    }))
 })
 
 const isExportArtifact = (value: unknown): value is ExportArtifact => {
@@ -920,6 +948,14 @@ const toolStatusText = (tool: StreamToolCall) => {
 }
 
 const getToolArgsText = (tool: StreamToolCall): string => {
+  if (tool.name === 'task') {
+    const args = typeof tool.args === 'object' && tool.args !== null
+      ? tool.args as Record<string, unknown>
+      : parseJson<Record<string, unknown>>(tool.args_text || '')
+    if (args && typeof args.description === 'string') {
+      return `委派子任务: ${args.description}`
+    }
+  }
   if (tool.args_text) {
     return tool.args_text
   }
@@ -938,7 +974,10 @@ const getToolArgsText = (tool: StreamToolCall): string => {
 
 const getToolNameById = (id: string): string => {
   const tool = toolCallList.value.find(t => t.id === id)
-  return tool ? tool.name : id
+  if (tool?.name) {
+    return tool.name
+  }
+  return id.startsWith('chatcmpl-') ? '工具调用' : id
 }
 
 const formatToolResultContent = (content: string): string => {

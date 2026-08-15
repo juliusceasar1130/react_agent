@@ -8,6 +8,7 @@ frontend/dist/
 .agent/skills/
 .agent/workflows/
 .agents/
+temp
 
 # Node modules
 node_modules/

@@ -12,6 +12,7 @@ class MessageBase(BaseModel):
     session_id: str
     tool_calls: Optional[str] = None  # JSON字符串
     tool_results: Optional[str] = None  # JSON字符串
+    subagents: Optional[str] = None  # JSON字符串，子智能体会话快照
     feedback: str = "none"
     refined_payload: Optional[str] = None  # LLM 预提纯后的 json 字符串
 
@@ -126,18 +127,24 @@ class StreamToolCallPayload(BaseModel):
     args: Any = Field(default_factory=dict)
     args_text: str = ""
     status: StreamToolCallStatus
+    subagent_id: Optional[str] = None
+    subagent_name: Optional[str] = None
 
 
 class TokenStreamEvent(BaseModel):
     type: Literal["token"]
     text: str
     node: Optional[str] = None
+    subagent_id: Optional[str] = None
+    subagent_name: Optional[str] = None
 
 
 class ReasoningStreamEvent(BaseModel):
     type: Literal["reasoning"] = "reasoning"
     text: str
     node: Optional[str] = None
+    subagent_id: Optional[str] = None
+    subagent_name: Optional[str] = None
 
 
 class StatusStreamEvent(BaseModel):
@@ -146,6 +153,8 @@ class StatusStreamEvent(BaseModel):
     text: str
     source: Optional[str] = None
     detail: Optional[Dict[str, Any]] = None
+    subagent_id: Optional[str] = None
+    subagent_name: Optional[str] = None
 
 
 class ToolCallStreamEvent(BaseModel):
@@ -154,12 +163,16 @@ class ToolCallStreamEvent(BaseModel):
     name: str
     args_text: str = ""
     status: StreamToolCallStatus
+    subagent_id: Optional[str] = None
+    subagent_name: Optional[str] = None
 
 
 class ToolResultStreamEvent(BaseModel):
     type: Literal["tool_result"]
     id: str
     content: str
+    subagent_id: Optional[str] = None
+    subagent_name: Optional[str] = None
 
 
 class RAGContextPayload(BaseModel):
@@ -224,6 +237,7 @@ class FinalStreamEvent(BaseModel):
     content: str
     tool_calls: Optional[List[StreamToolCallPayload]] = None
     tool_results: Optional[Dict[str, str]] = None
+    subagents: Optional[Dict[str, Any]] = None
     context_warning: Optional[ContextWarningPayload] = None
     message_id: Optional[str] = None
     created_at: Optional[datetime] = None
