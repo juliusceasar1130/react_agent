@@ -1,8 +1,18 @@
 <template>
   <div
-    class="rounded-2xl border border-[#D8E2EE] bg-[#F6F9FC]/90 p-5 shadow-md backdrop-blur-xl transition-all duration-300"
+    class="ask-user-question-card rounded-2xl border border-[#D8E2EE] bg-[#F6F9FC]/90 p-5 shadow-md backdrop-blur-xl transition-all duration-300"
     :class="[isSubmitted ? 'opacity-80 pointer-events-none' : '']"
   >
+    <!-- Asker Attribution Header -->
+    <div v-if="displayAskerTitle" class="flex items-center gap-1.5 pb-3 border-b border-slate-200/70 mb-4 text-xs font-semibold text-primary">
+      <div class="flex h-5 w-5 items-center justify-center rounded-md bg-primary/10 text-primary">
+        <svg class="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+        </svg>
+      </div>
+      <span>{{ displayAskerTitle }} 发起澄清提问</span>
+    </div>
+
     <!-- Questions Panel -->
     <div class="space-y-6">
       <div v-for="(item, index) in questions" :key="index" class="space-y-3">
@@ -79,12 +89,17 @@
 
         <!-- Free Input Textarea -->
         <div class="mt-2.5 space-y-1.5">
-          <label class="text-[11px] font-medium text-slate-500 pl-0.5">
-            {{ item.options && item.options.length > 0 ? '补充参数 / 关联说明' : '请输入答案 / 说明' }}
-          </label>
+          <div class="flex items-center justify-between pl-0.5">
+            <label class="text-[11px] font-medium text-slate-500">
+              {{ item.options && item.options.length > 0 ? '补充参数 / 关联说明' : '请输入答案 / 说明' }}
+            </label>
+            <span class="text-[10px] text-slate-400">支持 Ctrl+Enter 快捷提交</span>
+          </div>
           <textarea
             v-model="customInputs[item.question]"
             :disabled="isSubmitted"
+            @keydown.ctrl.enter.prevent="handleSubmit"
+            @keydown.meta.enter.prevent="handleSubmit"
             class="w-full text-xs rounded-xl border border-slate-200 bg-white/60 p-2.5 focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20 outline-none resize-none transition-all duration-200 placeholder:text-slate-400 shadow-inner"
             :placeholder="item.options && item.options.length > 0 ? '若包含混合提问（如需同时输入车身号/时间等参数），请在此处填写...' : '请在此输入您的回答...'"
             rows="2.5"
@@ -138,14 +153,25 @@
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue'
 import type { QuestionItem } from '@/types'
+import { formatSubagentTitle } from '@/utils/helpers'
 
 interface Props {
   questions: QuestionItem[]
   isSubmitted?: boolean
+  askerTitle?: string | null
+  askerName?: string | null
 }
 
 const props = withDefaults(defineProps<Props>(), {
-  isSubmitted: false
+  isSubmitted: false,
+  askerTitle: null,
+  askerName: null
+})
+
+const displayAskerTitle = computed(() => {
+  if (props.askerTitle) return props.askerTitle
+  if (props.askerName) return formatSubagentTitle(props.askerName)
+  return null
 })
 
 const emit = defineEmits<{

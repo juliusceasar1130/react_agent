@@ -151,6 +151,9 @@
             v-if="currentSession"
             class="sticky bottom-3 sm:bottom-4 z-20 mx-auto w-full max-w-6xl px-3 sm:px-0 pointer-events-none mb-2 sm:mb-3"
           >
+            <!-- 澄清提问底部常驻悬浮响应条 -->
+            <FloatingClarificationDock />
+
             <div class="pointer-events-auto rounded-xl border border-neutral-200/80 bg-white/95 shadow-md backdrop-blur-xl p-3.5 sm:p-4 transition-all duration-200">
               <div class="flex flex-col gap-2.5">
                 <!-- 输入文本域 -->
@@ -266,6 +269,7 @@ import WelcomeDashboard from '@/components/chat/WelcomeDashboard.vue'
 import VersionChangelogModal from '@/components/common/VersionChangelogModal.vue'
 import AdminReviewPanel from '@/components/agent/AdminReviewPanel.vue'
 import FloatingScenarioCards from '@/components/chat/FloatingScenarioCards.vue'
+import FloatingClarificationDock from '@/components/chat/FloatingClarificationDock.vue'
 import ScenarioModal from '@/components/common/ScenarioModal.vue'
 import { useScenarioPanelStore } from '@/stores/scenarioPanel'
 

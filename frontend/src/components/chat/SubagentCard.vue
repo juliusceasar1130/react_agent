@@ -28,7 +28,11 @@
           class="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium"
           :class="statusBadgeClass"
         >
-          <span v-if="subagent.status === 'running'" class="relative flex h-1.5 w-1.5">
+          <span v-if="isAwaitingClarification" class="relative flex h-1.5 w-1.5">
+            <span class="absolute inline-flex h-full w-full animate-ping rounded-full bg-blue-500 opacity-75"></span>
+            <span class="relative inline-flex h-1.5 w-1.5 rounded-full bg-blue-500"></span>
+          </span>
+          <span v-else-if="subagent.status === 'running'" class="relative flex h-1.5 w-1.5">
             <span class="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary opacity-75"></span>
             <span class="relative inline-flex h-1.5 w-1.5 rounded-full bg-primary"></span>
           </span>
@@ -90,9 +94,9 @@
             </div>
             <span
               class="rounded-full px-2 py-0.5 text-[10px] font-medium"
-              :class="tool.status === 'completed' ? 'bg-emerald-50 text-emerald-600 dark:bg-emerald-950/40 dark:text-emerald-400' : 'bg-blue-50 text-blue-600 dark:bg-blue-950/40 dark:text-blue-400'"
+              :class="tool.status === 'completed' ? 'bg-emerald-50 text-emerald-600 dark:bg-emerald-950/40 dark:text-emerald-400' : (tool.name === 'AskUserQuestion' ? 'bg-blue-50 text-blue-600 dark:bg-blue-950/40 dark:text-blue-400' : 'bg-blue-50 text-blue-600 dark:bg-blue-950/40 dark:text-blue-400')"
             >
-              {{ tool.status === 'completed' ? '已完成' : '执行中...' }}
+              {{ tool.status === 'completed' ? '已完成' : (tool.name === 'AskUserQuestion' ? '等待用户确认...' : '执行中...') }}
             </span>
           </div>
 
@@ -112,6 +116,27 @@
             </details>
           </div>
         </div>
+      </div>
+
+      <!-- 等待用户确认参数的引导 Banner 与平滑滚动按钮 -->
+      <div v-if="isAwaitingClarification" class="my-2.5 flex items-center justify-between gap-3 rounded-lg border border-blue-200/80 bg-blue-50/60 p-2.5 px-3 dark:border-blue-900/60 dark:bg-blue-950/30 animate-fade-in">
+        <div class="flex items-center gap-2 text-xs font-medium text-blue-800 dark:text-blue-200">
+          <span class="relative flex h-2 w-2">
+            <span class="absolute inline-flex h-full w-full animate-ping rounded-full bg-blue-500 opacity-75"></span>
+            <span class="relative inline-flex h-2 w-2 rounded-full bg-blue-500"></span>
+          </span>
+          <span>正在等待您在下方卡片中确认参数...</span>
+        </div>
+        <button
+          type="button"
+          @click.stop="scrollToClarificationCard"
+          class="inline-flex items-center gap-1 rounded-md bg-blue-600 px-2.5 py-1 text-[11px] font-semibold text-white shadow-xs hover:bg-blue-700 active:scale-95 transition-all"
+        >
+          <span>定位到表单</span>
+          <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 14l-7 7m0 0l-7-7m7 7V3" />
+          </svg>
+        </button>
       </div>
 
       <!-- 3. 子智能体产出内容 (Markdown) -->
@@ -167,7 +192,20 @@ const renderedSubagentContent = computed(() => {
 // 复用统一命名映射（utils/helpers.ts），与 messages store 保持一致
 const formatSubagentName = (name: string) => formatSubagentTitle(name)
 
+const isAwaitingClarification = computed(() => {
+  // 仅当子智能体处于 running 且内部存在未完成的 AskUserQuestion 工具调用时判定为等待确认态
+  if (props.subagent.status !== 'running') {
+    return false
+  }
+  return !!props.subagent.toolCalls?.some(
+    t => t.name === 'AskUserQuestion' && t.status !== 'completed'
+  )
+})
+
 const statusText = computed(() => {
+  if (isAwaitingClarification.value) {
+    return '等待确认'
+  }
   switch (props.subagent.status) {
     case 'running':
       return '执行中...'
@@ -183,6 +221,9 @@ const statusText = computed(() => {
 })
 
 const statusBadgeClass = computed(() => {
+  if (isAwaitingClarification.value) {
+    return 'bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300 border border-blue-200/50'
+  }
   switch (props.subagent.status) {
     case 'running':
       return 'bg-primary/10 text-primary'
@@ -198,6 +239,9 @@ const statusBadgeClass = computed(() => {
 })
 
 const cardBorderClass = computed(() => {
+  if (isAwaitingClarification.value) {
+    return 'border-blue-200/90 dark:border-blue-900/40 bg-blue-50/[0.03] shadow-xs'
+  }
   switch (props.subagent.status) {
     case 'running':
       return 'border-primary/30 bg-primary/[0.02] shadow-xs'
@@ -225,4 +269,14 @@ const durationDisplay = computed(() => {
   }
   return ''
 })
+
+const scrollToClarificationCard = () => {
+  const target = document.querySelector('textarea, input[type="text"]') || document.querySelector('.animate-fade-in')
+  if (target) {
+    target.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    if (target instanceof HTMLTextAreaElement || target instanceof HTMLInputElement) {
+      target.focus()
+    }
+  }
+}
 </script>

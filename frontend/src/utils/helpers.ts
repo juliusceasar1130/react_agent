@@ -14,8 +14,9 @@ export const parseJson = <T,>(value?: string | null): T | null => {
 
 /** 子智能体显示名统一映射（与 backend 命名约定保持一致） */
 const SUBAGENT_TITLES: Record<string, string> = {
-  sql_domain_agent: 'SQL数据助手',
+  sql_domain_agent: 'SQL数据专家',
   chart_agent: '图表助手',
+  main: '主助手',
 }
 
 export const formatSubagentTitle = (name?: string | null): string =>

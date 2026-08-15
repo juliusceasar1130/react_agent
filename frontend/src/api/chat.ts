@@ -304,6 +304,9 @@ const parseStreamEvent = (payload: string): StreamEvent | null => {
         type: 'interrupt',
         questions: parsed.questions as QuestionItem[],
         session_id: parsed.session_id,
+        subagent_id: typeof parsed.subagent_id === 'string' ? parsed.subagent_id : undefined,
+        subagent_name: typeof parsed.subagent_name === 'string' ? parsed.subagent_name : undefined,
+        subagent_title: typeof parsed.subagent_title === 'string' ? parsed.subagent_title : undefined,
       }
   }
 

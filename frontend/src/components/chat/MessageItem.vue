@@ -9,7 +9,17 @@
       :class="[messageWrapperClass, isUser ? 'w-fit max-w-[80%] sm:max-w-[70%] ml-auto rounded-tr-xs' : 'w-full max-w-full']"
     >
       <div
-        v-if="isInterruptedMessage && !isUser"
+        v-if="isAwaitingClarification && !isUser"
+        class="flex items-center gap-1.5 px-5 pt-3 text-xs font-medium tracking-wide text-primary"
+      >
+        <span class="relative flex h-2 w-2">
+          <span class="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary opacity-75"></span>
+          <span class="relative inline-flex h-2 w-2 rounded-full bg-primary"></span>
+        </span>
+        <span>等待您的确认...</span>
+      </div>
+      <div
+        v-else-if="isInterruptedMessage && !isUser"
         class="px-5 pt-3 text-xs font-medium tracking-wide text-amber-700"
       >
         已停止生成
@@ -196,6 +206,8 @@
         <AskUserQuestionCard
           :questions="questions"
           :is-submitted="isQuestionSubmitted"
+          :asker-title="questionAskerTitle"
+          :asker-name="questionAskerName"
           @submit="handleQuestionSubmit"
         />
       </div>
@@ -586,6 +598,7 @@ import type {
 } from '@/types'
 import { useDateFormat } from '@/composables/useDateFormat'
 import { renderMarkdown, extractMetaData } from '@/utils/markdown'
+import { formatSubagentTitle } from '@/utils/helpers'
 import { parseJson, formatFileSize, copyToClipboard } from '@/utils/helpers'
 
 interface Props {
@@ -892,6 +905,27 @@ const isQuestionSubmitted = computed(() => {
   }
   return isLocalSubmitted.value
 })
+
+const isAwaitingClarification = computed(() => {
+  return isInterruptedMessage.value && hasQuestions.value && !isQuestionSubmitted.value
+})
+
+const questionAskerTitle = computed(() => {
+  if (streamingState.value?.interrupt_subagent_title) {
+    return streamingState.value.interrupt_subagent_title
+  }
+  if (streamingState.value?.interrupt_subagent_name && streamingState.value.interrupt_subagent_name !== 'main') {
+    return formatSubagentTitle(streamingState.value.interrupt_subagent_name)
+  }
+  return null
+})
+
+const questionAskerName = computed(() => {
+  if (streamingState.value?.interrupt_subagent_name && streamingState.value.interrupt_subagent_name !== 'main') {
+    return streamingState.value.interrupt_subagent_name
+  }
+  return null
+})
 const { resumeMessage } = useChatStream()
 const handleQuestionSubmit = async (answers: Record<string, string | string[]>) => {
   isLocalSubmitted.value = true
@@ -932,6 +966,10 @@ const handleExportDownload = (fileId: string) => {
 const toolStatusText = (tool: StreamToolCall) => {
   if (tool.status === 'completed' || hasToolResult(tool.id)) {
     return '已完成'
+  }
+
+  if (isAwaitingClarification.value) {
+    return '等待确认'
   }
 
   if (isInterruptedMessage.value) {
@@ -996,6 +1034,9 @@ const messageWrapperClass = computed(() => {
   if (errorText.value) {
     return 'border border-red-200 bg-gradient-to-br from-red-50 to-white'
   }
+  if (isAwaitingClarification.value) {
+    return 'border border-blue-200/80 bg-gradient-to-br from-blue-50/30 via-white to-white shadow-sm'
+  }
   if (isInterruptedMessage.value) {
     return 'border border-amber-200 bg-gradient-to-br from-amber-50 to-white'
   }
@@ -1012,6 +1053,9 @@ const textClass = computed(() => {
   if (errorText.value) {
     return 'text-red-700'
   }
+  if (isAwaitingClarification.value) {
+    return 'text-neutral-800'
+  }
   if (isInterruptedMessage.value) {
     return 'text-amber-800'
   }
@@ -1021,6 +1065,9 @@ const textClass = computed(() => {
 const statusClass = computed(() => {
   if (errorText.value) {
     return 'text-red-500'
+  }
+  if (isAwaitingClarification.value) {
+    return 'text-primary font-medium'
   }
   if (isInterruptedMessage.value) {
     return 'text-amber-600'
@@ -1034,6 +1081,9 @@ const timeClass = computed(() => {
   }
   if (errorText.value) {
     return 'text-red-400'
+  }
+  if (isAwaitingClarification.value) {
+    return 'text-neutral-500'
   }
   if (isInterruptedMessage.value) {
     return 'text-amber-500'

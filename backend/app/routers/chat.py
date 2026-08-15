@@ -201,24 +201,36 @@ async def stream_message_post(
                         break
                     continue
 
-                event_type = event.get("type")
+                event_type = event.get("type") if isinstance(event, dict) else None
 
                 if event_type == "interrupt":
-                    questions = event.get("questions", [])
+                    questions = event.get("questions", []) if isinstance(event, dict) else []
                     logger.info("[stream] generate 收到 interrupt: questions=%d, session_id=%s",
                                 len(questions), session_id)
                     questions_dump = []
                     question_texts = []
                     for q in questions:
-                        q_dict = q.model_dump() if hasattr(q, "model_dump") else q
-                        questions_dump.append(q_dict)
-                        question_texts.append(f"- {q_dict.get('question')} (选项: {q_dict.get('options')})")
+                        if isinstance(q, str):
+                            questions_dump.append({"question": q, "options": None})
+                            question_texts.append(f"- {q}")
+                        elif isinstance(q, dict):
+                            questions_dump.append(q)
+                            opts = q.get("options")
+                            opts_str = f" (选项: {opts})" if opts else ""
+                            question_texts.append(f"- {q.get('question', '')}{opts_str}")
+                        elif hasattr(q, "model_dump"):
+                            q_dict = q.model_dump()
+                            questions_dump.append(q_dict)
+                            opts = q_dict.get("options")
+                            opts_str = f" (选项: {opts})" if opts else ""
+                            question_texts.append(f"- {q_dict.get('question', '')}{opts_str}")
                     clarify_content = "我们需要您的进一步确认：\n" + "\n".join(question_texts)
                     
                     interrupt_tool_calls = list(tool_calls_map.values())
                     for tc in interrupt_tool_calls:
-                        tc["status"] = "completed"
-                    has_ask_user = any(tc.get("name") == "AskUserQuestion" for tc in interrupt_tool_calls)
+                        if isinstance(tc, dict):
+                            tc["status"] = "completed"
+                    has_ask_user = any(isinstance(tc, dict) and tc.get("name") == "AskUserQuestion" for tc in interrupt_tool_calls)
                     if not has_ask_user:
                         interrupt_tool_calls.append({
                             "id": f"ask_user_{session_id}",
@@ -449,8 +461,9 @@ async def stream_message_resume(
         if msg.role == "assistant" and msg.tool_calls:
             try:
                 tcs = json.loads(msg.tool_calls)
-                for tc in tcs:
-                    if tc.get("name") == "AskUserQuestion":
+                tc_list = list(tcs.values()) if isinstance(tcs, dict) else (tcs if isinstance(tcs, list) else [])
+                for tc in tc_list:
+                    if isinstance(tc, dict) and tc.get("name") == "AskUserQuestion":
                         ask_user_tool_call_id = tc.get("id")
                         break
             except Exception:
@@ -534,24 +547,36 @@ async def stream_message_resume(
                         break
                     continue
 
-                event_type = event.get("type")
+                event_type = event.get("type") if isinstance(event, dict) else None
 
                 if event_type == "interrupt":
-                    questions = event.get("questions", [])
+                    questions = event.get("questions", []) if isinstance(event, dict) else []
                     logger.info("[resume] generate 收到 interrupt: questions=%d, session_id=%s",
                                 len(questions), session_id)
                     questions_dump = []
                     question_texts = []
                     for q in questions:
-                        q_dict = q.model_dump() if hasattr(q, "model_dump") else q
-                        questions_dump.append(q_dict)
-                        question_texts.append(f"- {q_dict.get('question')} (选项: {q_dict.get('options')})")
+                        if isinstance(q, str):
+                            questions_dump.append({"question": q, "options": None})
+                            question_texts.append(f"- {q}")
+                        elif isinstance(q, dict):
+                            questions_dump.append(q)
+                            opts = q.get("options")
+                            opts_str = f" (选项: {opts})" if opts else ""
+                            question_texts.append(f"- {q.get('question', '')}{opts_str}")
+                        elif hasattr(q, "model_dump"):
+                            q_dict = q.model_dump()
+                            questions_dump.append(q_dict)
+                            opts = q_dict.get("options")
+                            opts_str = f" (选项: {opts})" if opts else ""
+                            question_texts.append(f"- {q_dict.get('question', '')}{opts_str}")
                     clarify_content = "我们需要您的进一步确认：\n" + "\n".join(question_texts)
                     
                     interrupt_tool_calls = list(tool_calls_map.values())
                     for tc in interrupt_tool_calls:
-                        tc["status"] = "completed"
-                    has_ask_user = any(tc.get("name") == "AskUserQuestion" for tc in interrupt_tool_calls)
+                        if isinstance(tc, dict):
+                            tc["status"] = "completed"
+                    has_ask_user = any(isinstance(tc, dict) and tc.get("name") == "AskUserQuestion" for tc in interrupt_tool_calls)
                     if not has_ask_user:
                         interrupt_tool_calls.append({
                             "id": f"ask_user_{session_id}",

@@ -617,7 +617,15 @@ export const useMessagesStore = defineStore('messages', () => {
   /**
    * 将当前流式消息转为中断挂起状态
    */
-  const setStreamingInterrupt = (sessionId: string, questions: QuestionItem[]) => {
+  const setStreamingInterrupt = (
+    sessionId: string,
+    questions: QuestionItem[],
+    attribution?: {
+      subagent_id?: string
+      subagent_name?: string
+      subagent_title?: string
+    }
+  ) => {
     const msg = streamingMessagesMap.value[sessionId]
     if (!msg) return
     msg.isStreaming = false
@@ -625,6 +633,11 @@ export const useMessagesStore = defineStore('messages', () => {
     msg.questions = questions
     msg.statusText = '等待用户确认'
     msg.stage = null
+    if (attribution) {
+      msg.interrupt_subagent_id = attribution.subagent_id ?? null
+      msg.interrupt_subagent_name = attribution.subagent_name ?? null
+      msg.interrupt_subagent_title = attribution.subagent_title ?? null
+    }
   }
 
   /**

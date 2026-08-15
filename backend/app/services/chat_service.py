@@ -1016,12 +1016,50 @@ class SQLAgentService:
                             questions = interrupt_val.get("questions", [])
                             logger.info("[interrupt_check] 识别为 AskUserQuestion interrupt: questions=%d, session_id=%s",
                                         len(questions), session_id)
-                            await _emit({
+                            
+                            interrupt_subagent_id = None
+                            interrupt_subagent_name = None
+                            interrupt_subagent_title = None
+
+                            # 查找最新触发 AskUserQuestion 的工具调用归属
+                            target_call = None
+                            for tc in reversed(list(accumulated_tool_calls.values())):
+                                if isinstance(tc, dict) and tc.get("name") == "AskUserQuestion":
+                                    target_call = tc
+                                    break
+
+                            if target_call and target_call.get("subagent_id"):
+                                interrupt_subagent_id = target_call.get("subagent_id")
+                                sess = accumulated_subagents.get(interrupt_subagent_id, {})
+                                interrupt_subagent_name = sess.get("name") or target_call.get("subagent_name")
+                            elif current_subagent and current_subagent != "main":
+                                interrupt_subagent_name = current_subagent
+                                interrupt_subagent_id = matched_call_id
+                            elif matched_subagent and matched_subagent != "main":
+                                interrupt_subagent_name = matched_subagent
+                                interrupt_subagent_id = matched_call_id
+
+                            subagent_title_map = {
+                                "sql_domain_agent": "SQL数据专家",
+                            }
+                            if interrupt_subagent_name and interrupt_subagent_name in subagent_title_map:
+                                interrupt_subagent_title = subagent_title_map[interrupt_subagent_name]
+
+                            interrupt_payload: dict[str, Any] = {
                                 "type": "interrupt",
                                 "questions": questions,
-                                "session_id": session_id
-                            })
-                            logger.info("[interrupt_check] interrupt 事件已 emit，准备 return, session_id=%s", session_id)
+                                "session_id": session_id,
+                            }
+                            if interrupt_subagent_id:
+                                interrupt_payload["subagent_id"] = interrupt_subagent_id
+                            if interrupt_subagent_name:
+                                interrupt_payload["subagent_name"] = interrupt_subagent_name
+                            if interrupt_subagent_title:
+                                interrupt_payload["subagent_title"] = interrupt_subagent_title
+
+                            await _emit(interrupt_payload)
+                            logger.info("[interrupt_check] interrupt 事件已 emit (subagent=%s)，准备 return, session_id=%s",
+                                        interrupt_subagent_name, session_id)
                             return
                         else:
                             logger.info("[interrupt_check] interrupt 值类型不匹配, session_id=%s", session_id)

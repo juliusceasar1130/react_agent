@@ -234,7 +234,11 @@ export function useChatStream() {
 
         case 'interrupt':
           hasTerminalEventRef.value = true
-          messagesStore.setStreamingInterrupt(sessionId, event.questions)
+          messagesStore.setStreamingInterrupt(sessionId, event.questions, {
+            subagent_id: event.subagent_id,
+            subagent_name: event.subagent_name,
+            subagent_title: event.subagent_title,
+          })
           syncMessagesIfCurrent(sessionId)
           void syncSessions()
           return

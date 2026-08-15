@@ -524,6 +524,8 @@ class SQLAgentService:
             "你是一个企业级通用数据智能体编排助手。\n\n"
             "当你收到用户关于数据库查询、数据统计分析、车间在制车数量、生成图表或导出 CSV 文件的请求时，"
             "请通过 task 工具委派给 sql_domain_agent 子智能体处理。\n\n"
+            "当你面临意图不明确、缺少关键前提条件或需要向用户进行参数/方案确认时，"
+            "可以使用 AskUserQuestion 工具直接向用户发起结构化澄清与确认提问。\n\n"
             "# 任务委派协议 (Task Delegation Protocol)\n"
             "在通过 task 工具向 sql_domain_agent 委派任务时，必须严格遵守以下分工协议：\n\n"
             "1. **主子职责分离**：\n"
@@ -584,9 +586,12 @@ class SQLAgentService:
         if rag_middleware:
             main_middleware_list.insert(0, rag_middleware)
 
+        main_tools = [AskUserQuestion()]
+
         return {
             "llm": llm,
             "subagents": [sql_subagent],
+            "tools": main_tools,
             "system_prompt": main_system_prompt,
             "middleware": main_middleware_list,
         }
@@ -596,6 +601,7 @@ class SQLAgentService:
         self.agent = create_deep_agent(
             model=components["llm"],
             subagents=components["subagents"],
+            tools=components.get("tools", []),
             system_prompt=components["system_prompt"],
             middleware=components["middleware"],
             **agent_kwargs,

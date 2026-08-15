@@ -1,3 +1,86 @@
+## 2026-08-15 21:25 +08:00 - 主智能体装配 AskUserQuestion 澄清工具与系统提示引导
+
+### 变更内容
+
+#### 1. 主智能体工具注册与双初始化路径同步 (`backend/app/agent/service.py`) [FEATURE]
+- **主智能体工具注入**：在 `_build_agent_components` 中为主智能体（`create_deep_agent`）注册 `AskUserQuestion()` 工具，使其具备直接向用户发起结构化问答与确认的能力。
+- **系统提示词指引增强**：在 `main_system_prompt` 中明确指引，当主智能体面临意图不明确、缺少必要关键前提条件或需要向用户进行技术/参数方案权衡时，可使用 `AskUserQuestion` 进行结构化提问。
+- **双初始化路径无缝对齐**：同步与异步两条初始化路径共享 `_create_agent_from_components` 构建逻辑，保证同步与异步运行环境完全一致。
+
+---
+
+## 2026-08-15 21:18 +08:00 - 修复大模型输出纯字符串提问时的 AttributeError 异常
+
+### 变更内容
+
+#### 1. 后端 questions 列表项与工具调用安全类型防御 (`backend/app/routers/chat.py`) [FIX]
+- **大模型入参多态兼容**：在 `/stream` 和 `/resume` 路由中，对 `questions` 列表中的每一项增加 `isinstance(q, str)`、`isinstance(q, dict)` 和 `hasattr(q, "model_dump")` 的多态安全解析，杜绝大模型输出纯字符串数组时触发 `'str' object has no attribute 'get'`。
+- **历史工具列表双向兼容**：在 `/resume` 解析历史 `msg.tool_calls` 时，兼容 `dict` 与 `list` 双格式反序列化，防御字典 Key 被当做工具对象遍历。
+- **SSE 事件安全提取**：在流式生成器消费事件时增加 `isinstance(event, dict)` 保护。
+
+---
+
+## 2026-08-15 21:05 +08:00 - 新增澄清问答底部常驻悬浮响应条（Floating Clarification Dock）
+
+### 变更内容
+
+#### 1. 前端悬浮响应条组件 (`frontend/src/components/chat/FloatingClarificationDock.vue`, `frontend/src/views/ChatView.vue`) [FEATURE]
+- **常驻视口状态感知**：在聊天窗口底部输入框上方挂载轻量悬浮胶囊 Bar。当大模型或子智能体发起 `AskUserQuestion` 澄清提问时，平滑滑入呈现（如 `【🤖 SQL数据专家】 正在等待您确认参数...`），并带呼吸蓝色脉冲微光。
+- **长文本回跳与自动聚焦**：当用户向上滚动翻阅长数据表格或日志时，悬浮条提供 **【👇 前往填写】** 快捷按钮，点击一键平滑滚动回卡片并将焦点自动置于首个输入框。
+- **零后端依赖与自然消隐**：100% 纯前端响应式状态驱动，提交答复或会话结束时自动淡出收起，无多余视觉残留。
+
+---
+
+## 2026-08-15 20:55 +08:00 - 主子智能体 AskUserQuestion 审查反馈加固与边界防御优化
+
+### 变更内容
+
+#### 1. 提问者身份判定加固与主助手防御 (`backend/app/services/chat_service.py`, `frontend/src/components/chat/MessageItem.vue`) [FIX]
+- **归属精准提取**：后端通过反向检索触发 `AskUserQuestion` 的工具调用归属，精准区分主智能体与子智能体，杜绝残留历史 `current_subagent` 导致的误归属。
+- **主助手清爽展示**：前端统一规范 `formatSubagentTitle` 映射，主智能体提问时不展示冗余徽章，子智能体提问时统一展示规范名称 **【🤖 SQL数据专家 发起澄清提问】**。
+
+#### 2. 子智能体等待确认态与停止状态严格隔离 (`frontend/src/components/chat/SubagentCard.vue`) [FIX]
+- **状态机流转防御**：`isAwaitingClarification` 增加 `subagent.status === 'running'` 前置约束。当用户主动点击“停止生成”导致子智能体进入 `interrupted` 状态时，彻底屏蔽“等待确认”和【定位到表单】引导，杜绝中止与等待语义串扰。
+
+---
+
+## 2026-08-15 20:30 +08:00 - 主子智能体 AskUserQuestion 角色归属、聚焦联动与快捷交互优化（第二阶段）
+
+### 变更内容
+
+#### 1. 后端中断事件智能体身份透传 (`backend/app/schemas.py`, `backend/app/services/chat_service.py`) [FEATURE]
+- **中断事件元数据扩展**：在 `InterruptStreamEvent` 中扩展 `subagent_id`, `subagent_name`, `subagent_title` 可选字段。
+- **命名空间与子图识别**：在 `chat_service.py` 捕获 `AskUserQuestion` 中断挂起时，自适应解析当前活跃的子智能体身份（如 `sql_domain_agent` -> `SQL数据专家`），随流向前端推送精准的角色归属数据。
+
+#### 2. 前端协议层与 Store 角色上下文打通 (`frontend/src/types/index.ts`, `frontend/src/api/chat.ts`, `frontend/src/stores/messages.ts`, `frontend/src/composables/useChatStream.ts`) [FEATURE]
+- **协议白名单与解析**：前端 `STREAM_EVENT_TYPES` 白名单与 `parseStreamEvent` 同步解析 `subagent_id` / `subagent_name` / `subagent_title`。
+- **Store 状态槽存储**：`messagesStore.setStreamingInterrupt` 接收提问者元数据并完整保存在当前消息状态中，提供稳定的上下文数据源。
+
+#### 3. 澄清卡片专属角色徽章与全键盘快捷提交 (`frontend/src/components/chat/AskUserQuestionCard.vue`, `MessageItem.vue`) [OPTIMIZE]
+- **专属角色标识 Header**：`AskUserQuestionCard` 头部根据提问者身份动态渲染专属徽章（如带有机器人图标的 **【🤖 SQL数据专家 发起澄清提问】**），使用户明确知晓提问来源。
+- **全键盘快捷提交**：输入框支持 `Ctrl+Enter` / `Cmd+Enter` 快速提交表单，并附带优雅的键盘操作提示，显著提升多轮高频问答效率。
+
+#### 4. 子智能体面板与底部表单锚点平滑聚焦联动 (`frontend/src/components/chat/SubagentCard.vue`) [OPTIMIZE]
+- **等待引导条与一键定位**：子智能体处于等待澄清态时，面板底部展示提示条并提供 **【👇 定位到表单】** 按钮。
+- **平滑滚动与自动聚焦**：点击后页面自动平滑滚动并将焦点（`focus()`）聚焦至底部问答表单输入框，彻底消除长日志与操作区之间的视线断层。
+
+---
+
+## 2026-08-15 20:25 +08:00 - 主子智能体 AskUserQuestion 状态语义解耦与等待澄清体验优化（第一阶段）
+
+### 变更内容
+
+#### 1. 前端主消息状态解耦与 Banner 柔和化 (`frontend/src/components/chat/MessageItem.vue`) [OPTIMIZE]
+- **状态语义解耦**：引入 `isAwaitingClarification` 计算属性，严格区分“挂起等待用户输入（`hasQuestions && !isQuestionSubmitted`）”与“用户主动停止生成/异常中断”。
+- **消除误导性恐慌文案**：当处于澄清等待期时，顶部彻底隐藏生硬的“已停止生成”黄色警告，转而渲染带有平缓微光呼吸动画的“⏳ 等待您的确认...”引导条，消除同一气泡内“顶端已停止 + 底端让填写”的视觉冲突。
+- **动态样式适配**：等待澄清态下气泡边框采用温和淡蓝阴影（`border-blue-200/80 bg-gradient-to-br from-blue-50/30 via-white to-white`），工具状态展示为“等待确认”，与常规执行或异常态形成清晰视觉分级。
+
+#### 2. 子智能体卡片挂起等待态升级 (`frontend/src/components/chat/SubagentCard.vue`) [OPTIMIZE]
+- **子智能体等待确认标签**：当子智能体内部工具调用停留在 `AskUserQuestion` 时，状态标签由“已中断（⚠️）”升级为“等待确认”（搭配淡蓝色脉冲指示点），避免用户产生子智能体执行崩溃的误解。
+- **工具链状态直观呈现**：工具调用序列中，`AskUserQuestion` 工具在未完成时直观标注为“等待用户确认...”，恢复完成后平滑转为“已完成”。
+
+---
+
 ## 2026-08-15 19:10 +08:00 - 修复子智能体工具结果泄露至主消息底部的重复渲染问题
 
 ### 变更内容

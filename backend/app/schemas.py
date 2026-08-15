@@ -255,6 +255,9 @@ class InterruptStreamEvent(BaseModel):
     type: Literal["interrupt"]
     questions: List[QuestionItem]
     session_id: str
+    subagent_id: Optional[str] = None
+    subagent_name: Optional[str] = None
+    subagent_title: Optional[str] = None
 
 
 ChatStreamEvent = Annotated[

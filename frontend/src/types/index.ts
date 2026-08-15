@@ -231,6 +231,9 @@ export type StreamEvent =
       type: 'interrupt'
       questions: QuestionItem[]
       session_id: string
+      subagent_id?: string
+      subagent_name?: string
+      subagent_title?: string
     }
   | {
       type: 'rag_context'
@@ -298,6 +301,9 @@ export interface StreamingMessage {
   error: string | null
   isInterrupted?: boolean
   questions?: QuestionItem[]
+  interrupt_subagent_id?: string | null
+  interrupt_subagent_name?: string | null
+  interrupt_subagent_title?: string | null
   feedback?: 'none' | 'like' | 'dislike' | 'collected' | 'approved'
   ragContext?: Array<{
     title: string
