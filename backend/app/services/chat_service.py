@@ -717,11 +717,12 @@ class SQLAgentService:
                 has_sent_lexicon = False
                 current_subagent = None
                 active_task_targets: dict[str, str] = {}
+                warned_unregistered_tools: set[str] = set()
                 # 按 task call_id 聚合子智能体会话（reasoning/content），final 时随事件落库
                 accumulated_subagents: dict[str, dict[str, Any]] = {}
 
                 async for chunk in source_iter:
-                    if not chunk:
+                    if chunk is None:
                         continue
 
                     if isinstance(chunk, dict):
@@ -756,11 +757,13 @@ class SQLAgentService:
                                         # 未知 call_id 不打标（宁可回落 main，也不静默归属 sql_domain_agent）
                                         matched_subagent = active_task_targets.get(call_id)
                                         if matched_subagent is None:
-                                            logger.warning(
-                                                "ns 含未登记的 tools:%s，不归属子智能体（active_task_targets=%s）",
-                                                call_id,
-                                                sorted(active_task_targets.keys()),
-                                            )
+                                            if call_id not in warned_unregistered_tools:
+                                                warned_unregistered_tools.add(call_id)
+                                                logger.warning(
+                                                    "ns 含未登记的 tools:%s，不归属子智能体（active_task_targets=%s）",
+                                                    call_id,
+                                                    sorted(active_task_targets.keys()),
+                                                )
                                         break
                                     elif "sql_domain_agent" in segment:
                                         # ns 中出现子智能体名（CompiledSubAgent run_name 可能注入）时的兜底：

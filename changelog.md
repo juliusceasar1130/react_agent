@@ -1,3 +1,24 @@
+## 2026-08-15 23:18 +08:00 - 修复子智能体并发执行触发的 INVALID_CONCURRENT_GRAPH_UPDATE 状态冲突
+
+### 变更内容
+
+#### 1. CustomState 知识检索字段 Reducer 规范化 (`backend/app/agent/state.py`) [FIX]
+- **补齐并发写 Reducer**：为 `CustomState` 中的 `rag_context` 与 `rag_query` 补充 `Annotated[..., _last_wins]` Reducer 声明。
+- **消除多 SubAgent 并发写冲突**：彻底修复当主 Agent 同时发起多个 `task` 工具委派给子智能体（如 `sql_domain_agent`）时，子图结束通过 `Command(update=...)` 回写状态触发的 `At key 'rag_context': Can receive only one value per step. Use an Annotated key to handle multiple values.`（`INVALID_CONCURRENT_GRAPH_UPDATE`）异常。
+- **并发状态测试覆盖**：新增 `backend/tests/agent/test_custom_state_concurrent.py` 单元测试，验证多节点并发汇聚时 State 的安全归约。
+
+---
+
+## 2026-08-15 22:18 +08:00 - 未登记命名空间警告日志去重优化
+
+### 变更内容
+
+#### 1. 流式命名空间解析日志降噪与去重 (`backend/app/services/chat_service.py`) [OPTIMIZE]
+- **单会话生命周期去重**：在 `_stream_execution_loop` 中维护 `warned_unregistered_tools` 集合，对同一工具调用执行期间的未登记 `call_id` 仅记录一次警告日志，彻底消除逐 Token 流式循环下的高频重复刷屏。
+- **保持观测与安全回退**：保留对异常/未登记命名空间回落到 `main` 的安全防御机制，兼顾生产日志整洁度与问题排查可观测性。
+
+---
+
 ## 2026-08-15 21:25 +08:00 - 主智能体装配 AskUserQuestion 澄清工具与系统提示引导
 
 ### 变更内容

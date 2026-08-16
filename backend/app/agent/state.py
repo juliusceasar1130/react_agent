@@ -2,10 +2,10 @@
 """
 Agent 状态定义。
 
-修改时间: 2026-04-05 Asia/Shanghai
+修改时间: 2026-08-15 Asia/Shanghai
 主要修改内容:
-- 新增 `scenarios_loaded`、`active_skill`、`active_scenario`
-- 为二级技能披露与后续模板执行预留状态字段
+- 为 `rag_context` 和 `rag_query` 补充 `_last_wins` Reducer 声明
+- 彻底解决多子智能体（CompiledSubAgent / task 工具）并发执行返回时触发的 LangGraph INVALID_CONCURRENT_GRAPH_UPDATE 并发状态写冲突
 """
 
 from typing import Annotated, Any, List
@@ -38,8 +38,8 @@ class CustomState(AgentState):
     scenarios_loaded: NotRequired[Annotated[List[str], _last_wins]]
     active_skill: NotRequired[Annotated[str | None, _last_wins]]
     active_scenario: NotRequired[Annotated[str | None, _last_wins]]
-    rag_context: NotRequired[List[Document]]
-    rag_query: NotRequired[str]
+    rag_context: NotRequired[Annotated[List[Document], _last_wins]]
+    rag_query: NotRequired[Annotated[str, _last_wins]]
     context_warning: NotRequired[Annotated[dict[str, Any] | None, _last_wins]]
     lexicon_context: NotRequired[Annotated[dict[str, Any] | None, _last_wins]]
     tool_artifact: NotRequired[Annotated[dict[str, Any] | None, _last_wins]]
