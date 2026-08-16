@@ -44,6 +44,7 @@ class ChatMessage(Base):
     content = Column(Text, nullable=False)
     tool_calls = Column(Text, nullable=True)  # 改为Text类型
     tool_results = Column(Text, nullable=True)  # 改为Text类型
+    tool_artifacts = Column(Text, nullable=True)  # JSON字符串，工件字典快照 (chart/csv/query)
     subagents = Column(Text, nullable=True)  # 子智能体会话快照 JSON
     feedback = Column(String(50), nullable=False, default="none")
     refined_payload = Column(Text, nullable=True)  # 保存 LLM 预提纯后的 json 字符串

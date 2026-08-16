@@ -149,6 +149,7 @@ def create_csv_export_tool(
                 ],
                 "tool_artifact": {
                     "kind": "file_export",
+                    "tool_call_id": str(runtime.tool_call_id) if runtime and hasattr(runtime, "tool_call_id") else None,
                     "file_id": record["file_id"],
                     "filename": filename,
                     "row_count": row_count,

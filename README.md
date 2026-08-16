@@ -14,7 +14,7 @@
 - **SQL 安全拦截** - 统一对齐数据预览、CSV 导出及图表生成工具的安全校验边界。采用“正则强拦截 + 11 条 AST 合规规则”双层防线，防止通过 `TRUNCATE`/`GRANT` 等关键字绕过 AST 判定，并统一抛出 `ToolException` 激活 LLM 自愈纠错。
 - **日期标准化** - 针对数据库日期字段（如 `DD/MM/YYYY`）的自动 ISO 8601 转换清洗
 - **SQL 弹性限流** - 智能判断查询行数，超限时自动截断并返回预览及系统警告，防止上下文溢出
-- **SQL 预览结构化表格** - 当执行 `sql_db_query` 时，利用 `Command` 与 `tool_artifact` 侧信道实时分发结构化有界数据，前端以 Pinia 内存存储并在气泡视图下渲染高端交互式表格（支持超限警告与 preview_rows 限流预览），未刷新前在会话内保持激活渲染，刷新后退回纯文本展示，不侵入后端数据库，兼顾超大结果集的 SSE 通道健康度与绝佳的用户体验
+- **SQL 预览结构化表格与全量工件持久化 (Tool Artifacts Persistence)** - 当执行 `sql_db_query`、`build_chart_artifact` 或 `export_to_csv` 时，利用 `Command` 与 `tool_artifact` 侧信道实时分发结构化有界数据；全生命周期的工件池以 `tool_call_id` 唯一索引，在流式结束时 100% 自动落库至数据库 `tool_artifacts` 列。无论是在流式实时阶段还是在页面 F5 刷新/会话回放时，ECharts 图表、CSV 导出卡片与 SQL 预览表格均秒级无损复原，彻底消除并发与回放丢失问题。
 - **CSV 数据导出** - 支持将大量 SQL 结果直接导出为 CSV 文件供用户下载，全程不占 LLM 上下文
 - **聊天内嵌图表** - 当用户明确要求生成图表时，后端生成 chart artifact，前端按 `chart_id` 拉取并渲染折线图或柱状图
 - **快捷场景直通 SQL 查询与极简矢量图标 (Minimalist Icons)** - 解耦纯函数直通查询引擎（`resolver` / `executor` / `formatter`），绕过 LLM Agent 决策耗时，毫秒级响应固定查询场景。快捷直通悬浮卡片 (`FloatingScenarioCards`) 与直通弹窗 (`ScenarioModal`) 全面摒弃 Emoji/3D 图标，采用现代极简 Single-line SVG 矢量线条图标（支持 High Contrast & Accent Tone Stroke）与智能图标类型识别 (`getScenarioIconType`)，兼顾轻盈精致视觉与高效响应。支持通用零侵入服务端分页 (LIMIT/OFFSET) 与真实全量 COUNT(*) 计算，前端 **`ScenarioModal` 弹窗** 支持单层表格右上角区间展示、底部分页条（上一页/下一页/页码/每页条数选择器）与最左侧 `#` 物理绝对行号连续展示。

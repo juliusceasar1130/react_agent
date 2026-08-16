@@ -85,6 +85,7 @@ export interface Message {
   }> | null
   lexicon_context?: LexiconContext | null
   tool_artifact?: ToolArtifact | null
+  tool_artifacts?: string | null
   active_subagent?: string | null
   subagent_display_name?: string | null
   subagents?: Record<string, SubagentSessionState>
@@ -216,6 +217,7 @@ export type StreamEvent =
       content: string
       tool_calls?: StreamToolCall[] | null
       tool_results?: Record<string, string> | null
+      tool_artifacts?: Record<string, ToolArtifact> | null
       subagents?: Record<string, SubagentSessionState> | null
       message_id?: string
       created_at?: string
@@ -251,6 +253,9 @@ export type StreamEvent =
   | {
       type: 'tool_artifact'
       artifact: ToolArtifact
+      subagent_id?: string
+      subagent_name?: string
+      tool_call_id?: string
     }
   | {
       type: 'subagent_change'
@@ -268,6 +273,7 @@ export interface FinalizedStreamingMessage {
   content?: string
   tool_calls?: string | null
   tool_results?: string | null
+  tool_artifacts?: Message['tool_artifacts']
   rag_context?: Array<{
     title: string
     domain: string
@@ -313,6 +319,7 @@ export interface StreamingMessage {
   }> | null
   lexiconContext?: LexiconContext | null
   tool_artifact?: ToolArtifact | null
+  tool_artifacts?: Record<string, ToolArtifact> | null
   active_subagent?: string | null
   subagent_display_name?: string | null
   subagents?: Record<string, SubagentSessionState>

@@ -237,6 +237,7 @@ def create_wrapped_query_tool(
             ],
             "tool_artifact": {
                 "kind": "query_result",
+                "tool_call_id": str(runtime.tool_call_id) if hasattr(runtime, "tool_call_id") else None,
                 "columns": columns,
                 "rows": rows_for_sse,
                 "row_count": row_count,

@@ -193,7 +193,23 @@ export function useChatStream() {
 
         case 'tool_artifact':
           if (messagesStore.streamingMessagesMap[sessionId]) {
-            messagesStore.streamingMessagesMap[sessionId].tool_artifact = event.artifact
+            const streamState = messagesStore.streamingMessagesMap[sessionId]
+            streamState.tool_artifact = event.artifact
+            if (!streamState.tool_artifacts) {
+              streamState.tool_artifacts = {}
+            }
+            const artifactKey = (event.artifact.tool_call_id as string | undefined)
+              || event.tool_call_id
+              || (event.artifact.chart_id as string | undefined)
+              || (event.artifact.file_id as string | undefined)
+              || event.artifact.kind
+              || 'default'
+            streamState.tool_artifacts[artifactKey] = {
+              ...event.artifact,
+              subagent_id: event.subagent_id,
+              subagent_name: event.subagent_name,
+              tool_call_id: event.tool_call_id,
+            }
           }
           return
 
@@ -215,6 +231,11 @@ export function useChatStream() {
             content: event.content,
             tool_calls: event.tool_calls ? JSON.stringify(event.tool_calls) : null,
             tool_results: event.tool_results ? JSON.stringify(event.tool_results) : null,
+            tool_artifacts: event.tool_artifacts
+              ? JSON.stringify(event.tool_artifacts)
+              : (messagesStore.streamingMessagesMap[sessionId]?.tool_artifacts
+                ? JSON.stringify(messagesStore.streamingMessagesMap[sessionId]?.tool_artifacts)
+                : null),
             subagents: event.subagents ?? undefined,
           })
           syncMessagesIfCurrent(sessionId)

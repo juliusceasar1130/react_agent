@@ -95,6 +95,7 @@ export const useMessagesStore = defineStore('messages', () => {
   }>>>({})
   const memoryLexiconMap = ref<Record<string, LexiconContext>>({})
   const memoryArtifactMap = ref<Record<string, ToolArtifact>>({})
+  const memoryArtifactPool = ref<Record<string, Record<string, ToolArtifact>>>({})
   const memoryReasoningMap = ref<Record<string, string>>({})
   const memoryReasoningDurationMap = ref<Record<string, number>>({})
   const memorySubagentsMap = ref<Record<string, Record<string, SubagentSessionState>>>({})
@@ -566,6 +567,9 @@ export const useMessagesStore = defineStore('messages', () => {
     if (finalizedId && temp.tool_artifact) {
       memoryArtifactMap.value[finalizedId] = temp.tool_artifact
     }
+    if (finalizedId && temp.tool_artifacts) {
+      memoryArtifactPool.value[finalizedId] = temp.tool_artifacts
+    }
     if (finalizedId && temp.reasoningText) {
       memoryReasoningMap.value[finalizedId] = temp.reasoningText
     }
@@ -595,6 +599,11 @@ export const useMessagesStore = defineStore('messages', () => {
       tool_results: payload.tool_results ?? (
         Object.keys(temp.toolResults).length
           ? JSON.stringify(temp.toolResults)
+          : null
+      ),
+      tool_artifacts: payload.tool_artifacts ?? (
+        temp.tool_artifacts
+          ? JSON.stringify(temp.tool_artifacts)
           : null
       ),
       rag_context: payload.rag_context ?? temp.ragContext,
@@ -681,6 +690,7 @@ export const useMessagesStore = defineStore('messages', () => {
     memoryRagMap,
     memoryLexiconMap,
     memoryArtifactMap,
+    memoryArtifactPool,
     memoryReasoningMap,
     memoryReasoningDurationMap,
     memorySubagentsMap,

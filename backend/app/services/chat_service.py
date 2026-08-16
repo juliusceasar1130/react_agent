@@ -720,6 +720,7 @@ class SQLAgentService:
                 warned_unregistered_tools: set[str] = set()
                 # 按 task call_id 聚合子智能体会话（reasoning/content），final 时随事件落库
                 accumulated_subagents: dict[str, dict[str, Any]] = {}
+                accumulated_tool_artifacts: dict[str, Any] = {}
 
                 async for chunk in source_iter:
                     if chunk is None:
@@ -929,9 +930,33 @@ class SQLAgentService:
                             if "tool_artifact" in state_update:
                                 artifact_val = state_update.get("tool_artifact")
                                 if artifact_val:
+                                    internal_tc_id = artifact_val.get("tool_call_id") if isinstance(artifact_val, dict) else None
+                                    resolved_tool_call_id = internal_tc_id or matched_call_id
+                                    artifact_key = (
+                                        resolved_tool_call_id
+                                        or (artifact_val.get("chart_id") if isinstance(artifact_val, dict) else None)
+                                        or (artifact_val.get("file_id") if isinstance(artifact_val, dict) else None)
+                                        or (artifact_val.get("kind") if isinstance(artifact_val, dict) else None)
+                                        or "default"
+                                    )
+                                    if isinstance(artifact_val, dict):
+                                        artifact_dict = dict(artifact_val)
+                                        if matched_call_id and "subagent_id" not in artifact_dict:
+                                            artifact_dict["subagent_id"] = matched_call_id
+                                        if matched_subagent and "subagent_name" not in artifact_dict:
+                                            artifact_dict["subagent_name"] = matched_subagent
+                                        if resolved_tool_call_id and "tool_call_id" not in artifact_dict:
+                                            artifact_dict["tool_call_id"] = resolved_tool_call_id
+                                        accumulated_tool_artifacts[artifact_key] = artifact_dict
+                                    else:
+                                        accumulated_tool_artifacts[artifact_key] = artifact_val
+
                                     await _emit({
                                         "type": "tool_artifact",
-                                        "artifact": artifact_val
+                                        "subagent_id": matched_call_id,
+                                        "subagent_name": matched_subagent,
+                                        "tool_call_id": resolved_tool_call_id,
+                                        "artifact": artifact_val,
                                     })
 
                             if "context_warning" in state_update:
@@ -1102,6 +1127,7 @@ class SQLAgentService:
                         "content": final_content,
                         "tool_calls": tool_calls or None,
                         "tool_results": accumulated_tool_results or None,
+                        "tool_artifacts": accumulated_tool_artifacts or None,
                         "subagents": subagents_payload or None,
                         "context_warning": context_warning,
                     }

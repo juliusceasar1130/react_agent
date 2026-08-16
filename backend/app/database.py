@@ -32,3 +32,9 @@ def create_tables():
                 "ADD COLUMN IF NOT EXISTS subagents TEXT"
             )
         )
+        conn.execute(
+            text(
+                "ALTER TABLE chat_messages "
+                "ADD COLUMN IF NOT EXISTS tool_artifacts TEXT"
+            )
+        )

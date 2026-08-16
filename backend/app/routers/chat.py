@@ -162,6 +162,7 @@ async def stream_message_post(
             has_tool_artifact = False
             tool_calls_map: dict[str, dict[str, Any]] = {}
             tool_results_data: dict[str, Any] = {}
+            tool_artifacts_data: dict[str, Any] = {}
             assistant_persisted = False
 
             logger.info("开始调用agent_service.process_stream...")
@@ -246,7 +247,8 @@ async def stream_message_post(
                             role="assistant",
                             content=clarify_content,
                             tool_calls=json.dumps(interrupt_tool_calls, ensure_ascii=False),
-                            tool_results=json.dumps(tool_results_data, ensure_ascii=False) if tool_results_data else None
+                            tool_results=json.dumps(tool_results_data, ensure_ascii=False) if tool_results_data else None,
+                            tool_artifacts=json.dumps(tool_artifacts_data, ensure_ascii=False) if tool_artifacts_data else None,
                         )
                     )
                     yield _encode_sse(event)
@@ -258,6 +260,31 @@ async def stream_message_post(
                 if event_type in ("rag_context", "lexicon_context", "tool_artifact"):
                     if event_type == "tool_artifact":
                         has_tool_artifact = True
+                        artifact_payload = event.get("artifact")
+                        if artifact_payload:
+                            resolved_tc_id = (
+                                (artifact_payload.get("tool_call_id") if isinstance(artifact_payload, dict) else None)
+                                or event.get("tool_call_id")
+                                or event.get("subagent_id")
+                            )
+                            artifact_key = (
+                                resolved_tc_id
+                                or (artifact_payload.get("chart_id") if isinstance(artifact_payload, dict) else None)
+                                or (artifact_payload.get("file_id") if isinstance(artifact_payload, dict) else None)
+                                or (artifact_payload.get("kind") if isinstance(artifact_payload, dict) else None)
+                                or "default"
+                            )
+                            if isinstance(artifact_payload, dict):
+                                art_dict = dict(artifact_payload)
+                                if event.get("subagent_id") and "subagent_id" not in art_dict:
+                                    art_dict["subagent_id"] = event.get("subagent_id")
+                                if event.get("subagent_name") and "subagent_name" not in art_dict:
+                                    art_dict["subagent_name"] = event.get("subagent_name")
+                                if resolved_tc_id and "tool_call_id" not in art_dict:
+                                    art_dict["tool_call_id"] = resolved_tc_id
+                                tool_artifacts_data[artifact_key] = art_dict
+                            else:
+                                tool_artifacts_data[artifact_key] = artifact_payload
                     yield _encode_sse(event)
                     continue
 
@@ -288,10 +315,12 @@ async def stream_message_post(
 
                     final_tool_calls = event.get("tool_calls") or list(tool_calls_map.values()) or None
                     final_tool_results = event.get("tool_results") or tool_results_data or None
+                    final_tool_artifacts = event.get("tool_artifacts") or tool_artifacts_data or None
                     logger.info(
-                        "收到最终事件，tool_calls=%d, tool_results=%d",
+                        "收到最终事件，tool_calls=%d, tool_results=%d, tool_artifacts=%d",
                         len(final_tool_calls or []),
                         len(final_tool_results or {}),
+                        len(final_tool_artifacts or {}),
                     )
 
                     assistant_message = crud.create_message(
@@ -320,6 +349,11 @@ async def stream_message_post(
                             subagents=(
                                 json.dumps(event.get("subagents"), ensure_ascii=False)
                                 if event.get("subagents")
+                                else None
+                            ),
+                            tool_artifacts=(
+                                json.dumps(final_tool_artifacts, ensure_ascii=False)
+                                if final_tool_artifacts
                                 else None
                             ),
                         ),
@@ -508,6 +542,7 @@ async def stream_message_resume(
             has_tool_artifact = False
             tool_calls_map: dict[str, dict[str, Any]] = {}
             tool_results_data: dict[str, Any] = {}
+            tool_artifacts_data: dict[str, Any] = {}
             assistant_persisted = False
 
             logger.info("开始调用agent_service.process_stream_resume...")
@@ -548,6 +583,10 @@ async def stream_message_resume(
                     continue
 
                 event_type = event.get("type") if isinstance(event, dict) else None
+
+                if event_type == "error":
+                    yield _encode_sse(event)
+                    break
 
                 if event_type == "interrupt":
                     questions = event.get("questions", []) if isinstance(event, dict) else []
@@ -592,7 +631,8 @@ async def stream_message_resume(
                             role="assistant",
                             content=clarify_content,
                             tool_calls=json.dumps(interrupt_tool_calls, ensure_ascii=False),
-                            tool_results=json.dumps(tool_results_data, ensure_ascii=False) if tool_results_data else None
+                            tool_results=json.dumps(tool_results_data, ensure_ascii=False) if tool_results_data else None,
+                            tool_artifacts=json.dumps(tool_artifacts_data, ensure_ascii=False) if tool_artifacts_data else None,
                         )
                     )
                     yield _encode_sse(event)
@@ -604,6 +644,31 @@ async def stream_message_resume(
                 if event_type in ("rag_context", "lexicon_context", "tool_artifact"):
                     if event_type == "tool_artifact":
                         has_tool_artifact = True
+                        artifact_payload = event.get("artifact")
+                        if artifact_payload:
+                            resolved_tc_id = (
+                                (artifact_payload.get("tool_call_id") if isinstance(artifact_payload, dict) else None)
+                                or event.get("tool_call_id")
+                                or event.get("subagent_id")
+                            )
+                            artifact_key = (
+                                resolved_tc_id
+                                or (artifact_payload.get("chart_id") if isinstance(artifact_payload, dict) else None)
+                                or (artifact_payload.get("file_id") if isinstance(artifact_payload, dict) else None)
+                                or (artifact_payload.get("kind") if isinstance(artifact_payload, dict) else None)
+                                or "default"
+                            )
+                            if isinstance(artifact_payload, dict):
+                                art_dict = dict(artifact_payload)
+                                if event.get("subagent_id") and "subagent_id" not in art_dict:
+                                    art_dict["subagent_id"] = event.get("subagent_id")
+                                if event.get("subagent_name") and "subagent_name" not in art_dict:
+                                    art_dict["subagent_name"] = event.get("subagent_name")
+                                if resolved_tc_id and "tool_call_id" not in art_dict:
+                                    art_dict["tool_call_id"] = resolved_tc_id
+                                tool_artifacts_data[artifact_key] = art_dict
+                            else:
+                                tool_artifacts_data[artifact_key] = artifact_payload
                     yield _encode_sse(event)
                     continue
 
@@ -634,15 +699,17 @@ async def stream_message_resume(
 
                     final_tool_calls = event.get("tool_calls") or list(tool_calls_map.values()) or None
                     final_tool_results = event.get("tool_results") or tool_results_data or None
+                    final_tool_artifacts = event.get("tool_artifacts") or tool_artifacts_data or None
                     if final_tool_results and ask_user_tool_call_id:
                         if isinstance(final_tool_results, dict):
                             final_tool_results = dict(final_tool_results)
                             final_tool_results.pop(ask_user_tool_call_id, None)
 
                     logger.info(
-                        "收到恢复流的最终事件，tool_calls=%d, tool_results=%d",
+                        "收到恢复流的最终事件，tool_calls=%d, tool_results=%d, tool_artifacts=%d",
                         len(final_tool_calls or []),
                         len(final_tool_results or {}),
+                        len(final_tool_artifacts or {}),
                     )
 
                     assistant_message = crud.create_message(
@@ -666,6 +733,11 @@ async def stream_message_resume(
                             tool_results=(
                                 json.dumps(final_tool_results, ensure_ascii=False)
                                 if final_tool_results
+                                else None
+                            ),
+                            tool_artifacts=(
+                                json.dumps(final_tool_artifacts, ensure_ascii=False)
+                                if final_tool_artifacts
                                 else None
                             ),
                             subagents=(

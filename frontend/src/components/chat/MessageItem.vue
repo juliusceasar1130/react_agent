@@ -183,9 +183,13 @@
         </div>
       </div>
 
-      <!-- 侧信道直达与懒加载图表卡片 (紧贴智能图表 Banner 展开) -->
-      <div v-if="chartSpec" class="mt-3 animate-fade-in">
-        <ChartArtifactCard :chart-payload="chartSpec" />
+      <!-- 侧信道直达与懒加载图表卡片 (支持多子智能体/多图表并列展开) -->
+      <div v-if="chartSpecsList.length > 0" class="mt-3 space-y-3 animate-fade-in">
+        <ChartArtifactCard
+          v-for="(spec, sIdx) in chartSpecsList"
+          :key="spec.chart_id || spec.tool_call_id || sIdx"
+          :chart-payload="spec"
+        />
       </div>
       <div
         v-else-if="!isUser && chartArtifacts.length > 0"
@@ -281,28 +285,32 @@
         </div>
       </div>
 
-      <!-- 新机制：侧信道直达的 CSV 导出，无需等待打字机 (流式优先) -->
-      <div v-if="fileExport" class="space-y-3 px-4 pb-3">
-        <div class="rounded-[22px] border border-emerald-200 bg-gradient-to-br from-emerald-50 via-white to-emerald-50/50 px-4 py-3 shadow-sm">
+      <!-- 新机制：侧信道直达的 CSV 导出，无需等待打字机 (流式优先，支持多文件并列) -->
+      <div v-if="fileExportsList.length > 0" class="space-y-3 px-4 pb-3">
+        <div
+          v-for="(fExport, fIdx) in fileExportsList"
+          :key="fExport.file_id || fIdx"
+          class="rounded-[22px] border border-emerald-200 bg-gradient-to-br from-emerald-50 via-white to-emerald-50/50 px-4 py-3 shadow-sm"
+        >
           <div class="flex items-start justify-between gap-4">
             <div class="min-w-0">
               <div class="text-sm font-semibold text-emerald-800">CSV 文件已生成</div>
-              <div class="mt-1 break-all text-sm text-emerald-700">{{ fileExport.filename }}</div>
+              <div class="mt-1 break-all text-sm text-emerald-700">{{ fExport.filename }}</div>
               <div class="mt-2 text-xs leading-5 text-emerald-700/90">
-                <span>{{ fileExport.row_count }} 行 × {{ fileExport.col_count }} 列</span>
-                <span v-if="fileExport.size_bytes"> · {{ formatFileSize(fileExport.size_bytes) }}</span>
+                <span>{{ fExport.row_count }} 行 × {{ fExport.col_count }} 列</span>
+                <span v-if="fExport.size_bytes"> · {{ formatFileSize(fExport.size_bytes) }}</span>
               </div>
-              <div v-if="fileExport.columns && fileExport.columns.length > 0" class="mt-1 text-xs leading-5 text-emerald-700/90">
-                列名：{{ fileExport.columns.join('、') }}
+              <div v-if="fExport.columns && fExport.columns.length > 0" class="mt-1 text-xs leading-5 text-emerald-700/90">
+                列名：{{ fExport.columns.join('、') }}
               </div>
-              <div v-if="fileExport.expires_at" class="mt-1 text-xs leading-5 text-emerald-700/80">
-                有效期至：{{ formatDateTime(fileExport.expires_at) }}
+              <div v-if="fExport.expires_at" class="mt-1 text-xs leading-5 text-emerald-700/80">
+                有效期至：{{ formatDateTime(fExport.expires_at) }}
               </div>
             </div>
             <button
               type="button"
               class="shrink-0 rounded-2xl bg-emerald-600 px-3 py-2 text-sm font-medium text-white transition hover:bg-emerald-700"
-              @click="handleExportDownload(fileExport.file_id)"
+              @click="handleExportDownload(fExport.file_id)"
             >
               下载 CSV
             </button>
@@ -691,6 +699,29 @@ const parsedLexiconContext = computed(() => {
   return (props.message as Message).lexicon_context ?? { tables: [], values: [], rows: [] }
 })
 
+// 解析当前消息的所有工件字典池（优先读取持久化的 message.tool_artifacts，流式中读 memoryArtifactPool / streamingState）
+const artifactsMap = computed<Record<string, Record<string, unknown>>>(() => {
+  const msg = props.message as Message
+  if (msg.tool_artifacts) {
+    const parsed = parseJson<Record<string, Record<string, unknown>>>(msg.tool_artifacts)
+    if (parsed && typeof parsed === 'object') {
+      return parsed
+    }
+  }
+  const msgId = msg.id
+  if (msgId && messagesStore.memoryArtifactPool[msgId]) {
+    return messagesStore.memoryArtifactPool[msgId] as unknown as Record<string, Record<string, unknown>>
+  }
+  if (streamingState.value?.tool_artifacts) {
+    return streamingState.value.tool_artifacts as unknown as Record<string, Record<string, unknown>>
+  }
+  return {}
+})
+
+const artifactsList = computed<Array<Record<string, unknown>>>(() => {
+  return Object.values(artifactsMap.value)
+})
+
 const queryResult = computed(() => {
   if (streamingState.value?.tool_artifact) {
     return streamingState.value.tool_artifact
@@ -699,32 +730,73 @@ const queryResult = computed(() => {
   if (msgId && messagesStore.memoryArtifactMap[msgId]) {
     return messagesStore.memoryArtifactMap[msgId]
   }
-  return (props.message as Message).tool_artifact ?? null
+  const single = (props.message as Message).tool_artifact
+  if (single) return single
+
+  const list = artifactsList.value
+  return list.length > 0 ? list[list.length - 1] : null
 })
 
-// 判断 tool_artifact 是否为 chart_spec
+// 提取工件池中的全部 chart_spec 图表列表，支持多子智能体/多图表并列展示
+const chartSpecsList = computed<ChartArtifact[]>(() => {
+  const pool = artifactsList.value
+  const fromPool = pool.filter((a): a is ChartArtifact => Boolean(a && (a as unknown as { kind?: string }).kind === 'chart_spec'))
+  if (fromPool.length > 0) {
+    return fromPool
+  }
+  const single = queryResult.value
+  if (single && (single as unknown as { kind?: string }).kind === 'chart_spec') {
+    return [single as unknown as ChartArtifact]
+  }
+  return []
+})
+
+// 判断 tool_artifact 是否为 chart_spec（单图表兼容回退）
 const chartSpec = computed<ChartArtifact | null>(() => {
-  const artifact = queryResult.value
-  if (artifact && artifact.kind === 'chart_spec') {
-    return artifact as unknown as ChartArtifact
-  }
-  return null
+  return chartSpecsList.value.length > 0 ? chartSpecsList.value[0] : null
 })
 
-// 判断实时侧信道推送的 tool_artifact 是否为 file_export
-const fileExport = computed<ExportArtifact | null>(() => {
-  const artifact = queryResult.value
-  if (artifact && artifact.kind === 'file_export') {
-    return artifact as unknown as ExportArtifact
+// 提取工件池中的全部 file_export 文件导出列表
+const fileExportsList = computed<ExportArtifact[]>(() => {
+  const pool = artifactsList.value
+  const fromPool = pool.filter((a): a is ExportArtifact => Boolean(a && (a as unknown as { kind?: string }).kind === 'file_export'))
+  if (fromPool.length > 0) {
+    return fromPool
   }
-  return null
+  const single = queryResult.value
+  if (single && (single as unknown as { kind?: string }).kind === 'file_export') {
+    return [single as unknown as ExportArtifact]
+  }
+  return []
+})
+
+// 判断实时侧信道推送的 tool_artifact 是否为 file_export（单文件兼容回退）
+const fileExport = computed<ExportArtifact | null>(() => {
+  return fileExportsList.value.length > 0 ? fileExportsList.value[0] : null
 })
 
 // 仅在 kind === 'query_result'，或者具有 columns 时作为表格渲染数据，过滤掉图表
 const sqlQueryResult = computed(() => {
-  const artifact = queryResult.value
-  if (artifact && (artifact.kind === 'query_result' || (!artifact.kind && artifact.columns))) {
-    return artifact
+  if (streamingState.value?.tool_artifact) {
+    const art = streamingState.value.tool_artifact
+    if (art && (art.kind === 'query_result' || (!art.kind && (art as unknown as { columns?: unknown[] }).columns))) {
+      return art
+    }
+  }
+  const msgId = props.message.id
+  if (msgId && messagesStore.memoryArtifactMap[msgId]) {
+    const art = messagesStore.memoryArtifactMap[msgId]
+    if (art && (art.kind === 'query_result' || (!art.kind && (art as unknown as { columns?: unknown[] }).columns))) {
+      return art
+    }
+  }
+  const single = (props.message as Message).tool_artifact
+  if (single && (single.kind === 'query_result' || (!single.kind && (single as unknown as { columns?: unknown[] }).columns))) {
+    return single
+  }
+  const queryFromPool = artifactsList.value.find(a => a && (a.kind === 'query_result' || (!a.kind && a.columns)))
+  if (queryFromPool) {
+    return queryFromPool
   }
   return null
 })

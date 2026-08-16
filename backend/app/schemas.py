@@ -12,6 +12,7 @@ class MessageBase(BaseModel):
     session_id: str
     tool_calls: Optional[str] = None  # JSON字符串
     tool_results: Optional[str] = None  # JSON字符串
+    tool_artifacts: Optional[str] = None  # JSON字符串，工件字典快照
     subagents: Optional[str] = None  # JSON字符串，子智能体会话快照
     feedback: str = "none"
     refined_payload: Optional[str] = None  # LLM 预提纯后的 json 字符串
@@ -219,6 +220,9 @@ class LexiconContextStreamEvent(BaseModel):
 class ToolArtifactStreamEvent(BaseModel):
     type: Literal["tool_artifact"]
     artifact: Dict[str, Any]
+    subagent_id: Optional[str] = None
+    subagent_name: Optional[str] = None
+    tool_call_id: Optional[str] = None
 
 
 class SubagentChangeStreamEvent(BaseModel):
@@ -237,6 +241,7 @@ class FinalStreamEvent(BaseModel):
     content: str
     tool_calls: Optional[List[StreamToolCallPayload]] = None
     tool_results: Optional[Dict[str, str]] = None
+    tool_artifacts: Optional[Dict[str, Any]] = None
     subagents: Optional[Dict[str, Any]] = None
     context_warning: Optional[ContextWarningPayload] = None
     message_id: Optional[str] = None

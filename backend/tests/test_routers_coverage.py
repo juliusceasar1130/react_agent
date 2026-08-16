@@ -123,6 +123,8 @@ def test_messages_feedback_endpoint():
     mock_msg.feedback = "like"
     mock_msg.tool_calls = None
     mock_msg.tool_results = None
+    mock_msg.tool_artifacts = None
+    mock_msg.subagents = None
     mock_msg.refined_payload = None
     mock_msg.created_at = now
 
@@ -239,3 +241,50 @@ def test_chat_resume_endpoint():
         )
         assert resp.status_code == 200
         assert "text/event-stream" in resp.headers.get("content-type", "")
+
+
+def test_chat_stream_endpoint_with_tool_artifact_and_interrupt():
+    """测试 POST /api/chat/stream 在收到 tool_artifact 及 interrupt 时的作用域与持久化"""
+    mock_session = MagicMock()
+    mock_session.id = "sess-123"
+
+    mock_msg = MagicMock()
+    mock_msg.id = "msg-123"
+    mock_msg.session_id = "sess-123"
+    mock_msg.created_at = datetime.now(timezone.utc)
+    mock_msg.content = "结果"
+
+    async def mock_stream_loop(*args, **kwargs):
+        yield {
+            "type": "tool_artifact",
+            "artifact": {"kind": "chart_spec", "chart_id": "chart_1", "tool_call_id": "call_1"},
+            "tool_call_id": "call_1",
+            "subagent_id": "sub_1",
+            "subagent_name": "data_agent"
+        }
+        yield {
+            "type": "interrupt",
+            "session_id": "sess-123",
+            "questions": [{"question": "请确认查询范围？", "options": None}]
+        }
+
+    with patch("backend.app.routers.chat.crud.get_session", return_value=mock_session), \
+         patch("backend.app.routers.chat.crud.create_message", return_value=mock_msg) as mock_create_msg, \
+         patch("backend.app.routers.chat.get_agent_service") as mock_get_svc, \
+         patch("backend.app.database.get_db"):
+        mock_svc = MagicMock()
+        mock_svc.is_ready = True
+        mock_svc.process_stream = mock_stream_loop
+        mock_get_svc.return_value = mock_svc
+
+        resp = client.post(
+            "/api/chat/stream",
+            json={"message": "查询", "session_id": "sess-123", "stream": True}
+        )
+        assert resp.status_code == 200
+        # 验证 create_message 被正确调用，且传入了包含工件的 tool_artifacts
+        assert mock_create_msg.call_count >= 2
+        last_call_args = mock_create_msg.call_args[0][1]
+        assert last_call_args.tool_artifacts is not None
+        assert "chart_1" in last_call_args.tool_artifacts
+

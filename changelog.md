@@ -1,3 +1,30 @@
+## 2026-08-16 15:02 +08:00 - Phase 0: 多智能体工件持久化落库与流式信封分流落地 (Ticket 01 & 02)
+
+### 变更内容
+
+#### 1. 数据库模型与 CRUD 增加 tool_artifacts 持久化 (`backend/app/models.py`, `backend/app/schemas.py`, `backend/app/crud.py`, `backend/app/database.py`) [FEATURE]
+- **持久化列新增**：在 `ChatMessage` 模型与 `MessageBase` / `MessageResponse` Schema 中新增 `tool_artifacts` 文本列，用于存储会话消息关联的工件字典快照（JSON 格式）。
+- **数据库幂等迁移**：在 `create_tables()` 中追加 `ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS tool_artifacts TEXT` 幂等增量迁移，保证兼容既有库。
+- **CRUD 读写支持**：`create_message` 支持传入并落库 `tool_artifacts`。
+
+#### 2. SSE 流式信封溯源与 Final/Interrupt 事件工件全量落库 (`backend/app/services/chat_service.py`, `backend/app/routers/chat.py`, `backend/app/agent/tools/*`) [FEATURE]
+- **工具级真实 tool_call_id 注入**：`chart_artifact_tool.py`、`csv_export_tool.py`、`sql/tools.py` 在发射 `tool_artifact` 时携带内部真实的 `tool_call_id`，杜绝同子智能体产生多工件及主 Agent 多次调用的覆盖冲刷。
+- **流式信封溯源**：在 `tool_artifact` 流式事件中补充携带 `subagent_id`、`subagent_name` 与 `tool_call_id`。
+- **流式工件池累积与全生命周期落库**：在 `_stream_execution_loop` 与 `/stream`、`/resume` 路由中按 `tool_call_id` 进行工件字典聚合，并在 `final` 结算及 `interrupt` 中断澄清事件触发时 100% 同步落库写入 `chat_messages.tool_artifacts`，彻底闭环等待用户确认或生成完成后刷新页面的工件复原。
+
+#### 3. 前端多工件并列渲染与 F5 刷新完整复原 (`frontend/src/types/index.ts`, `frontend/src/api/chat.ts`, `frontend/src/stores/messages.ts`, `frontend/src/composables/useChatStream.ts`, `frontend/src/components/chat/MessageItem.vue`) [FEATURE]
+- **工件字典池状态机**：Pinia `messages` store 新增 `memoryArtifactPool`，以 `tool_call_id` 唯一索引工件，并在流式与完成态之间无缝传递。
+- **白名单与类型守卫安全修复**：补齐 `isOptionalRecord` 类型守卫，严格更新 `STREAM_EVENT_TYPES` 白名单与 `parseStreamEvent` 解析逻辑，支持带溯源信封的 `tool_artifact` 及 `final` 工件池。
+- **多图表与多文件并列渲染**：`MessageItem.vue` 升级支持 `chartSpecsList` 与 `fileExportsList` 列表遍历，支持多子智能体并发或顺序产出的多图表、多 CSV 导出卡片并列展示。
+- **F5 刷新历史复原**：优先反序列化 `message.tool_artifacts` 工件池，彻底解决历史消息在 F5 刷新后 ECharts 图表、CSV 导出卡片与 SQL 预览表格丢失/冲刷的问题。
+
+#### 4. 自动化测试套件构建与 Claude Code 独立复审通过 (`backend/tests/test_tool_artifacts_persistence.py`, `backend/tests/test_routers_coverage.py`) [TEST]
+- 新增 `test_tool_artifacts_persistence.py` 自动化测试，全面覆盖 ORM 模型读写、CRUD 检索、Pydantic 验证、SSE 流式编码以及同子智能体多工件无冲突隔离。
+- 全量后端测试套件（53 passed）与前端 Vite 生产打包验证均 100% 通过。
+- 经 Claude Code 跨智能体二次复审（Round 2），获得 **Approve ✅** 最终核准。
+
+---
+
 ## 2026-08-15 23:18 +08:00 - 修复子智能体并发执行触发的 INVALID_CONCURRENT_GRAPH_UPDATE 状态冲突
 
 ### 变更内容

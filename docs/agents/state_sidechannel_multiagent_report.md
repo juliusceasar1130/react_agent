@@ -1,8 +1,8 @@
 # 主子智能体架构下基于 State 的侧信道设计与行业实践深度研究报告
 
-> **文档版本**：v2.0（经 Claude Code 深度审查修订）  
+> **文档版本**：v2.1（增补项目核心工具链 SQL/图表/CSV 侧信道深度评估）  
 > **生成时间**：2026-08-16  
-> **文档主题**：主子与多子智能体（Supervisor-Worker / Fan-Out Fan-In）架构下的 State 侧信道设计模式、并发与状态隐患、最佳实践边界、行业前沿方案及本项目 Gap 分析。
+> **文档主题**：主子与多子智能体（Supervisor-Worker / Fan-Out Fan-In）架构下的 State 侧信道设计模式、并发与状态隐患、最佳实践边界、行业前沿方案及本项目工具链实现与 Gap 评估。
 
 ---
 
@@ -211,22 +211,78 @@ Anthropic 在其多智能体权威指南中明确推崇 **Orchestrator-Workers**
 
 ---
 
-## 6. 本项目现状对照分析（Gap Analysis）
+## 6. 本项目核心工具链的侧信道架构剖析与深度评估
 
-将上述六种模式对照当前仓库（`backend/app/agent/`、`deepagents`、`chat_service.py`）现状：
+在本项目生产落地中，**`sql_db_query`（SQL 查询）**、**`build_chart_artifact`（图表生成）** 与 **`export_to_csv`（CSV 导出）** 构成了典型的**多层双轨侧信道工具链**。
+
+```mermaid
+flowchart TD
+    subgraph AgentCall["Agent 执行层"]
+        ToolCall["大模型发起工具调用"]
+    end
+
+    subgraph Split1["1. SQL 查询工具 (sql_db_query)"]
+        SQL_In["主信道: Preview 预览 (前5~10行) + 截断告警"]
+        SQL_Out["State 侧信道: tool_artifact (query_result, rows_for_sse)"]
+        SQL_Stream["流式侧信道: emit_stream_status (阶段状态播报)"]
+    end
+
+    subgraph Split2["2. 绘图工具 (build_chart_artifact)"]
+        Chart_In["主信道: chart_ref (仅含 chart_id / title 轻量引用)"]
+        Chart_State["State 侧信道: tool_artifact (chart_spec, rows, series)"]
+        Chart_Store["Claim-Check 存储: create_chart_record (落库供 GET API 拉取)"]
+    end
+
+    subgraph Split3["3. CSV 导出工具 (export_to_csv)"]
+        CSV_In["主信道: safe_record (脱敏元数据, 物理路径已剔除)"]
+        CSV_State["State 侧信道: tool_artifact (file_export, file_id)"]
+        CSV_Disk["Claim-Check 文件层: export_dir/export_xxx.csv (OOM Guard 保护)"]
+    end
+
+    ToolCall --> Split1
+    ToolCall --> Split2
+    ToolCall --> Split3
+
+    style Split1 fill:#f0f9ff,stroke:#0284c7
+    style Split2 fill:#fef3c7,stroke:#d97706
+    style Split3 fill:#ecfdf5,stroke:#059669
+```
+
+### 6.1 核心工具侧信道实现与评估矩阵
+
+| 工具名称 | 主信道 (In-Band LLM) 表现 | State 侧信道 (Command.update) | 外部存储 / Claim-Check 载体 | 流式遥测 (Streaming) | 架构评估与潜在隐患 |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| **`sql_db_query`** | **截断保护**：超限时仅暴露前 N 行预览 + 截断告警 + 聚合建议 | `"tool_artifact"` 写入 `query_result`（含 `rows_for_sse` 全量/截断集） | 无独立磁盘存储（内存直传） | `emit_stream_status`（合规检查/语法校验/数据整理） | **良好但需注意快照开销**：`rows_for_sse` 存入 State 会参与当前超步 Checkpoint 序列化，多并发子 Agent 场景下仍有轻度体积开销。 |
+| **`build_chart_artifact`** | **极致轻量**：仅返回 `chart_ref`（`chart_id`、名称），不将海量点位塞入 Prompt | `"tool_artifact"` 写入 `chart_spec`（供当前超步 SSE 捕获推流） | **Claim-Check 落库**：`create_chart_record`，前端通过 `GET /api/charts/{chart_id}` 异步拉取 | `emit_stream_status`（合规检查/数据准备/生成完毕） | **工业级标准设计**：成功实现 LLM 认知层与图表渲染数据的物理分离，保护了 Token 上下文。 |
+| **`export_to_csv`** | **脱敏元数据**：返回 `file_id`、行数列数、文件大小，**严格过滤物理路径** | `"tool_artifact"` 写入 `file_export`（含 `file_id`, `expires_at`） | **Pure Claim-Check**：直接流式落盘 `export_xxx.csv`，配合 OOM Guard | `emit_stream_status`（合规检查/文件写入/导出完成） | **零 Token 消耗典范**：彻底绕过 LLM 上下文与 State 字典，具备 `max_rows` OOM 熔断，安全性与性能最优。 |
+
+### 6.2 深度评估：本项目工具链的三大关键优势
+1. **多重 Claim-Check 分层防护**：
+   - 绘图工具通过 `chart_id` 引用，CSV 工具通过 `file_id` 引用，彻底避免了万行明细涌入 Prompt 造成的 Token 爆炸和 Context Collapse。
+2. **敏感信息物理脱敏（Security Redaction）**：
+   - `export_to_csv` 在向 LLM 消息流返回前，显式执行 `{k: v for k, v in record.items() if k != "stored_path"}`，杜绝了服务器内部文件系统绝对路径向大模型和客户端泄露。
+3. **协同熔断保护（OOM Guard & Hard Limit）**：
+   - `sql_db_query` 超限触发 `sql_result_hard_limit` 强制截断，并在 Prompt 中主动建议转调 `export_to_csv`；
+   - `export_to_csv` 自身具备 `sql_export_max_rows` 安全上限，超限时自动回滚并清理已生成文件，构筑了双层防 OOM 屏障。
+
+---
+
+## 7. 本项目整体现状对照分析（Gap Analysis）
+
+将前述六种模式对照当前仓库（`backend/app/agent/`、`deepagents`、`chat_service.py`）整体现状：
 
 | 模式 | 本项目现状 | 评估与演进建议 |
 | :--- | :--- | :--- |
 | **1. 全局黑板** | **部分存在**：`CustomState(AgentState)` 全量字段透传给子智能体 | 暂由 `deepagents` 的 `private_state_keys` 排除机制做基础防护，但仍存在字段过度暴露 |
 | **2. 投影隔离** | **未实现**：子智能体与主 Agent 共享同一个 `CustomState` | 待演进：利用 `deepagents` 子智能体 `state_schema` 配置专用局部 Schema |
-| **3. Claim-Check** | **已有雏形**：`tool_artifact` 机制已支持工件注册 | 完善方向：确保万行 SQL 查询明细只进 Artifact，主消息流仅注入元数据与行数摘要 |
+| **3. Claim-Check** | **已深度落地**：`tool_artifact` + `chart_artifact` + `csv_export` 形成完整闭环 | 工具层表现优异，已实现图表与文件的 Claim-Check 存储与 REST 端点拉取 |
 | **4. Reducer** | **已落地修复**：`state.py` 为全量扩展键补充 `_last_wins` | 正确消除了 Pregel 并发报错；后续应针对多子智能体聚合字段补充 `keyed_merge` |
 | **5. Store API** | **暂未使用** | 跨轮次持久化完全依赖 Checkpointer，长期领域知识目前走 RAG 动态检索注入 |
 | **6. Streaming 事件** | **深度应用**：`chat_service.py` 支持 SSE 子智能体归属解析与 Artifact 事件 | 符合业界标准，前端通过三处白名单机制防丢，体感优良 |
 
 ---
 
-## 7. 生产落地代码范式（对齐 deepagents 与强类型契约）
+## 8. 生产落地代码范式（对齐 deepagents 与强类型契约）
 
 以下给出结合 `deepagents` 体系与泛型 Keyed Reducer 的标准实现：
 
@@ -300,7 +356,7 @@ def project_to_subagent(parent_state: ProductionAgentState, vehicle_id: str) -> 
 
 ---
 
-## 8. 总结与落地闭环建议
+## 9. 总结与落地闭环建议
 
 1. **Reducer 语义选型双轨制**：
    - 对于单写者/覆盖型字段（如 `rag_query`, `context_warning`），显式使用 `_last_wins`，消除引擎报错并确保幂等重放；

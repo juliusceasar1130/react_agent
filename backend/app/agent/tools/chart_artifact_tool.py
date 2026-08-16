@@ -370,6 +370,7 @@ def create_chart_artifact_tool(
                 ],
                 "tool_artifact": {
                     "kind": "chart_spec",
+                    "tool_call_id": str(runtime.tool_call_id) if runtime and hasattr(runtime, "tool_call_id") else None,
                     "chart_id": chart_ref["chart_id"],
                     "chart_type": resolved_chart_type,
                     "title": title,

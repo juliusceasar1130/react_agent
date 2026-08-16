@@ -85,6 +85,9 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
 const isOptionalString = (value: unknown): value is string | undefined =>
   value === undefined || typeof value === 'string'
 
+const isOptionalRecord = (value: unknown): value is Record<string, unknown> | undefined | null =>
+  value === undefined || value === null || isRecord(value)
+
 const isStringRecord = (value: unknown): value is Record<string, string> => {
   if (!isRecord(value)) {
     return false
@@ -205,6 +208,9 @@ const parseStreamEvent = (payload: string): StreamEvent | null => {
       return {
         type: 'tool_artifact',
         artifact: parsed.artifact as unknown as ToolArtifact,
+        subagent_id: typeof parsed.subagent_id === 'string' ? parsed.subagent_id : undefined,
+        subagent_name: typeof parsed.subagent_name === 'string' ? parsed.subagent_name : undefined,
+        tool_call_id: typeof parsed.tool_call_id === 'string' ? parsed.tool_call_id : undefined,
       }
 
     case 'subagent_change':
@@ -223,7 +229,7 @@ const parseStreamEvent = (payload: string): StreamEvent | null => {
       }
       return {
         type: 'plan_update',
-        plan: parsed.plan,
+        plan: parsed.plan as Record<string, unknown>,
       }
 
     case 'final':
@@ -231,7 +237,8 @@ const parseStreamEvent = (payload: string): StreamEvent | null => {
         typeof parsed.content !== 'string'
         || !isOptionalString(parsed.message_id)
         || !isOptionalString(parsed.created_at)
-        || (parsed.tool_results !== undefined && parsed.tool_results !== null && !isStringRecord(parsed.tool_results))
+        || !isOptionalRecord(parsed.tool_results)
+        || !isOptionalRecord(parsed.tool_artifacts)
         || (
           parsed.tool_calls !== undefined
           && parsed.tool_calls !== null
@@ -254,6 +261,7 @@ const parseStreamEvent = (payload: string): StreamEvent | null => {
         content: parsed.content,
         tool_calls: parsed.tool_calls as StreamToolCall[] | null | undefined,
         tool_results: parsed.tool_results as Record<string, string> | null | undefined,
+        tool_artifacts: isRecord(parsed.tool_artifacts) ? (parsed.tool_artifacts as Record<string, ToolArtifact>) : null,
         message_id: parsed.message_id,
         created_at: parsed.created_at,
       }
