@@ -17,6 +17,8 @@ from pydantic import BaseModel, ConfigDict, Field, TypeAdapter, ValidationError,
 from sqlalchemy import text
 from sqlalchemy.engine import Engine
 
+from backend.app.agent.context import RequestContext
+from backend.app.agent.state import SqlSubAgentState
 from backend.app.agent.utils.sql_linter import validate_readonly_query, SQLLintException
 from backend.app.agent.utils import emit_stream_status
 from backend.app.chart_artifacts import create_chart_record
@@ -244,7 +246,7 @@ def create_chart_artifact_tool(
         description: str,
         x_field: str,
         series: list[ChartSeriesInput],
-        runtime: ToolRuntime | None = None,
+        runtime: ToolRuntime[RequestContext, SqlSubAgentState] | None = None,
     ) -> str:
         """
         Execute a SQL query, create a chart artifact, and return a lightweight chart reference.

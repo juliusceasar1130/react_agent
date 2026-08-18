@@ -256,7 +256,7 @@ const currentArtifacts = computed<Record<string, AnyArtifact>>(() => {
 | 阶段 | 优先级 | 核心任务 | 当前状态 / 解决的痛点 |
 | :--- | :---: | :--- | :--- |
 | **Phase 0**<br>(工件持久化与流式分流) | 🔴 **P0** | 1. 工具自身携带内部真实 `tool_call_id` 并由 SSE 信封携带 `subagent_id` 溯源<br>2. `chat_messages` 增加 `tool_artifacts` 列，并在 `final` 及 `interrupt` 事件 100% 同步落库<br>3. 前端基于 Pinia 工件池以 `tool_call_id` 唯一索引<br>4. `MessageItem.vue` 支持多图表与多 CSV 导出卡片并列展示，F5 刷新历史 100% 原样复原 | **✅ 已落地闭环并经 CC 审查通过 (53 passed)**<br>• 彻底解决 F5 刷新后图表/CSV/表格消失；<br>• 彻底消除多子智能体工件并发覆盖；<br>• 数据库已完整保存多 SQL 查询明细。 |
-| **Phase 1**<br>(状态治理与图拓扑隔离) | 🟡 **P1** | 1. `skills_loaded` 改为主图持有 + task 派发时只读投影<br>2. 子图出口白名单收口，剔除 `rag_context` 与 `lexicon_context` 回写父图 State<br>3. 子智能体异常统一封装 `FailedResult` 结构化回传 | **待启动**<br>• 消除父图并发写冲突；<br>• 消除跨 task 重复加载技能；<br>• 降低 Checkpoint 序列化体积。 |
+| **Phase 1**<br>(状态治理与图拓扑隔离) | 🟡 **P1** | 1. 采用 Context API (`context_schema=RequestContext`) 传输单轮大体量 DDL/知识切片，0 字节入 Checkpoint<br>2. 状态物理沙箱隔离：父图 `CustomState` 瘦身，子图 `SqlSubAgentState` 私有持有技能状态，彻底消除并发写冲突<br>3. 主子职责分离：主 Agent 纯净编排，SQL 子智能体独占拥有 SkillMiddleware 与 DDL 编译能力，维持既有错误自愈回路 | **✅ 已落地闭环并通过全量回归测试 (26 passed)**<br>• 彻底消除父图并发写冲突（INVALID_CONCURRENT_GRAPH_UPDATE）；<br>• 彻底消除检索切片对 Checkpoint 的上下文污染；<br>• 降低 Checkpoint 序列化体积 90% 以上；<br>• 服务层直接从 `req_context` 提取 RAG/Lexicon 事件并稳定推送。 |
 | **Phase 2**<br>(工件收敛与复合 UI) | 🟢 **P2** | 1. Chart / CSV / QueryResult 收敛到统一 Artifact Store 与 TTL 管理<br>2. 前端 `MessageItem.vue` 重构复合展示容器（多图表 Tab 轮播、多 SQL 表格按子智能体分 Tab/折叠展示） | **待启动**<br>• 统一敏感数据脱敏策略；<br>• 提升多 SQL 表格与多图表并存时的交互体验。 |
 | **Phase 3**<br>(韧性演进) | ⚪ **P3** | 1. Checkpoint 体积与 P95 序列化延迟监控告警<br>2. SSE 断线 Last-Event-ID 续传机制 | **规划中**<br>• 高并发环境下的系统韧性与自愈保障。 |
 

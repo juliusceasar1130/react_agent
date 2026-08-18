@@ -16,15 +16,17 @@ from langchain.agents.middleware import AgentMiddleware, ModelRequest, ModelResp
 from langchain_core.messages import SystemMessage
 from langchain_core.runnables.config import ensure_config
 
+from backend.app.agent.context import RequestContext
 from backend.app.agent.state import CustomState
 
 logger = logging.getLogger(__name__)
 
 
-class RagPromptInjectorMiddleware(AgentMiddleware[CustomState]):
+class RagPromptInjectorMiddleware(AgentMiddleware[CustomState, RequestContext]):
     """轻量级 RAG 提示词注入中间件。"""
 
     state_schema = CustomState
+    context_schema = RequestContext
 
     def _inject_thinking_config(self, request: ModelRequest) -> None:
         """从当前协程的运行时上下文(ContextVar)中，打捞客户端传入的思考模式，并动态覆写网络发包参数"""
@@ -53,10 +55,20 @@ class RagPromptInjectorMiddleware(AgentMiddleware[CustomState]):
             logger.warning("⚡ RagPromptInjectorMiddleware: 动态注入思考模式参数失败: %s", e)
 
     def _modify_request(self, request: ModelRequest) -> ModelRequest:
-        """从 request.state 中提取结构化 RAG 文本并动态编译入 SystemMessage。"""
+        """从 request.runtime.context 或 request.state 中提取结构化 RAG 文本并动态编译入 SystemMessage。"""
         self._inject_thinking_config(request)
 
-        lexicon_ctx = request.state.get("lexicon_context") if request.state else {}
+        runtime = getattr(request, "runtime", None)
+        lexicon_ctx = (
+            getattr(runtime, "context", {}).get("lexicon_context")
+            if runtime and getattr(runtime, "context", None) and isinstance(runtime.context, dict)
+            else None
+        )
+        if not lexicon_ctx and hasattr(request, "context") and isinstance(request.context, dict):
+            lexicon_ctx = request.context.get("lexicon_context")
+        if not lexicon_ctx:
+            lexicon_ctx = request.state.get("lexicon_context") if request.state else {}
+
         if not lexicon_ctx or not isinstance(lexicon_ctx, dict):
             return request
 

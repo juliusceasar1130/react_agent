@@ -1,3 +1,50 @@
+## 2026-08-17 15:10 +08:00 - 修复 RAG 双通道失效：BaseRetriever 异步接口契约补齐
+
+### 变更内容
+
+#### 1. BaseRetriever 基类提供默认 aretrieve（线程池解绑同步 retrieve） (`backend/app/agent/vector/base.py`) [FIX]
+- **根因**：`BusinessRagMiddleware.abefore_model`（异步路径）调用 `self.retriever.aretrieve(...)`，但 `MilvusHybridRetriever` / `PgVectorDocumentationRetriever` 从未实现该方法 → `AttributeError` → 异常回退将 `rag_context`/`lexicon_context` 置空 → 页面两种 RAG 知识均不显示、LLM 无检索参考。属 Phase 1 整改连带回归（`asyncio.to_thread(retrieve)` 被误写为 `await aretrieve()`），与 Context API 机制本身无关。
+- **修复**：在 `BaseRetriever` 新增非抽象默认 `aretrieve`，内部 `asyncio.to_thread` 包装同步 `retrieve`（签名与同步方法完全一致），与 LangChain `BaseRetriever.ainvoke` 设计对齐；两个子类零改动继承，后续任何后端可覆写为原生异步。
+- **影响面核验**：纯增量方法，不改任何现有行为；三个 DB 检索工具（`search_db_value_lexicon` 等）走 llama_index 体系，经核验零影响。
+
+#### 2. 检索器异步接口契约测试 (`backend/tests/agent/test_retriever_async_contract.py`) [TEST]
+- 新增契约测试 4 项：验证基类默认 `aretrieve` 的线程池委托与参数透传语义、`MilvusHybridRetriever` 与 `PgVectorDocumentationRetriever` 均具备兼容签名 `aretrieve`，防止接口缺口回归。
+- **全量测试通过**：后端回归测试套件（30 passed, 0 failed）100% 绿色通过。
+
+#### 3. 清理临时诊断日志 (`backend/app/agent/middleware/rag_middleware.py`, `backend/app/services/chat_service.py`, `backend/app/agent/middleware/rag_prompt_injector_middleware.py`) [CLEANUP]
+- 根因定位完成后，删除 3 处 `[RAG_DEBUG]` 临时插桩日志（写入端 / 读取端 / LLM 消费端），恢复安静日志。
+
+---
+
+## 2026-08-17 12:58 +08:00 - Phase 1: 基于 Context API 的状态治理与子图沙箱隔离落地与复审整改 (Ticket 01 & 02)
+
+### 变更内容
+
+#### 1. Context API 请求级瞬态数据通道与单源真理对齐 (`backend/app/agent/context.py`, `backend/app/agent/middleware/rag_middleware.py`, `backend/app/services/chat_service.py`) [FEATURE]
+- **契约声明**：新建 `backend/app/agent/context.py`，定义 `RequestContext(TypedDict)`，包含 `lexicon_context`、`rag_context`、`rag_query`、`user_id`、`session_id` 等单轮请求级瞬态检索上下文。
+- **中间件向 Context API 写入与零写入持久化**：`BusinessRagMiddleware` 检索成功、同步异常回退与异步 `abefore_model` 异常回退分支均 100% 单向写入 `Runtime.context` 并统一 `return None`，不再向 State 回写大体量检索对象，实现 Checkpoint 状态快照中检索对象的 **0 字节写入**，并将防重判定彻底改为读取 `Runtime.context`。
+- **死代码清理**：清理 `_format_knowledge_block` 中未使用的死代码，保持方法单一纯粹。
+- **服务层流式直读与全量预置**：`chat_service.py` 预初始化包含全量规范字段的 `req_context`，流式循环 `_stream_execution_loop` 直接从 `req_context` 读取 `rag_context` 与 `lexicon_context` 发射前端 SSE 事件，彻底解除对废弃持久化 State 的二次打捞依赖。
+
+#### 2. 父子智能体状态物理沙箱隔离 (`backend/app/agent/state.py`, `backend/app/agent/service.py`) [FEATURE]
+- **State 物理瘦身与拆分**：`CustomState` 剔除 `skills_loaded`、`active_skill`、`rag_context`、`lexicon_context`、`rag_query` 等私有与瞬态字段，仅保留 `messages`、`context_warning` 与 `tool_artifact` 控制位；新增 `SqlSubAgentState` 专门用于 SQL 领域子图私有维护技能加载状态。
+- **主子组件严格边界**：主 Agent（`create_deep_agent`）纯净编排，移除 `SkillMiddleware` 与领域技能工具；SQL 子智能体（`create_agent`）独占挂载 `SkillMiddleware` 与 `PromptCompilerMiddleware`。
+- **消除并发更新冲突**：子图执行完毕后通过 `ToolMessage` 返回纯文本结果，私有状态自然闭环在子图沙箱内，彻底杜绝父图 `INVALID_CONCURRENT_GRAPH_UPDATE` 冲突。
+
+#### 3. 提示词编译器支持 Context API 瞬态渲染 (`backend/app/agent/middleware/prompt_compiler_middleware.py`, `backend/app/agent/middleware/rag_prompt_injector_middleware.py`) [FEATURE]
+- **动态读取 Context**：`PromptCompilerMiddleware` 与 `RagPromptInjectorMiddleware` 优先从 `request.runtime.context` 读取 `lexicon_context` 并动态拼装入 `<runtime_context>` XML 节点，同时保留对 `request.state` 的防御性回退。
+
+#### 4. 静态泛型标注全面升级 (`Runtime[RequestContext]`, `ToolRuntime[RequestContext, SqlSubAgentState]`, `AgentMiddleware[..., RequestContext]`) [REFACTOR]
+- **中间件泛型标注**：为 `BusinessRagMiddleware`、`PromptCompilerMiddleware`、`RagPromptInjectorMiddleware` 全量引入 `AgentMiddleware[StateT, RequestContext]` 与 `context_schema = RequestContext`；为 `before_model` / `abefore_model` 的 `runtime` 参数显式标注 `Runtime[RequestContext]`。
+- **工具层泛型标注**：为 `sql_db_query`、`search_saved_correct_tool_uses`、`load_skill`、`load_scenario`、`build_chart_artifact`、`export_to_csv` 等工具的 `runtime` 参数显式标注 `ToolRuntime[RequestContext, SqlSubAgentState]`。
+- **价值与收益**：消除所有 `Any` 模糊推断，使 IDE（Pylance/Pyright/Mypy）支持 `runtime.context` 键值的智能提示与编译期类型校验，且 0 运行时开销。
+
+#### 5. 自动化测试套件构建与全量回归通过 (`backend/tests/agent/test_context_api_transient_flow.py`, `backend/tests/agent/test_state_sandboxing_concurrency.py`, `backend/tests/agent/test_agent_component_boundaries.py`) [TEST]
+- **测试覆盖**：新增与完善 `test_context_api_transient_flow.py`、`test_state_sandboxing_concurrency.py`、`test_agent_component_boundaries.py`，覆盖 Context API 零污染持久化、同步/异步异常回退 0 写 State、asyncio.gather 真实并发沙箱隔离、主子智能体职责边界与动态 Prompt 编译。
+- **全量测试通过**：后端全量回归测试套件（26 passed, 0 failed）100% 绿色通过。
+
+---
+
 ## 2026-08-16 15:02 +08:00 - Phase 0: 多智能体工件持久化落库与流式信封分流落地 (Ticket 01 & 02)
 
 ### 变更内容

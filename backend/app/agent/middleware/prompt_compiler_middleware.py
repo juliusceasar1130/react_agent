@@ -15,7 +15,8 @@ from langchain.agents.middleware import AgentMiddleware, ModelRequest, ModelResp
 from langchain_core.messages import SystemMessage, ToolMessage, HumanMessage, AIMessage
 from langchain_core.runnables.config import ensure_config
 
-from backend.app.agent.state import CustomState
+from backend.app.agent.context import RequestContext
+from backend.app.agent.state import CustomState, SqlSubAgentState
 from backend.app.config import settings
 
 logger = logging.getLogger(__name__)
@@ -80,23 +81,21 @@ def _get_string_content(msg) -> str:
         for block in content:
             if isinstance(block, str):
                 texts.append(block)
-            elif isinstance(block, dict):
-                if block.get("type") == "text" and "text" in block:
-                    texts.append(block["text"])
-                elif "text" in block:
-                    texts.append(block["text"])
-                else:
-                    texts.append(str(block))
+            elif isinstance(block, dict) and "text" in block:
+                texts.append(block["text"])
+            else:
+                texts.append(str(block))
         return "\n".join(texts)
     return str(content)
 
 
-class PromptCompilerMiddleware(AgentMiddleware[CustomState]):
+class PromptCompilerMiddleware(AgentMiddleware[SqlSubAgentState, RequestContext]):
     """
     系统提示词与 RAG 背景知识终极合并中间件。
     """
 
-    state_schema = CustomState
+    state_schema = SqlSubAgentState
+    context_schema = RequestContext
 
     def _project_and_collapse_messages(self, messages: list[Any]) -> list[Any]:
         """
@@ -427,8 +426,17 @@ class PromptCompilerMiddleware(AgentMiddleware[CustomState]):
         raw_messages = list(request.messages) if request.messages else []
         projected_messages = self._project_and_collapse_messages(raw_messages)
 
-        # 1. 直接从 request.state 中获取结构化 RAG 文本
-        lexicon_ctx = request.state.get("lexicon_context") if request.state else {}
+        # 1. 优先从 request.runtime.context (Context API) 中获取瞬态 RAG/词典文本，次选 request.state (向下兼容)
+        runtime = getattr(request, "runtime", None)
+        lexicon_ctx = (
+            getattr(runtime, "context", {}).get("lexicon_context")
+            if runtime and getattr(runtime, "context", None) and isinstance(runtime.context, dict)
+            else None
+        )
+        if not lexicon_ctx and hasattr(request, "context") and isinstance(request.context, dict):
+            lexicon_ctx = request.context.get("lexicon_context")
+        if not lexicon_ctx:
+            lexicon_ctx = request.state.get("lexicon_context") if request.state else {}
         if not lexicon_ctx:
             lexicon_ctx = {}
         rag_text = lexicon_ctx.get("formatted_text", "")

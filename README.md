@@ -20,6 +20,7 @@
 - **快捷场景直通 SQL 查询与极简矢量图标 (Minimalist Icons)** - 解耦纯函数直通查询引擎（`resolver` / `executor` / `formatter`），绕过 LLM Agent 决策耗时，毫秒级响应固定查询场景。快捷直通悬浮卡片 (`FloatingScenarioCards`) 与直通弹窗 (`ScenarioModal`) 全面摒弃 Emoji/3D 图标，采用现代极简 Single-line SVG 矢量线条图标（支持 High Contrast & Accent Tone Stroke）与智能图标类型识别 (`getScenarioIconType`)，兼顾轻盈精致视觉与高效响应。支持通用零侵入服务端分页 (LIMIT/OFFSET) 与真实全量 COUNT(*) 计算，前端 **`ScenarioModal` 弹窗** 支持单层表格右上角区间展示、底部分页条（上一页/下一页/页码/每页条数选择器）与最左侧 `#` 物理绝对行号连续展示。
 - **双击联动注入与毛玻璃 Spark Toast 反馈** - 双击抽屉中维度表任何单元格或字段名，数据自动追加到聊天输入框光标停留处；输入框边缘泛起 `.input-glow` 呼吸灯发光，底端浮现毛玻璃 Transition Toast。
 - **1:1 LobeChat 风格 Markdown 渲染与 GFM Alert 警示卡片** - 助手完成态与流式消息支持原生 1:1 LobeChat 视觉排版（计算倍率变量、表格与代码块美化、流式呼吸光标），并通过 `markdown-it-alert.ts` 插件与后端系统提示词 (§ 4.5) 全链路打通 `> [!NOTE]` / `> [!TIP]` 等 5 种 GFM Callout 矢量图标警示卡片的实时渲染与防守
+- **基于 Context API 的请求级瞬态数据通道与状态沙箱隔离** - 采用 LangGraph 原生 `Context API` (`context_schema=RequestContext`) 传递 `lexicon_context` 与 `rag_context` 等单轮大体量检索数据，实现数据库 Checkpoint 快照中的 **0 字节写入与零状态膨胀**。主 Agent 保持纯净编排，SQL 专家子智能体独占持有领域技能中间件并运行在独立的 `SqlSubAgentState` 物理沙箱中，彻底消除多子智能体并发执行时的 `INVALID_CONCURRENT_GRAPH_UPDATE` 状态冲突。
 - **状态持久化** - FastAPI 本地模式使用 `AsyncPostgresSaver`，托管模式由 LangGraph 自动管理 Agent 状态
 - **现代 UI/UX** - 基于 Neural Tones + AI Purple 设计系统，采用 **Arctic Glass (方案一)** 设计语言，支持毛玻璃效果、渐变光晕与流畅动画
 - **前后端分离** - FastAPI + Vue 3 + TypeScript

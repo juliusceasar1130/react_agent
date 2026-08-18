@@ -19,6 +19,8 @@ from langchain_core.tools import ToolException
 from langchain_core.messages import ToolMessage
 from langgraph.types import Command
 
+from backend.app.agent.context import RequestContext
+from backend.app.agent.state import SqlSubAgentState
 from backend.app.agent.utils.sql_linter import validate_readonly_query, SQLLintException
 from backend.app.agent.constants import SQL_ERROR_KEYWORDS
 from backend.app.agent.utils import emit_stream_status
@@ -70,7 +72,7 @@ def create_wrapped_query_tool(
     """
 
     @langchain_tool
-    def sql_db_query(query: str, required_skill: str, runtime: ToolRuntime) -> str:
+    def sql_db_query(query: str, required_skill: str, runtime: ToolRuntime[RequestContext, SqlSubAgentState]) -> str:
         """
         Execute a SQL query against the database and return results.
 
@@ -261,7 +263,7 @@ def create_sql_example_search_tool(
     """
 
     @langchain_tool
-    def search_saved_correct_tool_uses(question: str, required_skill: str, runtime: ToolRuntime) -> Union[str, List[dict]]:
+    def search_saved_correct_tool_uses(question: str, required_skill: str, runtime: ToolRuntime[RequestContext, SqlSubAgentState]) -> Union[str, List[dict]]:
         """
         根据当前用户问题检索历史 SQL 示例。
 

@@ -21,6 +21,10 @@
   - [5.1 精确 Token 计数器](#51-精确-token-计数器)
   - [5.2 摘要与滑动窗口裁剪中间件](#52-摘要与滑动窗口裁剪中间件)
 - [6. 挂起与断点恢复 (Interrupt & Resume)](#6-挂起与断点恢复-interrupt--resume)
+- [7. Context API 瞬态数据通道与父子沙箱状态治理 (Phase 1 优化)](#7-context-api-瞬态数据通道与父子沙箱状态治理-phase-1-优化)
+  - [7.1 为什么瞬态检索大对象不能写入 State](#71-为什么瞬态检索大对象不能写入-state)
+  - [7.2 RequestContext 单轮请求级内存透传 (0 字节入库)](#72-requestcontext-单轮请求级内存透传-0-字节入库)
+  - [7.3 父子状态物理沙箱隔离 (消除 INVALID_CONCURRENT_GRAPH_UPDATE)](#73-父子状态物理沙箱隔离-消除-invalid_concurrent_graph_update)
 
 ---
 
@@ -131,3 +135,28 @@ sequenceDiagram
 * **遇到挂起**：当大模型因需求歧义调用 [AskUserQuestion](file:///f:/000_dev/Python/workplace/rearch_agent/.tree/features/agent/backend/app/agent/tools/ask_user_question.py) 工具时，LangGraph 会产生 `interrupt` 信号。
 * **断点保存**：当前的执行进度（比如挂起在哪个 Node，Tool 正在等什么回答）以及当前的局部状态会被安全地保存进 PostgreSQL checkpointer 数据库。
 * **断点恢复**：用户给出澄清答复后，FastAPI 通过 `Command(resume=answers)` 唤醒。LangGraph 自动从数据库拉取**挂起时的精确快照**并无缝向下流转，让智能体表现出“完美记得刚才卡在哪”的断点记忆特性。
+
+---
+
+## 7. Context API 瞬态数据通道与父子沙箱状态治理 (Phase 1 优化)
+
+为了彻底解决单轮大体量检索对持久化 Checkpoint 数据库的膨胀冲击以及多子智能体并发执行时的状态写冲突，项目重构采用了 **Context API 原生瞬态数据流** 与 **父子状态物理沙箱隔离** 机制。
+
+### 7.1 为什么瞬态检索大对象不能写入 State
+在之前的设计中，单轮 RAG 检索出的业务术语（`rag_context`）与数据库物理词典及 DDL 骨架（`lexicon_context`）被挂载在全局 `CustomState` 中。
+* **存储暴涨**：由于 Checkpointer 会在每个超级步骤将 State 全量序列化存储，导致 PostgreSQL `checkpoint_blobs` 每轮膨胀数十至数百 KB；
+* **历史上下文污染**：上一轮查询车间 A 遗留的旧表 DDL 会持续留在持久化快照中，干扰后续针对车间 B 查询的注意力与自愈。
+
+### 7.2 RequestContext 单轮请求级内存透传 (0 字节入库)
+基于 LangGraph 原生的 `Context API` (`context_schema=RequestContext`)：
+1. **契约定义**：在 `backend/app/agent/context.py` 中定义 `RequestContext`，承载 `lexicon_context`、`rag_context`、`rag_query`、`user_id` 与 `session_id`；
+2. **纯内存流转**：`BusinessRagMiddleware` 检索出的 DDL 与术语仅写入 `Runtime.context`，并不向 State 回写（`return None`）；
+3. **动态提示词编译**：`PromptCompilerMiddleware` 与 `RagPromptInjectorMiddleware` 优先从 `request.runtime.context` 提取物理表 DDL 拼入 `<runtime_context>` 分区；
+4. **服务层直读推送**：`chat_service.py` 直接从 `req_context` 读取并推送前端 SSE 事件，100% 绕过持久化打捞；
+5. **0 字节 Checkpoint**：数据库 Checkpoint 快照彻底瘦身（仅含 `messages`、`context_warning` 与 `tool_artifact` 控制位，单快照体积 < 5KB），持久化存储体积降低 90% 以上。
+
+### 7.3 父子状态物理沙箱隔离 (消除 INVALID_CONCURRENT_GRAPH_UPDATE)
+* **父图状态瘦身 (`CustomState`)**：仅保留全局会话所必需的字段，主 Agent 纯净编排，移除 `SkillMiddleware`；
+* **子图局部沙箱 (`SqlSubAgentState`)**：SQL 子智能体独占持有 `skills_loaded`、`active_skill` 等领域私有状态；
+* **并发零冲突**：当主 Agent 并发委派多个子智能体处理不同车间任务时，各子智能体在各自沙箱中独立加载技能，并通过任务工具返回纯文本结果，私有状态不向父图扩散，从根本上杜绝了 `INVALID_CONCURRENT_GRAPH_UPDATE` 状态写冲突。
+

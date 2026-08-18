@@ -10,6 +10,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import List, Optional, Sequence, Tuple
@@ -58,6 +59,28 @@ class BaseRetriever(ABC):
         Returns:
             按分数降序排列的 ScoredDocument 列表。
         """
+
+    async def aretrieve(
+        self,
+        query: str,
+        k: int = 5,
+        score_threshold: Optional[float] = None,
+        doc_type: str = "documentation",
+        domain: Optional[str] = None,
+    ) -> List[ScoredDocument]:
+        """默认异步实现：通过线程池解绑同步 retrieve，避免阻塞事件循环。
+
+        与 LangChain BaseRetriever.ainvoke 的设计一致——子类只需实现同步
+        retrieve；若后端提供原生异步 IO，可覆写本方法获得更高性能。
+        """
+        return await asyncio.to_thread(
+            self.retrieve,
+            query,
+            k=k,
+            score_threshold=score_threshold,
+            doc_type=doc_type,
+            domain=domain,
+        )
 
 
 class BaseReranker(ABC):

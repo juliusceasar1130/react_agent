@@ -13,6 +13,8 @@ from langchain.messages import ToolMessage
 from langchain.tools import ToolRuntime, tool
 from langgraph.types import Command
 
+from backend.app.agent.context import RequestContext
+from backend.app.agent.state import SqlSubAgentState
 from backend.app.agent.utils import emit_stream_status
 from backend.app.skills import (
     get_all_skills,
@@ -28,7 +30,7 @@ def _merge_names(existing: list[str], new_name: str) -> list[str]:
     return list(dict.fromkeys(merged))
 
 
-def _build_load_skill_command(skill_name: str, runtime: ToolRuntime) -> Command:
+def _build_load_skill_command(skill_name: str, runtime: ToolRuntime[RequestContext, SqlSubAgentState]) -> Command:
     skill = get_skill_by_name(skill_name)
     if skill is None:
         available = ", ".join(s["name"] for s in get_all_skills())
@@ -152,7 +154,7 @@ def _build_load_scenario_command(
 
 
 @tool
-def load_skill(skill_name: str, runtime: ToolRuntime) -> Command:
+def load_skill(skill_name: str, runtime: ToolRuntime[RequestContext, SqlSubAgentState]) -> Command:
     """
     Load the full content of a domain skill into the agent's context.
 
@@ -172,7 +174,7 @@ def load_skill(skill_name: str, runtime: ToolRuntime) -> Command:
 
 
 @tool
-def load_scenario(skill_name: str, scenario_name: str, runtime: ToolRuntime) -> Command:
+def load_scenario(skill_name: str, scenario_name: str, runtime: ToolRuntime[RequestContext, SqlSubAgentState]) -> Command:
     """
     Load the detailed playbook of a fixed scenario under a business domain.
 

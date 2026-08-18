@@ -26,6 +26,8 @@ from langchain_core.messages import ToolMessage
 from sqlalchemy import text
 from sqlalchemy.engine import Engine
 
+from backend.app.agent.context import RequestContext
+from backend.app.agent.state import SqlSubAgentState
 from backend.app.agent.utils.sql_linter import validate_readonly_query, SQLLintException
 from backend.app.agent.utils import emit_stream_status
 from backend.app.export_files import create_export_record, get_export_dir
@@ -50,7 +52,7 @@ def create_csv_export_tool(
     """
 
     @langchain_tool
-    def export_to_csv(query: str, required_skill: str, runtime: ToolRuntime) -> Command:
+    def export_to_csv(query: str, required_skill: str, runtime: ToolRuntime[RequestContext, SqlSubAgentState]) -> Command:
         """
         Execute a SQL query and export the full results to a CSV file for user download.
 

@@ -9,7 +9,8 @@ frontend/dist/
 .agent/workflows/
 .agents/
 temp
-
+backend/tests
+.scratch
 # Node modules
 node_modules/
 frontend/node_modules/

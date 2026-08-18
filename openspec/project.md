@@ -71,14 +71,17 @@ api.py
 - FastAPI 本地模式使用 `AsyncConnectionPool + AsyncPostgresSaver`
 - LangGraph 托管 / Dev 模式由运行时接管 `checkpointer/store`
 - 所有 Agent 调用都必须传递 `config["configurable"]["thread_id"] = session_id`
-- 流式接口使用结构化事件协议：`token/status/tool_call/tool_result/final/error`
-- 业务知识优先通过 `SkillMiddleware` 和 `BusinessRagMiddleware` 注入，而不是把全量 Schema 或大段说明直接塞进提示词
+- 单轮大体量 RAG 知识与物理词典 DDL 通过原生 `Context API` (`context_schema=RequestContext`) 传递，0 字节写入 Checkpoint，持久化存储体积降低 90% 以上
+- 父图状态 `CustomState` 物理瘦身，子图状态 `SqlSubAgentState` 独立沙箱隔离，彻底消除多子智能体并发写冲突 (`INVALID_CONCURRENT_GRAPH_UPDATE`)
+- 流式接口使用结构化事件协议：`token/status/tool_call/tool_result/subagent_change/rag_context/lexicon_context/tool_artifact/final/error`
+- 业务知识优先通过 `SkillMiddleware`（SQL 子智能体独占）和 `BusinessRagMiddleware`（单向注入 Context API）注入，而不是把全量 Schema 或大段说明直接塞进提示词
 
 **技能与工具链路**
 
 - 先加载领域技能（domain skill）
 - 必要时再加载场景技能（scenario skill）
 - SQL 查询、SQL 示例检索、CSV 导出都应遵守 `required_skill` 约束
+- 主 Agent 纯净编排，仅保留 `AskUserQuestion` 与任务委派；SQL 专家子智能体独占持有车间技能与 DDL 自愈回路
 
 ### Testing Strategy
 

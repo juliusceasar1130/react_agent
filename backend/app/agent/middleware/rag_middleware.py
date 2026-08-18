@@ -16,6 +16,7 @@ from langchain_core.messages import BaseMessage, SystemMessage
 from langchain_core.documents import Document
 from langgraph.runtime import Runtime
 
+from backend.app.agent.context import RequestContext
 from backend.app.agent.state import CustomState
 from backend.app.agent.utils import emit_stream_status
 from backend.app.agent.vector.base import BaseRetriever, BaseReranker, ScoredDocument
@@ -25,7 +26,7 @@ from backend.app.config import settings
 logger = logging.getLogger(__name__)
 
 
-class BusinessRagMiddleware(AgentMiddleware[CustomState]):
+class BusinessRagMiddleware(AgentMiddleware[CustomState, RequestContext]):
     """
     业务知识 RAG 中间件
 
@@ -33,6 +34,7 @@ class BusinessRagMiddleware(AgentMiddleware[CustomState]):
     """
 
     state_schema = CustomState
+    context_schema = RequestContext
 
     def __init__(
         self,
@@ -77,7 +79,7 @@ class BusinessRagMiddleware(AgentMiddleware[CustomState]):
         msg_type = getattr(msg, "type", None) or getattr(msg, "role", None)
         return msg_type in ("human", "user")
 
-    def _extract_query(self, state: CustomState) -> tuple[List[BaseMessage], str] | None:
+    def _extract_query(self, state: CustomState, runtime: Optional[Runtime[RequestContext]] = None) -> tuple[List[BaseMessage], str] | None:
         """提取用户消息和查询文本，自适应主 Agent 原始 HumanMessage 与 SubAgent 包装的 Task 消息。"""
         messages: List[BaseMessage] = state.get("messages", [])
         if not messages:
@@ -99,11 +101,12 @@ class BusinessRagMiddleware(AgentMiddleware[CustomState]):
         if not user_query:
             return None
 
-        # 新架构防重复判定：若 state 中 rag_query 与当前 user_query 一致，证明当次 Turn 已做过 RAG 检索
-        existing_rag_query = state.get("rag_query")
-        if isinstance(existing_rag_query, str) and existing_rag_query == user_query:
-            logger.debug("BusinessRagMiddleware: 当前 query 已在当次 Turn 中完成 RAG 检索，跳过重复检索。")
-            return None
+        # 新架构防重复判定：若 runtime.context 中 rag_query 与当前 user_query 一致，证明当次 Turn 已做过 RAG 检索
+        if runtime and getattr(runtime, "context", None) is not None and isinstance(runtime.context, dict):
+            existing_rag_query = runtime.context.get("rag_query")
+            if isinstance(existing_rag_query, str) and existing_rag_query == user_query:
+                logger.debug("BusinessRagMiddleware: 当前 query 已在当次 Turn 中完成 RAG 检索，跳过重复检索。")
+                return None
 
         return messages, user_query
 
@@ -122,39 +125,21 @@ class BusinessRagMiddleware(AgentMiddleware[CustomState]):
         if not docs:
             return ""
 
-        # 只格式化 Documentation 类型的文档
-        parts: List[str] = []
-        parts.append("## 1. 业务术语参考 (Business Terminology Reference)")
+        knowledge_items = []
+        for i, doc in enumerate(docs, 1):
+            term = doc.metadata.get("term", f"术语_{i}")
+            domain = doc.metadata.get("domain", "")
+            domain_tag = f"【{domain}】" if domain else ""
+            aliases = doc.metadata.get("aliases", [])
+            alias_str = f"（别名：{'、'.join(aliases)}）" if aliases else ""
 
-        for i, doc in enumerate(docs, start=1):
-            meta = getattr(doc, "metadata", {}) or {}
+            item = f"{i}. {domain_tag}**{term}**{alias_str}\n   {doc.page_content}"
+            knowledge_items.append(item)
 
-            # 结合向量库设计文档中的字段：
-            # - term: 业务术语
-            # - aliases: 别名列表
-            # - domain: 业务域
-            term = meta.get("term")
-            title = (
-                term
-                or meta.get("title")
-                or meta.get("source")
-                or f"业务术语 #{i}"
-            )
-            domain = meta.get("domain")
-            aliases = meta.get("aliases") or []
-
-            header_lines: List[str] = [f"#### {title}"]
-            if domain:
-                header_lines.append(f"- 业务域: {domain}")
-            if isinstance(aliases, list) and aliases:
-                # 仅展示前若干个别名，避免提示词过长
-                alias_text = ", ".join(map(str, aliases[:5]))
-                header_lines.append(f"- 别名: {alias_text}")
-
-            header = "\n".join(header_lines)
-            parts.append(f"{header}\n\n{doc.page_content}")
-
-        return "\n\n".join(parts)
+        return (
+            "## 1. 业务术语与定义说明 (Business Domain Knowledge)\n\n"
+            + "\n\n".join(knowledge_items)
+        )
 
     def _has_rag_system_message(self, messages: List[BaseMessage]) -> bool:
         """检查 messages 中是否已包含业务知识系统消息"""
@@ -174,14 +159,23 @@ class BusinessRagMiddleware(AgentMiddleware[CustomState]):
 
     # --------- 钩子实现 ---------
 
-    def before_model(self, state: CustomState, runtime: Runtime) -> Optional[dict[str, Any]]:
+    def before_model(self, state: CustomState, runtime: Runtime[RequestContext]) -> Optional[dict[str, Any]]:
         """
-        在用户消息时检索业务知识，并将检索结果作为系统消息注入到 messages 中。(同步回退支持)
+        在用户消息时同步检索业务知识与数据库词典，并将检索结果作为系统消息注入到 messages 中。
         """
-        extracted = self._extract_query(state)
+        extracted = self._extract_query(state, runtime=runtime)
         if extracted is None:
             return None
         messages, user_query = extracted
+
+        if self.retriever is None:
+            logger.debug("BusinessRagMiddleware: retriever 为空，跳过知识检索")
+            if runtime and getattr(runtime, "context", None) is not None and isinstance(runtime.context, dict):
+                runtime.context["rag_context"] = []
+                runtime.context["rag_query"] = user_query
+                runtime.context["lexicon_context"] = None
+                return None
+            return None
 
         retrieved_docs: List[Document] = []
         lexicon_results = {"tables": [], "values": [], "rows": []}
@@ -205,71 +199,65 @@ class BusinessRagMiddleware(AgentMiddleware[CustomState]):
 
         except Exception as e:
             logger.error(f"BusinessRagMiddleware 同步检索失败: {e}", exc_info=True)
-            return {
-                "rag_context": [],
-                "rag_query": user_query,
-                "lexicon_context": None,
-            }
+            if runtime and getattr(runtime, "context", None) is not None and isinstance(runtime.context, dict):
+                runtime.context["rag_context"] = []
+                runtime.context["rag_query"] = user_query
+                runtime.context["lexicon_context"] = None
+                return None
+            return None
 
-        return self._format_and_assemble_state(user_query, messages, retrieved_docs, lexicon_results)
+        return self._format_and_assemble_state(
+            user_query, messages, retrieved_docs, lexicon_results, runtime=runtime
+        )
 
-    async def abefore_model(self, state: CustomState, runtime: Runtime) -> Optional[dict[str, Any]]:
+    async def abefore_model(self, state: CustomState, runtime: Runtime[RequestContext]) -> Optional[dict[str, Any]]:
         """
         在用户消息时并发检索业务知识与数据库词典，并将检索结果作为系统消息注入到 messages 中。
         """
-        extracted = self._extract_query(state)
+        extracted = self._extract_query(state, runtime=runtime)
         if extracted is None:
             return None
         messages, user_query = extracted
+
+        if self.retriever is None:
+            logger.debug("BusinessRagMiddleware: retriever 为空，跳过知识检索")
+            if runtime and getattr(runtime, "context", None) is not None and isinstance(runtime.context, dict):
+                runtime.context["rag_context"] = []
+                runtime.context["rag_query"] = user_query
+                runtime.context["lexicon_context"] = None
+                return None
+            return None
 
         retrieved_docs: List[Document] = []
         lexicon_results = {"tables": [], "values": [], "rows": []}
 
         try:
             emit_stream_status(
-                "正在检索业务知识与数据库词典",
+                "正在检索业务知识与数据库词典 (并发)",
                 stage="retrieving",
                 source="business_rag",
             )
-
-            tasks = [
-                asyncio.to_thread(
-                    self.retriever.retrieve,
+            if self.lexicon_retriever is not None:
+                scored_results, lexicon_results = await asyncio.gather(
+                    self.retriever.aretrieve(
+                        query=user_query,
+                        k=self.doc_k,
+                        score_threshold=self.score_threshold,
+                        doc_type="documentation",
+                    ),
+                    self.lexicon_retriever.retrieve_all(user_query),
+                )
+            else:
+                scored_results = await self.retriever.aretrieve(
                     query=user_query,
                     k=self.doc_k,
                     score_threshold=self.score_threshold,
                     doc_type="documentation",
                 )
-            ]
-            if self.lexicon_retriever is not None:
-                tasks.append(self.lexicon_retriever.retrieve_all(user_query))
-
-            results = await asyncio.gather(*tasks)
-            scored_results = results[0]
             retrieved_docs = [item.document for item in scored_results]
 
-            if len(results) > 1:
-                lexicon_results = results[1]
-
-            # 记录检索结果和分数信息
-            if scored_results:
-                scores = [item.score for item in scored_results]
-                logger.info(
-                    "BusinessRagMiddleware: 检索到 %d 条 Documentation 类型业务文档 "
-                    "(分数范围: %.4f - %.4f, 阈值: %s)",
-                    len(retrieved_docs),
-                    min(scores),
-                    max(scores),
-                    self.score_threshold if self.score_threshold is not None else "无",
-                )
-            else:
-                logger.info(
-                    "BusinessRagMiddleware: 未检索到符合条件的 Documentation 类型业务文档 (阈值: %s)",
-                    self.score_threshold if self.score_threshold is not None else "无",
-                )
-
-            # Rerank 精排（如果启用，通过 to_thread 解绑事件循环阻塞）
-            if self.reranker and retrieved_docs:
+            # Rerank 精排逻辑
+            if self.reranker is not None and len(retrieved_docs) > 1:
                 try:
                     reranked_results: List[ScoredDocument] = await asyncio.to_thread(
                         self.reranker.rerank,
@@ -289,27 +277,30 @@ class BusinessRagMiddleware(AgentMiddleware[CustomState]):
 
         except Exception as e:
             logger.error(f"BusinessRagMiddleware 异步检索失败: {e}", exc_info=True)
-            return {
-                "rag_context": [],
-                "rag_query": user_query,
-                "lexicon_context": None,
-            }
+            if runtime and getattr(runtime, "context", None) is not None and isinstance(runtime.context, dict):
+                runtime.context["rag_context"] = []
+                runtime.context["rag_query"] = user_query
+                runtime.context["lexicon_context"] = None
+                return None
+            return None
 
-        return self._format_and_assemble_state(user_query, messages, retrieved_docs, lexicon_results)
+        return self._format_and_assemble_state(user_query, messages, retrieved_docs, lexicon_results, runtime=runtime)
 
     def _format_and_assemble_state(
         self,
         user_query: str,
         messages: List[BaseMessage],
         retrieved_docs: List[Document],
-        lexicon_results: dict
+        lexicon_results: dict,
+        runtime: Optional[Runtime[RequestContext]] = None,
     ) -> Optional[dict[str, Any]]:
         # 1. 格式化业务术语说明 (Documentation)
         knowledge_block = self._format_knowledge_block(retrieved_docs)
 
         # 2. 三层词典并集处理与 DDL 装配
         ddl_block = ""
-        mappings_block = ""
+        value_block = ""
+        row_block = ""
         table_lexicon_context = []
         structured_tables = []
         structured_values = []
@@ -348,54 +339,42 @@ class BusinessRagMiddleware(AgentMiddleware[CustomState]):
                     key = t_name.lower()
                     if (key not in primary_table_names) and (key not in seen_aux):
                         seen_aux.add(key)
-                        short_name = t_name.split(".")[-1]
-                        display_text = (
-                            custom_table_info.get(t_name)
-                            or custom_table_info.get(short_name)
-                            or f"表: {t_name}"
-                        )
                         auxiliary_tables.append({
                             "table_name": t_name,
-                            "ddl": display_text
+                            "summary": node.node.text
                         })
                         if len(auxiliary_tables) >= cross_layer_top_k:
                             break
 
-            # 3. 构造 DDL Block
-            summary_parts = []
-            for t in primary_tables:
-                summary_parts.append(t["summary"])
-                structured_tables.append({
-                    "table_name": t["table_name"],
-                    "ddl": t["summary"]
-                })
-                table_lexicon_context.append(t["table_name"])
+            # 3. 规范化 DDL 注入与全量列注释提取
+            all_resolved_tables = primary_tables + auxiliary_tables
+            ddl_parts = []
+            for t_info in all_resolved_tables:
+                t_name = t_info["table_name"]
+                t_ddl = custom_table_info.get(t_name)
+                if t_ddl:
+                    ddl_parts.append(t_ddl.strip())
+                    table_lexicon_context.append({
+                        "table_name": t_name,
+                        "ddl": t_ddl.strip(),
+                        "summary": t_info.get("summary", "")
+                    })
+                    structured_tables.append({
+                        "table_name": t_name,
+                        "ddl": t_ddl.strip(),
+                        "summary": t_info.get("summary", "")
+                    })
 
-            if summary_parts:
-                ddl_block = "### 2.1 命中的主要数据库表结构 (Primary Table Schema)\n\n" + "\n\n---\n\n".join(summary_parts)
-
-            # 辅助表 DDL 追加
-            aux_parts = []
-            for t in auxiliary_tables:
-                aux_parts.append(t["ddl"])
-                structured_tables.append({
-                    "table_name": t["table_name"],
-                    "ddl": t["ddl"]
-                })
-                table_lexicon_context.append(t["table_name"])
-
-            if aux_parts:
-                aux_block = (
-                    "### 2.1.1 辅助参考的数据库表结构 (Auxiliary Table Schema)\n"
-                    "(由于检索到相关列值条件，追加以下表结构供编写 SQL 过滤参考)\n\n"
-                    + "\n\n---\n\n".join(aux_parts)
+            if ddl_parts:
+                ddl_block = (
+                    "### 2.1 业务核心数据表结构定义 (Table DDL & Column Comments)\n\n"
+                    "下列是与当前查询最相关的物理表 DDL 及注释，请在编写 SQL 时严格以此字段与关系为准：\n\n"
+                    "```sql\n"
+                    + "\n\n".join(ddl_parts)
+                    + "\n```"
                 )
-                if ddl_block:
-                    ddl_block = ddl_block + "\n\n" + aux_block
-                else:
-                    ddl_block = aux_block
 
-            # 3. 格式化列值对照参考为 Markdown 表格（最多展示 lexicon_value_top_k 条）
+            # 3. 格式化模糊值对照参考（最多展示 lexicon_value_top_k 条）
             value_rows = []
             for node in lexicon_results.get("values", [])[:settings.lexicon_value_top_k]:
                 meta = node.node.metadata
@@ -409,7 +388,6 @@ class BusinessRagMiddleware(AgentMiddleware[CustomState]):
                     "exact_value": exact_val
                 })
 
-            value_block = ""
             if value_rows:
                 value_block = (
                     "### 2.2 字段真实列值对照参考 (Fuzzy Value Alignment)\n\n"
@@ -435,7 +413,6 @@ class BusinessRagMiddleware(AgentMiddleware[CustomState]):
                     "row_content": row_content
                 })
 
-            row_block = ""
             if row_rows:
                 row_block = (
                     "### 2.3 实体主键与行属性关联参考 (Entity Record Lookup)\n\n"
@@ -464,6 +441,11 @@ class BusinessRagMiddleware(AgentMiddleware[CustomState]):
 
         if not rag_sections:
             logger.info("BusinessRagMiddleware: 未检索到任何相关辅助参考信息")
+            if runtime and getattr(runtime, "context", None) is not None and isinstance(runtime.context, dict):
+                runtime.context["lexicon_context"] = None
+                runtime.context["rag_context"] = []
+                runtime.context["rag_query"] = user_query
+                return None
             return {
                 "rag_context": [],
                 "rag_query": user_query,
@@ -477,6 +459,31 @@ class BusinessRagMiddleware(AgentMiddleware[CustomState]):
             + "\n\n".join(rag_sections)
         )
 
+        lexicon_payload = {
+            "formatted_text": rag_system_content,
+            "tables": table_lexicon_context,
+            "values_count": len(lexicon_results.get("values", [])),
+            "rows_count": len(lexicon_results.get("rows", [])),
+            "detail": {
+                "tables": structured_tables,
+                "values": structured_values,
+                "rows": structured_rows
+            }
+        }
+
+        # 优先通过 Context API 写入运行时瞬态上下文 (0 字节入 Checkpoint)
+        if runtime and getattr(runtime, "context", None) is not None and isinstance(runtime.context, dict):
+            runtime.context["lexicon_context"] = lexicon_payload
+            runtime.context["rag_context"] = retrieved_docs
+            runtime.context["rag_query"] = user_query
+            logger.info("BusinessRagMiddleware: 已将混合辅助知识注入到 RequestContext (0 Checkpoint 膨胀)")
+            emit_stream_status(
+                f"辅助知识与物理词典装配完毕 (DDL 并集共 {len(table_lexicon_context)} 张表)",
+                stage="retrieving",
+                source="business_rag",
+            )
+            return None
+
         logger.info("BusinessRagMiddleware: 已将混合辅助知识注入到 state 的 lexicon_context")
         emit_stream_status(
             f"辅助知识与物理词典装配完毕 (DDL 并集共 {len(table_lexicon_context)} 张表)",
@@ -487,15 +494,5 @@ class BusinessRagMiddleware(AgentMiddleware[CustomState]):
         return {
             "rag_context": retrieved_docs,
             "rag_query": user_query,
-            "lexicon_context": {
-                "formatted_text": rag_system_content,
-                "tables": table_lexicon_context,
-                "values_count": len(lexicon_results.get("values", [])),
-                "rows_count": len(lexicon_results.get("rows", [])),
-                "detail": {
-                    "tables": structured_tables,
-                    "values": structured_values,
-                    "rows": structured_rows
-                }
-            }
+            "lexicon_context": lexicon_payload,
         }

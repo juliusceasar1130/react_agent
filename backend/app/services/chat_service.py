@@ -606,10 +606,18 @@ class SQLAgentService:
             config,
             request_mode="invoke",
         )
+        req_context = {
+            "session_id": str(session_id),
+            "user_id": resolved_config.get("configurable", {}).get("user_id"),
+            "rag_context": [],
+            "lexicon_context": None,
+            "rag_query": "",
+        }
         invoke_task = asyncio.create_task(
             self.agent.ainvoke(
                 {"messages": [HumanMessage(content=message)]},
                 config=resolved_config,
+                context=req_context,
             )
         )
         try:
@@ -644,8 +652,6 @@ class SQLAgentService:
         logger.info("开始流式处理，消息: %s...", message[:100])
         input_data = {
             "messages": [HumanMessage(content=message)],
-            "rag_context": [],
-            "rag_query": "",
         }
         async for event in self._stream_execution_loop(session_id, resolved_config, input_data):
             yield event
@@ -705,9 +711,17 @@ class SQLAgentService:
                 await _emit(initial_status)
                 last_status_signature = self._status_signature(initial_status)
 
+                req_context = {
+                    "session_id": str(session_id),
+                    "user_id": resolved_config.get("configurable", {}).get("user_id"),
+                    "rag_context": [],
+                    "lexicon_context": None,
+                    "rag_query": "",
+                }
                 source_iter = self.agent.astream(
                     input_data,
                     config=resolved_config,
+                    context=req_context,
                     stream_mode=["messages", "updates", "custom"],
                     subgraphs=True,
                     version="v2",
@@ -755,7 +769,6 @@ class SQLAgentService:
                                     if segment.startswith("tools:"):
                                         call_id = segment.split("tools:", 1)[1]
                                         matched_call_id = call_id
-                                        # 未知 call_id 不打标（宁可回落 main，也不静默归属 sql_domain_agent）
                                         matched_subagent = active_task_targets.get(call_id)
                                         if matched_subagent is None:
                                             if call_id not in warned_unregistered_tools:
@@ -767,16 +780,12 @@ class SQLAgentService:
                                                 )
                                         break
                                     elif "sql_domain_agent" in segment:
-                                        # ns 中出现子智能体名（CompiledSubAgent run_name 可能注入）时的兜底：
-                                        # 只标记归属、不猜测 call_id，避免并行委派时错配会话
                                         matched_subagent = "sql_domain_agent"
                                         break
 
                         new_subagent = matched_subagent if matched_subagent else "main"
                         if new_subagent != current_subagent:
                             current_subagent = new_subagent
-                            # 子智能体识别与显示名目前仅覆盖 sql_domain_agent；
-                            # 新增子智能体时需同步扩展 active_task_targets 来源、本映射与前端 title 映射
                             display_name = (
                                 "SQL数据助手" if current_subagent == "sql_domain_agent" else "通用助手"
                             )
@@ -788,9 +797,8 @@ class SQLAgentService:
 
                     if not has_sent_rag:
                         try:
-                            state = await self.agent.aget_state(resolved_config)
-                            rag_context_list = state.values.get("rag_context", []) if state else []
-                            rag_query = state.values.get("rag_query", "") if state else ""
+                            rag_context_list = req_context.get("rag_context") or []
+                            rag_query = req_context.get("rag_query") or ""
                             if isinstance(rag_query, str):
                                 rag_query = rag_query.strip()
 
@@ -815,9 +823,8 @@ class SQLAgentService:
 
                     if not has_sent_lexicon:
                         try:
-                            state = await self.agent.aget_state(resolved_config)
-                            lexicon_context_val = state.values.get("lexicon_context", {}) if state else {}
-                            rag_query = state.values.get("rag_query", "") if state else ""
+                            lexicon_context_val = req_context.get("lexicon_context") or {}
+                            rag_query = req_context.get("rag_query") or ""
                             if isinstance(rag_query, str):
                                 rag_query = rag_query.strip()
 
