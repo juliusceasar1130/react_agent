@@ -25,8 +25,6 @@ from langchain_core.messages import ToolMessage
 from sqlalchemy import text
 from sqlalchemy.engine import Engine
 
-from pydantic import BaseModel, ConfigDict, Field
-
 from backend.app.agent.context import RequestContext
 from backend.app.agent.utils.sql_linter import validate_readonly_query, SQLLintException
 from backend.app.agent.utils import emit_stream_status
@@ -34,14 +32,6 @@ from backend.app.artifacts import get_artifact_store
 from backend.app.config import settings
 
 logger = logging.getLogger(__name__)
-
-
-class ExportToCsvInput(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    query: str = Field(
-        description="Read-only SQL SELECT query to execute and export to a CSV file."
-    )
 
 
 def create_csv_export_tool(
@@ -59,7 +49,7 @@ def create_csv_export_tool(
         export_to_csv 工具实例
     """
 
-    @langchain_tool(args_schema=ExportToCsvInput)
+    @langchain_tool
     def export_to_csv(
         query: str,
         runtime: ToolRuntime[RequestContext, Any],
@@ -121,21 +111,8 @@ def create_csv_export_tool(
                     f"为防内存溢出崩溃，执行已被强行终止。请增加过滤范围或使用聚合统计重试。"
                 )
 
-            caller_role = "sql_domain_agent"
-            if runtime:
-                if hasattr(runtime, "subagent_name") and runtime.subagent_name:
-                    caller_role = str(runtime.subagent_name)
-                else:
-                    cfg = getattr(runtime, "config", None) or {}
-                    if isinstance(cfg, dict):
-                        meta = cfg.get("metadata", {})
-                        conf = cfg.get("configurable", {})
-                        caller_role = meta.get("subagent_name") or conf.get("subagent_name") or meta.get("agent_name") or "sql_domain_agent"
-            tool_call_id_str = (
-                str(runtime.tool_call_id)
-                if runtime and hasattr(runtime, "tool_call_id") and runtime.tool_call_id
-                else "call_unknown"
-            )
+            tool_call_id_str = str(runtime.tool_call_id)
+            caller_role = str(getattr(runtime, "subagent_name", "sql_domain_agent"))
 
             handle = store.save_export_file(
                 source_file_path=filepath,

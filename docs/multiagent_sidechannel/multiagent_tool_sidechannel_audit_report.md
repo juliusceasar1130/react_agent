@@ -1,7 +1,7 @@
 # 主子智能体架构下工具侧信道、状态隔离与流式分流深度审查报告
 
 > **文档版本**：v3.0 (Phase 2 工件统一底座与子智能体专属工件内嵌全量落地 · Claude Code 联合审查验收终版)  
-> **文档位置**：`docs/agents/multiagent_tool_sidechannel_audit_report.md`  
+> **文档位置**：`docs/multiagent_sidechannel/multiagent_tool_sidechannel_audit_report.md`  
 > **更新时间**：2026-08-20  
 > **审查对象**：主子智能体协同体系（`deepagents` / `CompiledSubAgent`）下的工具侧信道机制、状态机（`CustomState`）各维度隔离性、工件统一存储底座（`ArtifactStore`）、子智能体专属工件就近内嵌（`SubagentCard`）、SSE 流式分流协议与前端回放渲染链路。  
 > **评审基准**：由 Antigravity 完成架构演进与代码实现，经 Claude Code（`w4:p1`）完成跨 Agent 独立对审并 100% 验收通过（Approved）。

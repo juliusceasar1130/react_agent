@@ -1,3 +1,32 @@
+## 2026-08-20 22:15 +08:00 - 图表生成与 CSV 导出工具 LangChain 原生签名推导重构与调度注入修复 (`chart_artifact_tool.py`, `csv_export_tool.py`) [FIX]
+
+### 变更内容
+
+#### 1. 根治 ToolRuntime 注入失效与空错误熔断 (`chart_artifact_tool.py`, `csv_export_tool.py`) [FIX]
+- **移除显式 `args_schema` 覆盖**：在 `build_chart_artifact` 与 `export_to_csv` 上移除 `@langchain_tool(args_schema=...)` 传参，恢复原生 `@langchain_tool` 签名推导机制。
+- **恢复 LangGraph 注入契约**：使 LangGraph `ToolNode` 能够正确识别底层函数签名中的 `runtime: ToolRuntime[RequestContext, Any]` 并自动完成框架注入，彻底解决 `missing positional argument: 'runtime'` 异常。
+- **去除冗余二次校验与死代码**：删除 `_SERIES_INPUT_ADAPTER`（`TypeAdapter`）函数体内重复校验，直接使用入口处 Pydantic 自动解析完成的 `ChartSeriesInput` 强类型对象；删除 `if runtime is not None` 等不可能发生的死代码分支，直接访问 `runtime` 属性。
+
+#### 2. 单元测试全链路升级与调度盲区堵漏 (`test_tools_main_and_subagent_compatibility.py`) [TEST]
+- **升级为真实 `tool.invoke` 调度**：弃用 `tool.func` 裸函数直调，全面改用带有真实 `ToolRuntime` 数据类的 `tool.invoke` 进行全流程调度验证。
+- **新增注入契约与大模型安全断言**：通过 `_get_all_injected_args` 断言框架注入契约成立，同时断言 `runtime` 绝对不在大模型可见的 `tool.args` 中暴露（零 `CallableSchema` 序列化风险）。
+- **全量测试验证**：`pytest -m "not integration and not smoke"` **82 项测试 100% 绿色全通**，前端 `npm run build:check` 0 错误构建通过。
+
+---
+
+## 2026-08-20 20:40 +08:00 - 多智能体侧信道与工件体系架构知识库沉淀 (`docs/multiagent_sidechannel/`) [DOCS]
+
+### 变更内容
+
+#### 1. 架构核心资产归位与沉淀专区建立 (`docs/multiagent_sidechannel/`) [DOCS]
+- **专区建立**：在 `docs/` 目录下新建 `multiagent_sidechannel/` 作为多智能体分层架构、State 侧信道、Claim-Check 工件存储与工具开发规范的权威知识库。
+- **架构审查总纲沉淀**：归位并沉淀 [`multiagent_tool_sidechannel_audit_report.md`](file:///F:/000_dev/Python/workplace/rearch_agent/.tree/features/agent-deepagent/docs/multiagent_sidechannel/multiagent_tool_sidechannel_audit_report.md)（v3.0 终版），涵盖全系统六大维度架构裁决、TOAST/ArtifactStore 双轨持久化方案与 Phase 0~3 路线图。
+- **理论模式报告沉淀**：归位并沉淀 [`state_sidechannel_multiagent_report.md`](file:///F:/000_dev/Python/workplace/rearch_agent/.tree/features/agent-deepagent/docs/multiagent_sidechannel/state_sidechannel_multiagent_report.md)，涵盖 6 种 State 侧信道模式与行业顶级框架（LangGraph、Anthropic、AutoGen、OpenAI）对比。
+- **工具开发与异常拦截指南编制**：新增 [`tool_development_and_error_handling_guide.md`](file:///F:/000_dev/Python/workplace/rearch_agent/.tree/features/agent-deepagent/docs/multiagent_sidechannel/tool_development_and_error_handling_guide.md)，系统梳理四项核心铁律（`raise ToolException`、`handle_tool_error=True`、`"Error: "` 契约前缀、纯正 `ToolRuntime` 注入与 Pydantic `args_schema` 隔离）、避坑清单与标准实战模板。
+- **索引导航编制**：编写 [`README.md`](file:///F:/000_dev/Python/workplace/rearch_agent/.tree/features/agent-deepagent/docs/multiagent_sidechannel/README.md) 提供目录索引与分角色阅读建议。
+
+---
+
 ## 2026-08-20 20:20 +08:00 - 环境配置全面对齐与统一工件底座参数收敛 (`config.py`, `.env`, `.env_docker`) [CONFIG]
 
 ### 变更内容

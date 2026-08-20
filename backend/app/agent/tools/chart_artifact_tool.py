@@ -11,9 +11,9 @@ from typing import Any, Literal
 
 from langchain.tools import ToolRuntime, tool as langchain_tool
 from langchain_core.tools import ToolException
-from langgraph.types import Command
 from langchain_core.messages import ToolMessage
-from pydantic import BaseModel, ConfigDict, Field, TypeAdapter, ValidationError, model_validator
+from langgraph.types import Command
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 from sqlalchemy import text
 from sqlalchemy.engine import Engine
 
@@ -67,36 +67,8 @@ class ChartSeriesInput(BaseModel):
     def _validate_category_pair(self) -> "ChartSeriesInput":
         if bool(self.category_field) != bool(self.category_value):
             raise ValueError("category_field 和 category_value 必须同时提供。")
+
         return self
-
-
-class BuildChartArtifactInput(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    query: str = Field(
-        description="Read-only SELECT query used to fetch chart data."
-    )
-    chart_type: Literal["line", "bar", "auto"] = Field(
-        description="Chart type. Use auto when the tool should infer line or bar."
-    )
-    title: str = Field(description="Chart title shown to the user.")
-    description: str = Field(
-        default="",
-        description="Short chart description shown under the title.",
-    )
-    x_field: str = Field(
-        description="Field from SQL result used as the x-axis, usually a date or category."
-    )
-    series: list[ChartSeriesInput] = Field(
-        description=(
-            "Series definitions. Use field for numeric columns only. For multi-category "
-            "comparisons on the same metric, provide category_field/category_value."
-        ),
-        min_length=1,
-    )
-
-
-_SERIES_INPUT_ADAPTER = TypeAdapter(list[ChartSeriesInput])
 
 
 def _looks_like_temporal_field(field_name: str, values: list[Any]) -> bool:
@@ -131,15 +103,6 @@ def _normalize_value(value: Any) -> Any:
 
 def _is_numeric_value(value: Any) -> bool:
     return isinstance(value, (int, float, Decimal)) and not isinstance(value, bool)
-
-
-def _format_validation_error(prefix: str, exc: ValidationError) -> str:
-    first_error = exc.errors()[0]
-    location = " -> ".join(str(part) for part in first_error.get("loc", []))
-    message = first_error.get("msg", "参数不合法")
-    if location:
-        return f"Error: {prefix} - {location}: {message}"
-    return f"Error: {prefix} - {message}"
 
 
 def _infer_category_series(
@@ -224,10 +187,10 @@ def create_chart_artifact_tool(
 ) -> Any:
     """创建图表 artifact 工具。"""
 
-    @langchain_tool(args_schema=BuildChartArtifactInput)
+    @langchain_tool
     def build_chart_artifact(
         query: str,
-        chart_type: str,
+        chart_type: Literal["line", "bar", "auto"],
         title: str,
         description: str,
         x_field: str,
@@ -282,13 +245,8 @@ def create_chart_artifact_tool(
             if x_field not in columns:
                 raise ToolException(f"Error: x_field '{x_field}' 不存在于查询结果中。")
 
-            try:
-                validated_series = _SERIES_INPUT_ADAPTER.validate_python(series)
-            except ValidationError as exc:
-                raise ToolException(_format_validation_error("图表系列参数不合法", exc))
-
             normalized_series: list[dict[str, Any]] = []
-            for item in validated_series:
+            for item in series:
                 field = item.field.strip()
                 if field not in columns:
                     raise ToolException(f"Error: 图表序列字段 '{field}' 不存在于查询结果中。")
@@ -330,21 +288,8 @@ def create_chart_artifact_tool(
                 "rows": rows,
             }
 
-            caller_role = "sql_domain_agent"
-            if runtime:
-                if hasattr(runtime, "subagent_name") and runtime.subagent_name:
-                    caller_role = str(runtime.subagent_name)
-                else:
-                    cfg = getattr(runtime, "config", None) or {}
-                    if isinstance(cfg, dict):
-                        meta = cfg.get("metadata", {})
-                        conf = cfg.get("configurable", {})
-                        caller_role = meta.get("subagent_name") or conf.get("subagent_name") or meta.get("agent_name") or "sql_domain_agent"
-            tool_call_id_str = (
-                str(runtime.tool_call_id)
-                if runtime and hasattr(runtime, "tool_call_id") and runtime.tool_call_id
-                else "call_unknown"
-            )
+            tool_call_id_str = str(runtime.tool_call_id)
+            caller_role = str(getattr(runtime, "subagent_name", "sql_domain_agent"))
 
             store = get_artifact_store()
             handle = store.save_artifact(

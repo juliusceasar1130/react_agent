@@ -1,6 +1,7 @@
 # 主子智能体架构下基于 State 的侧信道设计与行业实践深度研究报告
 
 > **文档版本**：v2.1（增补项目核心工具链 SQL/图表/CSV 侧信道深度评估）  
+> **文档位置**：`docs/multiagent_sidechannel/state_sidechannel_multiagent_report.md`  
 > **生成时间**：2026-08-16  
 > **文档主题**：主子与多子智能体（Supervisor-Worker / Fan-Out Fan-In）架构下的 State 侧信道设计模式、并发与状态隐患、最佳实践边界、行业前沿方案及本项目工具链实现与 Gap 评估。
 

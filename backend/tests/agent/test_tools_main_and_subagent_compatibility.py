@@ -3,20 +3,19 @@
 Ticket 02: 图表与 CSV 导出工具泛型状态解耦与主子智能体双向兼容测试。
 
 验证内容:
-1. build_chart_artifact 在 CustomState (主智能体) 下正常执行
+1. build_chart_artifact 在 CustomState (主智能体) 下正常执行 (tool.invoke 与 tool.func)
 2. build_chart_artifact 在 SqlSubAgentState (子智能体) 下正常执行
 3. export_to_csv 在 CustomState (主智能体) 与 SqlSubAgentState (子智能体) 下正常执行
 4. 工具返回 Command(update={"messages": ..., "tool_artifact": ...}) 结构规范性
 5. 异常场景下统一抛出 ToolException 保证 Prompt 中间件可折叠裁剪
-6. 工具的 JSON Schema 生成正常，绝不包含内部注入参数 runtime，零 CallableSchema 序列化错误
+6. 工具面向大模型的 args 中绝不包含内部注入参数 runtime，零 CallableSchema 序列化错误
+7. 框架层注入契约 (_get_all_injected_args) 成立，真实 ToolNode invoke 调度顺畅
 """
 import json
 import pytest
-from unittest.mock import MagicMock
 from langchain.tools import ToolRuntime
-from langchain_core.tools import ToolException
 from langgraph.types import Command
-from pydantic import ValidationError
+from langgraph.prebuilt.tool_node import _get_all_injected_args
 from sqlalchemy import create_engine
 
 from backend.app.agent.context import RequestContext
@@ -49,24 +48,38 @@ def sqlite_engine():
     return engine
 
 
-def test_build_chart_artifact_main_agent(sqlite_engine):
-    """验证主智能体环境 (CustomState) 下生成图表。"""
-    tool = create_chart_artifact_tool(engine=sqlite_engine)
-    
-    mock_runtime = MagicMock(spec=ToolRuntime)
-    mock_runtime.state = CustomState(messages=[], context_warning=False, tool_artifact=None)
-    mock_runtime.tool_call_id = "call_main_chart_001"
-    mock_runtime.subagent_name = "main"
-
-    result = tool.func(
-        query="SELECT stat_date, defect_count FROM ods_daily_metric WHERE vehicle_model='A7' ORDER BY stat_date",
-        chart_type="line",
-        title="A7 车型每日缺陷趋势",
-        description="主智能体直接调起绘图",
-        x_field="stat_date",
-        series=[{"name": "缺陷数", "field": "defect_count"}],
-        runtime=mock_runtime,
+def _make_runtime(state, tool_call_id="call_test_001", subagent_name="main"):
+    """创建真实的 ToolRuntime 数据类实例供测试使用。"""
+    rt = ToolRuntime(
+        context=RequestContext(user_id="u1", session_id="s1"),
+        state=state,
+        tool_call_id=tool_call_id,
+        stream_writer=lambda x: None,
+        config={"configurable": {"thread_id": "t1"}},
+        store=None,
     )
+    setattr(rt, "subagent_name", subagent_name)
+    return rt
+
+
+def test_build_chart_artifact_main_agent_invoke(sqlite_engine):
+    """验证主智能体环境 (CustomState) 下通过 tool.invoke 真实调度生成图表。"""
+    tool = create_chart_artifact_tool(engine=sqlite_engine)
+    runtime = _make_runtime(
+        state=CustomState(messages=[], context_warning=False, tool_artifact=None),
+        tool_call_id="call_main_chart_001",
+        subagent_name="main",
+    )
+
+    result = tool.invoke({
+        "query": "SELECT stat_date, defect_count FROM ods_daily_metric WHERE vehicle_model='A7' ORDER BY stat_date",
+        "chart_type": "line",
+        "title": "A7 车型每日缺陷趋势",
+        "description": "主智能体直接调起绘图",
+        "x_field": "stat_date",
+        "series": [{"name": "缺陷数", "field": "defect_count"}],
+        "runtime": runtime,
+    })
 
     assert isinstance(result, Command)
     assert "messages" in result.update
@@ -84,135 +97,113 @@ def test_build_chart_artifact_main_agent(sqlite_engine):
     assert len(artifact["rows"]) == 2
 
 
-def test_build_chart_artifact_subagent(sqlite_engine):
-    """验证子智能体环境 (SqlSubAgentState) 下正常执行。"""
+def test_build_chart_artifact_subagent_invoke(sqlite_engine):
+    """验证子智能体环境 (SqlSubAgentState) 下通过 tool.invoke 正常执行。"""
     tool = create_chart_artifact_tool(engine=sqlite_engine)
-
-    mock_runtime_sub = MagicMock(spec=ToolRuntime)
-    mock_runtime_sub.state = SqlSubAgentState(messages=[], skills_loaded=["paint_defect_analysis"])
-    mock_runtime_sub.tool_call_id = "call_sub_chart_003"
-    mock_runtime_sub.subagent_name = "sql_domain_agent"
-
-    result = tool.func(
-        query="SELECT stat_date, defect_count FROM ods_daily_metric WHERE vehicle_model='A7'",
-        chart_type="bar",
-        title="缺陷柱状图",
-        description="",
-        x_field="stat_date",
-        series=[{"name": "缺陷数", "field": "defect_count"}],
-        runtime=mock_runtime_sub,
+    runtime = _make_runtime(
+        state=SqlSubAgentState(messages=[], skills_loaded=["paint_defect_analysis"]),
+        tool_call_id="call_sub_chart_003",
+        subagent_name="sql_domain_agent",
     )
+
+    result = tool.invoke({
+        "query": "SELECT stat_date, defect_count FROM ods_daily_metric WHERE vehicle_model='A7'",
+        "chart_type": "bar",
+        "title": "缺陷柱状图",
+        "description": "",
+        "x_field": "stat_date",
+        "series": [{"name": "缺陷数", "field": "defect_count"}],
+        "runtime": runtime,
+    })
+
     assert isinstance(result, Command)
     assert result.update["tool_artifact"]["chart_type"] == "bar"
+    assert result.update["tool_artifact"]["tool_call_id"] == "call_sub_chart_003"
 
 
-def test_export_to_csv_main_and_subagent_compatibility(sqlite_engine):
-    """验证 export_to_csv 在主智能体 (CustomState) 与子智能体 (SqlSubAgentState) 均兼容运行。"""
+def test_export_to_csv_main_and_subagent_invoke(sqlite_engine):
+    """验证 export_to_csv 在主智能体与子智能体通过 tool.invoke 均兼容运行。"""
     tool = create_csv_export_tool(engine=sqlite_engine)
 
     # 1. 主智能体环境调用
-    mock_runtime_main = MagicMock(spec=ToolRuntime)
-    mock_runtime_main.state = CustomState(messages=[], context_warning=False, tool_artifact=None)
-    mock_runtime_main.tool_call_id = "call_main_exp_001"
-    mock_runtime_main.subagent_name = "main"
-
-    result_main = tool.func(
-        query="SELECT stat_date, defect_count, output_count, vehicle_model FROM ods_daily_metric",
-        runtime=mock_runtime_main,
+    runtime_main = _make_runtime(
+        state=CustomState(messages=[], context_warning=False, tool_artifact=None),
+        tool_call_id="call_main_exp_001",
+        subagent_name="main",
     )
+
+    result_main = tool.invoke({
+        "query": "SELECT stat_date, defect_count, output_count, vehicle_model FROM ods_daily_metric",
+        "runtime": runtime_main,
+    })
     assert isinstance(result_main, Command)
     assert result_main.update["tool_artifact"]["kind"] == "file_export"
     assert result_main.update["tool_artifact"]["tool_call_id"] == "call_main_exp_001"
     assert result_main.update["tool_artifact"]["row_count"] == 4
 
     # 2. 子智能体环境调用
-    mock_runtime_sub = MagicMock(spec=ToolRuntime)
-    mock_runtime_sub.state = SqlSubAgentState(messages=[], skills_loaded=["vehicle_export_skill"])
-    mock_runtime_sub.tool_call_id = "call_sub_exp_002"
-    mock_runtime_sub.subagent_name = "sql_domain_agent"
-
-    result_sub = tool.func(
-        query="SELECT stat_date, defect_count FROM ods_daily_metric WHERE vehicle_model='TiguanL'",
-        runtime=mock_runtime_sub,
+    runtime_sub = _make_runtime(
+        state=SqlSubAgentState(messages=[], skills_loaded=["vehicle_export_skill"]),
+        tool_call_id="call_sub_exp_002",
+        subagent_name="sql_domain_agent",
     )
+
+    result_sub = tool.invoke({
+        "query": "SELECT stat_date, defect_count FROM ods_daily_metric WHERE vehicle_model='TiguanL'",
+        "runtime": runtime_sub,
+    })
     assert isinstance(result_sub, Command)
     assert result_sub.update["tool_artifact"]["row_count"] == 2
     assert result_sub.update["tool_artifact"]["file_id"].startswith("exp_")
 
 
-def test_tools_json_schema_generation(sqlite_engine):
-    """验证工具生成给大模型的 JSON Schema 中不包含 runtime 内部注入参数，无 CallableSchema 序列化错误。"""
+def test_tools_injection_contract_and_llm_schema(sqlite_engine):
+    """验证框架层注入契约 (_get_all_injected_args) 成立，且面向大模型的 args 中绝不包含 runtime。"""
     chart_tool = create_chart_artifact_tool(engine=sqlite_engine)
     csv_tool = create_csv_export_tool(engine=sqlite_engine)
 
-    # 获取 LLM Function Calling Schema
-    chart_schema = chart_tool.get_input_schema().model_json_schema()
-    csv_schema = csv_tool.get_input_schema().model_json_schema()
+    # 1. 验证 LangGraph 注入契约
+    chart_inj = _get_all_injected_args(chart_tool)
+    assert chart_inj.runtime == "runtime"
+    csv_inj = _get_all_injected_args(csv_tool)
+    assert csv_inj.runtime == "runtime"
 
-    assert "runtime" not in chart_schema.get("properties", {})
-    assert "required_skill" not in chart_schema.get("properties", {})
+    # 2. 验证面向 LLM 的 Function Calling 参数中绝不泄露 runtime
+    assert "runtime" not in chart_tool.args
+    assert "runtime" not in csv_tool.args
+    assert "query" in csv_tool.args
+    assert "query" in chart_tool.args
 
-    assert "runtime" not in csv_schema.get("properties", {})
-    assert "required_skill" not in csv_schema.get("properties", {})
-    assert "query" in csv_schema.get("properties", {})
 
+def test_chart_series_pydantic_validation_error_contract(sqlite_engine):
+    """验证非法 category_field / category_value 组合在入口处被 Pydantic 自动拦截抛出 ValidationError。"""
+    from pydantic import ValidationError
 
-def test_tools_args_schema_validation_and_runtime_injection(sqlite_engine):
-    """验证工具在 extra='forbid' 下正确校验参数模型，并能与 runtime 依赖注入协同工作。"""
-    csv_tool = create_csv_export_tool(engine=sqlite_engine)
     chart_tool = create_chart_artifact_tool(engine=sqlite_engine)
+    runtime = _make_runtime(state=CustomState(messages=[]))
 
-    # 1. 验证合法入参能通过 Pydantic args_schema 校验
-    valid_csv_args = csv_tool.args_schema.model_validate({
-        "query": "SELECT stat_date, defect_count FROM ods_daily_metric"
-    })
-    assert valid_csv_args.query.startswith("SELECT")
-
-    valid_chart_args = chart_tool.args_schema.model_validate({
-        "query": "SELECT stat_date, defect_count FROM ods_daily_metric",
-        "chart_type": "line",
-        "title": "测试图表",
-        "x_field": "stat_date",
-        "series": [{"name": "缺陷数", "field": "defect_count"}],
-    })
-    assert valid_chart_args.title == "测试图表"
-
-    # 2. 验证 extra='forbid' 策略下非法未知字段会被拦截
-    with pytest.raises(ValidationError):
-        csv_tool.args_schema.model_validate({
-            "query": "SELECT 1",
-            "unknown_extra_param": "invalid_value",
+    # 1. 传入未成对的 category_field (缺少 category_value)
+    with pytest.raises(ValidationError) as exc_info:
+        chart_tool.invoke({
+            "query": "SELECT stat_date, defect_count FROM ods_daily_metric",
+            "chart_type": "bar",
+            "title": "测试",
+            "description": "",
+            "x_field": "stat_date",
+            "series": [{"name": "A", "field": "defect_count", "category_field": "model"}],
+            "runtime": runtime,
         })
 
+    assert "category_field 和 category_value 必须同时提供" in str(exc_info.value)
+
+    # 2. 验证 extra='forbid' 策略下非法未知字段会被 Pydantic 拦截
     with pytest.raises(ValidationError):
-        chart_tool.args_schema.model_validate({
-            "query": "SELECT 1",
-            "chart_type": "line",
-            "title": "t",
-            "x_field": "x",
-            "series": [{"name": "s", "field": "f"}],
-            "unknown_extra_param": "invalid_value",
+        chart_tool.invoke({
+            "query": "SELECT stat_date, defect_count FROM ods_daily_metric",
+            "chart_type": "bar",
+            "title": "测试",
+            "description": "",
+            "x_field": "stat_date",
+            "series": [{"name": "A", "field": "defect_count", "unknown_extra_param": "invalid"}],
+            "runtime": runtime,
         })
-
-    # 3. 验证执行时接收 runtime 注入并返回正确的 Command
-    mock_runtime = MagicMock(spec=ToolRuntime)
-    mock_runtime.state = CustomState(messages=[], context_warning=False, tool_artifact=None)
-    mock_runtime.tool_call_id = "call_invoke_test_001"
-    mock_runtime.subagent_name = "main"
-
-    csv_res = csv_tool.func(
-        query=valid_csv_args.query,
-        runtime=mock_runtime,
-    )
-    assert isinstance(csv_res, Command)
-
-    chart_res = chart_tool.func(
-        query=valid_chart_args.query,
-        chart_type=valid_chart_args.chart_type,
-        title=valid_chart_args.title,
-        description=valid_chart_args.description,
-        x_field=valid_chart_args.x_field,
-        series=[s.model_dump(exclude_none=True) for s in valid_chart_args.series],
-        runtime=mock_runtime,
-    )
-    assert isinstance(chart_res, Command)
