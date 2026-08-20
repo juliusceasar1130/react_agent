@@ -1,3 +1,136 @@
+## 2026-08-20 20:20 +08:00 - 环境配置全面对齐与统一工件底座参数收敛 (`config.py`, `.env`, `.env_docker`) [CONFIG]
+
+### 变更内容
+
+#### 1. 统一工件底座配置与生命周期参数收敛 (`backend/app/config.py`, `.env`, `.env_docker`) [CONFIG]
+- **工件根目录收敛**：在 `.env` 与 `.env_docker` 中淘汰旧有的分散路径配置（`CHART_ARTIFACT_DIR` 与 `SQL_EXPORT_DIR`），统一收敛为 Phase 2 标准的 `ARTIFACTS_DIR`（默认 `Temp/sql_agent_artifacts`）与 `ARTIFACTS_TTL_HOURS='24'`。
+- **业务硬上限保留**：清晰保留 `SQL_EXPORT_MAX_ROWS` 与 `CHART_ARTIFACT_MAX_POINTS` 等业务层防 OOM 与防图表爆炸熔断参数。
+- **平滑向下兼容**：`config.py` 与 `ArtifactStore` 保留历史路径变量作为只读白名单回退，确保系统在跨版本升级期间平滑过渡。
+
+#### 2. 服务端端口与配置完整对齐 (`backend/app/config.py`) [CONFIG]
+- **补齐端口声明**：在 `config.py` 中补齐 `backend_port: int = int(os.getenv("BACKEND_PORT", "8000"))`。
+- **全量字段 100% 映射验证**：经自动化脚本核验，`.env` 中的 86 项配置已与 `config.py` 实现 100% 绝对对齐（0 个遗漏字段）。
+
+#### 3. 自动化测试 100% 验证 [TEST]
+- 后端 `pytest` 全量自动化测试套件（82 项单元测试 100% 绿色通过）。
+
+---
+
+## 2026-08-20 20:15 +08:00 - 测试体系规范化与历史 PoC 脚本清理 [CLEANUP]
+
+### 变更内容
+
+#### 1. 单元测试套件收敛与目录规范化 (`backend/tests/agent/middleware/test_rag_prompt_injector_middleware.py`) [TEST]
+- **测试归位**：将原本孤立在业务源码包内部的 `backend/app/agent/tests/test_rag_prompt_injector_middleware.py` 迁移至全局标准测试目录 `backend/tests/agent/middleware/test_rag_prompt_injector_middleware.py`。
+- **配置与发现优化**：清理 `.gitignore` 中对 `backend/tests` 的历史忽略规则，确保所有新测试用例与历史回归测试能被 `pytest` 自动精准扫描与 Git 追踪。
+
+#### 2. 历史阶段性 PoC 脚本清理 (`backend/app/agent/`) [CLEANUP]
+- **清理业务源码包**：删除已在核心框架及单元测试中完整落地的开发期 PoC 调试脚本 `backend/app/agent/test_compiled_subagent_v2_poc.py` 与 `test_subagent_poc.py`，保持 Agent 业务包纯净度。
+
+#### 3. 自动化测试 100% 验证 [TEST]
+- 后端 `pytest backend/tests` 全量自动化测试套件（82 项单元测试 100% 绿色通过，4 项外部集成依赖用例正常跳过）。
+
+---
+
+## 2026-08-20 08:15 +08:00 - Phase 2 扩展: 子智能体专属工件内嵌与富交互调用序列全量落地 (Tickets 01-04)
+
+### 变更内容
+
+#### 1. 子智能体专属工件就近内嵌与自闭环工作台 (`frontend/src/components/chat/SubagentCard.vue`) [FEATURE]
+- **工件池单向注入**：`SubagentCard` 引入 `artifactsPool?: Record<string, any>`，基于 `tool.id`（即 `tool_call_id`）精准索引并匹配对应工具产出的结构化工件。
+- **数据表内嵌化**：`sql_db_query` 工具节点下方直接就近内嵌 `<QueryResultGroup>` / `<TableResult>`，支持 20/50/100 原生分页、列宽自适应、物理行号与截断提示，彻底告别单调生硬的 Python 元组文本。
+- **CSV 导出卡片化**：`export_to_csv` 工具节点就近内嵌精致 CSV 下载卡片，清晰展示文件名、导出总行数、有效时间 `expires_at` 与直接下载按钮。
+- **图表工件预览化**：`build_chart_artifact` 工具节点就近内嵌 `<ChartArtifactCard>`，支持图表实时预览、全屏放大与数据视图切换。
+- **智能展开机制**：当子智能体包含有效数据产出或处于 `running` 状态时，卡片智能默认保持展开，用户无需额外点击即可直接查看分析数据。
+
+#### 2. 主消息工件消重与降级兜底 (`frontend/src/components/chat/MessageItem.vue`) [REFACTOR]
+- **全景消重闭环**：当存在子智能体（`subagentsList.length > 0`）且工件已在子智能体卡片内嵌呈现时，外层的 `<QueryResultGroup>`、`<ChartGroupCard>` 以及内联 CSV 下载卡片自动隐藏，彻底消除“双重重复渲染”现象。
+- **全局兜底保障**：当无子智能体（主 Coordinator 直接调起工具）时，外层容器自动生效作为兜底展示，兼顾历史兼容性。
+
+#### 3. 自动化测试套件与类型检查 100% 验证 [TEST]
+- 前端 `npm run build:check`（vue-tsc 严格类型检查 + vite 生产打包）100% 编译通过，0 错误。
+- 后端单元与组件自动化回归测试（82 项测试全部绿色通过）。
+
+---
+
+## 2026-08-20 07:10 +08:00 - Phase 2: 工具参数优雅隔离、异常拦截契约与开发规范全面对齐
+
+### 变更内容
+
+#### 1. 工具参数 Pydantic 隔离、CallableSchema 根治与历史垫片清理 (`backend/app/agent/tools/`, `backend/app/routers/artifacts.py`, `backend/tests/agent/`) [REFACTOR]
+- **显式 `args_schema` 隔离**：`export_to_csv` 新增 `ExportToCsvInput`，与 `build_chart_artifact` 的 `BuildChartArtifactInput` 保持统一，彻底剥离大模型无需感知的内部参数。
+- **纯正 `ToolRuntime` 注入**：移除 `runtime: ToolRuntime[...] | None = None` 联合类型，统一为纯正 `runtime: ToolRuntime[RequestContext, Any]`，根治 Pydantic 生成 Function Calling JSON Schema 时遍历 `stream_writer: Callable` 触发的 `Cannot generate a JsonSchema for core_schema.CallableSchema` 序列化崩溃。
+- **移除冗余技能门禁**：彻底移除 `build_chart_artifact` 与 `export_to_csv` 中冗余的 `required_skill` 参数，实现跨 Agent（主智能体与任意子智能体）零障碍通用复用。
+- **清理历史过渡垫片 (M4)**：路由层直连 `ArtifactStore`，物理删除已无外部调用的 `chart_artifacts.py` 与 `export_files.py`，工件体系 100% 收敛至 `backend/app/artifacts/`。
+
+#### 2. 工具异常处理契约沉淀与规范固化 (`AGENTS.md`) [DOCS]
+- **四项铁律规范化**：在 `AGENTS.md` 中固化 LangChain 工具错误处理规范：1) 统一使用 `raise ToolException`；2) 强制开启 `handle_tool_error = True` 确保 ReAct 自愈；3) 统一 `"Error: "` 前缀适配中间件折叠；4) 显式 `args_schema` 隔离。
+
+#### 3. 自动化测试套件扩充与 100% 验证 [TEST]
+- 新增 `test_tools_json_schema_generation` 自动化验证面向大模型的 Function Calling JSON Schema 结构与纯净度。
+- 全量 78 项后端自动化回归测试 100% 绿色通过。
+
+---
+
+## 2026-08-19 22:10 +08:00 - Phase 2: Claude Code 独立代码审查整改全量闭环
+
+### 变更内容
+
+#### 1. 安全加固与路径脱敏 (`backend/app/artifacts/store.py`, `backend/app/routers/artifacts.py`, `backend/app/chart_artifacts.py`, `backend/app/export_files.py`) [SECURITY]
+- **H1 严格防越权校验**：`ArtifactStore._resolve_managed_file` 实现基于安全根目录白名单（主工件目录 + 历史兼容目录）的绝对路径强制校验，一旦发现路径越界立即抛出 `PermissionError` 阻止访问。
+- **H2 敏感物理路径脱敏**：在 `routers/artifacts.py`、`chart_artifacts.py`、`export_files.py` 的公共元数据响应中全量剥离服务器物理路径 `stored_path`，防止服务器绝对路径外泄。
+- **H3 CSV 临时源文件清理**：`ArtifactStore.save_export_file` 在复制工件至托管目录后，主动删除工具生成的临时源文件，彻底消除孤儿 CSV 磁盘泄漏隐患。
+
+#### 2. 契约修复与配置补齐 (`backend/app/artifacts/store.py`, `backend/app/config.py`, `backend/app/agent/tools/`, `backend/app/services/chat_service.py`, `frontend/src/components/artifacts/QueryResultGroup.vue`) [FIX]
+- **M1 路由模型校验修复**：`save_artifact` payload 同时写入 `artifact_id` 与 `chart_id`，杜绝旧路由 `/api/chat/charts/{chart_id}` 响应模型验证失败抛出 500。
+- **M2 配置项补齐**：`Settings` 增加 `artifacts_dir` 与 `artifacts_ttl_hours`，并在 `ArtifactStore` 中提供对历史目录的兼容回退查找。
+- **M3 截断表格总数与提示增强**：`QueryResultGroup.vue` 修正 `currentTotalCount` 优先取 `row_count`（全量记录数），多表格采用逐工件 Tab 复合呈现并补齐截断场景下的防御性引导提示。
+- **H4/L1-L5 代码整洁度与对齐**：工具层角色解析增加 `config['metadata']` 与状态推断容错；清理无用 `Optional` 导入与 `main.py` 导入排序；前后端统一 `sql_domain_agent` 显示名称为 `SQL数据专家`；更新 `README.md` 目录树。
+
+#### 3. 自动化测试套件与类型检查 100% 验证 [TEST]
+- 前端 `npm run build:check`（vue-tsc 严格类型检查 + vite 生产打包）100% 成功。
+- 后端全量回归测试套件（77 项自动化测试全部绿色通过），包含新增的 H1 防越权、H2 路径脱敏、H3 孤儿清理与 M1 契约测试。
+
+---
+
+## 2026-08-18 22:45 +08:00 - Phase 2: 工件统一治理底座落地与前端复合卡片/内置分页全量交付 (Tickets 01-05)
+
+### 变更内容
+
+#### 1. 统一工件底座与自动垃圾回收 (`backend/app/artifacts/`, `backend/app/main.py`, `backend/app/routers/artifacts.py`) [FEATURE]
+- **统一存储引擎 `ArtifactStore`**：创建单例工件存储类，统一管理图表（`charts/`，JSON）与导出文件（`exports/`，CSV + 元数据 JSON），统一分配 `cht_[hex32]` 与 `exp_[hex32]` 唯一 ID；使用 `tempfile + os.replace` 实现原子写防止并发读脏数据；内置路径防越权校验与 Windows 文件锁容错。
+- **24 小时 TTL 与 Lifespan 定时 GC 任务**：在 FastAPI lifespan 注册后台定时异步循环，每 60 分钟安全清理超时过期工件文件。
+- **REST 路由统一收敛与向后兼容**：收敛至 `/api/chat/artifacts/{artifact_id}` 及 `/api/chat/artifacts/{artifact_id}/download`，并对旧 `/charts/{chart_id}` 与 `/files/{file_id}` 路由提供 100% 透明转发兼容。
+
+#### 2. 工具层泛型解耦与主子智能体复用适配 (`backend/app/agent/tools/chart_artifact_tool.py`, `backend/app/agent/tools/csv_export_tool.py`, `backend/app/agent/middleware/prompt_compiler_middleware.py`) [REFACTOR]
+- **解除状态硬绑定**：`build_chart_artifact` 与 `export_to_csv` 升级泛型声明为 `ToolRuntime[RequestContext, Any]`，`required_skill` 设为可选，支持主智能体（`CustomState`）与子智能体（`SqlSubAgentState`）双向直接调用。
+- **异常契约一致性**：统一使用 `raise ToolException("Error: ...")`，在 `PromptCompilerMiddleware` 中统一 `runtime_header: "Error:"`，保障 5-stage 错误信息预扫描与折叠机制零破坏。
+
+#### 3. 前端多图表复合 Tab 容器与多表格内置原生分页 (`frontend/src/components/artifacts/`, `frontend/src/components/chat/MessageItem.vue`, `frontend/src/components/agent/SubAgentBadge.vue`) [FEATURE]
+- **多图表复合卡片 `ChartGroupCard.vue`**：从 `MessageItem.vue` 解耦抽取，单图表保持独立渲染，多图表自动聚合为顶部 Tab 选项卡平滑切换，保留各图表全屏放大预览与数据视图切换功能。
+- **多表格分组与内置分页 `QueryResultGroup.vue`**：将表格数据流重构为列表数组，按 `subagent_name` 分组聚合多表格；复用 `TableResult.vue` 内置原生分页组件，支持多表格独立翻页；统一映射子智能体标题为 `SQL数据专家`。
+
+#### 4. 端到端回归测试与构建验证全量通过 [TEST]
+- 前端 `npm run build:check`（vue-tsc 严格类型检查 + vite 生产打包）100% 编译通过，0 错误。
+- 后端全量测试套件（77 项自动化测试全部绿色通过），覆盖工件生命周期、原子写、定时 GC、双 Agent 工具调用兼容性、Context API 瞬态流与沙箱并发隔离。
+
+---
+
+## 2026-08-18 22:15 +08:00 - Phase 2: 工件统一治理与复合 UI 架构方案制定与跨 Agent 联合评审通过
+
+### 变更内容
+
+#### 1. 架构方案制定与核心裁决确定 (`docs/agents/multiagent_tool_sidechannel_audit_report.md`, `docs/agents/phase2_review_request.md`) [DOCS]
+- **裁决 `sql_db_query` DB 直存极简设计**：确立 SQL 查询结果数据量小（< 300KB），无需单独落盘物理文件与开发独立 REST 接口；继续由 `chat_messages.tool_artifacts` 表直接持久化（PostgreSQL TOAST 自动透明压缩），实现 F5 刷新 0 秒秒开与 0 冗余磁盘 IO。
+- **物理工件底座统一收敛**：合并 `chart_artifacts.py` 与 `export_files.py` 为统一的 `ArtifactStore`，统一管理 `charts/` 与 `exports/` 物理落盘文件、统一 ID 分配（`cht_*`, `exp_*`）、统一 24 小时 TTL 与 FastAPI lifespan 定时后台 GC 垃圾清理任务。
+- **工具层泛型解耦**：解除 `build_chart_artifact` 与 `export_to_csv` 对 `SqlSubAgentState` 的硬绑定，`required_skill` 设为可选，泛型适配 `CustomState` 与 `SqlSubAgentState`，为未来主智能体直接复用扫清障碍；保持 `ToolException("Error: ...")` 异常契约，确保 `PromptCompilerMiddleware` 的 5 阶段裁剪流水线零破坏。
+- **前端复合呈现解耦**：规划从 `MessageItem.vue` 抽取 `ChartGroupCard.vue` 与 `QueryResultGroup.vue` 子组件，实现多图表 Tab 切换与多表格分组展示，直接复用 `TableResult.vue` 内置分页能力并统一子智能体标题映射。
+
+#### 2. Claude Code 跨 Agent 联合评审通过 (Approve with suggestions) [REVIEW]
+- 通过 `herdr` 连通 Claude Code 完成独立审查，获得 `Approve with suggestions` 最终核准；方案吸收采纳了文件原子写（`os.replace`）、GC 异常独立保护、真实图跨沙箱传播集成测试以及路由前缀核实等防御性建议。
+
+---
+
 ## 2026-08-17 15:10 +08:00 - 修复 RAG 双通道失效：BaseRetriever 异步接口契约补齐
 
 ### 变更内容

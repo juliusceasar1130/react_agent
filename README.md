@@ -9,13 +9,13 @@
 - **多会话管理** - 创建、删除、切换聊天会话
 - **流式/非流式输出** - 支持 SSE 实时流式响应
 - **结构化流式事件** - 流式聊天升级为 `token/status/tool_call/tool_result/final/error` 事件协议，默认界面仅展示最终结论，过程细节仅用于轻量状态提示或内部调试
-- **主 Agent 与子智能体流式显示解耦与独立卡片渲染** - 支持 Deep Agents 架构下主 Coordinator 与领域子智能体（如 SQL Agent）的流式与 UI 解耦。流式数据帧按 `subagent_id` 自动分流，主气泡仅保留主 Agent 思考与最终业务结论（任务委派折叠为摘要标签）；子智能体以独立的 `<SubagentCard>` 呈现专属执行状态、独立耗时、专属深度思考与内部工具调用链；支持用户中断/异常状态保留与页面刷新/切换历史会话零 DDL 迁移无损还原。
+- **主 Agent 与子智能体流式显示解耦与专属工件内嵌 (Subagent-Scoped Artifacts)** - 支持 Deep Agents 架构下主 Coordinator 与领域子智能体（如 SQL Agent）的流式与 UI 解耦。流式数据帧按 `subagent_id` 自动分流，主气泡仅保留主 Agent 思考与最终业务结论；子智能体以独立的 `<SubagentCard>` 呈现专属执行状态、独立耗时、专属深度思考与内部工具调用链。**子智能体卡片全面实现自闭环专家工作台**：SQL 查询数据表格（`<QueryResultGroup>` / `<TableResult>`）、CSV 导出卡片与 ECharts 图表预览就近精准内嵌在对应工具调用节点中，外层全景自动消重降级；支持运行/有数据产出时智能默认展开与页面 F5 刷新/历史回溯 100% 无损还原。
 - **SQL Agent** - 官方推荐的多步骤工作流（表探测、Schema 解析、查询生成、SQL 校验、执行）
 - **SQL 安全拦截** - 统一对齐数据预览、CSV 导出及图表生成工具的安全校验边界。采用“正则强拦截 + 11 条 AST 合规规则”双层防线，防止通过 `TRUNCATE`/`GRANT` 等关键字绕过 AST 判定，并统一抛出 `ToolException` 激活 LLM 自愈纠错。
 - **日期标准化** - 针对数据库日期字段（如 `DD/MM/YYYY`）的自动 ISO 8601 转换清洗
-- **SQL 弹性限流** - 智能判断查询行数，超限时自动截断并返回预览及系统警告，防止上下文溢出
-- **SQL 预览结构化表格与全量工件持久化 (Tool Artifacts Persistence)** - 当执行 `sql_db_query`、`build_chart_artifact` 或 `export_to_csv` 时，利用 `Command` 与 `tool_artifact` 侧信道实时分发结构化有界数据；全生命周期的工件池以 `tool_call_id` 唯一索引，在流式结束时 100% 自动落库至数据库 `tool_artifacts` 列。无论是在流式实时阶段还是在页面 F5 刷新/会话回放时，ECharts 图表、CSV 导出卡片与 SQL 预览表格均秒级无损复原，彻底消除并发与回放丢失问题。
-- **CSV 数据导出** - 支持将大量 SQL 结果直接导出为 CSV 文件供用户下载，全程不占 LLM 上下文
+- **统一工件治理底座与全量工件持久化 (ArtifactStore & Tool Artifacts)** - 创建 `ArtifactStore` 单例统一管理图表（`charts/`）与导出文件（`exports/`）的物理落盘、原子写（`tempfile + os.replace`）、白名单防越权、24h TTL 与 Lifespan 定时 GC 清理；收敛 REST 路由至 `/api/chat/artifacts/{artifact_id}`（同时 100% 兼容旧端点）。全生命周期的工件池以 `tool_call_id` 唯一索引，在流式结束时自动落库至数据库 `tool_artifacts` 列。无论是在流式实时阶段还是在页面 F5 刷新/会话回放时，ECharts 图表、CSV 导出卡片与 SQL 预览表格均秒级无损复原。
+- **前端复合工件卡片与原生分页** - 抽取独立的 `ChartGroupCard.vue` 支持单图表独立展示与多图表 Tab 切换全屏放大；抽取 `QueryResultGroup.vue` 支持多表格逐项切换与 `TableResult.vue` 内置原生分页（20/50/100 条每页选择与绝对行号计算），截断时自动呈现聚合引导提示。
+- **CSV 数据导出** - 支持将大量 SQL 结果直接导出为 CSV 文件供用户下载，全程不占 LLM 上下文，具备 OOM 熔断保护与临时源文件安全自清理
 - **聊天内嵌图表** - 当用户明确要求生成图表时，后端生成 chart artifact，前端按 `chart_id` 拉取并渲染折线图或柱状图
 - **快捷场景直通 SQL 查询与极简矢量图标 (Minimalist Icons)** - 解耦纯函数直通查询引擎（`resolver` / `executor` / `formatter`），绕过 LLM Agent 决策耗时，毫秒级响应固定查询场景。快捷直通悬浮卡片 (`FloatingScenarioCards`) 与直通弹窗 (`ScenarioModal`) 全面摒弃 Emoji/3D 图标，采用现代极简 Single-line SVG 矢量线条图标（支持 High Contrast & Accent Tone Stroke）与智能图标类型识别 (`getScenarioIconType`)，兼顾轻盈精致视觉与高效响应。支持通用零侵入服务端分页 (LIMIT/OFFSET) 与真实全量 COUNT(*) 计算，前端 **`ScenarioModal` 弹窗** 支持单层表格右上角区间展示、底部分页条（上一页/下一页/页码/每页条数选择器）与最左侧 `#` 物理绝对行号连续展示。
 - **双击联动注入与毛玻璃 Spark Toast 反馈** - 双击抽屉中维度表任何单元格或字段名，数据自动追加到聊天输入框光标停留处；输入框边缘泛起 `.input-glow` 呼吸灯发光，底端浮现毛玻璃 Transition Toast。
@@ -250,12 +250,12 @@ rearch_agent/
 │   ├── app/
 │   │   ├── main.py                # FastAPI 应用入口
 │   │   ├── routers/               # 模块化 API 路由包 (chat/sessions/skills/admin/artifacts/_analytics/scenarios)
+│   │   ├── artifacts/             # 统一工件底座 (ArtifactStore 单例、模式定义与 TTL 回收)
 │   │   ├── crud.py                # 数据库 CRUD 操作
 │   │   ├── models.py              # SQLAlchemy ORM 模型
 │   │   ├── schemas.py             # Pydantic Schema
 │   │   ├── database.py            # 数据库连接
 │   │   ├── config.py              # 配置管理
-│   │   ├── chart_artifacts.py     # 图表 artifact 存储与读取
 │   │   ├── services/              # FastAPI Agent 服务包 (chat_service.py)
 │   │   ├── test_*.py              # 后端冒烟 / 功能测试脚本
 │   │   ├── agent/                 # Agent 模块化架构核心

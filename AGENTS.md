@@ -47,6 +47,11 @@ Windows 下可直接运行 `start_langgraph_dev.bat`。
 - 优先遵循现有模块边界，不随意把逻辑重新塞回单文件
 - 新增第三方包需更新 `requirements.txt`
 - **注意双初始化路径**：`SQLAgentService` 有同步 (`_initialize_agent`) 和异步 (`_ainitialize_agent`) 两条初始化路径，分别用于 LangGraph 托管模式和 FastAPI 本地模式。修改工具注册、中间件装配、RAG 接线时，必须同步更新两边
+- **LangChain 工具错误与异常处理规范**：
+  1. **异常类型统一**：工具内部遇到可预期的业务/参数错误时，必须统一 `raise ToolException(...)`，严禁抛出未经拦截的裸异常（如 `ValueError`、`Exception`），防止图崩溃中断。
+  2. **强制开启错误拦截开关**：所有暴露给 Agent 的工具必须显式配置 `tool.handle_tool_error = True`（或 `@tool(..., handle_tool_error=True)`），使框架安全捕获 `ToolException` 并转化为 `ToolMessage(status="error")`，确保 ReAct 能够持续闭环自愈。
+  3. **错误消息前缀契约**：所有错误文案必须以 `"Error: "` 开头（如 `raise ToolException("Error: 字段不存在")`），以配合 `PromptCompilerMiddleware` 的 Stage 2 失败调用预扫描与历史轮次上下文安全折叠。
+  4. **参数 Schema 隔离与类型声明**：工具应显式指定 Pydantic `args_schema` 声明大模型可见参数；框架注入参数必须采用纯 `runtime: ToolRuntime[RequestContext, Any]`，严禁使用 `| None = None` 联合类型，防止 Pydantic 生成 JSON Schema 时触发 `CallableSchema` 序列化崩溃。
 
 ### 前端
 

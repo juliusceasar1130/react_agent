@@ -88,13 +88,7 @@ const isOptionalString = (value: unknown): value is string | undefined =>
 const isOptionalRecord = (value: unknown): value is Record<string, unknown> | undefined | null =>
   value === undefined || value === null || isRecord(value)
 
-const isStringRecord = (value: unknown): value is Record<string, string> => {
-  if (!isRecord(value)) {
-    return false
-  }
 
-  return Object.values(value).every((item) => typeof item === 'string')
-}
 
 const isStreamStage = (value: unknown): value is StreamStage =>
   typeof value === 'string' && STREAM_STAGES.has(value as StreamStage)

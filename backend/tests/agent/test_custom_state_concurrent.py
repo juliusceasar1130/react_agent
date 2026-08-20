@@ -1,27 +1,25 @@
 # backend/tests/agent/test_custom_state_concurrent.py
-from langchain_core.documents import Document
+from langchain_core.messages import AIMessage, HumanMessage
 from langgraph.graph import StateGraph, START, END
 from backend.app.agent.state import CustomState
 
 
 def test_custom_state_concurrent_graph_update():
-    """验证多个并行节点同时向 CustomState 的所有字段（包括 rag_context 和 rag_query）写入时不会发生并发更新冲突。"""
+    """验证多个并行节点向 CustomState 写入时正常归约且不发生异常。"""
     builder = StateGraph(CustomState)
 
     def node_a(_state: CustomState):
         return {
-            "rag_context": [Document(page_content="doc A")],
-            "rag_query": "query A",
-            "skills_loaded": ["skill_a"],
-            "lexicon_context": {"term": "A"},
+            "messages": [AIMessage(content="响应 A")],
+            "context_warning": True,
+            "tool_artifact": {"kind": "chart_spec", "chart_id": "cht_aaa"},
         }
 
     def node_b(_state: CustomState):
         return {
-            "rag_context": [Document(page_content="doc B")],
-            "rag_query": "query B",
-            "skills_loaded": ["skill_b"],
-            "lexicon_context": {"term": "B"},
+            "messages": [AIMessage(content="响应 B")],
+            "context_warning": False,
+            "tool_artifact": {"kind": "file_export", "file_id": "exp_bbb"},
         }
 
     builder.add_node("node_a", node_a)
@@ -36,14 +34,10 @@ def test_custom_state_concurrent_graph_update():
 
     # 执行并发图：node_a 和 node_b 同时从 START 分发执行并在同一 Superstep 汇聚
     result = graph.invoke({
-        "messages": [],
-        "rag_context": [],
-        "rag_query": "",
+        "messages": [HumanMessage(content="初始问题")],
     })
 
-    # 验证并发写入正常归约完成且无异常
-    assert "rag_context" in result
-    assert isinstance(result["rag_context"], list)
-    assert len(result["rag_context"]) == 1
-    assert result["rag_query"] in ("query A", "query B")
-    assert result["skills_loaded"] in (["skill_a"], ["skill_b"])
+    # 验证 messages 正常 append 且控制位正常被 Reducer 归约
+    assert "messages" in result
+    assert len(result["messages"]) == 3
+    assert result["tool_artifact"] is not None

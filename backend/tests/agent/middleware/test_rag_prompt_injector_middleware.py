@@ -1,4 +1,4 @@
-# backend/app/agent/tests/test_rag_prompt_injector_middleware.py
+# backend/tests/agent/middleware/test_rag_prompt_injector_middleware.py
 """
 单元测试：RagPromptInjectorMiddleware 提示词注入中间件。
 
@@ -89,4 +89,3 @@ def test_rag_prompt_injector_thinking_config():
         assert modified_request.model_settings["extra_body"]["chat_template_kwargs"]["enable_thinking"] is True
     finally:
         var_child_runnable_config.reset(token)
-

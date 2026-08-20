@@ -5,17 +5,16 @@ CSV 导出工具
 当 SQL 查询结果超过系统硬限制（被截断）时，Agent 可调用此工具
 将完整查询结果导出为 CSV 文件供用户下载，全程不经过 LLM 上下文。
 
-修改时间: 2026-04-12 02:05 Asia/Shanghai
+修改时间: 2026-08-18 Asia/Shanghai
 主要修改内容:
-- 导出结果改为返回结构化文件元数据
-- 配合后端下载接口支持前端安全下载
-- 支持通过 engine_args 继承 analytics_db 的 search_path 配置
+- 接入统一 ArtifactStore 单例进行工件持久化与生命周期管理
+- 解除对 SqlSubAgentState 的硬绑定，升级为 ToolRuntime[RequestContext, Any] 适配主子智能体
+- required_skill 改为可选参数
 """
 
 import csv
 import json
 import logging
-import os
 from datetime import datetime
 from typing import Any
 
@@ -26,14 +25,23 @@ from langchain_core.messages import ToolMessage
 from sqlalchemy import text
 from sqlalchemy.engine import Engine
 
+from pydantic import BaseModel, ConfigDict, Field
+
 from backend.app.agent.context import RequestContext
-from backend.app.agent.state import SqlSubAgentState
 from backend.app.agent.utils.sql_linter import validate_readonly_query, SQLLintException
 from backend.app.agent.utils import emit_stream_status
-from backend.app.export_files import create_export_record, get_export_dir
+from backend.app.artifacts import get_artifact_store
 from backend.app.config import settings
 
 logger = logging.getLogger(__name__)
+
+
+class ExportToCsvInput(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    query: str = Field(
+        description="Read-only SQL SELECT query to execute and export to a CSV file."
+    )
 
 
 def create_csv_export_tool(
@@ -51,28 +59,23 @@ def create_csv_export_tool(
         export_to_csv 工具实例
     """
 
-    @langchain_tool
-    def export_to_csv(query: str, required_skill: str, runtime: ToolRuntime[RequestContext, SqlSubAgentState]) -> Command:
+    @langchain_tool(args_schema=ExportToCsvInput)
+    def export_to_csv(
+        query: str,
+        runtime: ToolRuntime[RequestContext, Any],
+    ) -> Any:
         """
         Execute a SQL query and export the full results to a CSV file for user download.
 
-        Use this tool ONLY when the sql_db_query tool reports that results were truncated
-        due to the system hard limit, and the user needs the complete dataset.
-        This tool saves results directly to a CSV file without loading them into the LLM context.
+        Use this tool ONLY when:
+        1. The sql_db_query tool reports that results were truncated due to the system hard limit, and the user needs the complete dataset; OR
+        2. The user explicitly requests exporting/downloading query data to a CSV file.
 
-        IMPORTANT: You must specify the 'required_skill' parameter with the exact skill name
-        that this query depends on. The skill must have been loaded via load_skill() first.
+        This tool saves results directly to a server-side CSV file without loading rows into LLM context.
 
         Args:
-            query: A valid SQL SELECT query string.
-            required_skill: The name of the skill/domain this query belongs to.
+            query: A valid SQL SELECT query string to execute and export.
         """
-        skills_loaded = runtime.state.get("skills_loaded", [])
-        if required_skill not in skills_loaded:
-            raise ToolException(
-                f"Error: 请先使用 load_skill('{required_skill}') 加载该业务技能后再导出数据。\n"
-                f"当前已加载的技能: {skills_loaded or '无'}。"
-            )
 
         try:
             emit_stream_status(
@@ -88,7 +91,8 @@ def create_csv_export_tool(
                 source="export_to_csv",
             )
 
-            export_dir = get_export_dir()
+            store = get_artifact_store()
+            export_dir = store.exports_dir
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             filename = f"export_{timestamp}.csv"
             filepath = export_dir / filename
@@ -117,20 +121,38 @@ def create_csv_export_tool(
                     f"为防内存溢出崩溃，执行已被强行终止。请增加过滤范围或使用聚合统计重试。"
                 )
 
-            file_size_kb = os.path.getsize(filepath) / 1024
+            caller_role = "sql_domain_agent"
+            if runtime:
+                if hasattr(runtime, "subagent_name") and runtime.subagent_name:
+                    caller_role = str(runtime.subagent_name)
+                else:
+                    cfg = getattr(runtime, "config", None) or {}
+                    if isinstance(cfg, dict):
+                        meta = cfg.get("metadata", {})
+                        conf = cfg.get("configurable", {})
+                        caller_role = meta.get("subagent_name") or conf.get("subagent_name") or meta.get("agent_name") or "sql_domain_agent"
+            tool_call_id_str = (
+                str(runtime.tool_call_id)
+                if runtime and hasattr(runtime, "tool_call_id") and runtime.tool_call_id
+                else "call_unknown"
+            )
 
-            record = create_export_record(
-                file_path=filepath,
+            handle = store.save_export_file(
+                source_file_path=filepath,
                 filename=filename,
                 media_type="text/csv",
                 row_count=row_count,
                 col_count=col_count,
                 columns=columns,
+                tool_call_id=tool_call_id_str,
+                created_by=caller_role,
             )
+
+            file_size_kb = (handle.extra.get("size_bytes", 0) if handle.extra else 0) / 1024
 
             logger.info(
                 "CSV 导出成功: %s (%d 行, %d 列, %.1f KB), file_id=%s",
-                filepath, row_count, col_count, file_size_kb, record["file_id"],
+                filepath, row_count, col_count, file_size_kb, handle.artifact_id,
             )
             emit_stream_status(
                 "CSV 导出完成",
@@ -139,32 +161,45 @@ def create_csv_export_tool(
             )
 
             # 过滤掉 stored_path 物理路径，防止大模型上下文和前端 tool_results 泄露
-            safe_record = {k: v for k, v in record.items() if k != "stored_path"}
+            safe_record = {
+                "kind": "file_export",
+                "file_id": handle.artifact_id,
+                "filename": filename,
+                "row_count": row_count,
+                "col_count": col_count,
+                "columns": columns,
+                "size_bytes": handle.extra.get("size_bytes", 0) if handle.extra else 0,
+                "created_at": handle.created_at,
+                "expires_at": handle.expires_at,
+                "download_url": handle.download_url,
+            }
 
             # 同时返回 messages 与 tool_artifact 用于流式直推
             return Command(update={
                 "messages": [
                     ToolMessage(
                         content=json.dumps(safe_record, ensure_ascii=False),
-                        tool_call_id=str(runtime.tool_call_id) if runtime and hasattr(runtime, "tool_call_id") else "call_unknown",
+                        tool_call_id=tool_call_id_str,
                     )
                 ],
                 "tool_artifact": {
                     "kind": "file_export",
-                    "tool_call_id": str(runtime.tool_call_id) if runtime and hasattr(runtime, "tool_call_id") else None,
-                    "file_id": record["file_id"],
+                    "tool_call_id": tool_call_id_str,
+                    "file_id": handle.artifact_id,
                     "filename": filename,
                     "row_count": row_count,
                     "col_count": col_count,
                     "columns": columns,
-                    "size_bytes": record.get("size_bytes", 0),
-                    "expires_at": record.get("expires_at", "")
+                    "size_bytes": handle.extra.get("size_bytes", 0) if handle.extra else 0,
+                    "expires_at": handle.expires_at,
                 },
             })
 
         except SQLLintException as exc:
             logger.warning(f"export_to_csv 校验未通过拦截: {exc}")
             raise ToolException(str(exc))
+        except ToolException:
+            raise
         except Exception as exc:
             logger.error("CSV 导出失败: %s", exc)
             raise ToolException(f"Error: CSV 导出失败 - {exc}")

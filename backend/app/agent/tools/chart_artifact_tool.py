@@ -18,10 +18,9 @@ from sqlalchemy import text
 from sqlalchemy.engine import Engine
 
 from backend.app.agent.context import RequestContext
-from backend.app.agent.state import SqlSubAgentState
 from backend.app.agent.utils.sql_linter import validate_readonly_query, SQLLintException
 from backend.app.agent.utils import emit_stream_status
-from backend.app.chart_artifacts import create_chart_record
+from backend.app.artifacts import get_artifact_store, ArtifactKind
 from backend.app.config import settings
 
 logger = logging.getLogger(__name__)
@@ -72,13 +71,10 @@ class ChartSeriesInput(BaseModel):
 
 
 class BuildChartArtifactInput(BaseModel):
-    model_config = ConfigDict(extra="allow")
+    model_config = ConfigDict(extra="forbid")
 
     query: str = Field(
         description="Read-only SELECT query used to fetch chart data."
-    )
-    required_skill: str = Field(
-        description="The loaded business skill required for this chart query."
     )
     chart_type: Literal["line", "bar", "auto"] = Field(
         description="Chart type. Use auto when the tool should infer line or bar."
@@ -98,15 +94,6 @@ class BuildChartArtifactInput(BaseModel):
         ),
         min_length=1,
     )
-
-    @model_validator(mode="after")
-    def _validate_extra_fields(self) -> "BuildChartArtifactInput":
-        extra_fields = set((self.model_extra or {}).keys())
-        unsupported = sorted(extra_fields - {"runtime"})
-        if unsupported:
-            joined = "、".join(unsupported)
-            raise ValueError(f"不支持的图表工具参数: {joined}")
-        return self
 
 
 _SERIES_INPUT_ADAPTER = TypeAdapter(list[ChartSeriesInput])
@@ -240,14 +227,13 @@ def create_chart_artifact_tool(
     @langchain_tool(args_schema=BuildChartArtifactInput)
     def build_chart_artifact(
         query: str,
-        required_skill: str,
         chart_type: str,
         title: str,
         description: str,
         x_field: str,
         series: list[ChartSeriesInput],
-        runtime: ToolRuntime[RequestContext, SqlSubAgentState] | None = None,
-    ) -> str:
+        runtime: ToolRuntime[RequestContext, Any],
+    ) -> Any:
         """
         Execute a SQL query, create a chart artifact, and return a lightweight chart reference.
 
@@ -259,19 +245,6 @@ def create_chart_artifact_tool(
         do not only duplicate the field name. You must explicitly provide category_field and
         category_value for each series so the tool can accurately split the data.
         """
-        if runtime is not None:
-            skills_loaded = runtime.state.get("skills_loaded", [])
-            if required_skill not in skills_loaded:
-                raise ToolException(
-                    f"Error: 请先使用 load_skill('{required_skill}') 加载该业务技能后再生成图表。\n"
-                    f"当前已加载的技能: {skills_loaded or '无'}。"
-                )
-        else:
-            logger.debug(
-                "build_chart_artifact 未注入 ToolRuntime，跳过 skills_loaded 校验。required_skill=%s",
-                required_skill,
-            )
-
         if not series:
             raise ToolException("Error: 生成图表至少需要一个序列字段。")
 
@@ -297,33 +270,33 @@ def create_chart_artifact_tool(
                 ]
 
             if not rows:
-                return "Error: 查询结果为空，无法生成图表。"
+                raise ToolException("Error: 查询结果为空，无法生成图表。")
 
             if len(rows) > settings.chart_artifact_max_points:
-                return (
+                raise ToolException(
                     "Error: 图表点数超过上限，当前结果不适合直接绘图。"
                     "请先聚合、缩小时间范围，或继续使用 export_to_csv。"
                 )
 
             columns = set(rows[0].keys())
             if x_field not in columns:
-                return f"Error: x_field '{x_field}' 不存在于查询结果中。"
+                raise ToolException(f"Error: x_field '{x_field}' 不存在于查询结果中。")
 
             try:
                 validated_series = _SERIES_INPUT_ADAPTER.validate_python(series)
             except ValidationError as exc:
-                return _format_validation_error("图表系列参数不合法", exc)
+                raise ToolException(_format_validation_error("图表系列参数不合法", exc))
 
             normalized_series: list[dict[str, Any]] = []
             for item in validated_series:
                 field = item.field.strip()
                 if field not in columns:
-                    return f"Error: 图表序列字段 '{field}' 不存在于查询结果中。"
+                    raise ToolException(f"Error: 图表序列字段 '{field}' 不存在于查询结果中。")
 
                 category_field = item.category_field.strip() if item.category_field else None
                 category_value = item.category_value.strip() if item.category_value else None
                 if category_field and category_field not in columns:
-                    return f"Error: 分类字段 '{category_field}' 不存在于查询结果中。"
+                    raise ToolException(f"Error: 分类字段 '{category_field}' 不存在于查询结果中。")
 
                 normalized_series.append(
                     {
@@ -344,7 +317,7 @@ def create_chart_artifact_tool(
                     series=normalized_series,
                 )
             except ValueError as exc:
-                return f"Error: {exc}"
+                raise ToolException(f"Error: {exc}")
 
             resolved_chart_type = _resolve_chart_type(chart_type, x_field, rows)
             payload = {
@@ -356,7 +329,41 @@ def create_chart_artifact_tool(
                 "series": normalized_series,
                 "rows": rows,
             }
-            chart_ref = create_chart_record(payload=payload)
+
+            caller_role = "sql_domain_agent"
+            if runtime:
+                if hasattr(runtime, "subagent_name") and runtime.subagent_name:
+                    caller_role = str(runtime.subagent_name)
+                else:
+                    cfg = getattr(runtime, "config", None) or {}
+                    if isinstance(cfg, dict):
+                        meta = cfg.get("metadata", {})
+                        conf = cfg.get("configurable", {})
+                        caller_role = meta.get("subagent_name") or conf.get("subagent_name") or meta.get("agent_name") or "sql_domain_agent"
+            tool_call_id_str = (
+                str(runtime.tool_call_id)
+                if runtime and hasattr(runtime, "tool_call_id") and runtime.tool_call_id
+                else "call_unknown"
+            )
+
+            store = get_artifact_store()
+            handle = store.save_artifact(
+                kind=ArtifactKind.CHART,
+                payload=payload,
+                tool_call_id=tool_call_id_str,
+                created_by=caller_role,
+            )
+
+            chart_ref = {
+                "kind": "chart_artifact_ref",
+                "chart_id": handle.artifact_id,
+                "chart_type": resolved_chart_type,
+                "title": title,
+                "point_count": handle.row_count,
+                "created_at": handle.created_at,
+                "expires_at": handle.expires_at,
+                "message": "图表已生成，前端可使用 chart_id 拉取完整图表。",
+            }
 
             emit_stream_status(
                 "图表已生成",
@@ -367,13 +374,13 @@ def create_chart_artifact_tool(
                 "messages": [
                     ToolMessage(
                         content=json.dumps(chart_ref, ensure_ascii=False),
-                        tool_call_id=str(runtime.tool_call_id) if runtime and hasattr(runtime, "tool_call_id") else "call_unknown",
+                        tool_call_id=tool_call_id_str,
                     )
                 ],
                 "tool_artifact": {
                     "kind": "chart_spec",
-                    "tool_call_id": str(runtime.tool_call_id) if runtime and hasattr(runtime, "tool_call_id") else None,
-                    "chart_id": chart_ref["chart_id"],
+                    "tool_call_id": tool_call_id_str,
+                    "chart_id": handle.artifact_id,
                     "chart_type": resolved_chart_type,
                     "title": title,
                     "description": description,
@@ -385,6 +392,8 @@ def create_chart_artifact_tool(
         except SQLLintException as exc:
             logger.warning(f"build_chart_artifact 校验未通过拦截: {exc}")
             raise ToolException(str(exc))
+        except ToolException:
+            raise
         except Exception as exc:
             logger.error("图表 artifact 生成失败: %s", exc)
             raise ToolException(f"Error: 图表生成失败 - {exc}")

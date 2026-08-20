@@ -69,10 +69,11 @@ const props = withDefaults(
   }
 )
 
+import { formatSubagentTitle } from '@/utils/helpers'
+
 const badgeLabel = computed(() => {
   if (props.displayName) return props.displayName
-  if (props.subagent === 'sql_domain_agent') return 'SQL数据助手'
-  return '通用助手'
+  return formatSubagentTitle(props.subagent)
 })
 
 const badgeClasses = computed(() => {

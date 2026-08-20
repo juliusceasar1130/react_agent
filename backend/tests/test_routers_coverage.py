@@ -156,14 +156,37 @@ def test_admin_router_endpoints():
 
 
 def test_artifacts_router_endpoints():
-    """测试 /api/chat/files/* 和 /api/chat/charts/* 端点"""
-    with patch("backend.app.routers.artifacts.get_chart_record", side_effect=FileNotFoundError("not found")):
+    """测试 /api/chat/artifacts/*、/api/chat/files/* 和 /api/chat/charts/* 端点"""
+    with patch("backend.app.routers.artifacts.get_artifact_store") as mock_get_store:
+        mock_store = MagicMock()
+        mock_store.get_artifact.side_effect = FileNotFoundError("not found")
+        mock_get_store.return_value = mock_store
+
         r1 = client.get("/api/chat/charts/non-existent-chart")
         assert r1.status_code == 404
 
-    with patch("backend.app.routers.artifacts.get_export_record", side_effect=FileNotFoundError("not found")):
         r2 = client.get("/api/chat/files/non-existent-file")
         assert r2.status_code == 404
+
+    # 测试 /api/chat/artifacts/{artifact_id} 返回元数据并成功剥离 stored_path (H2)
+    mock_record = MagicMock()
+    mock_record.payload = {
+        "kind": "chart_spec",
+        "chart_id": "cht_123",
+        "artifact_id": "cht_123",
+        "title": "测试图表",
+        "stored_path": "/sensitive/server/path/cht_123.json",
+    }
+    with patch("backend.app.routers.artifacts.get_artifact_store") as mock_get_store:
+        mock_store = MagicMock()
+        mock_store.get_artifact.return_value = mock_record
+        mock_get_store.return_value = mock_store
+
+        resp = client.get("/api/chat/artifacts/cht_123")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["title"] == "测试图表"
+        assert "stored_path" not in data  # 验证 H2 脱敏成功
 
 
 def test_analytics_dimensions_endpoint():

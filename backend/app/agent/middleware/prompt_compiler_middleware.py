@@ -140,12 +140,12 @@ class PromptCompilerMiddleware(AgentMiddleware[SqlSubAgentState, RequestContext]
         "sql_db_query": {
             "has_linter": True,
             "has_runtime": True,
-            "runtime_header": "X-SQL-EXECUTION-STATUS: FAILED",
+            "runtime_header": "Error:",
         },
         "build_chart_artifact": {
             "has_linter": True,
             "has_runtime": True,
-            "runtime_header": "X-CHART-STATUS: FAILED",
+            "runtime_header": "Error:",
         },
         "export_to_csv": {
             "has_linter": True,

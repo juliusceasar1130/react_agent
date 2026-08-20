@@ -787,7 +787,7 @@ class SQLAgentService:
                         if new_subagent != current_subagent:
                             current_subagent = new_subagent
                             display_name = (
-                                "SQL数据助手" if current_subagent == "sql_domain_agent" else "通用助手"
+                                "SQL数据专家" if current_subagent == "sql_domain_agent" else "通用助手"
                             )
                             await _emit({
                                 "type": "subagent_change",

@@ -1,4 +1,4 @@
-<!-- 2026-08-15 - 子智能体独立卡片组件：支持独立思考、工具链调用与状态展示 -->
+<!-- 2026-08-20 - 子智能体独立卡片组件：支持独立思考、工具链调用、专属工件内嵌与状态展示 -->
 <template>
   <div
     class="my-3 overflow-hidden rounded-xl border transition-all duration-200"
@@ -80,8 +80,8 @@
         />
       </div>
 
-      <!-- 2. 工具调用过程链 -->
-      <div v-if="subagent.toolCalls && subagent.toolCalls.length > 0" class="mb-3 space-y-2">
+      <!-- 2. 工具调用过程链 (支持富工件就近内嵌) -->
+      <div v-if="subagent.toolCalls && subagent.toolCalls.length > 0" class="mb-3 space-y-2.5">
         <div class="text-[11px] font-semibold tracking-wider text-neutral-500 uppercase">工具调用序列</div>
         <div
           v-for="tool in subagent.toolCalls"
@@ -96,7 +96,7 @@
               class="rounded-full px-2 py-0.5 text-[10px] font-medium"
               :class="tool.status === 'completed' ? 'bg-emerald-50 text-emerald-600 dark:bg-emerald-950/40 dark:text-emerald-400' : (tool.name === 'AskUserQuestion' ? 'bg-blue-50 text-blue-600 dark:bg-blue-950/40 dark:text-blue-400' : 'bg-blue-50 text-blue-600 dark:bg-blue-950/40 dark:text-blue-400')"
             >
-              {{ tool.status === 'completed' ? '已完成' : (tool.name === 'AskUserQuestion' ? '等待用户确认...' : '执行中...') }}
+              {{ tool.status === 'completed' ? (tool.name === 'AskUserQuestion' ? '已确认' : '已完成') : (tool.name === 'AskUserQuestion' ? '等待用户确认...' : '执行中...') }}
             </span>
           </div>
 
@@ -106,8 +106,56 @@
             <pre class="mt-0.5 max-h-32 overflow-auto rounded bg-neutral-100/80 p-1.5 font-mono text-[11px] text-neutral-600 dark:bg-neutral-900/80 dark:text-neutral-300">{{ tool.args_text }}</pre>
           </div>
 
-          <!-- 工具输出结果 -->
-          <div v-if="subagent.toolResults && subagent.toolResults[tool.id]" class="mt-2">
+          <!-- 终态工件 A: 内嵌 SQL 数据结果表格 (支持 20/50/100 分页与截断提示) -->
+          <div v-if="getToolQueryResult(tool.id)" class="mt-2.5 text-left animate-fade-in">
+            <QueryResultGroup :tables="[getToolQueryResult(tool.id)!]" />
+          </div>
+
+          <!-- 终态工件 B: 内嵌 CSV 导出卡片 -->
+          <div v-else-if="getToolCsvExport(tool.id)" class="mt-2.5 animate-fade-in">
+            <div class="flex items-center justify-between rounded-xl border border-emerald-200/80 bg-emerald-50/40 p-3 shadow-xs dark:border-emerald-900/60 dark:bg-emerald-950/30">
+              <div class="flex items-center gap-2.5 min-w-0">
+                <div class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-emerald-100/80 text-emerald-700 dark:bg-emerald-900/60 dark:text-emerald-300 font-bold text-xs">
+                  CSV
+                </div>
+                <div class="min-w-0">
+                  <div class="truncate text-xs font-semibold text-emerald-950 dark:text-emerald-100">
+                    {{ getToolCsvExport(tool.id)!.filename }}
+                  </div>
+                  <div class="text-[11px] text-emerald-700/80 dark:text-emerald-300/70 mt-0.5">
+                    <span>共 {{ getToolCsvExport(tool.id)!.row_count }} 行 × {{ getToolCsvExport(tool.id)!.col_count || 0 }} 列</span>
+                    <span v-if="getToolCsvExport(tool.id)!.size_bytes"> · {{ formatFileSize(getToolCsvExport(tool.id)!.size_bytes) }}</span>
+                    <span v-if="getToolCsvExport(tool.id)!.expires_at"> · 有效期至 {{ formatFullDateTime(getToolCsvExport(tool.id)!.expires_at) }}</span>
+                  </div>
+                </div>
+              </div>
+              <button
+                type="button"
+                @click="handleDownloadCsv(getToolCsvExport(tool.id)!.file_id)"
+                class="inline-flex items-center gap-1 rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white shadow-xs hover:bg-emerald-700 active:scale-95 transition-all shrink-0 cursor-pointer border-0"
+              >
+                <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                </svg>
+                <span>下载 CSV</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- 终态工件 C: 内嵌图表工件预览 -->
+          <div v-else-if="getToolChartArtifact(tool.id)" class="mt-2.5 animate-fade-in">
+            <ChartArtifactCard
+              v-if="getToolChartArtifact(tool.id)!.kind === 'chart_spec'"
+              :chart-payload="getToolChartArtifact(tool.id)!"
+            />
+            <ChartArtifactCard
+              v-else
+              :artifact-ref="getToolChartArtifact(tool.id)!"
+            />
+          </div>
+
+          <!-- 过程知识/文本工具输出结果 (轻量折叠) -->
+          <div v-else-if="subagent.toolResults && subagent.toolResults[tool.id]" class="mt-2">
             <details class="group">
               <summary class="cursor-pointer text-[10px] text-neutral-400 hover:text-neutral-600 select-none">
                 查看执行结果 <span class="group-open:inline hidden">▲</span><span class="group-open:hidden inline">▼</span>
@@ -157,14 +205,118 @@
 import { ref, computed, watch } from 'vue'
 import type { SubagentSessionState } from '@/types'
 import { renderMarkdown } from '@/utils/markdown'
-import { formatSubagentTitle } from '@/utils/helpers'
+import { formatSubagentTitle, formatFileSize } from '@/utils/helpers'
+import { useDateFormat } from '@/composables/useDateFormat'
+import { triggerExportDownload } from '@/api/exports'
 import ReasoningAccordion from './ReasoningAccordion.vue'
+import QueryResultGroup from '@/components/artifacts/QueryResultGroup.vue'
+import ChartArtifactCard from '@/components/artifacts/ChartArtifactCard.vue'
 
 const props = defineProps<{
   subagent: SubagentSessionState
+  artifactsPool?: Record<string, any>
 }>()
 
-const isExpanded = ref(props.subagent.status === 'running')
+const { formatFullDateTime } = useDateFormat()
+
+const handleDownloadCsv = (fileId: string) => {
+  if (fileId) {
+    triggerExportDownload(fileId)
+  }
+}
+
+// 解析对应工具产出的结构化工件实体
+const getToolArtifact = (toolId: string): any => {
+  if (!props.artifactsPool) return null
+  return props.artifactsPool[toolId] || null
+}
+
+const getParsedToolResult = (toolId: string): any => {
+  const raw = props.subagent.toolResults?.[toolId]
+  if (!raw || typeof raw !== 'string') return null
+  try {
+    const trimmed = raw.trim()
+    if (trimmed.startsWith('{') && trimmed.endsWith('}')) {
+      return JSON.parse(trimmed)
+    }
+  } catch {
+    return null
+  }
+  return null
+}
+
+// 提取并归一化 SQL 数据表工件
+const getToolQueryResult = (toolId: string) => {
+  const normalize = (item: any) => {
+    if (!item) return null
+    return {
+      ...item,
+      is_truncated: Boolean(item.is_truncated ?? item.truncated),
+      row_count: item.row_count ?? item.total_count ?? item.rows?.length ?? 0,
+      total_count: item.total_count ?? item.row_count ?? item.rows?.length ?? 0,
+    }
+  }
+
+  const art = getToolArtifact(toolId)
+  if (art && art.kind === 'query_result' && Array.isArray(art.rows)) {
+    return normalize(art)
+  }
+  const parsed = getParsedToolResult(toolId)
+  if (parsed && parsed.kind === 'query_result' && Array.isArray(parsed.rows)) {
+    return normalize(parsed)
+  }
+  return null
+}
+
+// 提取 CSV 导出工件
+const getToolCsvExport = (toolId: string) => {
+  const art = getToolArtifact(toolId)
+  if (art && (art.kind === 'file_export' || art.file_id || art.artifact_id)) {
+    return {
+      file_id: art.file_id || art.artifact_id,
+      filename: art.filename || art.extra?.filename || `${art.artifact_id || 'export'}.csv`,
+      row_count: art.row_count ?? 0,
+      col_count: art.col_count ?? (Array.isArray(art.columns) ? art.columns.length : 0),
+      size_bytes: art.size_bytes || art.extra?.size_bytes,
+      expires_at: art.expires_at || '',
+    }
+  }
+  const parsed = getParsedToolResult(toolId)
+  if (parsed && (parsed.kind === 'file_export' || parsed.kind === 'export_file_ref' || parsed.file_id)) {
+    return {
+      file_id: parsed.file_id || parsed.artifact_id,
+      filename: parsed.filename || `${parsed.file_id || 'export'}.csv`,
+      row_count: parsed.row_count ?? 0,
+      col_count: parsed.col_count ?? 0,
+      size_bytes: parsed.size_bytes,
+      expires_at: parsed.expires_at || '',
+    }
+  }
+  return null
+}
+
+// 提取图表工件
+const getToolChartArtifact = (toolId: string) => {
+  const art = getToolArtifact(toolId)
+  if (art && (art.kind === 'chart_spec' || art.kind === 'chart_artifact_ref')) {
+    return art
+  }
+  const parsed = getParsedToolResult(toolId)
+  if (parsed && (parsed.kind === 'chart_spec' || parsed.kind === 'chart_artifact_ref' || parsed.chart_id)) {
+    return parsed
+  }
+  return null
+}
+
+// 判断当前子智能体是否产出了结构化工件
+const hasEmbeddedArtifacts = computed(() => {
+  if (!props.subagent.toolCalls || props.subagent.toolCalls.length === 0) return false
+  return props.subagent.toolCalls.some(
+    tool => !!(getToolQueryResult(tool.id) || getToolCsvExport(tool.id) || getToolChartArtifact(tool.id))
+  )
+})
+
+const isExpanded = ref(props.subagent.status === 'running' || hasEmbeddedArtifacts.value)
 const isUserToggled = ref(false)
 
 const toggleExpand = () => {
@@ -173,10 +325,10 @@ const toggleExpand = () => {
 }
 
 watch(
-  () => props.subagent.status,
-  (newStatus) => {
+  () => [props.subagent.status, hasEmbeddedArtifacts.value],
+  ([newStatus, hasArt]) => {
     if (!isUserToggled.value) {
-      if (newStatus === 'running') {
+      if (newStatus === 'running' || hasArt) {
         isExpanded.value = true
       }
     }
@@ -193,7 +345,6 @@ const renderedSubagentContent = computed(() => {
 const formatSubagentName = (name: string) => formatSubagentTitle(name)
 
 const isAwaitingClarification = computed(() => {
-  // 仅当子智能体处于 running 且内部存在未完成的 AskUserQuestion 工具调用时判定为等待确认态
   if (props.subagent.status !== 'running') {
     return false
   }

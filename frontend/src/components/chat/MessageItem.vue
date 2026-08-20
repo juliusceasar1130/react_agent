@@ -55,6 +55,7 @@
             v-for="sub in subagentsList"
             :key="sub.id"
             :subagent="sub"
+            :artifacts-pool="artifactsMap"
           />
         </div>
 
@@ -77,68 +78,12 @@
           <div v-else v-html="renderedContent"></div>
         </div>
 
+      <!-- 智能 SQL 数据预览表格模块 (仅在无子智能体时作为外层兜底展示) -->
       <div
-        v-if="!isUser && sqlQueryResult"
+        v-if="!isUser && subagentsList.length === 0 && sqlQueryResultsList.length > 0"
         class="mt-3 text-left animate-fade-in"
       >
-        <details class="group rounded-lg border border-neutral-200/60 bg-neutral-50/50 p-2.5 px-3.5 transition-all duration-200 hover:bg-neutral-100/50">
-          <summary class="flex cursor-pointer select-none items-center justify-between text-neutral-700 list-none">
-            <div class="flex items-center gap-2">
-              <svg class="w-4 h-4 text-neutral-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.75" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4"/>
-              </svg>
-              <span class="text-xs font-medium text-neutral-700">
-                SQL 查询数据
-                <template v-if="sqlQueryResult.row_count !== undefined">
-                  <span class="mx-1 text-neutral-300">·</span>
-                  <span class="text-xs text-neutral-500 font-normal">
-                    {{ sqlQueryResult.row_count }} 行
-                    <span v-if="sqlQueryResult.truncated" class="text-amber-600 font-medium">· 已截断</span>
-                  </span>
-                </template>
-              </span>
-            </div>
-            <div class="flex items-center gap-2">
-              <span v-if="sqlQueryResult.query_time" class="text-[11px] text-neutral-400 font-normal font-mono">{{ sqlQueryResult.query_time }}</span>
-              <span class="text-neutral-400 transition-transform duration-200 group-open:rotate-180 text-[10px]">▼</span>
-            </div>
-          </summary>
-
-          <div class="mt-2.5 border-t border-neutral-200/50 pt-2.5">
-            <!-- 表格主体 -->
-            <div class="overflow-x-auto rounded-lg border border-neutral-200/60 bg-white">
-              <table class="min-w-full text-xs text-center border-collapse">
-                <thead>
-                  <tr class="bg-neutral-100/80 text-neutral-700 font-semibold border-b border-neutral-200/60">
-                    <th v-for="col in sqlQueryResult.columns" :key="col" class="px-3.5 py-2 font-mono text-center">
-                      {{ col }}
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr v-for="(row, rIdx) in sqlQueryResult.rows" :key="rIdx" class="border-b border-neutral-100 hover:bg-neutral-50/50 transition-colors">
-                    <td v-for="col in sqlQueryResult.columns" :key="col" class="px-3.5 py-2 font-mono text-neutral-600 text-center">
-                      {{ row[col] !== undefined && row[col] !== null ? row[col] : '-' }}
-                    </td>
-                  </tr>
-                  <tr v-if="!sqlQueryResult.rows || sqlQueryResult.rows.length === 0">
-                    <td :colspan="sqlQueryResult.columns?.length || 1" class="px-3.5 py-6 text-center text-neutral-400 font-medium">
-                      暂无数据返回
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-
-            <!-- 防御性聚合建议说明 -->
-            <div v-if="sqlQueryResult.truncated" class="mt-3 flex items-start gap-1.5 rounded-xl bg-amber-50/60 p-2.5 text-[11px] leading-relaxed text-amber-800">
-              <span class="text-[13px] leading-none">⚠️</span>
-              <div>
-                数据行数过多，页面仅承载展示前 {{ sqlQueryResult.rows?.length }} 行预览。如需获取完整分析结果，请使用 <strong>导出 CSV</strong> 或 <strong>聚合 SQL</strong> 重跑。
-              </div>
-            </div>
-          </div>
-        </details>
+        <QueryResultGroup :tables="sqlQueryResultsList" />
       </div>
 
       <!-- 一键生成图表的智能快捷 Banner (调整至 SQL 查询数据正下方) -->
@@ -183,16 +128,12 @@
         </div>
       </div>
 
-      <!-- 侧信道直达与懒加载图表卡片 (支持多子智能体/多图表并列展开) -->
-      <div v-if="chartSpecsList.length > 0" class="mt-3 space-y-3 animate-fade-in">
-        <ChartArtifactCard
-          v-for="(spec, sIdx) in chartSpecsList"
-          :key="spec.chart_id || spec.tool_call_id || sIdx"
-          :chart-payload="spec"
-        />
+      <!-- 侧信道直达与懒加载图表卡片 (仅在无子智能体时作为外层兜底展示) -->
+      <div v-if="subagentsList.length === 0 && chartSpecsList.length > 0" class="mt-3 space-y-3 animate-fade-in">
+        <ChartGroupCard :charts="chartSpecsList" />
       </div>
       <div
-        v-else-if="!isUser && chartArtifacts.length > 0"
+        v-else-if="!isUser && subagentsList.length === 0 && chartArtifacts.length > 0"
         class="mt-3 space-y-3 animate-fade-in"
       >
         <ChartArtifactCard
@@ -285,8 +226,8 @@
         </div>
       </div>
 
-      <!-- 新机制：侧信道直达的 CSV 导出，无需等待打字机 (流式优先，支持多文件并列) -->
-      <div v-if="fileExportsList.length > 0" class="space-y-3 px-4 pb-3">
+      <!-- 新机制：侧信道直达的 CSV 导出 (仅在无子智能体时作为外层兜底展示) -->
+      <div v-if="subagentsList.length === 0 && fileExportsList.length > 0" class="space-y-3 px-4 pb-3">
         <div
           v-for="(fExport, fIdx) in fileExportsList"
           :key="fExport.file_id || fIdx"
@@ -318,9 +259,9 @@
         </div>
       </div>
 
-      <!-- 旧机制：历史消息兼容 (保留) -->
+      <!-- 旧机制：历史消息兼容 (仅在无子智能体时作为外层兜底展示) -->
       <div
-        v-else-if="!isUser && exportArtifacts.length > 0"
+        v-else-if="!isUser && subagentsList.length === 0 && exportArtifacts.length > 0"
         class="space-y-3 px-4 pb-3"
       >
         <div
@@ -588,6 +529,8 @@
 import { computed, ref, watch } from 'vue'
 import SubAgentBadge from '@/components/agent/SubAgentBadge.vue'
 import ChartArtifactCard from '@/components/artifacts/ChartArtifactCard.vue'
+import ChartGroupCard from '@/components/artifacts/ChartGroupCard.vue'
+import QueryResultGroup, { type QueryResultItem } from '@/components/artifacts/QueryResultGroup.vue'
 import AskUserQuestionCard from './AskUserQuestionCard.vue'
 import ReasoningAccordion from './ReasoningAccordion.vue'
 import SubagentCard from './SubagentCard.vue'
@@ -740,39 +683,33 @@ const queryResult = computed(() => {
 // 提取工件池中的全部 chart_spec 图表列表，支持多子智能体/多图表并列展示
 const chartSpecsList = computed<ChartArtifact[]>(() => {
   const pool = artifactsList.value
-  const fromPool = pool.filter((a): a is ChartArtifact => Boolean(a && (a as unknown as { kind?: string }).kind === 'chart_spec'))
+  const fromPool = pool
+    .filter((a) => a && (a as any).kind === 'chart_spec')
+    .map((a) => a as unknown as ChartArtifact)
   if (fromPool.length > 0) {
     return fromPool
   }
-  const single = queryResult.value
-  if (single && (single as unknown as { kind?: string }).kind === 'chart_spec') {
-    return [single as unknown as ChartArtifact]
+  const single = queryResult.value as any
+  if (single && single.kind === 'chart_spec') {
+    return [single as ChartArtifact]
   }
   return []
-})
-
-// 判断 tool_artifact 是否为 chart_spec（单图表兼容回退）
-const chartSpec = computed<ChartArtifact | null>(() => {
-  return chartSpecsList.value.length > 0 ? chartSpecsList.value[0] : null
 })
 
 // 提取工件池中的全部 file_export 文件导出列表
 const fileExportsList = computed<ExportArtifact[]>(() => {
   const pool = artifactsList.value
-  const fromPool = pool.filter((a): a is ExportArtifact => Boolean(a && (a as unknown as { kind?: string }).kind === 'file_export'))
+  const fromPool = pool
+    .filter((a) => a && (a as any).kind === 'file_export')
+    .map((a) => a as unknown as ExportArtifact)
   if (fromPool.length > 0) {
     return fromPool
   }
-  const single = queryResult.value
-  if (single && (single as unknown as { kind?: string }).kind === 'file_export') {
-    return [single as unknown as ExportArtifact]
+  const single = queryResult.value as any
+  if (single && single.kind === 'file_export') {
+    return [single as ExportArtifact]
   }
   return []
-})
-
-// 判断实时侧信道推送的 tool_artifact 是否为 file_export（单文件兼容回退）
-const fileExport = computed<ExportArtifact | null>(() => {
-  return fileExportsList.value.length > 0 ? fileExportsList.value[0] : null
 })
 
 // 仅在 kind === 'query_result'，或者具有 columns 时作为表格渲染数据，过滤掉图表
@@ -799,6 +736,66 @@ const sqlQueryResult = computed(() => {
     return queryFromPool
   }
   return null
+})
+
+// 提取工件池中的全部 query_result 表格列表，支持多子智能体/多查询 Tab 复合呈现与原生分页
+const sqlQueryResultsList = computed<QueryResultItem[]>(() => {
+  const pool = artifactsList.value
+  const fromPool = pool
+    .filter((a): a is Record<string, any> => Boolean(a && (a.kind === 'query_result' || (!a.kind && (a as any).columns))))
+    .map(a => {
+      const rawRows = (a as any).rows || []
+      const normRows = Array.isArray(rawRows)
+        ? rawRows.map((r: any) => {
+            if (Array.isArray(r)) return r
+            if (r && typeof r === 'object') {
+              const cols = (a as any).columns || Object.keys(r)
+              return cols.map((col: string) => r[col] !== undefined ? r[col] : '-')
+            }
+            return [String(r)]
+          })
+        : []
+      return {
+        kind: a.kind || 'query_result',
+        tool_call_id: a.tool_call_id,
+        subagent_name: a.subagent_name || (a as any).created_by,
+        created_by: (a as any).created_by,
+        columns: (a as any).columns || [],
+        rows: normRows,
+        row_count: (a as any).row_count || normRows.length,
+        total_count: (a as any).total_count,
+        is_truncated: Boolean((a as any).is_truncated || (a as any).truncated),
+      }
+    })
+  if (fromPool.length > 0) {
+    return fromPool
+  }
+  const single = sqlQueryResult.value as any
+  if (single) {
+    const rawRows = single.rows || []
+    const normRows = Array.isArray(rawRows)
+      ? rawRows.map((r: any) => {
+          if (Array.isArray(r)) return r
+          if (r && typeof r === 'object') {
+            const cols = single.columns || Object.keys(r)
+            return cols.map((col: string) => r[col] !== undefined ? r[col] : '-')
+          }
+          return [String(r)]
+        })
+      : []
+    return [{
+      kind: single.kind || 'query_result',
+      tool_call_id: single.tool_call_id,
+      subagent_name: single.subagent_name || single.created_by,
+      created_by: single.created_by,
+      columns: single.columns || [],
+      rows: normRows,
+      row_count: single.row_count || normRows.length,
+      total_count: single.total_count,
+      is_truncated: Boolean(single.is_truncated || single.truncated),
+    }]
+  }
+  return []
 })
 
 const displayContent = computed(() => {

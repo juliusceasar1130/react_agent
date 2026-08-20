@@ -26,6 +26,9 @@ def _parse_debug_flag(raw_value: str | None) -> bool:
 
 
 class Settings(BaseSettings):
+    # 服务端口配置
+    backend_port: int = int(os.getenv("BACKEND_PORT", "8000"))
+
     # DeepSeek配置
     deepseek_api_key: str = os.getenv("DEEPSEEK_API_KEY", "")
     deepseek_model: str = os.getenv("DEEPSEEK_MODEL", "")
@@ -121,20 +124,23 @@ class Settings(BaseSettings):
         }
 
 
-    # SQL 导出文件配置：前端下载能力使用的临时导出目录与过期时间
-    sql_export_dir: str = os.getenv(
-        "SQL_EXPORT_DIR",
-        str(Path(tempfile.gettempdir()) / "sql_agent_exports"),
+    # 统一工件底座配置 (图表 + 导出文件统一存储根目录与生命周期)
+    artifacts_dir: str = os.getenv(
+        "ARTIFACTS_DIR",
+        str(Path(tempfile.gettempdir()) / "sql_agent_artifacts"),
     )
-    sql_export_ttl_hours: int = int(os.getenv("SQL_EXPORT_TTL_HOURS", "24"))
+    artifacts_ttl_hours: int = int(os.getenv("ARTIFACTS_TTL_HOURS", "24"))
+
+    # SQL 导出与图表配置：业务硬上限保护
     sql_export_max_rows: int = int(os.getenv("SQL_EXPORT_MAX_ROWS", "100000"))
+    chart_artifact_max_points: int = int(os.getenv("CHART_ARTIFACT_MAX_POINTS", "200"))
     lexicon_similarity_top_k: int = int(os.getenv("LEXICON_SIMILARITY_TOP_K", "5"))
-    chart_artifact_dir: str = os.getenv(
-        "CHART_ARTIFACT_DIR",
-        str(Path(tempfile.gettempdir()) / "sql_agent_charts"),
-    )
+
+    # 历史路径与过期时间（向下兼容）
+    sql_export_dir: str = os.getenv("SQL_EXPORT_DIR", "")
+    sql_export_ttl_hours: int = int(os.getenv("SQL_EXPORT_TTL_HOURS", "24"))
+    chart_artifact_dir: str = os.getenv("CHART_ARTIFACT_DIR", "")
     chart_artifact_ttl_hours: int = int(os.getenv("CHART_ARTIFACT_TTL_HOURS", "24"))
-    chart_artifact_max_points: int = int(os.getenv("CHART_ARTIFACT_MAX_POINTS", "100"))
 
     # 服务器配置
     debug: bool = _parse_debug_flag(os.getenv("DEBUG", "true"))
