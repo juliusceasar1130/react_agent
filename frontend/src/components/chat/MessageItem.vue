@@ -128,12 +128,12 @@
         </div>
       </div>
 
-      <!-- 侧信道直达与懒加载图表卡片 (仅在无子智能体时作为外层兜底展示) -->
-      <div v-if="subagentsList.length === 0 && chartSpecsList.length > 0" class="mt-3 space-y-3 animate-fade-in">
+      <!-- 侧信道直达与懒加载图表卡片 (主气泡直出交付) -->
+      <div v-if="chartSpecsList.length > 0" class="mt-3 space-y-3 animate-fade-in">
         <ChartGroupCard :charts="chartSpecsList" />
       </div>
       <div
-        v-else-if="!isUser && subagentsList.length === 0 && chartArtifacts.length > 0"
+        v-else-if="!isUser && chartArtifacts.length > 0"
         class="mt-3 space-y-3 animate-fade-in"
       >
         <ChartArtifactCard
@@ -226,8 +226,8 @@
         </div>
       </div>
 
-      <!-- 新机制：侧信道直达的 CSV 导出 (仅在无子智能体时作为外层兜底展示) -->
-      <div v-if="subagentsList.length === 0 && fileExportsList.length > 0" class="space-y-3 px-4 pb-3">
+      <!-- 新机制：侧信道直达的 CSV 导出 (主气泡直出交付) -->
+      <div v-if="fileExportsList.length > 0" class="space-y-3 px-4 pb-3 animate-fade-in">
         <div
           v-for="(fExport, fIdx) in fileExportsList"
           :key="fExport.file_id || fIdx"
@@ -250,7 +250,7 @@
             </div>
             <button
               type="button"
-              class="shrink-0 rounded-2xl bg-emerald-600 px-3 py-2 text-sm font-medium text-white transition hover:bg-emerald-700"
+              class="shrink-0 rounded-2xl bg-emerald-600 px-3 py-2 text-sm font-medium text-white transition hover:bg-emerald-700 cursor-pointer"
               @click="handleExportDownload(fExport.file_id)"
             >
               下载 CSV
@@ -259,10 +259,10 @@
         </div>
       </div>
 
-      <!-- 旧机制：历史消息兼容 (仅在无子智能体时作为外层兜底展示) -->
+      <!-- 旧机制：历史消息兼容 (主气泡直出交付) -->
       <div
-        v-else-if="!isUser && subagentsList.length === 0 && exportArtifacts.length > 0"
-        class="space-y-3 px-4 pb-3"
+        v-else-if="!isUser && exportArtifacts.length > 0"
+        class="space-y-3 px-4 pb-3 animate-fade-in"
       >
         <div
           v-for="artifact in exportArtifacts"
@@ -662,7 +662,13 @@ const artifactsMap = computed<Record<string, Record<string, unknown>>>(() => {
 })
 
 const artifactsList = computed<Array<Record<string, unknown>>>(() => {
-  return Object.values(artifactsMap.value)
+  const list = Object.values(artifactsMap.value)
+  return list.sort((a, b) => {
+    const tA = (a.created_at as string) || ''
+    const tB = (b.created_at as string) || ''
+    if (tA && tB) return tA.localeCompare(tB)
+    return String(a.tool_call_id || '').localeCompare(String(b.tool_call_id || ''))
+  })
 })
 
 const queryResult = computed(() => {

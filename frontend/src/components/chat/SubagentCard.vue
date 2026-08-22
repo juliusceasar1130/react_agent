@@ -111,47 +111,23 @@
             <QueryResultGroup :tables="[getToolQueryResult(tool.id)!]" />
           </div>
 
-          <!-- 终态工件 B: 内嵌 CSV 导出卡片 -->
-          <div v-else-if="getToolCsvExport(tool.id)" class="mt-2.5 animate-fade-in">
-            <div class="flex items-center justify-between rounded-xl border border-emerald-200/80 bg-emerald-50/40 p-3 shadow-xs dark:border-emerald-900/60 dark:bg-emerald-950/30">
-              <div class="flex items-center gap-2.5 min-w-0">
-                <div class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-emerald-100/80 text-emerald-700 dark:bg-emerald-900/60 dark:text-emerald-300 font-bold text-xs">
-                  CSV
-                </div>
-                <div class="min-w-0">
-                  <div class="truncate text-xs font-semibold text-emerald-950 dark:text-emerald-100">
-                    {{ getToolCsvExport(tool.id)!.filename }}
-                  </div>
-                  <div class="text-[11px] text-emerald-700/80 dark:text-emerald-300/70 mt-0.5">
-                    <span>共 {{ getToolCsvExport(tool.id)!.row_count }} 行 × {{ getToolCsvExport(tool.id)!.col_count || 0 }} 列</span>
-                    <span v-if="getToolCsvExport(tool.id)!.size_bytes"> · {{ formatFileSize(getToolCsvExport(tool.id)!.size_bytes) }}</span>
-                    <span v-if="getToolCsvExport(tool.id)!.expires_at"> · 有效期至 {{ formatFullDateTime(getToolCsvExport(tool.id)!.expires_at) }}</span>
-                  </div>
-                </div>
-              </div>
-              <button
-                type="button"
-                @click="handleDownloadCsv(getToolCsvExport(tool.id)!.file_id)"
-                class="inline-flex items-center gap-1 rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white shadow-xs hover:bg-emerald-700 active:scale-95 transition-all shrink-0 cursor-pointer border-0"
-              >
-                <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                </svg>
-                <span>下载 CSV</span>
-              </button>
+          <!-- 终态工件 B: 轻量 CSV 交付胶囊 (避免重复渲染全量卡片) -->
+          <div v-else-if="getToolCsvExport(tool.id)" class="mt-2 flex items-center justify-between rounded-lg bg-emerald-50/60 border border-emerald-200/60 px-2.5 py-1.5 text-xs text-emerald-800 dark:bg-emerald-950/30 dark:border-emerald-900/40 dark:text-emerald-300">
+            <div class="flex items-center gap-1.5 truncate">
+              <span>📄</span>
+              <span class="font-medium truncate">{{ getToolCsvExport(tool.id)!.filename }}</span>
+              <span class="text-[11px] text-emerald-600/80 dark:text-emerald-400/80 font-mono">({{ getToolCsvExport(tool.id)!.row_count }} 行)</span>
             </div>
+            <span class="text-[10px] text-neutral-400 shrink-0 ml-2">已交付至主视口</span>
           </div>
 
-          <!-- 终态工件 C: 内嵌图表工件预览 -->
-          <div v-else-if="getToolChartArtifact(tool.id)" class="mt-2.5 animate-fade-in">
-            <ChartArtifactCard
-              v-if="getToolChartArtifact(tool.id)!.kind === 'chart_spec'"
-              :chart-payload="getToolChartArtifact(tool.id)!"
-            />
-            <ChartArtifactCard
-              v-else
-              :artifact-ref="getToolChartArtifact(tool.id)!"
-            />
+          <!-- 终态工件 C: 轻量图表交付胶囊 (避免双重 Canvas 实例) -->
+          <div v-else-if="getToolChartArtifact(tool.id)" class="mt-2 flex items-center justify-between rounded-lg bg-primary/5 border border-primary/20 px-2.5 py-1.5 text-xs text-primary dark:bg-primary/10 dark:border-primary/30">
+            <div class="flex items-center gap-1.5 truncate">
+              <span>📊</span>
+              <span class="font-medium truncate">{{ getToolChartArtifact(tool.id)!.title || '数据图表' }}</span>
+            </div>
+            <span class="text-[10px] text-neutral-400 shrink-0 ml-2">已交付至主视口</span>
           </div>
 
           <!-- 过程知识/文本工具输出结果 (轻量折叠) -->
@@ -205,25 +181,14 @@
 import { ref, computed, watch } from 'vue'
 import type { SubagentSessionState } from '@/types'
 import { renderMarkdown } from '@/utils/markdown'
-import { formatSubagentTitle, formatFileSize } from '@/utils/helpers'
-import { useDateFormat } from '@/composables/useDateFormat'
-import { triggerExportDownload } from '@/api/exports'
+import { formatSubagentTitle } from '@/utils/helpers'
 import ReasoningAccordion from './ReasoningAccordion.vue'
 import QueryResultGroup from '@/components/artifacts/QueryResultGroup.vue'
-import ChartArtifactCard from '@/components/artifacts/ChartArtifactCard.vue'
 
 const props = defineProps<{
   subagent: SubagentSessionState
   artifactsPool?: Record<string, any>
 }>()
-
-const { formatFullDateTime } = useDateFormat()
-
-const handleDownloadCsv = (fileId: string) => {
-  if (fileId) {
-    triggerExportDownload(fileId)
-  }
-}
 
 // 解析对应工具产出的结构化工件实体
 const getToolArtifact = (toolId: string): any => {
@@ -308,15 +273,16 @@ const getToolChartArtifact = (toolId: string) => {
   return null
 }
 
-// 判断当前子智能体是否产出了结构化工件
-const hasEmbeddedArtifacts = computed(() => {
-  if (!props.subagent.toolCalls || props.subagent.toolCalls.length === 0) return false
-  return props.subagent.toolCalls.some(
-    tool => !!(getToolQueryResult(tool.id) || getToolCsvExport(tool.id) || getToolChartArtifact(tool.id))
+const isAwaitingClarification = computed(() => {
+  if (props.subagent.status !== 'running') {
+    return false
+  }
+  return !!props.subagent.toolCalls?.some(
+    t => t.name === 'AskUserQuestion' && t.status !== 'completed'
   )
 })
 
-const isExpanded = ref(props.subagent.status === 'running' || hasEmbeddedArtifacts.value)
+const isExpanded = ref(props.subagent.status === 'running' || isAwaitingClarification.value)
 const isUserToggled = ref(false)
 
 const toggleExpand = () => {
@@ -325,10 +291,10 @@ const toggleExpand = () => {
 }
 
 watch(
-  () => [props.subagent.status, hasEmbeddedArtifacts.value],
-  ([newStatus, hasArt]) => {
+  () => [props.subagent.status, isAwaitingClarification.value],
+  ([newStatus, awaiting]) => {
     if (!isUserToggled.value) {
-      if (newStatus === 'running' || hasArt) {
+      if (newStatus === 'running' || awaiting) {
         isExpanded.value = true
       }
     }
@@ -343,15 +309,6 @@ const renderedSubagentContent = computed(() => {
 
 // 复用统一命名映射（utils/helpers.ts），与 messages store 保持一致
 const formatSubagentName = (name: string) => formatSubagentTitle(name)
-
-const isAwaitingClarification = computed(() => {
-  if (props.subagent.status !== 'running') {
-    return false
-  }
-  return !!props.subagent.toolCalls?.some(
-    t => t.name === 'AskUserQuestion' && t.status !== 'completed'
-  )
-})
 
 const statusText = computed(() => {
   if (isAwaitingClarification.value) {
