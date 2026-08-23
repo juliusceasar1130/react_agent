@@ -1,0 +1,8 @@
+# Files
+
+- [Agent Service & Assembly (SQLAgentService)](agent-service.md) - How the main DeepAgent and its SQL subagent are assembled: dual sync/async init paths, LLM factory, token estimators, call-limit middlewares, and the FastAPI lifecycle wrapper.
+- [Agent Middleware Pipeline](middleware-pipeline.md) - The LangChain agent middlewares: Skill injection, single-round business RAG + lexicon retrieval into the Context API, context-window warning, prompt compiler (system-message merge), and RAG prompt injection.
+- [Backend/Frontend Architecture Overview](overview.md) - Top-level view of rearch_agent: a FastAPI + DeepAgent (LangGraph) backend coordinating a main agent with a compiled SQL domain subagent, a unified artifact store, RAG/lexicon retrieval, and a Vue 3 streaming chat frontend.
+- [Agent State & Transient Context (State/Context Sandboxing)](state-and-context.md) - The two-level agent state model: slim global CustomState for the main agent, sandboxed SqlSubAgentState for the SQL subagent, and the Context API (RequestContext) that carries per-round RAG/lexicon payloads with zero checkpoint bloat.
+- [SQL Domain Subagent (sql_domain_agent)](subagent-sql.md) - The compiled SQL expert subagent: its tool factory set, wrapped sql_db_query guard pipeline, system prompt, and how it is packaged as a CompiledSubAgent for the main DeepAgent.
+- [Agent Tools & SQL Safety Layer](tools-and-sql-linter.md) - The tool surface of the SQL subagent: wrapped sql_db_query guard pipeline, DB-lexicon tools, and the side-channel chart/CSV artifact tools, plus the two-layer SQL safety (regex + AST linter).

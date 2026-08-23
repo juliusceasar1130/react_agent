@@ -129,6 +129,10 @@ AGENT_TEMPERATURE=0.1
 AGENT_MAX_TOKENS=2000
 MYSQL_DATABASE_URL='mysql+pymysql://...'
 
+# 系统提示词模板路径配置 (可选，支持指定自定义 Markdown 模板)
+MAIN_SYSTEM_PROMPT_PATH=''   # 主智能体系统提示词模板路径，默认 backend/app/agent/prompts/main_system_prompt.md
+SYSTEM_PROMPT_PATH=''        # SQL 子智能体系统提示词模板路径，默认 backend/app/agent/subagents/sql/base_system_prompt.md
+
 # SQL Agent 限流配置
 SQL_AGENT_TOP_K=1000         # 软限制：指导 LLM 生成 SQL 时的 LIMIT
 SQL_RESULT_HARD_LIMIT=500    # 硬限制：后端强制截断行数，防内存溢出
@@ -263,10 +267,11 @@ rearch_agent/
 │   │   │   ├── service_llama.cpp.py   # 本地 llama.cpp 适配服务实验入口
 │   │   │   ├── state.py               # Graph 状态定义
 │   │   │   ├── constants.py           # 常量定义
+│   │   │   ├── prompts/               # 提示词资源目录 (main_system_prompt.md 主智能体提示词模板)
 │   │   │   ├── subagents/             # 领域子智能体包 (sql/ 包含 tools.py, prompts.py, base_system_prompt.md)
 │   │   │   ├── middleware/            # 中间件（包含技能、上下文警报、业务 RAG 与安全合并自愈）
 │   │   │   ├── tools/                 # 专用工具集
-│   │   │   ├── utils/                 # 底层工具库 (vllm_token_estimator.py 等)
+│   │   │   ├── utils/                 # 底层工具库 (system_prompt_loader.py, vllm_token_estimator.py 等)
 │   │   │   ├── development/           # 实验与开发模块
 │   │   │   └── vector/                # RAG 向量检索与精排引擎
 │   │   └── skills/                # 业务技能注册中心（领域 + 场景 + 资产）

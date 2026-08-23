@@ -10,6 +10,7 @@ SQL Agent 服务
 - 保留 LangGraph 托管模式同步建图逻辑，避免影响现有 graph factory
 - 本地 FastAPI 可通过 `create_local_async()` 切回 ainvoke / astream
 - 2026-04-16 11:00 Asia/Shanghai: 为本地 AsyncConnectionPool 增加 `connect_timeout`，修复 Windows 下连接池初始化长时间挂起后超时的问题
+- 2026-08-23 13:25 Asia/Shanghai: 主智能体系统提示词文件化解耦，外置为 `agent/prompts/main_system_prompt.md` 模板，接入 `SystemPromptLoader` 共享加载器与 `_build_main_system_prompt`
 """
 
 from __future__ import annotations
