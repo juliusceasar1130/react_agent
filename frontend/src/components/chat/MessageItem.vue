@@ -1,7 +1,8 @@
 <!-- 2026-04-19 23:40 Asia/Shanghai - 消息气泡更新：统一卡片层级与现代阅读体验 -->
 <template>
   <div
-    class="flex animate-slide-up"
+    :id="isUser ? `msg-${message.id}` : undefined"
+    class="flex animate-slide-up transition-all duration-300"
     :class="isUser ? 'justify-end' : 'justify-start'"
   >
     <div
@@ -1227,5 +1228,25 @@ let copyTimeout: number | null = null
 .message-markdown :deep(code) {
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   font-size: 13px;
+}
+
+/* 定位跳转时的微光呼吸高亮动画 */
+&.highlight-pulse > div {
+  animation: message-highlight-pulse 1.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes message-highlight-pulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(37, 99, 235, 0);
+    transform: scale(1);
+  }
+  30% {
+    box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.35);
+    transform: scale(1.008);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(37, 99, 235, 0);
+    transform: scale(1);
+  }
 }
 </style>

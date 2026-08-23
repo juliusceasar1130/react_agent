@@ -18,6 +18,7 @@
 - **CSV 数据导出** - 支持将大量 SQL 结果直接导出为 CSV 文件供用户下载，全程不占 LLM 上下文，具备 OOM 熔断保护与临时源文件安全自清理
 - **聊天内嵌图表** - 当用户明确要求生成图表时，后端生成 chart artifact，前端按 `chart_id` 拉取并渲染折线图或柱状图
 - **快捷场景直通 SQL 查询与极简矢量图标 (Minimalist Icons)** - 解耦纯函数直通查询引擎（`resolver` / `executor` / `formatter`），绕过 LLM Agent 决策耗时，毫秒级响应固定查询场景。快捷直通悬浮卡片 (`FloatingScenarioCards`) 与直通弹窗 (`ScenarioModal`) 全面摒弃 Emoji/3D 图标，采用现代极简 Single-line SVG 矢量线条图标（支持 High Contrast & Accent Tone Stroke）与智能图标类型识别 (`getScenarioIconType`)，兼顾轻盈精致视觉与高效响应。支持通用零侵入服务端分页 (LIMIT/OFFSET) 与真实全量 COUNT(*) 计算，前端 **`ScenarioModal` 弹窗** 支持单层表格右上角区间展示、底部分页条（上一页/下一页/页码/每页条数选择器）与最左侧 `#` 物理绝对行号连续展示。
+- **右侧用户问题刻度线导览与微光平滑定位 (Question Navigation Rail)** - 参考 Kimi 等主流 AI 交互设计，在长对话中右侧呈现极简竖向刻度线。鼠标悬停时平滑展开毛玻璃问题导览卡片，点击任意问题项平滑滚动至对应消息气泡并触发 1.2s 微光呼吸动效；结合 `useScrollSpy`、`requestAnimationFrame` 与 `ResizeObserver` 实现视口可见问题的双向动态感知与高亮点亮。
 - **双击联动注入与毛玻璃 Spark Toast 反馈** - 双击抽屉中维度表任何单元格或字段名，数据自动追加到聊天输入框光标停留处；输入框边缘泛起 `.input-glow` 呼吸灯发光，底端浮现毛玻璃 Transition Toast。
 - **1:1 LobeChat 风格 Markdown 渲染与 GFM Alert 警示卡片** - 助手完成态与流式消息支持原生 1:1 LobeChat 视觉排版（计算倍率变量、表格与代码块美化、流式呼吸光标），并通过 `markdown-it-alert.ts` 插件与后端系统提示词 (§ 4.5) 全链路打通 `> [!NOTE]` / `> [!TIP]` 等 5 种 GFM Callout 矢量图标警示卡片的实时渲染与防守
 - **基于 Context API 的请求级瞬态数据通道与状态沙箱隔离** - 采用 LangGraph 原生 `Context API` (`context_schema=RequestContext`) 传递 `lexicon_context` 与 `rag_context` 等单轮大体量检索数据，实现数据库 Checkpoint 快照中的 **0 字节写入与零状态膨胀**。主 Agent 保持纯净编排，SQL 专家子智能体独占持有领域技能中间件并运行在独立的 `SqlSubAgentState` 物理沙箱中，彻底消除多子智能体并发执行时的 `INVALID_CONCURRENT_GRAPH_UPDATE` 状态冲突。

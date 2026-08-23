@@ -36,6 +36,14 @@
       </div>
     </div>
 
+    <!-- 用户问题刻度线导航浮层 -->
+    <QuestionRail
+      :questions="userQuestions"
+      :active-id="activeMessageId"
+      :loading="messagesStore.loading"
+      @select="scrollToMessage"
+    />
+
     <button
       v-if="showScrollToBottom"
       type="button"
@@ -59,6 +67,8 @@ import { useSessionsStore } from '@/stores/sessions'
 import { useSkillsStore } from '@/stores/skills'
 import { copyToClipboard } from '@/utils/helpers'
 import MessageItem from './MessageItem.vue'
+import QuestionRail from './QuestionRail.vue'
+import { useScrollSpy, type UserQuestionItem } from '@/composables/useScrollSpy'
 
 const emit = defineEmits<{
   (e: 'select-scenario', prompt: string): void
@@ -73,6 +83,18 @@ const messages = computed(() => messagesStore.displayMessages)
 const containerRef = ref<HTMLElement | null>(null)
 const isNearBottom = ref(true)
 const bottomThreshold = 96
+
+const userQuestions = computed<UserQuestionItem[]>(() => {
+  return messages.value
+    .filter((msg) => msg.role === 'user')
+    .map((msg, index) => ({
+      id: msg.id,
+      content: msg.content,
+      index: index + 1
+    }))
+})
+
+const { activeId: activeMessageId, scrollToMessage } = useScrollSpy(containerRef, userQuestions)
 
 const handlePrototypeSubmit = (prompt: string) => {
   emit('select-scenario', prompt)
@@ -102,6 +124,7 @@ function scrollToBottom(behavior: ScrollBehavior = 'auto') {
 
 watch(() => sessionsStore.currentSessionId, (newId) => {
   if (newId) {
+    activeMessageId.value = null
     messagesStore.fetchMessages(newId)
   }
 }, { immediate: true })
@@ -155,6 +178,7 @@ const handleScrollToBottom = () => {
 }
 
 defineExpose({
-  scrollToBottom
+  scrollToBottom,
+  scrollToMessage
 })
 </script>

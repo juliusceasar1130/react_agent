@@ -1,3 +1,23 @@
+## 2026-08-23 15:50 +08:00 - 聊天主页用户问题刻度线导航与微光定位反馈 (`QuestionRail.vue`, `useScrollSpy.ts`, `MessageList.vue`, `MessageItem.vue`) [FE]
+
+### 变更内容
+
+#### 1. 独立视口监听与滚动定位 Composable (`frontend/src/composables/useScrollSpy.ts`) [FE]
+- **视口动态计算**：利用 `getBoundingClientRect()` 精准计算各消息气泡相对滚动视口顶部的位移，以 `ACTIVATION_OFFSET_TOP = 120px` 作为顶部偏移判定阈值；触底时自动锁定激活最后一条用户问题。
+- **rAF 节流与动态校准**：滚动事件通过 `requestAnimationFrame` 节流处理，并接入 `ResizeObserver` 动态监听流式输出或图表动态展开带来的高度变化；组件卸载时安全释放 `cancelAnimationFrame` 与监听器。
+- **平滑定位与落点微光**：实现 `scrollToMessage(messageId)` 平滑滚动定位，并为目标消息气泡注入 `.highlight-pulse` 关键帧动效（1.2s 自动销毁），提供直观落点反馈。
+
+#### 2. 用户问题刻度线导航浮层组件 (`frontend/src/components/chat/QuestionRail.vue`) [FE]
+- **常态极简刻度线**：右侧垂直居中展示刻度短横线（普通项 14px 宽浅灰，当前激活项 20px 宽加粗深黑），不遮挡正文与卡片。
+- **悬停展开毛玻璃卡片**：鼠标悬停时平滑展开毛玻璃卡片（`bg-white/95 backdrop-blur-xl shadow-xl rounded-2xl`），显示历史用户提问截断文本与对应刻度线；支持项悬浮高亮与点击快速定位。
+- **性能与无障碍**：使用 `v-memo` 进行列表渲染优化，并配置 `role="navigation"`、`aria-label="用户问题导航"` 无障碍属性。
+
+#### 3. 消息流与列表装配 (`MessageList.vue`, `MessageItem.vue`) [FE]
+- 在 `MessageList.vue` 中挂载 `QuestionRail`，提取 `userQuestions` 响应式列表，并在 `defineExpose` 中对外暴露 `scrollToMessage`。
+- 在 `MessageItem.vue` 根节点上为用户消息绑定 DOM 锚点 ID `msg-${message.id}` 并配置微光呼吸动画。
+
+---
+
 ## 2026-08-23 14:30 +08:00 - 主智能体与涂装 Data Agent 提示词分工协作优化与架构扩展契约对齐 (`main_system_prompt.md`, `base_system_prompt.md`) [AGENT]
 
 ### 变更内容
