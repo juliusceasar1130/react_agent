@@ -32,6 +32,7 @@ Key config groups (env var → meaning):
 | Group | Variables | What they control |
 |---|---|---|
 | LLM | `DEEPSEEK_API_KEY`, `DEEPSEEK_BASE_URL`, `DEEPSEEK_MODEL`, `OLLAMA_*`, `AGENT_TEMPERATURE`, `AGENT_MAX_TOKENS` | Provider selection ([agent-service](../architecture/agent-service.md)) |
+| Prompts | `MAIN_SYSTEM_PROMPT_PATH` (main orchestrator prompt), `SYSTEM_PROMPT_PATH` (SQL subagent prompt) | Paths to the file-backed system prompt templates; defaults resolve to the checked-in `backend/app/agent/prompts/` and `backend/app/agent/subagents/sql/` files ([agent-prompts](../architecture/agent-prompts.md)) |
 | Databases | `DATABASE_URL` (chat sessions + agent checkpoints + pgvector `rag_store`), `ANALYTICS_DATABASE_URL` + `ANALYTICS_DB_SEARCH_PATH` (business SQL target) | Two distinct Postgres roles: app DB vs. analytics DB |
 | SQL safety | `SQL_AGENT_TOP_K`, `SQL_RESULT_HARD_LIMIT`, `SQL_RESULT_PREVIEW_ROWS`, `DIMENSION_RESULT_HARD_LIMIT`, `DIMENSION_TABLES`, `SQL_LINTER_ENABLED`, `SQL_LINTER_DISABLED_RULES`, `SQL_CHECKER_MODE` | Guard pipeline in [tools-and-sql-linter](../architecture/tools-and-sql-linter.md) |
 | RAG / lexicon | `RAG_BACKEND` (`pgvector` \| `milvus_hybrid`), `RAG_SIMILARITY_THRESHOLD`, `MILVUS_*`, `EMBEDDING_PROVIDER`, `RERANK_*`, `NVIDIA_API_KEY`, `DB_LEXICON_SYNC_ON_STARTUP`, `MILVUS_OVERWRITE` | Retrieval in [rag-and-lexicon](../domain/rag-and-lexicon.md); startup lexicon sync task in `backend/app/main.py` |

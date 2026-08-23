@@ -43,6 +43,7 @@ Both paths are wired from `backend/app/agent/service.py::_build_agent_components
 | Area | Canonical page | Owning entrypoints |
 |---|---|---|
 | Agent assembly, LLM factory, dual init | [agent-service](agent-service.md) | `backend/app/agent/service.py`, `backend/app/agent/llm.py` |
+| System prompt templates & loader | [agent-prompts](agent-prompts.md) | `backend/app/agent/prompts/main_system_prompt.md`, `backend/app/agent/subagents/sql/base_system_prompt.md`, `backend/app/agent/utils/system_prompt_loader.py` |
 | State & transient context sandboxing | [state-and-context](state-and-context.md) | `backend/app/agent/state.py`, `backend/app/agent/context.py` |
 | SQL domain subagent | [subagent-sql](subagent-sql.md) | `backend/app/agent/subagents/sql/` |
 | Middleware pipeline | [middleware-pipeline](middleware-pipeline.md) | `backend/app/agent/middleware/` |
@@ -67,4 +68,5 @@ Both paths are wired from `backend/app/agent/service.py::_build_agent_components
 
 - Cross-module change: read this page, then the canonical page for the touched area.
 - Design intent lives in `docs/deepagent/` (architecture reviews, refactoring roadmap) and `docs/multiagent_sidechannel/` (artifact tiering spec v1.1); OpenSpec deltas live in `openspec/`.
+- Multi-agent evolution intent (Orchestrator + N Specialists topology, SubAgent Registry factory pattern, main↔subagent prompt collaboration contract) is specced in `docs/superpowers/specs/2026-08-23-multi-agent-prompt-and-architecture-optimization.md`; the prompt side is already implemented (see [agent-prompts](agent-prompts.md)), the code-side registry is still planned.
 - Note: the `AGENTS.md` doc index still lists an `agent_docs/` folder that no longer exists; current intent docs are under `docs/` and `openspec/`.

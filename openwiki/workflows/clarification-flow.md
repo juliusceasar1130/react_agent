@@ -19,6 +19,8 @@ openwiki:
 
 When requirements are ambiguous or a technical tradeoff needs a human decision, the agent suspends execution and surfaces a structured question card. This uses LangGraph's native `interrupt` control flow (LangGraph 1.1.8+). Design pattern notes: `docs/ask_user_question_design_pattern.md`.
 
+**Two-level clarification ownership.** Both the main DeepAgent and `sql_domain_agent` can call `AskUserQuestion`, and the prompts divide the duty to avoid "two consecutive question rounds": the main agent asks **only** on global-direction ambiguity (unrecognizable intent, non-data questions), while domain-parameter clarification (FIS numbers, metric definitions, shop data) is closed inside the subagent — which first self-heals via `search_db_value_lexicon` / `search_db_row_lexicon` probes and only escalates to `AskUserQuestion` when probing fails. The contract lives in the prompt templates; see [agent-prompts](../architecture/agent-prompts.md) for the split's exact wording.
+
 ## Symbols
 
 | Symbol | File | Role |

@@ -7,7 +7,7 @@ openwiki:
   roles: [architecture, runtime]
   change_kinds: [lifecycle, tooling]
   source_paths: [backend/app/agent/service.py, backend/app/agent/llm.py, backend/app/services/chat_service.py]
-  symbols: [SQLAgentService, build_agent_graph, _build_agent_components, create_local_async, ReasoningAwareChatDeepSeek]
+  symbols: [SQLAgentService, build_agent_graph, _build_agent_components, _build_main_system_prompt, create_local_async, ReasoningAwareChatDeepSeek]
   test_paths: [backend/tests/agent/test_persistence_integration.py, backend/tests/agent/test_chat_deepseek_integration.py, backend/tests/agent/test_agent_component_boundaries.py]
   invariants:
     - Sync init path (_initialize_agent) and async init path (_ainitialize_agent) must stay 100% in sync; both call the shared _build_agent_components.
@@ -27,6 +27,7 @@ openwiki:
 | `_build_agent_components` | `backend/app/agent/service.py` | Single source of component truth: LLM, DB, tools, RAG, prompts, middlewares. Both init paths call it, keeping them in sync |
 | `build_agent_graph` | `backend/app/agent/service.py` | LangGraph factory (`managed_runtime=True`), caches a module-level `_MANAGED_AGENT_SERVICE` singleton so graph builds are cheap |
 | `_create_local_checkpointer` / `_create_local_async_checkpointer` | `backend/app/agent/service.py` | Local-mode persistence: `PostgresSaver` (sync) / `AsyncPostgresSaver` + `psycopg_pool` over `DATABASE_URL` |
+| `_build_main_system_prompt` / `_main_prompt_loader` | `backend/app/agent/service.py` | Builds the main agent's system prompt as a plain string from the `MAIN_SYSTEM_PROMPT_PATH` template via the shared `SystemPromptLoader` (details in [agent-prompts](agent-prompts.md)) |
 | `_create_llm` | `backend/app/agent/llm.py` | Model factory: `ReasoningAwareChatDeepSeek` (alias `QwenChatDeepSeek`) by default, `ChatOllama` when `use_ollama`; maps vLLM `reasoning`/`reasoning_content` fields into `additional_kwargs["reasoning_content"]` |
 | `LlamaCppTokenEstimator` / `VllmTokenEstimator` | `backend/app/agent/utils/*_token_estimator.py` | Token estimation for context warning/summarization; engine chosen by `settings.token_estimator_engine` |
 | `SQLAgentService` (wrapper) | `backend/app/services/chat_service.py` | FastAPI compatibility layer: `process_stream`, `process_message`, `process_stream_resume`; plus `initialize_agent_service` / `get_agent_service` / `shutdown_agent_service` singletons wired into the app lifespan in `backend/app/main.py` |
@@ -37,7 +38,7 @@ openwiki:
    - LLM via `_create_llm` (`backend/app/agent/llm.py`), DB via `MaterializedViewSQLDatabase` against `ANALYTICS_DATABASE_URL` (business data), RAG via `create_business_retriever_and_reranker` (see [rag-and-lexicon](../domain/rag-and-lexicon.md)).
    - Tools via `_prepare_tools`: wrapped `sql_db_query`, optional SQL-example search, `build_chart_artifact`, `export_to_csv`, `AskUserQuestion`, and the three DB-lexicon tools (see [tools-and-sql-linter](tools-and-sql-linter.md)).
    - Subagent: `create_agent(...)` with `state_schema=SqlSubAgentState`, `context_schema=RequestContext`, wrapped into `CompiledSubAgent(name="sql_domain_agent")` (see [subagent-sql](subagent-sql.md)).
-   - Main agent: `create_deep_agent` with subagents, main tools `[AskUserQuestion()]`, `SummarizationMiddleware` (with an `exact_token_counter` that physically merges all system messages to position 0 before counting), `ContextWarningMiddleware`, `RagPromptInjectorMiddleware`, and call-limit middlewares (`ModelCallLimitMiddleware` / `ToolCallLimitMiddleware` from `settings.agent_model_call_run_limit` / `agent_tool_call_run_limit`).
+   - Main agent: `create_deep_agent` with subagents, main tools `[AskUserQuestion()]`, the file-backed main system prompt from `_build_main_system_prompt()` ([agent-prompts](agent-prompts.md)), `SummarizationMiddleware` (with an `exact_token_counter` that physically merges all system messages to position 0 before counting), `ContextWarningMiddleware`, `RagPromptInjectorMiddleware`, and call-limit middlewares (`ModelCallLimitMiddleware` / `ToolCallLimitMiddleware` from `settings.agent_model_call_run_limit` / `agent_tool_call_run_limit`).
 2. Persistence: local mode creates the checkpointer; managed mode skips it (LangGraph injects).
 3. `_create_agent_from_components` completes the graph. `aclose()` releases the local async connection pool on shutdown.
 

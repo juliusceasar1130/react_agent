@@ -12,6 +12,7 @@ openwiki:
   invariants:
     - sql_db_query refuses to run unless required_skill is present in runtime.state skills_loaded.
     - The subagent exclusively owns SkillMiddleware and PromptCompilerMiddleware.
+    - Prompt contract: ambiguous input is self-healed via the DB lexicon probes before AskUserQuestion; every numeric answer ends with a standalone `数据来源：表名，查询时间：...` line.
   validation_commands: ["cd backend && python -m pytest tests/agent/tools/test_sql_lexicon_tools.py tests/agent/test_agent_component_boundaries.py -q"]
 ---
 
@@ -45,8 +46,9 @@ Lexicon tools return `"Error: Database lexicon retriever is not initialized or d
 
 ## System prompt
 
-- `base_system_prompt.md` (the SQL expert prompt, `settings.system_prompt_path` default) + `prompts.py::_build_system_prompt(db)` which renders table-structure context.
+- `base_system_prompt.md` (the SQL expert prompt, `settings.system_prompt_path` default) + `prompts.py::_build_system_prompt(db)`, which loads it through the shared `SystemPromptLoader` and renders the `{dialect}` / `{top_k}` `PromptTemplate` variables — the main-agent side of this pairing and the full load path are documented in [agent-prompts](agent-prompts.md).
 - The subagent's prompt is what `SkillMiddleware` / `PromptCompilerMiddleware` compile per model call (see [middleware-pipeline](middleware-pipeline.md)).
+- Current contract highlights: the role is the "120JPH paint-shop Data Agent"; input validation follows **self-heal-first** — ambiguous terms must be probed with `search_db_value_lexicon` / `search_db_row_lexicon` before `AskUserQuestion` is allowed (see the two-level split in [clarification-flow](../workflows/clarification-flow.md)); chart suggestions and the `数据来源：` footer are defined in prompt §4 and are pass-through inputs to the main agent's presentation protocol.
 
 ## Invariants & tests
 

@@ -1,5 +1,6 @@
 # Files
 
+- [Agent System Prompt Templates & Loader](agent-prompts.md) - The two file-backed system prompt templates (main orchestrator prompt and SQL subagent prompt), the SystemPromptLoader with cache/hot-reload, the MAIN_SYSTEM_PROMPT_PATH / SYSTEM_PROMPT_PATH config knobs, and the main<->subagent collaboration contract (routing, task template, two-level clarification, lossless presentation).
 - [Agent Service & Assembly (SQLAgentService)](agent-service.md) - How the main DeepAgent and its SQL subagent are assembled: dual sync/async init paths, LLM factory, token estimators, call-limit middlewares, and the FastAPI lifecycle wrapper.
 - [Agent Middleware Pipeline](middleware-pipeline.md) - The LangChain agent middlewares: Skill injection, single-round business RAG + lexicon retrieval into the Context API, context-window warning, prompt compiler (system-message merge), and RAG prompt injection.
 - [Backend/Frontend Architecture Overview](overview.md) - Top-level view of rearch_agent: a FastAPI + DeepAgent (LangGraph) backend coordinating a main agent with a compiled SQL domain subagent, a unified artifact store, RAG/lexicon retrieval, and a Vue 3 streaming chat frontend.
