@@ -56,6 +56,5 @@ openwiki:
 尚未设立专门页面的领域（源码锚点 + 原因）。当支撑源码稳定后再提升为页面。
 
 - **根级代理指令文件与仓库技能库**（`.claude/agents/`、`.agents/skills/`）——面向开发者的 Claude/代理技能定义（例如 `code-explainer`、`code-reviewer`）以及 `AGENTS.md`/`CLAUDE.md` 约定。它们不属于运行时代理 Wiki 的范围，且这些文件由用户编写（本 Wiki 不得编辑 `/AGENTS.md`/`CLAUDE.md`）；它们所描述的运行时子代理已在 [SQL 子代理](architecture/subagent-sql.md) 中记录。
-<!-- openwiki: broken internal link [frontend/chat-app.md#question-navigation-rail] heading anchor "question-navigation-rail" does not exist in "frontend/chat-app.md". Fix the href or restore the target, then delete this comment. -->
-- **仅文档型意图报告**（`docs/deepagent/`、`docs/multiagent_sidechannel/`、`docs/llamaindex_rag/`、`docs/superpowers/`）——仅链接的设计意图；本 Wiki 在相关运行时页面中引用它们，而不是复述。只有当某个具体设计决策变得关键时，才重新考虑作为总结页面。（例外：`docs/superpowers/` 下的问题栏规范/计划已在代码中实现，并由 [聊天应用 — 问题导航栏](frontend/chat-app.md#question-navigation-rail) 覆盖。）
+- **仅文档型意图报告**（`docs/deepagent/`、`docs/multiagent_sidechannel/`、`docs/llamaindex_rag/`、`docs/superpowers/`）——仅链接的设计意图；本 Wiki 在相关运行时页面中引用它们，而不是复述。只有当某个具体设计决策变得关键时，才重新考虑作为总结页面。（例外：`docs/superpowers/` 下的问题栏规范/计划已在代码中实现，并由 [聊天应用 — 问题导航栏](frontend/chat-app.md#问题导航栏) 覆盖。）
 - **SubAgent 注册表 / 工厂模式**（规范：`docs/superpowers/specs/2026-08-23-multi-agent-prompt-and-architecture-optimization.md`）——计划重构 `backend/app/agent/subagents/`（注册表 `__init__.py`、`BaseSubAgentFactory`、按领域的 `factory.py`），以及 `knowledge_doc_agent` / `iot_device_agent` 专业代理；**尚未在代码中**（`subagents/__init__.py` 是注释占位符，`service.py` 仍然内联构建 SQL 子代理）。已在 [代理提示](architecture/agent-prompts.md) 中简要记录；待代码落地后提升为完整架构页面。

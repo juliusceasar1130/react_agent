@@ -69,4 +69,4 @@ _图注：从 Vue 前端经由 FastAPI 流式适配器进入 DeepAgent 图、其
 - 跨模块变更：先阅读本页，再阅读所触及区域的规范页面。
 - 设计意图位于 `docs/deepagent/`（架构评审、重构路线图）和 `docs/multiagent_sidechannel/`（制品分层规范 v1.1）；OpenSpec 增量位于 `openspec/`。
 - 多智能体演进意图（Orchestrator + N Specialists 拓扑、SubAgent Registry 工厂模式、主↔子智能体提示协作契约）已在 `docs/superpowers/specs/2026-08-23-multi-agent-prompt-and-architecture-optimization.md` 中制定规范；提示侧已实现（参见 [智能体提示](agent-prompts.md)），代码侧注册表仍在计划中。
-- 注意：`AGENTS.md` 文档索引仍列出了一个不再存在的 `agent_docs/` 文件夹；当前意图文档位于 `docs/` 和 `openspec/` 下。
+- `AGENTS.md` / `CLAUDE.md` 的「文档索引（OpenWiki 知识库）」章节已统一指向本知识库（`openwiki/` 各页面与任务路由矩阵）；修改文档索引时保持两份指令文件与 openwiki 页面路径同步。
