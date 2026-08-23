@@ -1,8 +1,8 @@
 {
-  "updatedAt": "2026-08-23T11:17:48.143Z",
+  "updatedAt": "2026-08-23T13:50:18.737Z",
   "command": "update",
-  "gitHead": "cc168e15a23a21978af91356e94426d93e296c5b",
+  "gitHead": "5bdce90e26f287552d400a0f45c15e03e295ea01",
   "model": "gpt-5-nano",
   "status": "complete",
-  "language": "en"
+  "language": "zh-CN"
 }

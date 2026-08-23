@@ -1,7 +1,7 @@
 ---
-type: Domain
-title: "Skills & Scenarios (Domain Knowledge Layer)"
-description: "Directory-convention-driven discovery of domain skills and scenario skills, their registry/reload, and the LLM-free direct-path scenario engine that serves fixed queries in milliseconds."
+type: 领域
+title: "技能与场景（领域知识层）"
+description: "通过目录约定驱动发现领域技能与场景技能，并管理其注册表/重载；同时提供无需 LLM 的直接路径场景引擎，可在毫秒内处理固定查询。"
 tags: [domain, skills, scenarios, direct-path]
 openwiki:
   roles: [domain]
@@ -15,40 +15,40 @@ openwiki:
   validation_commands: ["cd backend && python -m pytest tests/test_scenario_quick_panel_api.py tests/test_scenario_quick_panel_engine.py -q"]
 ---
 
-# Skills & Scenarios
+# 技能与场景
 
-`backend/app/skills/` is the domain-knowledge layer the [SQL subagent](../architecture/subagent-sql.md) loads on demand. It replaces hand-maintained prompt blobs with directory-convention discovery. Authoring conventions live in `docs/skills/` (authoritative: `docs/skills/scenario_architecture_spec.md`).
+`backend/app/skills/` 是 [SQL 子代理](../architecture/subagent-sql.md) 按需加载的领域知识层。它使用目录约定发现来替代手工维护的提示词块。编写约定位于 `docs/skills/`（权威文档：`docs/skills/scenario_architecture_spec.md`）。
 
-## Discovery & registry
+## 发现与注册表
 
-| Symbol | File | Role |
+| 符号 | 文件 | 作用 |
 |---|---|---|
-| `discover_domains` | `backend/app/skills/discovery.py` | Scans `backend/app/skills/domains/`; each domain dir must have `meta.py` + `domain.md` (missing `domain.md` raises; missing `meta.py` skips) |
-| `discover_scenarios` | `backend/app/skills/discovery.py` | Scans `domains/<domain>/scenarios/` subdirectories |
-| `reload_skills` | `backend/app/skills/registry.py` | Re-runs discovery, atomically swaps the module-level `_RegistryState`; called at import and by `POST /api/chat/skills/reload` |
-| `get_all_skills` / `get_domain_skills` | `backend/app/skills/registry.py` | Feed [SkillMiddleware](../architecture/middleware-pipeline.md) prompt injection and the dashboard/scenario endpoints |
-| `load_skill`, `load_scenario` | `backend/app/agent/tools/skill_tools.py` | LLM-visible tools registered by `SkillMiddleware`; update `SqlSubAgentState` (`skills_loaded`, `active_skill`, `scenarios_loaded`) |
+| `discover_domains` | `backend/app/skills/discovery.py` | 扫描 `backend/app/skills/domains/`；每个领域目录必须包含 `meta.py` + `domain.md`（缺少 `domain.md` 时抛出异常；缺少 `meta.py` 时跳过） |
+| `discover_scenarios` | `backend/app/skills/discovery.py` | 扫描 `domains/<domain>/scenarios/` 子目录 |
+| `reload_skills` | `backend/app/skills/registry.py` | 重新运行发现流程，并原子化替换模块级 `_RegistryState`；在导入时及通过 `POST /api/chat/skills/reload` 调用 |
+| `get_all_skills` / `get_domain_skills` | `backend/app/skills/registry.py` | 为 [SkillMiddleware](../architecture/middleware-pipeline.md) 的提示词注入以及仪表盘/场景端点提供数据 |
+| `load_skill`, `load_scenario` | `backend/app/agent/tools/skill_tools.py` | 由 `SkillMiddleware` 注册的 LLM 可见工具；更新 `SqlSubAgentState`（`skills_loaded`、`active_skill`、`scenarios_loaded`） |
 
-Currently discovered domains (directory evidence, `backend/app/skills/domains/`): `paint_shop_defect_analysis` and `paint_shop_vehicle_logistics`.
+当前发现的领域（目录证据，`backend/app/skills/domains/`）：`paint_shop_defect_analysis` 和 `paint_shop_vehicle_logistics`。
 
-## Direct-path scenario engine (LLM-free)
+## 直接路径场景引擎（无需 LLM）
 
-`backend/app/skills/direct_path/` is a pure-function pipeline — `resolver` (params), `executor` (SQL), `formatter` (output) — that bypasses the LLM entirely for fixed statistical scenarios:
+`backend/app/skills/direct_path/` 是一个纯函数流水线——`resolver`（参数）、`executor`（SQL）、`formatter`（输出）——针对固定统计场景完全绕过 LLM：
 
-- `is_direct_path_enabled` (in `backend/app/routers/scenarios.py`) marks a scenario as direct-path when `direct_path_enabled` is set or when it has `sql_template_refs` + `default_template`.
-- Served by `backend/app/routers/scenarios.py`: `GET /api/scenarios` (tree), `GET /{domain}/{scenario}/params`, `POST /{domain}/{scenario}/execute` (synchronous safe execution with LIMIT/OFFSET pagination and real `COUNT(*)`).
-- Frontend surfaces: `FloatingScenarioCards.vue` / `ScenarioModal.vue` (see [chat-app](../frontend/chat-app.md)).
+- 当 `direct_path_enabled` 已设置，或该场景具有 `sql_template_refs` + `default_template` 时，`is_direct_path_enabled`（位于 `backend/app/routers/scenarios.py`）会将场景标记为直接路径。
+- 由 `backend/app/routers/scenarios.py` 提供：`GET /api/scenarios`（树形结构）、`GET /{domain}/{scenario}/params`、`POST /{domain}/{scenario}/execute`（带 LIMIT/OFFSET 分页和真实 `COUNT(*)` 的同步安全执行）。
+- 前端界面：`FloatingScenarioCards.vue` / `ScenarioModal.vue`（参见 [chat-app](../frontend/chat-app.md)）。
 
-The `GET /api/chat/skills` dashboard discovery (frontend `WelcomeDashboard.vue` / `stores/skills.ts`) is driven by the same registry.
+`GET /api/chat/skills` 仪表盘发现（前端 `WelcomeDashboard.vue` / `stores/skills.ts`）由同一注册表驱动。
 
-## Invariants & tests
+## 不变量与测试
 
-- Scenario API + engine behavior: `backend/tests/test_scenario_quick_panel_api.py` (`test_scenario_schemas_validation`, `test_api_list_scenarios`, `test_api_execute_scenario_invalid_name`) and `backend/tests/test_scenario_quick_panel_engine.py` (`test_infer_widget`, `test_build_executed_sql_with_valid_and_empty_params`, `test_format_result_table`, `test_stranded_vehicle_scenario_metadata`).
-- Router-level skills endpoints: `backend/tests/test_routers_coverage.py::test_skills_router_get`, `test_skills_router_reload`.
+- 场景 API + 引擎行为：`backend/tests/test_scenario_quick_panel_api.py`（`test_scenario_schemas_validation`、`test_api_list_scenarios`、`test_api_execute_scenario_invalid_name`）和 `backend/tests/test_scenario_quick_panel_engine.py`（`test_infer_widget`、`test_build_executed_sql_with_valid_and_empty_params`、`test_format_result_table`、`test_stranded_vehicle_scenario_metadata`）。
+- 路由级技能端点：`backend/tests/test_routers_coverage.py::test_skills_router_get`、`test_skills_router_reload`。
 
-## Change recipe: add a new domain skill
+## 变更指南：添加新的领域技能
 
-1. Create `backend/app/skills/domains/<domain_name>/` with `meta.py`, `domain.md`, and an optional `scenarios/` tree (each scenario dir with its meta + SQL templates).
-2. `domain.md` must exist (discovery raises if it does not); `meta.py` supplies `title`/`description`/`tags`.
-3. No code change needed — `reload_skills()` (or `POST /api/chat/skills/reload`) picks it up; Docker mounts `./backend/app/skills/domains` as a volume so skill content can ship without rebuilding the image (see `docker-compose.yml`).
-4. Validate: run the scenario tests plus `test_skills_router_get`.
+1. 创建 `backend/app/skills/domains/<domain_name>/`，其中包含 `meta.py`、`domain.md` 以及可选的 `scenarios/` 目录树（每个场景目录包含其 meta 与 SQL 模板）。
+2. 必须存在 `domain.md`（若缺失，发现流程会抛出异常）；`meta.py` 提供 `title`/`description`/`tags`。
+3. 无需代码变更——`reload_skills()`（或 `POST /api/chat/skills/reload`）即可加载它；Docker 将 `./backend/app/skills/domains` 挂载为卷，因此技能内容无需重新构建镜像即可发布（参见 `docker-compose.yml`）。
+4. 验证：运行场景测试以及 `test_skills_router_get`。

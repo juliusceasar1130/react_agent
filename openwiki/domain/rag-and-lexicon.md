@@ -1,7 +1,7 @@
 ---
-type: Domain
-title: "RAG & DB Lexicon Retrieval"
-description: "Dual-backend retrieval (pgvector / Milvus hybrid) with optional NVIDIA rerank, the three-layer database lexicon (table DDL, dedup column values, row entities), and the feedback-driven golden-case pipeline."
+type: 领域
+title: "RAG 与数据库词典检索"
+description: "双后端检索（pgvector / Milvus 混合），支持可选 NVIDIA 重排序、三层数据库词典（表 DDL、去重列值、行实体）以及反馈驱动的黄金用例流水线。"
 tags: [domain, rag, milvus, pgvector, lexicon]
 openwiki:
   roles: [domain, integration]
@@ -16,56 +16,56 @@ openwiki:
   validation_commands: ["cd backend && python -m pytest tests/agent/vector tests/agent/test_retriever_async_contract.py -q"]
 ---
 
-# RAG & DB Lexicon Retrieval
+# RAG 与数据库词典检索
 
-`backend/app/agent/vector/` implements retrieval-augmented generation for the agent, wired through [BusinessRagMiddleware](../architecture/middleware-pipeline.md). Package docs: `backend/app/agent/vector/readme.md`; deeper design notes in `docs/llamaindex_rag/` and `docs/RAG开发包development/`.
+`backend/app/agent/vector/` 为智能体实现检索增强生成，并通过 [BusinessRagMiddleware](../architecture/middleware-pipeline.md) 接入。包文档：`backend/app/agent/vector/readme.md`；更深入的设计说明见 `docs/llamaindex_rag/` 和 `docs/RAG开发包development/`。
 
-## Backends (factory)
+## 后端（工厂）
 
-`create_business_retriever_and_reranker()` in `backend/app/agent/vector/factory.py` is the single seam:
+`create_business_retriever_and_reranker()`（位于 `backend/app/agent/vector/factory.py`）是唯一接缝：
 
-| `settings.rag_backend` | Retriever | Notes |
+| `settings.rag_backend` | 检索器 | 备注 |
 |---|---|---|
-| `pgvector` (default) | `PgVectorDocumentationRetriever` over `rag_store` (collection on `DATABASE_URL`, `baai/bge-m3`) | Synchronous store |
-| `milvus_hybrid` | `MilvusHybridRetriever` (LlamaIndex + Dense + BM25 + RRF, RRF k via `MILVUS_RRF_K`) | Lazy connection; embedding provider via `embedding_provider.py` (`EMBEDDING_PROVIDER` = `ollama` or `llama_cpp` Qwen3) |
-| unknown value | falls back to pgvector | logged warning |
+| `pgvector`（默认） | `PgVectorDocumentationRetriever`（基于 `rag_store`；`DATABASE_URL` 上的集合，使用 `baai/bge-m3`） | 同步存储 |
+| `milvus_hybrid` | `MilvusHybridRetriever`（LlamaIndex + 稠密 + BM25 + RRF，通过 `MILVUS_RRF_K` 设置 RRF k） | 延迟连接；嵌入提供器通过 `embedding_provider.py`（`EMBEDDING_PROVIDER` = `ollama` 或 `llama_cpp` Qwen3） |
+| 未知值 | 回退到 pgvector | 记录警告 |
 
-- Optional reranker: `NvidiaReranker` (`backend/app/agent/vector/rerank/`) when `RERANK_ENABLED=true` (`nvidia/rerank-qa-mistral-4b` by default).
-- `add_document_to_store(text, metadata)` writes golden SQL cases into whichever backend is active — this is the sink for the feedback pipeline below.
-- Async contract: `BaseRetriever` defines `aretrieve` defaulting to `retrieve`; concrete retrievers must implement it — verified by `backend/tests/agent/test_retriever_async_contract.py` (`test_milvus_hybrid_retriever_has_aretrieve`, `test_pgvector_retriever_has_aretrieve`).
+- 可选重排序器：当 `RERANK_ENABLED=true` 时，使用 `NvidiaReranker`（`backend/app/agent/vector/rerank/`），默认模型为 `nvidia/rerank-qa-mistral-4b`。
+- `add_document_to_store(text, metadata)` 将黄金 SQL 用例写入当前激活的后端——这是下文反馈流水线的落点。
+- 异步契约：`BaseRetriever` 定义默认回退到 `retrieve` 的 `aretrieve`；具体检索器必须实现它——由 `backend/tests/agent/test_retriever_async_contract.py`（`test_milvus_hybrid_retriever_has_aretrieve`、`test_pgvector_retriever_has_aretrieve`）验证。
 
-## Three-layer DB lexicon
+## 三层数据库词典
 
-`DatabaseLexiconRetriever` (`backend/app/agent/vector/sql_lexicon/retriever.py`) holds three Milvus collections, each a hybrid LlamaIndex index:
+`DatabaseLexiconRetriever`（`backend/app/agent/vector/sql_lexicon/retriever.py`）持有三个 Milvus 集合，每个都是混合 LlamaIndex 索引：
 
-1. `table_schema_store` — table DDL skeletons (populated from the live schema, see `sql_lexicon/pipeline/`).
-2. `db_value_lexicon` — deduplicated column values.
-3. `db_row_lexicon` — row-level physical value alignment.
+1. `table_schema_store` — 表 DDL 骨架（从实时 schema 填充，参见 `sql_lexicon/pipeline/`）。
+2. `db_value_lexicon` — 去重后的列值。
+3. `db_row_lexicon` — 行级物理值对齐。
 
-`retrieve_all(query)` runs the three lookups concurrently with per-layer exception isolation, returning `{"tables": [...], "values": [...], "rows": [...]}`. `BusinessRagMiddleware` calls it in the same round as document retrieval and writes the result into `RequestContext.lexicon_context` (see [state-and-context](../architecture/state-and-context.md)); the LLM-facing lexicon tools ([subagent-sql](../architecture/subagent-sql.md)) use the same retriever on demand.
+`retrieve_all(query)` 并发执行三个查找，并按层隔离异常，返回 `{"tables": [...], "values": [...], "rows": [...]}`。`BusinessRagMiddleware` 在文档检索的同一轮中调用它，并将结果写入 `RequestContext.lexicon_context`（参见 [state-and-context](../architecture/state-and-context.md)）；面向 LLM 的词典工具（[subagent-sql](../architecture/subagent-sql.md)）按需使用同一检索器。
 
-Startup sync: when `settings.db_lexicon_sync_on_startup` is true, `backend/app/main.py` triggers `start_metadata_lexicon_sync_async` (from `sql_lexicon/tasks.py`) during app lifespan.
+启动同步：当 `settings.db_lexicon_sync_on_startup` 为 true 时，`backend/app/main.py` 在应用生命周期期间触发 `start_metadata_lexicon_sync_async`（来自 `sql_lexicon/tasks.py`）。
 
-## Feedback-driven golden-case pipeline
+## 反馈驱动的黄金用例流水线
 
-This is the "self-evolving few-shot" loop:
+这是“自进化少样本”循环：
 
-1. **Collect** — frontend 👍/👎/⭐ buttons submit feedback via `POST /api/chat/messages/{id}/feedback` (`backend/app/routers/sessions.py`); `refined_payload` column stores drafts (`backend/app/models.py`).
-2. **Extract** — `DEFAULT_EXTRACTOR_PIPELINE` (`backend/app/agent/vector/rule_extractor.py`) filters candidate cases: `SafetyWarningFilter` (blocked keywords + `X-SQL-LINTER` markers), empty-result filtering, single/multi-step SQL extraction, clarification-turn topology back-tracing, domain isolation.
-3. **Refine** — `refine_sql_case_with_llm` (`backend/app/agent/vector/llm_refiner.py`) rewrites the intent and parameterizes/desensitizes the SQL; result stored to `refined_payload`.
-4. **Approve** — `POST /api/chat/admin/messages/{id}/approve` (`backend/app/routers/admin.py`) lets an admin edit the case, then calls `add_document_to_store` with `type="sql_example"`; `GET /api/chat/admin/messages/pending` lists collected items. Frontend: `AdminReviewPanel.vue`.
-5. **Reuse** — `search_saved_correct_tool_uses` (in [subagent-sql](../architecture/subagent-sql.md)) retrieves `doc_type="sql_example"` documents, domain-scoped by the active skill.
+1. **收集** — 前端 👍/👎/⭐ 按钮通过 `POST /api/chat/messages/{id}/feedback` 提交反馈（`backend/app/routers/sessions.py`）；`refined_payload` 列存储草稿（`backend/app/models.py`）。
+2. **提取** — `DEFAULT_EXTRACTOR_PIPELINE`（`backend/app/agent/vector/rule_extractor.py`）过滤候选用例：`SafetyWarningFilter`（被阻止关键词 + `X-SQL-LINTER` 标记）、空结果过滤、单步/多步 SQL 提取、澄清轮次拓扑回溯、领域隔离。
+3. **精炼** — `refine_sql_case_with_llm`（`backend/app/agent/vector/llm_refiner.py`）重写意图，并对 SQL 参数化/脱敏；结果存储到 `refined_payload`。
+4. **批准** — `POST /api/chat/admin/messages/{id}/approve`（`backend/app/routers/admin.py`）允许管理员编辑用例，然后调用 `add_document_to_store` 并传入 `type="sql_example"`；`GET /api/chat/admin/messages/pending` 列出已收集条目。前端：`AdminReviewPanel.vue`。
+5. **复用** — `search_saved_correct_tool_uses`（位于 [subagent-sql](../architecture/subagent-sql.md)）检索 `doc_type="sql_example"` 文档，并按当前激活技能限定领域范围。
 
-## Invariants & tests
+## 不变量与测试
 
-- `backend/tests/agent/vector/sql_lexicon/test_retriever.py::test_database_lexicon_retriever_retrieve_all` (all three layers, mocked store).
-- `backend/tests/agent/vector/sql_lexicon/test_rag_middleware.py` — RAG middleware integration around this retriever.
-- `backend/tests/agent/vector/sql_lexicon/test_sync_metadata.py::test_metadata_lexicon_synchronization` — lexicon sync task.
-- `backend/tests/agent/vector/test_skills_meta_whitelists.py` — domain `meta.py` whitelists used by lexicon extraction.
+- `backend/tests/agent/vector/sql_lexicon/test_retriever.py::test_database_lexicon_retriever_retrieve_all`（涵盖所有三层，使用模拟存储）。
+- `backend/tests/agent/vector/sql_lexicon/test_rag_middleware.py` — 围绕该检索器的 RAG 中间件集成测试。
+- `backend/tests/agent/vector/sql_lexicon/test_sync_metadata.py::test_metadata_lexicon_synchronization` — 词典同步任务。
+- `backend/tests/agent/vector/test_skills_meta_whitelists.py` — 词典提取使用的领域 `meta.py` 白名单。
 
-## Change recipe: switch or add a RAG backend
+## 变更配方：切换或新增 RAG 后端
 
-1. Implement `BaseRetriever` in `backend/app/agent/vector/<backend>/`; implement both `retrieve` and `aretrieve`.
-2. Register the backend string in `create_business_retriever_and_reranker` (`factory.py`); keep the unknown-value → pgvector fallback.
-3. If it uses LlamaIndex, configure embeddings through `embedding_provider.configure_llama_index_settings(settings)` before store creation.
-4. Validate: `cd backend && python -m pytest tests/agent/test_retriever_async_contract.py tests/agent/vector -q`.
+1. 在 `backend/app/agent/vector/<backend>/` 中实现 `BaseRetriever`；实现 `retrieve` 和 `aretrieve`。
+2. 在 `create_business_retriever_and_reranker`（`factory.py`）中注册后端字符串；保留未知值 → pgvector 的回退。
+3. 如果使用 LlamaIndex，请在创建存储之前通过 `embedding_provider.configure_llama_index_settings(settings)` 配置嵌入。
+4. 验证：`cd backend && python -m pytest tests/agent/test_retriever_async_contract.py tests/agent/vector -q`。

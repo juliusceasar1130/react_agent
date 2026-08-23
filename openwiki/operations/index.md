@@ -1,3 +1,3 @@
-# Files
+# 文件
 
-- [Deployment & Testing](deployment-and-testing.md) - How to run, deploy, and validate rearch_agent: dev commands, Docker Compose, dual-database env layout, artifact/Lexicon sync config, and the pytest baseline + markers.
+- [部署与测试](deployment-and-testing.md) - 如何运行、部署和验证 rearch_agent：开发命令、Docker Compose、双数据库环境布局、工件/词汇表同步配置，以及 pytest 基线 + 标记。

@@ -1,7 +1,7 @@
 ---
-type: Data Model
-title: "Data Model & Chat Persistence"
-description: "The SQLAlchemy data model for chat sessions and messages, dual-mode agent checkpoint persistence (PostgresSaver / AsyncPostgresSaver), and the artifact snapshot columns that power lossless rehydration."
+type: 数据模型
+title: "数据模型与聊天持久化"
+description: "聊天会话和消息的 SQLAlchemy 数据模型、双模式代理检查点持久化（PostgresSaver / AsyncPostgresSaver），以及支撑无损恢复的工件快照列。"
 tags: [data-model, persistence, postgres, sqlalchemy]
 openwiki:
   roles: [domain, data-model]
@@ -15,11 +15,11 @@ openwiki:
   validation_commands: ["cd backend && python -m pytest tests/test_tool_artifacts_persistence.py -q"]
 ---
 
-# Data Model & Chat Persistence
+# 数据模型与聊天持久化
 
-`backend/app/models.py` + `backend/app/database.py` own the relational persistence; agent state persistence (checkpoints) is a separate layer in [agent-service](../architecture/agent-service.md).
+`backend/app/models.py` 和 `backend/app/database.py` 负责关系型持久化；代理状态持久化（检查点）是 [代理服务](../architecture/agent-service.md) 中的独立层。
 
-## Entities
+## 实体
 
 ```mermaid
 erDiagram
@@ -44,32 +44,32 @@ erDiagram
     CHAT_SESSION ||--o{ CHAT_MESSAGE : owns
 ```
 
-_Caption: one `chat_sessions` row owns its `chat_messages` (UUID primary keys, `session_id` FK with cascade). The artifact/snapshot columns back rehydration._
+_说明：一条 `chat_sessions` 记录拥有其 `chat_messages`（UUID 主键，带级联的 `session_id` 外键）。工件/快照列用于支撑重新水化。_
 
-Key columns on `ChatMessage` (see [artifact-lifecycle](../workflows/artifact-lifecycle.md) for their producers):
-- `tool_artifacts` — JSON snapshot dict of `chart_spec` / `file_export` / `query_result` records, keyed by `tool_call_id`.
-- `subagents` — JSON snapshot of subagent session state (per `subagent_id`).
-- `refined_payload` — LLM-refined golden-case JSON (`rewritten_query`, `desensitized_sql`, `domain`) feeding the [RAG feedback pipeline](rag-and-lexicon.md#feedback-driven-golden-case-pipeline).
-- `feedback` — `none | like | dislike | collected | approved`.
+`ChatMessage` 上的关键列（其生产者见 [工件生命周期](../workflows/artifact-lifecycle.md)）：
+- `tool_artifacts` —— 以 `tool_call_id` 为键的 `chart_spec` / `file_export` / `query_result` 记录 JSON 快照字典。
+- `subagents` —— 按 `subagent_id` 划分的子代理会话状态 JSON 快照。
+- `refined_payload` —— 供 [RAG 反馈流水线](rag-and-lexicon.md#反馈驱动的黄金用例流水线) 使用的经 LLM 精炼的黄金案例 JSON（`rewritten_query`、`desensitized_sql`、`domain`）。
+- `feedback` —— `none | like | dislike | collected | approved`。
 
-`create_tables()` in `backend/app/database.py` runs `Base.metadata.create_all` then idempotently adds the `subagents` / `tool_artifacts` TEXT columns (`ADD COLUMN IF NOT EXISTS`).
+`backend/app/database.py` 中的 `create_tables()` 先运行 `Base.metadata.create_all`，然后幂等地添加 `subagents` / `tool_artifacts` TEXT 列（`ADD COLUMN IF NOT EXISTS`）。
 
-## Dual-mode agent checkpointing
+## 双模式代理检查点
 
-- **Local FastAPI** — `AsyncPostgresSaver` over `DATABASE_URL` (or sync `PostgresSaver` in the managed graph path); created in `SQLAgentService` (`_create_local_async_checkpointer` / `_create_local_checkpointer`).
-- **LangGraph managed** — the runtime injects `store` / `checkpointer`; `build_agent_graph` never binds them locally.
-- **Conversation history** is checkpoint-managed, so `backend/app/routers/chat.py` no longer manually loads history (it passes `thread_id=session_id`).
+- **本地 FastAPI** —— 基于 `DATABASE_URL` 的 `AsyncPostgresSaver`（在托管图路径中为同步 `PostgresSaver`）；在 `SQLAgentService` 中创建（`_create_local_async_checkpointer` / `_create_local_checkpointer`）。
+- **LangGraph 托管** —— 运行时注入 `store` / `checkpointer`；`build_agent_graph` 不会在本地绑定它们。
+- **会话历史** 由检查点管理，因此 `backend/app/routers/chat.py` 不再手动加载历史（它传入 `thread_id=session_id`）。
 
-Transient RAG/lexicon data is deliberately **not** checkpointed — it rides the Context API ([state-and-context](../architecture/state-and-context.md)), keeping snapshots small.
+瞬态 RAG/词汇集数据有意**未**被检查点化——它经由 Context API 传递（[状态与上下文](../architecture/state-and-context.md)），以保持快照较小。
 
-## Invariants & tests
+## 不变量与测试
 
-- Snapshot + collision-free multi-artifact persistence: `backend/tests/test_tool_artifacts_persistence.py` (`test_tool_artifacts_model_and_crud`, `test_tool_artifact_stream_events`, `test_multi_artifact_same_subagent_collision_free`).
-- Checkpoint/pollution behavior: `backend/tests/agent/test_persistence_integration.py::test_agent_persistence_without_message_pollution` (`@pytest.mark.integration` — needs live infra, skipped by default).
+- 快照 + 无冲突的多工件持久化：`backend/tests/test_tool_artifacts_persistence.py`（`test_tool_artifacts_model_and_crud`、`test_tool_artifact_stream_events`、`test_multi_artifact_same_subagent_collision_free`）。
+- 检查点/污染行为：`backend/tests/agent/test_persistence_integration.py::test_agent_persistence_without_message_pollution`（`@pytest.mark.integration` —— 需要实际基础设施，默认跳过）。
 
-## Change recipe: add a persisted message field
+## 变更配方：添加持久化消息字段
 
-1. Add the column to `ChatMessage` in `backend/app/models.py`.
-2. If it is new, add an idempotent `ALTER TABLE ... ADD COLUMN IF NOT EXISTS` in `create_tables()` (`backend/app/database.py`) so existing databases migrate without Alembic.
-3. Mirror it in the Pydantic `MessageBase` in `backend/app/schemas.py` (keep `from_attributes=True`).
-4. Validate with `tests/test_tool_artifacts_persistence.py` (add a CRUD assertion for the new field).
+1. 在 `backend/app/models.py` 的 `ChatMessage` 中添加该列。
+2. 如果是新列，在 `create_tables()`（`backend/app/database.py`）中添加幂等的 `ALTER TABLE ... ADD COLUMN IF NOT EXISTS`，使现有数据库无需 Alembic 即可迁移。
+3. 在 `backend/app/schemas.py` 的 Pydantic `MessageBase` 中同步镜像（保持 `from_attributes=True`）。
+4. 使用 `tests/test_tool_artifacts_persistence.py` 验证（为新字段添加 CRUD 断言）。

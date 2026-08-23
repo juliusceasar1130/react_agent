@@ -1,3 +1,3 @@
-# Files
+# 文件
 
-- [Vue 3 Chat Frontend](chat-app.md) - The Vue 3 + Pinia + Vite chat SPA: streaming sync into per-session message state, subagent card rendering, artifact card rehydration, the question navigation rail, and the scenario/feedback UI.
+- [Vue 3 聊天前端](chat-app.md) - 基于 Vue 3 + Pinia + Vite 的聊天单页应用（SPA）：将流式事件同步到按会话划分的消息状态，渲染子代理卡片、恢复产物卡片状态、提供问题导航栏，以及场景/反馈界面。

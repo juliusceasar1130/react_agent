@@ -1,5 +1,5 @@
-# Files
+# 文件
 
-- [Artifact Side-Channel & Lifecycle](artifact-lifecycle.md) - The unified ArtifactStore: atomic writes, TTL + scheduled GC, path-traversal whitelist, and the side-channel flow that moves chart/CSV/query-result data out of the LLM context and into lossless UI rehydration.
-- [Clarification Flow (AskUserQuestion / HITL)](clarification-flow.md) - Human-in-the-loop clarification: the AskUserQuestion tool suspends the graph via LangGraph interrupt, emits an interrupt SSE event, and POST /api/chat/resume resumes it with the user's answers.
-- [SSE Streaming Protocol](streaming-protocol.md) - The structured SSE event protocol (token, reasoning, status, tool_call, tool_result, rag_context, lexicon_context, tool_artifact, subagent_change, plan_update, interrupt, final, error) and its dual registration on backend and frontend.
+- [工件旁路通道与生命周期](artifact-lifecycle.md) - 统一的 ArtifactStore：原子写入、TTL + 定时 GC、路径穿越白名单，以及将图表/CSV/查询结果数据从 LLM 上下文移出并转入无损 UI 重新水合的旁路流程。
+- [澄清流程（AskUserQuestion / HITL）](clarification-flow.md) - 人在环路中的澄清：AskUserQuestion 工具通过 LangGraph interrupt 暂停图，发出 interrupt SSE 事件，并通过 POST /api/chat/resume 携带用户答案恢复执行。
+- [SSE 流式传输协议](streaming-protocol.md) - 结构化的 SSE 事件协议（token、reasoning、status、tool_call、tool_result、rag_context、lexicon_context、tool_artifact、subagent_change、plan_update、interrupt、final、error）及其在后端和前端的双重注册。

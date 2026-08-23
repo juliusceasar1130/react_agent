@@ -1,10 +1,10 @@
-# CLAUDE.md
+# AGENTS.md
 
 ## 项目概述
 
-面向生产数据查询场景的**大模型聊天会话管理系统**（SQL Agent + Skills + RAG），基于 FastAPI + LangChain/LangGraph + Vue 3 构建。
+面向生产数据查询场景的**大模型聊天会话管理系统**，基于 FastAPI + LangGraph **DeepAgent**（主协调代理 + 编译型 SQL 领域子代理）+ Vue 3 构建。
 
-核心能力：多会话聊天 UI、SQL Agent 查询分析、Skills 领域知识加载、PGVector/Milvus 检索增强、结构化 SSE 流式输出、Agent 状态持久化。
+核心能力：多会话聊天 UI、DeepAgent 协同（主协调 + SQL 领域子代理）、Skills 领域知识动态加载、PGVector/Milvus 与三层数据库术语表检索增强、结构化 SSE 流式输出、人在回路澄清、Agent 状态持久化及旁路工件存储（图表/CSV/表格）。
 
 ## 开发环境
 
@@ -15,27 +15,31 @@ conda activate py312_agent
 常用命令：
 
 ```bash
-# 后端
+# 后端 (FastAPI 本地模式)
 uvicorn backend.app.main:app --reload --host 0.0.0.0 --port 8000
+# 或运行根目录脚本: python run_backend.py / start_backend.bat
 
 # 前端
 cd frontend && npm run dev
 
-# LangGraph Dev
+# LangGraph Dev (托管调试模式)
 langgraph dev --allow-blocking
+# Windows 下可直接运行 start_langgraph_dev.bat
 ```
 
-Windows 下可直接运行 `start_langgraph_dev.bat`。
+## 文档索引（OpenWiki 知识库）
 
-## 文档索引
+在开始工作前，优先查阅 OpenWiki 结构化文档与任务路由：
 
-在开始工作前，根据任务类型读取相关文档：
-
-- `agent_docs/architecture.md` — 项目架构速览、后端/前端主链路、技术栈、目录结构（修改跨模块代码时读取）
-- `agent_docs/persistence_and_streaming.md` — 持久化双模式与 SSE 流式协议（修改 Agent 持久化或流式逻辑时读取）
-- `agent_docs/skills_guide.md` — Skills 开发约定（开发或修改 Skills 时读取，权威规范参阅 `docs/skills/scenario_architecture_spec.md`）
-- `agent_docs/data_dictionary_guide.md` — 数据字典设计约定（修改数据字典功能时读取）
-- `openspec/project.md` — proposal / spec / plan / 架构性变更时优先查看
+- **快速上手与任务路由表**：`openwiki/quickstart.md` — 知识库总入口，包含源码入口、关键符号、聚焦测试与最小验证指令
+- **系统架构**：`openwiki/architecture/overview.md` — 运行时拓扑、双持久化模式、代理装配与中间件流水线
+- **提示词与契约**：`openwiki/architecture/agent-prompts.md` — 模板化提示词加载与主↔子代理协作契约
+- **领域技能与场景**：`openwiki/domain/skills-and-scenarios.md` — 领域技能开发（权威规范参阅 `docs/skills/scenario_architecture_spec.md`）
+- **RAG 与术语表**：`openwiki/domain/rag-and-lexicon.md` — 向量检索与三层数据库术语表机制
+- **流协议与工作流**：`openwiki/workflows/streaming-protocol.md`（SSE 流式协议）、`openwiki/workflows/clarification-flow.md`（澄清循环）、`openwiki/workflows/artifact-lifecycle.md`（工件旁路）
+- **前端开发**：`openwiki/frontend/chat-app.md` — Vue 3 单页应用组件与状态管理
+- **部署与测试**：`openwiki/operations/deployment-and-testing.md` — 运行配置与测试规范
+- **架构变更提案**：`openspec/project.md` — 架构性提案/规范/计划
 
 ## 开发约定
 

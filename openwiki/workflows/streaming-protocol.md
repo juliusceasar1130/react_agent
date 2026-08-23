@@ -1,7 +1,7 @@
 ---
-type: Workflow
-title: "SSE Streaming Protocol"
-description: "The structured SSE event protocol (token, reasoning, status, tool_call, tool_result, rag_context, lexicon_context, tool_artifact, subagent_change, plan_update, interrupt, final, error) and its dual registration on backend and frontend."
+type: 工作流
+title: "SSE 流式传输协议"
+description: "结构化的 SSE 事件协议（token、reasoning、status、tool_call、tool_result、rag_context、lexicon_context、tool_artifact、subagent_change、plan_update、interrupt、final、error）及其在后端和前端的双重注册。"
 tags: [workflow, streaming, sse, protocol]
 openwiki:
   roles: [workflow, runtime]
@@ -15,24 +15,24 @@ openwiki:
   validation_commands: ["cd backend && python -m pytest tests/test_routers_coverage.py tests/agent/test_subagent_stream_scoping.py -q"]
 ---
 
-# SSE Streaming Protocol
+# SSE 流式传输协议
 
-The streaming path is the core user-facing contract. Events are defined as a Pydantic discriminated union `ChatStreamEvent` in `backend/app/schemas.py` and consumed by a TypeScript mirror in `frontend/src/api/chat.ts` + `frontend/src/types/index.ts`.
+流式处理路径是核心面向用户的契约。事件定义为 `backend/app/schemas.py` 中的 Pydantic 可区分联合类型 `ChatStreamEvent`，并由 `frontend/src/api/chat.ts` + `frontend/src/types/index.ts` 中的 TypeScript 镜像消费。
 
-## Event union (from `backend/app/schemas.py`)
+## 事件联合类型（来自 `backend/app/schemas.py`）
 
-`token`, `reasoning`, `status` (stage ∈ thinking/retrieving/querying/writing), `tool_call`, `tool_result`, `final`, `error`, `interrupt`, `rag_context`, `lexicon_context`, `tool_artifact`, `subagent_change`, `plan_update`.
+`token`、`reasoning`、`status`（stage ∈ thinking/retrieving/querying/writing）、`tool_call`、`tool_result`、`final`、`error`、`interrupt`、`rag_context`、`lexicon_context`、`tool_artifact`、`subagent_change`、`plan_update`。
 
-- `serialize_chat_stream_event(event)` validates any event against the `ChatStreamEvent` `TypeAdapter` and `model_dump(mode="json", exclude_none=True)` it. This is the single serialization boundary — the router calls it before writing `data: ...` SSE frames (`backend/app/routers/chat.py::_encode_sse`).
-- Subagent-aware fields (`subagent_id`, `subagent_name`) ride most event payloads so the frontend can partition frames by subagent.
+- `serialize_chat_stream_event(event)` 会依据 `ChatStreamEvent` `TypeAdapter` 校验任意事件，并调用 `model_dump(mode="json", exclude_none=True)` 对其进行序列化。这是唯一的序列化边界——路由在写入 `data: ...` SSE 帧之前调用它（`backend/app/routers/chat.py::_encode_sse`）。
+- 支持子代理的字段（`subagent_id`、`subagent_name`）会随大多数事件载荷传递，使前端能够按子代理划分帧。
 
-## Endpoints
+## 端点
 
-- `POST /api/chat/stream` — main stream (`backend/app/routers/chat.py::stream_message_post`); aggregates `tool_calls` / `tool_results` / `tool_artifacts` and persists the assistant message on the `final`/`error` path.
-- `POST /api/chat/resume` — resumes a suspended clarification (see [clarification-flow](clarification-flow.md)).
-- `POST /api/chat/message` — non-streaming path (same aggregation, no SSE).
+- `POST /api/chat/stream` — 主流式端点（`backend/app/routers/chat.py::stream_message_post`）；聚合 `tool_calls` / `tool_results` / `tool_artifacts`，并在 `final`/`error` 路径上持久化助手消息。
+- `POST /api/chat/resume` — 恢复挂起的澄清流程（参见 [clarification-flow](clarification-flow.md)）。
+- `POST /api/chat/message` — 非流式路径（相同聚合，不使用 SSE）。
 
-## Sequence
+## 时序
 
 ```mermaid
 sequenceDiagram
@@ -53,29 +53,29 @@ sequenceDiagram
     R-->>C: "DONE marker"
 ```
 
-_Caption: one streaming request from the Vue app through the router and service adapter into the agent graph, with artifact side-channels and SSE frames flowing back._
+_说明：一个来自 Vue 应用的流式请求，经由路由器和服务适配器进入代理图，伴随产物旁路通道和 SSE 帧回流。_
 
-## Dual registration contract (repository-wide invariant)
+## 双重注册约定（仓库级不变量）
 
-Adding a new event type requires **both** sides, or the frontend network layer silently drops it (`AGENTS.md` documents this):
+新增事件类型需要 **两侧** 同时实现，否则前端网络层会静默丢弃它（`AGENTS.md` 中有说明）：
 
-- **Backend**: add the `BaseModel` + include it in the `ChatStreamEvent` union (`backend/app/schemas.py`); emit it via `emit_stream_event` / the agent.
-- **Frontend** — three places (`frontend/src/api/chat.ts` + `frontend/src/types/index.ts`):
-  1. The `StreamEvent` union type in `@/types`.
-  2. The `STREAM_EVENT_TYPES` whitelist `Set` in `frontend/src/api/chat.ts`.
-  3. The `parseStreamEvent` `switch` branch in `frontend/src/api/chat.ts`.
+- **后端**：新增 `BaseModel`，并将其加入 `ChatStreamEvent` 联合类型（`backend/app/schemas.py`）；通过 `emit_stream_event` / 代理发出该事件。
+- **前端** —— 三个位置（`frontend/src/api/chat.ts` + `frontend/src/types/index.ts`）：
+  1. `@/types` 中的 `StreamEvent` 联合类型。
+  2. `frontend/src/api/chat.ts` 中 `STREAM_EVENT_TYPES` 白名单 `Set`。
+  3. `frontend/src/api/chat.ts` 中 `parseStreamEvent` 的 `switch` 分支。
 
-The `parseStreamEvent` runtime guard rejects any event whose `type` is not in `STREAM_EVENT_TYPES` (this is the "silent filter" defense against unknown events).
+`parseStreamEvent` 的运行时守卫会拒绝任何 `type` 不在 `STREAM_EVENT_TYPES` 中的事件（这是针对未知事件的“静默过滤”防线）。
 
-## Invariants & tests
+## 不变量与测试
 
-- SSE encode helper + subagent scoping: `backend/tests/test_routers_coverage.py` (`test_encode_sse_helper`, `test_encode_sse_subagent_change`), `backend/tests/agent/test_subagent_stream_scoping.py` (`test_serialize_tool_calls_keeps_subagent_metadata`, `test_status_signature_distinguishes_subagent`).
-- Reasoning event schema: `backend/tests/agent/test_sse_reasoning_events.py`.
-- Full stream flows incl. tool_artifact + interrupt: `backend/tests/test_routers_coverage.py::test_chat_stream_endpoint_with_tool_artifact_and_interrupt`.
+- SSE 编码辅助函数 + 子代理作用域：`backend/tests/test_routers_coverage.py`（`test_encode_sse_helper`、`test_encode_sse_subagent_change`）、`backend/tests/agent/test_subagent_stream_scoping.py`（`test_serialize_tool_calls_keeps_subagent_metadata`、`test_status_signature_distinguishes_subagent`）。
+- 推理事件 schema：`backend/tests/agent/test_sse_reasoning_events.py`。
+- 完整流式流程（含 tool_artifact + interrupt）：`backend/tests/test_routers_coverage.py::test_chat_stream_endpoint_with_tool_artifact_and_interrupt`。
 
-## Change recipe: add a new stream event
+## 变更步骤：新增流式事件
 
-1. Add the `BaseModel` subclass and append it to the `ChatStreamEvent` union in `backend/app/schemas.py`.
-2. Emit it from the agent/service layer (via `emit_stream_event` in `backend/app/agent/utils/streaming.py` or directly in `chat_service.py`).
-3. Mirror on the frontend: `StreamEvent` union → `STREAM_EVENT_TYPES` set → `parseStreamEvent` case (all in `frontend/src/api/chat.ts` / `frontend/src/types/index.ts`).
-4. Validate: `cd backend && python -m pytest tests/test_routers_coverage.py tests/agent/test_subagent_stream_scoping.py -q` and `cd frontend && npx vue-tsc --noEmit`.
+1. 新增 `BaseModel` 子类，并将其追加到 `backend/app/schemas.py` 的 `ChatStreamEvent` 联合类型中。
+2. 从代理/服务层发出该事件（通过 `backend/app/agent/utils/streaming.py` 中的 `emit_stream_event`，或直接写入 `chat_service.py`）。
+3. 在前端同步镜像：`StreamEvent` 联合类型 → `STREAM_EVENT_TYPES` 集合 → `parseStreamEvent` 分支（均位于 `frontend/src/api/chat.ts` / `frontend/src/types/index.ts`）。
+4. 验证：`cd backend && python -m pytest tests/test_routers_coverage.py tests/agent/test_subagent_stream_scoping.py -q` 以及 `cd frontend && npx vue-tsc --noEmit`。

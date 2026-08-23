@@ -1,5 +1,5 @@
-# Files
+# 文件
 
-- [Data Model & Chat Persistence](data-model-and-persistence.md) - The SQLAlchemy data model for chat sessions and messages, dual-mode agent checkpoint persistence (PostgresSaver / AsyncPostgresSaver), and the artifact snapshot columns that power lossless rehydration.
-- [RAG & DB Lexicon Retrieval](rag-and-lexicon.md) - Dual-backend retrieval (pgvector / Milvus hybrid) with optional NVIDIA rerank, the three-layer database lexicon (table DDL, dedup column values, row entities), and the feedback-driven golden-case pipeline.
-- [Skills & Scenarios (Domain Knowledge Layer)](skills-and-scenarios.md) - Directory-convention-driven discovery of domain skills and scenario skills, their registry/reload, and the LLM-free direct-path scenario engine that serves fixed queries in milliseconds.
+- [数据模型与聊天持久化](data-model-and-persistence.md) - 聊天会话和消息的 SQLAlchemy 数据模型、双模式代理检查点持久化（PostgresSaver / AsyncPostgresSaver），以及支撑无损恢复的工件快照列。
+- [RAG 与数据库词典检索](rag-and-lexicon.md) - 双后端检索（pgvector / Milvus 混合），支持可选 NVIDIA 重排序、三层数据库词典（表 DDL、去重列值、行实体）以及反馈驱动的黄金用例流水线。
+- [技能与场景（领域知识层）](skills-and-scenarios.md) - 通过目录约定驱动发现领域技能与场景技能，并管理其注册表/重载；同时提供无需 LLM 的直接路径场景引擎，可在毫秒内处理固定查询。

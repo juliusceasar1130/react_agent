@@ -2,11 +2,11 @@
 okf_version: "0.1"
 ---
 
-# Files
+# 文件
 
-- [OpenWiki Quickstart — rearch_agent](quickstart.md) - Entry point to the rearch_agent knowledge base: what the system is, how the wiki is organized, and a task-routing table to reach the owning source, symbols, focused tests, and minimal validation for a change.
+- [OpenWiki 快速上手 — rearch_agent](quickstart.md) - rearch_agent 知识库的入口：说明系统是什么、Wiki 如何组织，以及提供一张任务路由表，用于定位变更所归属的源代码、符号、聚焦测试和最小验证。
 
-# Directories
+# 目录
 
 - [architecture](architecture/)
 - [domain](domain/)

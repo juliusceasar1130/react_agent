@@ -1,60 +1,61 @@
 ---
-type: Quickstart
-title: "OpenWiki Quickstart — rearch_agent"
-description: "Entry point to the rearch_agent knowledge base: what the system is, how the wiki is organized, and a task-routing table to reach the owning source, symbols, focused tests, and minimal validation for a change."
+type: 快速上手
+title: "OpenWiki 快速上手 — rearch_agent"
+description: "rearch_agent 知识库的入口：说明系统是什么、Wiki 如何组织，以及提供一张任务路由表，用于定位变更所归属的源代码、符号、聚焦测试和最小验证。"
 tags: [quickstart, navigation]
 openwiki:
   roles: [repository]
   change_kinds: [navigation]
 ---
 
-# OpenWiki Quickstart — rearch_agent
+# OpenWiki 快速上手 — rearch_agent
 
-**rearch_agent** is a production data-query chat system: a FastAPI + LangGraph **DeepAgent** backend (a main coordinator agent plus a compiled **SQL domain subagent**) answers business questions against a PostgreSQL analytics database, with domain Skills, RAG + a three-layer DB lexicon, structured SSE streaming, human-in-the-loop clarification, and a unified artifact store for charts/CSV/tables. The frontend is a Vue 3 + Pinia SPA.
+**rearch_agent** 是一个生产级数据查询聊天系统：一个 FastAPI + LangGraph **DeepAgent** 后端（一个主协调代理加上一个编译后的 **SQL 领域子代理**）针对 PostgreSQL 分析数据库回答业务问题，具备领域技能、RAG + 三层数据库术语表、结构化 SSE 流、人在回路澄清，以及用于图表/CSV/表格的统一工件存储。前端是一个 Vue 3 + Pinia 单页应用。
 
-## How this wiki is organized
+## 本 Wiki 的组织方式
 
-- **[Architecture](architecture/overview.md)** — the runtime topology, dual persistence modes, and the agent assembly / state / subagent / middleware / tool subsystems; the file-backed system prompt templates and their main↔subagent collaboration contract live in [agent-prompts](architecture/agent-prompts.md).
-- **[Domain](domain/skills-and-scenarios.md)** — skills & scenarios, RAG & lexicon, and the chat data model.
-- **[Workflows](workflows/streaming-protocol.md)** — cross-component flows: SSE streaming, the clarification loop, and the artifact side-channel.
-- **[Frontend](frontend/chat-app.md)** — the Vue SPA.
-- **[Operations](operations/deployment-and-testing.md)** — how to run, deploy, and validate.
+- **[架构](architecture/overview.md)** — 运行时拓扑、双重持久化模式，以及代理装配 / 状态 / 子代理 / 中间件 / 工具子系统；基于文件的系统提示模板及其主↔子代理协作契约位于 [代理提示](architecture/agent-prompts.md)。
+- **[领域](domain/skills-and-scenarios.md)** — 技能与场景、RAG 与术语表，以及聊天数据模型。
+- **[工作流](workflows/streaming-protocol.md)** — 跨组件流程：SSE 流、澄清循环，以及工件旁路通道。
+- **[前端](frontend/chat-app.md)** — Vue 单页应用。
+- **[运维](operations/deployment-and-testing.md)** — 如何运行、部署和验证。
 
-Each page lists its owning source paths, key symbols, invariants, focused tests, and a change recipe, so you can navigate from intent to code without a repo-wide search.
+每个页面都列出其所属源码路径、关键符号、不变量、聚焦测试和变更操作指南，因此你可以无需全仓库搜索即可从意图导航到代码。
 
-## Task routing table
+## 任务路由表
 
-| Change area / intent | Wiki page | Source entry points | Key symbols / types | Focused tests | Minimal validation |
+| 变更区域 / 意图 | Wiki 页面 | 源代码入口 | 关键符号 / 类型 | 聚焦测试 | 最小验证 |
 |---|---|---|---|---|---|
-| Add a tool / harden a SQL guard | [tools-and-sql-linter](architecture/tools-and-sql-linter.md) | `backend/app/agent/subagents/sql/tools.py`, `backend/app/agent/utils/sql_linter.py` | `create_wrapped_query_tool`, `SQLLinter`, `ToolNames` | `tests/agent/test_tools_main_and_subagent_compatibility.py`, `tests/agent/tools/` | `cd backend && python -m pytest tests/agent/test_tools_main_and_subagent_compatibility.py tests/agent/tools -q` |
-| Add a domain skill / scenario | [skills-and-scenarios](domain/skills-and-scenarios.md) | `backend/app/skills/domains/`, `backend/app/routers/scenarios.py` | `reload_skills`, `discover_domains`, `resolve_params` | `tests/test_scenario_quick_panel_api.py` | `cd backend && python -m pytest tests/test_scenario_quick_panel_api.py tests/test_scenario_quick_panel_engine.py -q` |
-| Add a middleware / change prompt compilation | [middleware-pipeline](architecture/middleware-pipeline.md) | `backend/app/agent/middleware/`, `backend/app/agent/service.py` | `SkillMiddleware`, `PromptCompilerMiddleware`, `_build_agent_components` | `tests/agent/middleware/`, `tests/agent/vector/sql_lexicon/test_rag_middleware.py` | `cd backend && python -m pytest tests/agent/middleware tests/agent/vector/sql_lexicon/test_rag_middleware.py -q` |
-| Edit the system prompts / main↔subagent collaboration contract | [agent-prompts](architecture/agent-prompts.md) | `backend/app/agent/prompts/main_system_prompt.md`, `backend/app/agent/subagents/sql/base_system_prompt.md`, `backend/app/agent/utils/system_prompt_loader.py` | `SystemPromptLoader`, `_build_main_system_prompt`, `_build_system_prompt` | `tests/agent/test_main_system_prompt.py`, `tests/agent/utils/test_system_prompt_loader.py` | `cd backend && python -m pytest tests/agent/test_main_system_prompt.py tests/agent/utils/test_system_prompt_loader.py -q` |
-| Switch or extend the LLM / token engine | [agent-service](architecture/agent-service.md) | `backend/app/agent/llm.py`, `backend/app/agent/service.py` | `_create_llm`, `ReasoningAwareChatDeepSeek`, `VllmTokenEstimator` | `tests/agent/test_chat_deepseek_integration.py` | `cd backend && python -m pytest tests/agent/test_chat_deepseek_integration.py -q` |
-| Add a stream event type | [streaming-protocol](workflows/streaming-protocol.md) | `backend/app/schemas.py`, `frontend/src/api/chat.ts`, `frontend/src/types/index.ts` | `ChatStreamEvent`, `STREAM_EVENT_TYPES`, `parseStreamEvent` | `tests/test_routers_coverage.py`, `tests/agent/test_subagent_stream_scoping.py` | `cd backend && python -m pytest tests/test_routers_coverage.py -q && cd frontend && npx vue-tsc --noEmit` |
-| Add a new artifact kind | [artifact-lifecycle](workflows/artifact-lifecycle.md) | `backend/app/artifacts/`, `backend/app/routers/artifacts.py` | `ArtifactKind`, `ArtifactStore`, `get_artifact_store` | `tests/agent/test_artifact_store_lifecycle.py`, `tests/test_tool_artifacts_persistence.py` | `cd backend && python -m pytest tests/agent/test_artifact_store_lifecycle.py tests/test_tool_artifacts_persistence.py -q` |
-| Change state / context sandboxing | [state-and-context](architecture/state-and-context.md) | `backend/app/agent/state.py`, `backend/app/agent/context.py` | `CustomState`, `SqlSubAgentState`, `RequestContext` | `tests/agent/test_state_sandboxing_concurrency.py`, `tests/agent/test_context_api_transient_flow.py` | `cd backend && python -m pytest tests/agent/test_state_sandboxing_concurrency.py tests/agent/test_context_api_transient_flow.py -q` |
-| Switch RAG backend / lexicon | [rag-and-lexicon](domain/rag-and-lexicon.md) | `backend/app/agent/vector/factory.py`, `backend/app/agent/vector/sql_lexicon/` | `create_business_retriever_and_reranker`, `DatabaseLexiconRetriever` | `tests/agent/vector/`, `tests/agent/test_retriever_async_contract.py` | `cd backend && python -m pytest tests/agent/vector tests/agent/test_retriever_async_contract.py -q` |
-| Add a persisted message field | [data-model-and-persistence](domain/data-model-and-persistence.md) | `backend/app/models.py`, `backend/app/database.py`, `backend/app/schemas.py` | `ChatMessage`, `create_tables` | `tests/test_tool_artifacts_persistence.py` | `cd backend && python -m pytest tests/test_tool_artifacts_persistence.py -q` |
-| Clarification / resume behavior | [clarification-flow](workflows/clarification-flow.md) | `backend/app/agent/tools/ask_user_question.py`, `backend/app/routers/chat.py` | `AskUserQuestion`, `QuestionItem`, `stream_message_resume` | `tests/test_routers_coverage.py` | `cd backend && python -m pytest tests/test_routers_coverage.py -q` |
-| Frontend message-card / subagent UI | [chat-app](frontend/chat-app.md) | `frontend/src/components/chat/`, `frontend/src/stores/messages.ts` | `useMessagesStore`, `SubagentCard`, `reconstructSubagents` | — (no frontend unit tests) | `cd frontend && npx vue-tsc --noEmit` |
-| Chat navigation / question rail / scroll positioning | [chat-app — Question navigation rail](frontend/chat-app.md#question-navigation-rail) | `frontend/src/components/chat/QuestionRail.vue`, `frontend/src/composables/useScrollSpy.ts`, `frontend/src/components/chat/MessageList.vue` | `QuestionRail`, `useScrollSpy`, `UserQuestionItem`, `scrollToMessage` | — (no frontend unit tests) | `cd frontend && npx vue-tsc --noEmit` |
-| Run / deploy / configure | [deployment-and-testing](operations/deployment-and-testing.md) | `docker-compose.yml`, `run_backend.py`, `backend/app/config.py` | `Settings`, `langgraph.json` | `tests/smoke/` (conditional) | `cd backend && python -m pytest -q` |
+| 添加工具 / 加固 SQL 防护 | [工具与 SQL 检查器](architecture/tools-and-sql-linter.md) | `backend/app/agent/subagents/sql/tools.py`, `backend/app/agent/utils/sql_linter.py` | `create_wrapped_query_tool`, `SQLLinter`, `ToolNames` | `tests/agent/test_tools_main_and_subagent_compatibility.py`, `tests/agent/tools/` | `cd backend && python -m pytest tests/agent/test_tools_main_and_subagent_compatibility.py tests/agent/tools -q` |
+| 添加领域技能 / 场景 | [技能与场景](domain/skills-and-scenarios.md) | `backend/app/skills/domains/`, `backend/app/routers/scenarios.py` | `reload_skills`, `discover_domains`, `resolve_params` | `tests/test_scenario_quick_panel_api.py` | `cd backend && python -m pytest tests/test_scenario_quick_panel_api.py tests/test_scenario_quick_panel_engine.py -q` |
+| 添加中间件 / 变更提示编译 | [中间件流水线](architecture/middleware-pipeline.md) | `backend/app/agent/middleware/`, `backend/app/agent/service.py` | `SkillMiddleware`, `PromptCompilerMiddleware`, `_build_agent_components` | `tests/agent/middleware/`, `tests/agent/vector/sql_lexicon/test_rag_middleware.py` | `cd backend && python -m pytest tests/agent/middleware tests/agent/vector/sql_lexicon/test_rag_middleware.py -q` |
+| 编辑系统提示 / 主↔子代理协作契约 | [代理提示](architecture/agent-prompts.md) | `backend/app/agent/prompts/main_system_prompt.md`, `backend/app/agent/subagents/sql/base_system_prompt.md`, `backend/app/agent/utils/system_prompt_loader.py` | `SystemPromptLoader`, `_build_main_system_prompt`, `_build_system_prompt` | `tests/agent/test_main_system_prompt.py`, `tests/agent/utils/test_system_prompt_loader.py` | `cd backend && python -m pytest tests/agent/test_main_system_prompt.py tests/agent/utils/test_system_prompt_loader.py -q` |
+| 切换或扩展 LLM / 令牌引擎 | [代理服务](architecture/agent-service.md) | `backend/app/agent/llm.py`, `backend/app/agent/service.py` | `_create_llm`, `ReasoningAwareChatDeepSeek`, `VllmTokenEstimator` | `tests/agent/test_chat_deepseek_integration.py` | `cd backend && python -m pytest tests/agent/test_chat_deepseek_integration.py -q` |
+| 添加流事件类型 | [流协议](workflows/streaming-protocol.md) | `backend/app/schemas.py`, `frontend/src/api/chat.ts`, `frontend/src/types/index.ts` | `ChatStreamEvent`, `STREAM_EVENT_TYPES`, `parseStreamEvent` | `tests/test_routers_coverage.py`, `tests/agent/test_subagent_stream_scoping.py` | `cd backend && python -m pytest tests/test_routers_coverage.py -q && cd frontend && npx vue-tsc --noEmit` |
+| 添加新的工件类型 | [工件生命周期](workflows/artifact-lifecycle.md) | `backend/app/artifacts/`, `backend/app/routers/artifacts.py` | `ArtifactKind`, `ArtifactStore`, `get_artifact_store` | `tests/agent/test_artifact_store_lifecycle.py`, `tests/test_tool_artifacts_persistence.py` | `cd backend && python -m pytest tests/agent/test_artifact_store_lifecycle.py tests/test_tool_artifacts_persistence.py -q` |
+| 变更状态 / 上下文沙箱隔离 | [状态与上下文](architecture/state-and-context.md) | `backend/app/agent/state.py`, `backend/app/agent/context.py` | `CustomState`, `SqlSubAgentState`, `RequestContext` | `tests/agent/test_state_sandboxing_concurrency.py`, `tests/agent/test_context_api_transient_flow.py` | `cd backend && python -m pytest tests/agent/test_state_sandboxing_concurrency.py tests/agent/test_context_api_transient_flow.py -q` |
+| 切换 RAG 后端 / 术语表 | [RAG 与术语表](domain/rag-and-lexicon.md) | `backend/app/agent/vector/factory.py`, `backend/app/agent/vector/sql_lexicon/` | `create_business_retriever_and_reranker`, `DatabaseLexiconRetriever` | `tests/agent/vector/`, `tests/agent/test_retriever_async_contract.py` | `cd backend && python -m pytest tests/agent/vector tests/agent/test_retriever_async_contract.py -q` |
+| 添加持久化消息字段 | [数据模型与持久化](domain/data-model-and-persistence.md) | `backend/app/models.py`, `backend/app/database.py`, `backend/app/schemas.py` | `ChatMessage`, `create_tables` | `tests/test_tool_artifacts_persistence.py` | `cd backend && python -m pytest tests/test_tool_artifacts_persistence.py -q` |
+| 澄清 / 恢复行为 | [澄清流程](workflows/clarification-flow.md) | `backend/app/agent/tools/ask_user_question.py`, `backend/app/routers/chat.py` | `AskUserQuestion`, `QuestionItem`, `stream_message_resume` | `tests/test_routers_coverage.py` | `cd backend && python -m pytest tests/test_routers_coverage.py -q` |
+| 前端消息卡片 / 子代理 UI | [聊天应用](frontend/chat-app.md) | `frontend/src/components/chat/`, `frontend/src/stores/messages.ts` | `useMessagesStore`, `SubagentCard`, `reconstructSubagents` | —（无前端单元测试） | `cd frontend && npx vue-tsc --noEmit` |
+| 聊天导航 / 问题栏 / 滚动定位 | [聊天应用 — 问题导航栏](frontend/chat-app.md#问题导航栏) | `frontend/src/components/chat/QuestionRail.vue`, `frontend/src/composables/useScrollSpy.ts`, `frontend/src/components/chat/MessageList.vue` | `QuestionRail`, `useScrollSpy`, `UserQuestionItem`, `scrollToMessage` | —（无前端单元测试） | `cd frontend && npx vue-tsc --noEmit` |
+| 运行 / 部署 / 配置 | [部署与测试](operations/deployment-and-testing.md) | `docker-compose.yml`, `run_backend.py`, `backend/app/config.py` | `Settings`, `langgraph.json` | `tests/smoke/`（条件性） | `cd backend && python -m pytest -q` |
 
-> Validation notes: focused `pytest -q` runs keep output quiet but preserve full failure diagnostics. The `integration` and `smoke` tiers are **conditional** — only run them when live Postgres/Milvus/LLM (or a running backend) are available; see [deployment-and-testing](operations/deployment-and-testing.md).
+> 验证说明：聚焦的 `pytest -q` 运行可保持输出简洁，同时保留完整的失败诊断。`integration` 和 `smoke` 层为**条件性**——仅当有可用的实时 Postgres/Milvus/LLM（或正在运行的后端）时才运行；参见 [部署与测试](operations/deployment-and-testing.md)。
 
-## Where to start / what to watch out for
+## 从哪里开始 / 需要注意什么
 
-- **Two init paths must stay in sync** (`_initialize_agent` vs `_ainitialize_agent`) — change tool/middleware/RAG wiring in `_build_agent_components` so both benefit.
-- **Transient data goes through the Context API, not checkpointed state** — put large per-round payloads in `RequestContext`.
-- **Side-channel artifacts keep the LLM context lean** — return `Command(update={... tool_artifact})`, not raw rows.
-- **New stream events need 3 frontend registrations + the backend union** or they are silently dropped.
-- **Offline-only frontend** — no public CDN; localize fonts/libs.
+- **两条初始化路径必须保持同步**（`_initialize_agent` 与 `_ainitialize_agent`）——请在 `_build_agent_components` 中更改工具/中间件/RAG 装配，使两条路径均受益。
+- **瞬态数据通过 Context API 传递，而不是检查点状态**——请将每轮大型载荷放入 `RequestContext`。
+- **旁路工件使 LLM 上下文保持精简**——应返回 `Command(update={... tool_artifact})`，而不是原始行。
+- **新的流事件需要 3 处前端注册 + 后端联合类型**，否则会被静默丢弃。
+- **仅离线前端**——不使用公共 CDN；本地化字体/库。
 
-## Backlog
+## 待办事项
 
-Areas not yet given a dedicated page (source anchor + reason). Promote when the backing source is stable.
+尚未设立专门页面的领域（源码锚点 + 原因）。当支撑源码稳定后再提升为页面。
 
-- **Root agent-instruction files & repo skill libraries** (`.claude/agents/`, `.agents/skills/`) — developer-facing Claude/agent skill definitions (e.g. `code-explainer`, `code-reviewer`) and `AGENTS.md`/`CLAUDE.md` conventions. Out of scope for the runtime-agent wiki and these files are user-authored (the wiki must not edit `/AGENTS.md`/`CLAUDE.md`); the runtime subagents they *describe* are documented in [subagent-sql](architecture/subagent-sql.md).
-- **Docs-only intent reports** (`docs/deepagent/`, `docs/multiagent_sidechannel/`, `docs/llamaindex_rag/`, `docs/superpowers/`) — link-only design intent; the wiki references them from the relevant runtime pages rather than restating them. Revisit as a summary page only if a specific design decision becomes load-bearing. (Exception: the question-rail spec/plan under `docs/superpowers/` is now implemented in code and covered by [chat-app — Question navigation rail](frontend/chat-app.md#question-navigation-rail).)
-- **SubAgent Registry / factory pattern** (spec: `docs/superpowers/specs/2026-08-23-multi-agent-prompt-and-architecture-optimization.md`) — planned refactor of `backend/app/agent/subagents/` (registry `__init__.py`, `BaseSubAgentFactory`, per-domain `factory.py`) plus `knowledge_doc_agent` / `iot_device_agent` specialists; **not yet in code** (`subagents/__init__.py` is a comment stub, `service.py` still builds the SQL subagent inline). Documented concisely in [agent-prompts](architecture/agent-prompts.md); promote to a full architecture page when the code lands.
+- **根级代理指令文件与仓库技能库**（`.claude/agents/`、`.agents/skills/`）——面向开发者的 Claude/代理技能定义（例如 `code-explainer`、`code-reviewer`）以及 `AGENTS.md`/`CLAUDE.md` 约定。它们不属于运行时代理 Wiki 的范围，且这些文件由用户编写（本 Wiki 不得编辑 `/AGENTS.md`/`CLAUDE.md`）；它们所描述的运行时子代理已在 [SQL 子代理](architecture/subagent-sql.md) 中记录。
+<!-- openwiki: broken internal link [frontend/chat-app.md#question-navigation-rail] heading anchor "question-navigation-rail" does not exist in "frontend/chat-app.md". Fix the href or restore the target, then delete this comment. -->
+- **仅文档型意图报告**（`docs/deepagent/`、`docs/multiagent_sidechannel/`、`docs/llamaindex_rag/`、`docs/superpowers/`）——仅链接的设计意图；本 Wiki 在相关运行时页面中引用它们，而不是复述。只有当某个具体设计决策变得关键时，才重新考虑作为总结页面。（例外：`docs/superpowers/` 下的问题栏规范/计划已在代码中实现，并由 [聊天应用 — 问题导航栏](frontend/chat-app.md#question-navigation-rail) 覆盖。）
+- **SubAgent 注册表 / 工厂模式**（规范：`docs/superpowers/specs/2026-08-23-multi-agent-prompt-and-architecture-optimization.md`）——计划重构 `backend/app/agent/subagents/`（注册表 `__init__.py`、`BaseSubAgentFactory`、按领域的 `factory.py`），以及 `knowledge_doc_agent` / `iot_device_agent` 专业代理；**尚未在代码中**（`subagents/__init__.py` 是注释占位符，`service.py` 仍然内联构建 SQL 子代理）。已在 [代理提示](architecture/agent-prompts.md) 中简要记录；待代码落地后提升为完整架构页面。

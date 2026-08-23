@@ -1,3 +1,19 @@
+## 2026-08-23 21:55 +08:00 - CLAUDE.md 与 AGENTS.md 规范一致化及 OpenWiki 知识库索引重构 (`CLAUDE.md`, `AGENTS.md`) [DOCS]
+
+### 变更内容
+
+#### 1. 文档索引体系以 OpenWiki 全面替代死链路径 (`CLAUDE.md`, `AGENTS.md`) [DOCS]
+- **死链全面清理**：移除不存在的 `agent_docs/*` 与 `docs/skills/guide.md` 等失效路径。
+- **OpenWiki 任务路由矩阵集成**：统一接入以 `openwiki/quickstart.md` 为主入口的结构化知识库体系，覆盖架构、提示词契约、领域技能、RAG/术语表、流式协议、工件生命周期、前端与运维等路由索引。
+
+#### 2. DeepAgent 架构与多端核心开发规范对齐 (`CLAUDE.md`, `AGENTS.md`) [DOCS]
+- **架构描述升级**：升级为 FastAPI + LangGraph DeepAgent 架构（主协调代理 + 编译型 SQL 领域子代理）。
+- **后端双初始化与工具异常规范**：同步记录 `_initialize_agent`（同步）与 `_ainitialize_agent`（异步）双初始化路径，以及 LangChain 工具 4 项错误处理规范（统一 `ToolException`、显式 `handle_tool_error=True`、`"Error: "` 错误前缀、纯 `runtime: ToolRuntime` 注入）。
+- **前端流式事件防丢机制**：同步要求后端新增流式事件必须在 `@/types`、`STREAM_EVENT_TYPES` 白名单 Set 集合与 `parseStreamEvent` switch 分支三处同步更新。
+- **离线与本地化部署约束**：严禁公网 CDN 依赖，静态字体等资源本地化。
+
+---
+
 ## 2026-08-23 15:50 +08:00 - 聊天主页用户问题刻度线导航与微光定位反馈 (`QuestionRail.vue`, `useScrollSpy.ts`, `MessageList.vue`, `MessageItem.vue`) [FE]
 
 ### 变更内容
