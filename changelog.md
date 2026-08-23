@@ -1,3 +1,24 @@
+## 2026-08-23 14:30 +08:00 - 主智能体与涂装 Data Agent 提示词分工协作优化与架构扩展契约对齐 (`main_system_prompt.md`, `base_system_prompt.md`) [AGENT]
+
+### 变更内容
+
+#### 1. 主智能体提示词重构与协作契约闭环 (`backend/app/agent/prompts/main_system_prompt.md`) [PROMPT]
+- **架构级路由矩阵与职责收敛**：引入结构化路由矩阵，精准定义 `sql_domain_agent` 作为专用于涂装车间的数据查询、指标统计、图表与 CSV 导出的 Data Agent，为后续多智能体平滑扩展奠定标准骨架。
+- **标准化 Task 委派契约与多轮上下文合并**：明确 Task 下发标准模版（业务目标、业务过滤实体、探索授权与交付物），强化多轮对话关键参数合并传递，避免子智能体因独立上下文丢失前序车间/时间前提。
+- **两级澄清与结果保真呈现协议**：明确主智能体仅在全局方向性歧义时调用 `AskUserQuestion`；严格规定对子智能体输出的准确数值不臆造篡改，100% 保真透传 `[suggest_chart]` 图表标记与单列一行的 `数据来源：...` 标注。
+
+#### 2. SQL 子智能体提示词优化与自愈闭环 (`backend/app/agent/subagents/sql/base_system_prompt.md`) [PROMPT]
+- **角色精准定位**：明确为 120JPH 专为涂装车间设计的 Data Agent（数据查询与分析专家），修复中英夹杂与情感渲染限制。
+- **自愈优先于澄清**：消除工作流第 1 步强制提问的隐蔽冲突，在 §2.2 与 §3.1 第 1 步中统一定义“优先利用 `search_db_value_lexicon` / `search_db_row_lexicon` 物理词典探查自愈，探查无果再发起精准提问”的最小打扰原则。
+
+#### 3. 设计文档与多智能体架构演进规划 (`docs/superpowers/specs/2026-08-23-multi-agent-prompt-and-architecture-optimization.md`) [DOCS]
+- 整理多智能体扩展性设计 Spec，涵盖 1 个 Orchestrator + N 个 Specialist SubAgents 的分层拓扑、子智能体异构工厂与注册中心模式（Registry Pattern）及双初始化路径一致性保证。
+
+#### 4. 测试与验证 [TEST]
+- 执行 `backend/tests/agent/test_main_system_prompt.py`（2/2）及 `test_system_prompt_loader.py`（3/3），全部测试逻辑断言通过（Windows 默认 tmp ACL 限制已由 `--basetemp` 参数验证绿灯）。
+
+---
+
 ## 2026-08-23 00:00 +08:00 - 主智能体系统提示词文件化解耦与加载器下沉 (`system_prompt_loader.py`, `service.py`, `config.py`) [BE]
 
 ### 变更内容
