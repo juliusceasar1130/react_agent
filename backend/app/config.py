@@ -58,6 +58,12 @@ class Settings(BaseSettings):
         str(Path(__file__).resolve().parent / "agent" / "subagents" / "sql" / "base_system_prompt.md"),
     )
 
+    # 主智能体系统提示词模板路径
+    main_system_prompt_path: str = os.getenv(
+        "MAIN_SYSTEM_PROMPT_PATH",
+        str(Path(__file__).resolve().parent / "agent" / "prompts" / "main_system_prompt.md"),
+    )
+
     # SQL Checker 模式：fast(仅本地Linter) | safety(同步checker=当前默认)
     sql_checker_mode: str = os.getenv("SQL_CHECKER_MODE", "fast")
 

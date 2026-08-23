@@ -1,3 +1,25 @@
+## 2026-08-23 00:00 +08:00 - 主智能体系统提示词文件化解耦与加载器下沉 (`system_prompt_loader.py`, `service.py`, `config.py`) [BE]
+
+### 变更内容
+
+#### 1. SystemPromptLoader 下沉为共享基础设施 (`backend/app/agent/utils/system_prompt_loader.py`) [BE]
+- 将原 `subagents/sql/prompts.py` 中的 `SystemPromptLoader` 平移至 `agent/utils/system_prompt_loader.py`，经 `utils/__init__.py` 包级导出。
+- `subagents/sql/prompts.py` 改为从 `utils` 导入并保留 re-export，`_build_system_prompt` 行为不变，下游唯一引用（`service.py:31`）零改动。
+
+#### 2. 主智能体提示词外置为 `.md` 模板 (`main_system_prompt.md`, `config.py`, `service.py`) [BE]
+- 将 `service.py` 中硬编码的主智能体提示词（Task Delegation Protocol）原样外置至 `agent/prompts/main_system_prompt.md`。
+- 新增 `main_system_prompt_path` 配置项（env `MAIN_SYSTEM_PROMPT_PATH`），与子智能体 `system_prompt_path` 正交。
+- 主提示词构建走 `_build_main_system_prompt()` 纯字符串加载，**不经 `PromptTemplate`**，规避 JSON 花括号误解析风险。
+
+#### 3. 热重载语义说明 [DOCS]
+- mtime 热重载仅在重新建图（`_build_agent_components`）时触发；常驻编译图修改 `.md` 需重启进程生效，非"运行时零重启实时生效"。
+
+#### 4. 测试与验证 [TEST]
+- 新增 `tests/agent/utils/test_system_prompt_loader.py`（loader 包级导出 / re-export / 读取缓存与缺失文件）与 `tests/agent/test_main_system_prompt.py`（默认路径存在 / 构建锚点断言）。
+- 验证：本特性新增/改动的测试全部通过；全链路回归（`pytest -m "not integration and not smoke"`）中与本改动无关的预存环境 quirk 除外（CWD 边界解析 quirk 与 pytest `tmp_path` 基目录 ACL 限制）。
+
+---
+
 ## 2026-08-21 23:05 +08:00 - 多智能体核心工件主气泡直出与分级治理 (`MessageItem.vue`, `SubagentCard.vue`) [FE]
 
 ### 变更内容

@@ -151,3 +151,11 @@ For multi-step tasks, state a brief plan:
 ### Domain docs
 
 采用单上下文（Single-context）布局。详见 `docs/agents/domain.md`。
+
+<!-- OPENWIKI:START -->
+
+## OpenWiki
+
+See [AGENTS.md](AGENTS.md) for OpenWiki agent instructions.
+
+<!-- OPENWIKI:END -->

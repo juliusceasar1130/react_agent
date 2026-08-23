@@ -14,6 +14,7 @@ data/
 # Node modules
 node_modules/
 frontend/node_modules/
+.github
 
 # Environment variables and secrets
 .env
@@ -39,6 +40,8 @@ env_exp
 dist/
 build/
 .pytest_cache/
+.pytest_tmp/
+.superpowers/
 .coverage
 htmlcov/
 

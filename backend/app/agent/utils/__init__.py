@@ -12,6 +12,7 @@ from .sql_database import (
     build_postgres_search_path_engine_args,
 )
 from .streaming import emit_stream_event, emit_stream_status
+from .system_prompt_loader import SystemPromptLoader
 
 __all__ = [
     "ensure_windows_selector_loop",
@@ -24,4 +25,5 @@ __all__ = [
     "build_postgres_search_path_engine_args",
     "emit_stream_event",
     "emit_stream_status",
+    "SystemPromptLoader",
 ]
