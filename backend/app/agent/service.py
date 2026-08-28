@@ -64,6 +64,8 @@ if TYPE_CHECKING:
     from langgraph.store.base import BaseStore
     from langgraph_sdk.runtime import ServerRuntime
 
+from backend.app.agent.config.profile_loader import _load_profiles
+
 logger = logging.getLogger(__name__)
 
 # 仅用于 LangGraph 调试入口，避免每次调用工厂都重新初始化模型/数据库元信息。
@@ -613,6 +615,9 @@ class SQLAgentService:
     def _initialize_agent(self) -> None:
         """初始化 Agent（同步路径）。"""
         try:
+            # eager load: 触发 YAML 加载与 fail-fast 校验，配置问题在启动时即暴露
+            _load_profiles()
+
             components = self._build_agent_components()
 
             # 本地同步模式下手动创建 PostgresSaver
@@ -633,6 +638,9 @@ class SQLAgentService:
     async def _ainitialize_agent(self) -> None:
         """异步初始化 Agent（异步路径），供 FastAPI 本地独立模式使用。"""
         try:
+            # eager load: 触发 YAML 加载与 fail-fast 校验，配置问题在启动时即暴露
+            _load_profiles()
+
             components = self._build_agent_components()
 
             # 本地异步模式下创建 AsyncPostgresSaver

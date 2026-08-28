@@ -15,6 +15,7 @@ from langchain.agents.middleware import AgentMiddleware, ModelRequest, ModelResp
 from langchain_core.messages import SystemMessage, ToolMessage, HumanMessage, AIMessage
 from langchain_core.runnables.config import ensure_config
 
+from backend.app.agent.config.profile_loader import get_sampling_profile, apply_profile_to_model_settings
 from backend.app.agent.context import RequestContext
 from backend.app.agent.state import CustomState, SqlSubAgentState
 from backend.app.config import settings
@@ -397,27 +398,22 @@ class PromptCompilerMiddleware(AgentMiddleware[SqlSubAgentState, RequestContext]
             runnable_config = ensure_config()
             configurable = runnable_config.get("configurable") or {}
             client_enable_thinking = configurable.get("enable_thinking")
-            
+
             # 2. 如果客户端显式指定了参数，我们对当次模型请求参数进行安全改写
             if client_enable_thinking is not None:
                 if request.model_settings is None:
                     request.model_settings = {}
-                    
-                if "extra_body" not in request.model_settings:
-                    request.model_settings["extra_body"] = {}
-                    
-                extra_body = request.model_settings["extra_body"]
-                if "chat_template_kwargs" not in extra_body:
-                    extra_body["chat_template_kwargs"] = {}
-                    
-                # 动态改写 chat_template_kwargs，保证在网络包的根层级发出
-                extra_body["chat_template_kwargs"]["enable_thinking"] = client_enable_thinking
+
+                # 加载采样参数组合并覆写 model_settings
+                profile = get_sampling_profile(client_enable_thinking)
+                apply_profile_to_model_settings(request.model_settings, profile)
+
                 logger.info(
-                    "🛡️ PromptCompilerMiddleware: 成功将客户端运行时思考参数 %s 注入到模型网络调用中", 
-                    client_enable_thinking
+                    "🛡️ PromptCompilerMiddleware: 已注入采样参数组合 (mode=%s)",
+                    "thinking" if client_enable_thinking else "fast",
                 )
         except Exception as e:
-            logger.warning("🛡️ PromptCompilerMiddleware: 动态注入思考模式参数失败: %s", e)
+            logger.warning("🛡️ PromptCompilerMiddleware: 动态注入采样参数组合失败: %s", e)
 
     def _modify_request(self, request: ModelRequest) -> ModelRequest:
         """读取 state 中的 RAG 文本直接拼装至系统消息，并清理历史留存的 RAG 污染消息"""

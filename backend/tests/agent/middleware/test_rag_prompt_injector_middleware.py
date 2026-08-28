@@ -65,7 +65,7 @@ def test_rag_prompt_injector_noop_when_no_lexicon_context():
 
 
 def test_rag_prompt_injector_thinking_config():
-    """测试 3: 验证 RagPromptInjectorMiddleware 正确注入 enable_thinking 运行期配置"""
+    """测试 3: 验证 RagPromptInjectorMiddleware 正确注入 thinking profile"""
     from langchain_core.runnables import RunnableConfig
 
     middleware = RagPromptInjectorMiddleware()
@@ -86,6 +86,78 @@ def test_rag_prompt_injector_thinking_config():
     try:
         modified_request = middleware._modify_request(request)
         assert modified_request.model_settings is not None
+        # top_level 参数注入
+        assert modified_request.model_settings["temperature"] == 1.0
+        assert modified_request.model_settings["top_p"] == 0.95
+        # extra_body 参数注入
+        assert modified_request.model_settings["extra_body"]["top_k"] == 20
+        # chat_template_kwargs 参数注入（含 reasoning_effort，Qwen3 模板变量）
         assert modified_request.model_settings["extra_body"]["chat_template_kwargs"]["enable_thinking"] is True
+        assert modified_request.model_settings["extra_body"]["chat_template_kwargs"]["reasoning_effort"] == "medium"
+    finally:
+        var_child_runnable_config.reset(token)
+
+
+def test_rag_prompt_injector_thinking_false_injects_fast_profile():
+    """测试 4: enable_thinking=False 时注入 fast profile 参数"""
+    from langchain_core.runnables import RunnableConfig
+    from langchain_core.runnables.config import var_child_runnable_config
+
+    middleware = RagPromptInjectorMiddleware()
+    state = CustomState()
+    initial_sys_msg = SystemMessage(content="你是一个通用助手。")
+    request = ModelRequest(
+        system_message=initial_sys_msg,
+        messages=[HumanMessage(content="你好")],
+        state=state,
+        model=MagicMock(),
+    )
+
+    config: RunnableConfig = {"configurable": {"enable_thinking": False}}
+    token = var_child_runnable_config.set(config)
+
+    try:
+        modified_request = middleware._modify_request(request)
+        assert modified_request.model_settings is not None
+        # fast profile 的 top_level 参数
+        assert modified_request.model_settings["temperature"] == 0.7
+        assert modified_request.model_settings["top_p"] == 0.8
+        # fast profile 的 extra_body 参数
+        assert modified_request.model_settings["extra_body"]["top_k"] == 20
+        # chat_template_kwargs 参数（含 reasoning_effort）
+        assert modified_request.model_settings["extra_body"]["chat_template_kwargs"]["enable_thinking"] is False
+    finally:
+        var_child_runnable_config.reset(token)
+
+
+def test_rag_prompt_injector_enable_thinking_none_no_override():
+    """测试 5: enable_thinking=None 时中间件不覆写 model_settings"""
+    from langchain_core.runnables import RunnableConfig
+    from langchain_core.runnables.config import var_child_runnable_config
+
+    middleware = RagPromptInjectorMiddleware()
+    state = CustomState()
+    initial_sys_msg = SystemMessage(content="你是一个通用助手。")
+    request = ModelRequest(
+        system_message=initial_sys_msg,
+        messages=[HumanMessage(content="你好")],
+        state=state,
+        model=MagicMock(),
+    )
+
+    # 初始 model_settings 已有值
+    request.model_settings = {
+        "temperature": 0.5,
+        "extra_body": {"custom_key": "custom_value"},
+    }
+
+    config: RunnableConfig = {"configurable": {"enable_thinking": None}}
+    token = var_child_runnable_config.set(config)
+
+    try:
+        modified_request = middleware._modify_request(request)
+        # None 时不应覆写任何值
+        assert modified_request.model_settings["temperature"] == 0.5
+        assert modified_request.model_settings["extra_body"]["custom_key"] == "custom_value"
     finally:
         var_child_runnable_config.reset(token)

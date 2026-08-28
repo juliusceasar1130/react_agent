@@ -1,4 +1,50 @@
-## 2026-08-23 21:55 +08:00 - CLAUDE.md 与 AGENTS.md 规范一致化及 OpenWiki 知识库索引重构 (`CLAUDE.md`, `AGENTS.md`) [DOCS]
+## 2026-08-28 - Phase 2 修正：reasoning_effort 注入位置修复 (`model_sampling_profiles.yaml`, 测试, 文档) [AGENT]
+
+### 变更内容
+
+#### 1. 问题根因 [BUG]
+- **`reasoning_effort` 此前放在 `extra_body` 段**（HTTP 请求体顶层），但 Qwen3 模板渲染时以 `chat_template_kwargs` 的键作为 Jinja2 变量读取 `reasoning_effort`；顶层参数 vLLM 接受但不传给模板。
+- **行为验证**（2026-08-28，vLLM 192.168.3.26:8089）：顶层 5 档（none/low/medium/high/xhigh）输出无差异；模板通道（`chat_template_kwargs.reasoning_effort`）low/medium/xhigh 输出长度 1864/2338/3858 阶梯递增——证明只有模板通道生效。
+
+#### 2. 修复内容 [FIX]
+- **YAML**：`reasoning_effort` 从 `extra_body` 段移入 `chat_template_kwargs` 段（thinking=medium；fast 档不传），并更新文件头注释说明原因。
+- **测试**：`test_sampling_profile_loader.py` / `test_prompt_compiler_middleware.py` / `test_rag_prompt_injector_middleware.py` 断言路径同步改为 `extra_body.chat_template_kwargs.reasoning_effort`。
+- **文档**：`phase2_sampling_profiles_design.md`（D4/D5/术语表/传递链路）、`adr-model-sampling-profiles.md`（D4/D5/传递链路）、`glossary-model-sampling.md`（reasoning_effort 词条）同步修正，并标注修正日期。
+- **验证脚本**：`manual_verify_sampling_request_body.py` 期望结构改为从 `chat_template_kwargs` 读取。
+
+#### 3. 验证 [TEST]
+- 完整后端测试套件：104 passed / 4 deselected / 0 failed。
+- 网络层请求体捕获：thinking 档确认 `reasoning_effort` 位于 `chat_template_kwargs` 内（`{"enable_thinking": true, "reasoning_effort": "medium"}`）；fast 档确认 `enable_thinking=false` 且 `reasoning_effort` 不传。
+
+---
+
+## 2026-08-28 - 模型采样参数动态切换（思考/快答二档）(`backend/app/agent/config/`, `backend/app/agent/middleware/`, `backend/app/agent/service.py`) [AGENT]
+
+### 变更内容
+
+#### 1. 配置层：YAML 三段结构采样参数组合 (`backend/app/agent/config/`) [AGENT]
+- **新增 `profile_loader` 模块**：`get_sampling_profile(enable_thinking)` 从 YAML 加载对应 profile，`apply_profile_to_model_settings(...)` 按三段结构（`top_level` / `extra_body` / `chat_template_kwargs`）机械覆写 `model_settings`。
+- **fail-fast 校验**：`_load_profiles()` 在文件缺失、profile 不全、未知段时直接抛异常，阻止服务启动。
+- **浅拷贝返回**：`get_sampling_profile` 返回 `dict(profile)` 浅拷贝，防止调用方误改全局缓存。
+- **三段结构 YAML**：`model_sampling_profiles.yaml` 显式定义 `thinking` / `fast` 两档，每档含 `top_level`（temperature/top_p/presence_penalty）、`extra_body`（top_k/min_p/repetition_penalty）、`chat_template_kwargs`（enable_thinking/reasoning_effort）三段。
+
+#### 2. 中间件层：双中间件动态注入 (`prompt_compiler_middleware.py`, `rag_prompt_injector_middleware.py`) [AGENT]
+- **扩展 `_inject_thinking_config`**：从 configurable 读取 `enable_thinking`，调用 `profile_loader` 加载完整 profile 并覆写全部采样参数（此前仅注入 `enable_thinking` 布尔值）。
+- **主 Agent 路径**：`RagPromptInjectorMiddleware` 注入主 Agent 的模型调用参数。
+- **SQL 子智能体路径**：`PromptCompilerMiddleware` 注入 SQL 子智能体的模型调用参数，确保双路径行为一致。
+- **向后兼容**：`enable_thinking=None` 时不做任何覆写，使用 `_create_llm()` 的 init-time 默认值。
+
+#### 3. 启动 eager load (`service.py`) [AGENT]
+- **`_initialize_agent` / `_ainitialize_agent`**：两条初始化路径开头均调用 `_load_profiles()`，触发 YAML 加载与 fail-fast 校验，配置问题在启动时即暴露。
+
+#### 4. 测试覆盖 (`backend/tests/agent/`) [TEST]
+- **`test_sampling_profile_loader.py`**：12 个 loader 单元测试（加载、缺失、未知段、浅拷贝、三段写入、幂等、覆写）。
+- **`test_rag_prompt_injector_middleware.py`**：扩展为 5 个测试（RAG 注入、No-op、thinking 档补全断言、fast 档、None 不覆写）。
+- **`test_prompt_compiler_middleware.py`**：新增 3 个对称测试（thinking/fast/None）。
+- **全量后端测试**：20 个新增测试全部通过，完整套件 104 passed / 0 failed。
+
+---
+
 
 ### 变更内容
 

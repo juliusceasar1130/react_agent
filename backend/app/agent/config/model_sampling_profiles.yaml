@@ -1,0 +1,36 @@
+# 模型采样参数组合配置
+# 根据前端 enable_thinking 开关，在中间件层动态选择对应参数组合覆写 model_settings
+#
+# 三段结构与 _create_llm() 的传输分层完全一致：
+#   top_level: OpenAI 标准参数 (temperature, top_p, presence_penalty)
+#   extra_body: vLLM 特有参数 (top_k, min_p, repetition_penalty)
+#   chat_template_kwargs: 模板变量 (enable_thinking, reasoning_effort)
+#
+# 注意：reasoning_effort 必须放在 chat_template_kwargs 段（而非 extra_body 顶层），
+# 因为 Qwen3 模板渲染时以 chat_template_kwargs 的键作为 Jinja2 变量读取；
+# extra_body 顶层参数 vLLM 接受但不传给模板（2026-08-28 行为验证确认）。
+
+thinking:
+  top_level:
+    temperature: 1.0
+    top_p: 0.95
+    presence_penalty: 0.0
+  extra_body:
+    top_k: 20
+    min_p: 0.0
+    repetition_penalty: 1.0
+  chat_template_kwargs:
+    enable_thinking: true
+    reasoning_effort: medium
+
+fast:
+  top_level:
+    temperature: 0.7
+    top_p: 0.8
+    presence_penalty: 1.5
+  extra_body:
+    top_k: 20
+    min_p: 0.0
+    repetition_penalty: 1.0
+  chat_template_kwargs:
+    enable_thinking: false
