@@ -35,13 +35,14 @@ class RagPromptInjectorMiddleware(AgentMiddleware[CustomState, RequestContext]):
             runnable_config = ensure_config()
             configurable = runnable_config.get("configurable") or {}
             client_enable_thinking = configurable.get("enable_thinking")
+            client_thinking_level = configurable.get("thinking_level")
 
             if client_enable_thinking is not None:
                 if request.model_settings is None:
                     request.model_settings = {}
 
                 # 加载采样参数组合并覆写 model_settings
-                profile = get_sampling_profile(client_enable_thinking)
+                profile = get_sampling_profile(client_enable_thinking, client_thinking_level)
                 apply_profile_to_model_settings(request.model_settings, profile)
 
                 logger.info(

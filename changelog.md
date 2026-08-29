@@ -1,3 +1,70 @@
+## 2026-08-29 - ninfer 切换：reasoning_effort 400 修复 + 传输位置开关 (`profile_loader.py`, `model_sampling_profiles.yaml`, `.env`, 测试, 文档) [AGENT]
+
+### 变更内容
+
+#### 1. 问题与根因 [BUG]
+- 推理框架由 vLLM 切换为 ninfer（Qwen3.8-27B NVFP4，`192.168.3.26:8089`）后，所有 LLM 请求 400 `chat_template_option_not_supported: chat_template_kwargs.reasoning_effort is not supported`。
+- 根因：Phase 2 将 `reasoning_effort` 置于 `chat_template_kwargs`（vLLM Jinja 透传通道）；而 ninfer 仅接受**顶层** `reasoning_effort`（OpenAI 标准字段），且对 `chat_template_kwargs` 做白名单校验（仅 `enable_thinking`/`preserve_thinking`），其他非 null 键直接 400。两框架对 effort 的传输位置约定相反。
+
+#### 2. 传输位置开关 [FIX]
+- **`profile_loader.py`**：`reasoning_effort` 在 YAML 的 `extra_body` 段做中性声明；`get_sampling_profile` 将值弹出后按 `REASONING_EFFORT_TRANSPORT` 移到实际传输位置（`top_level`=请求体顶层 / `chat_template_kwargs`=模板变量通道）；`thinking_level` 覆写同位落点；`_get_effort_transport()` 非法值 fail-fast 抛 ValueError，模块导入时打 INFO 日志标明当前位置。`apply_profile_to_model_settings` 保持纯机械搬运未动。
+- **`.env` / `.env_docker`**：新增 `REASONING_EFFORT_TRANSPORT=top_level`（ninfer）+ 切换注释；切换推理框架只改该行并重启，代码/YAML/前端不动。
+- **`model_sampling_profiles.yaml`**：头注释更新为中性声明 + 双后端说明。
+- `enable_thinking` 不受开关影响，始终在 `chat_template_kwargs`（ninfer 白名单与 vLLM 官方通道都接受）。
+
+#### 3. 误配行为（设计为可发现） [NOTE]
+- ninfer 上误配 `chat_template_kwargs` → 首个请求 400（显性，启动日志有 transport 值可对照）；
+- vLLM ≤0.27.1 上误配 `top_level` → 档位静默失效（该版本顶层不透传模板），思考开关仍正常，不报错。
+
+#### 4. 测试 [TEST]
+- 4 个测试文件断言路径更新为 `extra_body.reasoning_effort`（默认 transport）；新增 7 个 transport 用例（loader：ctk 默认档 / level 覆写 / fast 不传 / 非法值 fail-fast；双中间件各 1 个 ctk 对称用例）；3 个测试文件加 autouse 默认 transport fixture 防开发机环境变量干扰。
+- 验证：目标套件 41 passed；端到端网络层捕获——`top_level` 与 `chat_template_kwargs` 两模式请求体均符合预期（含 `thinking_level=high` → xhigh）；非法值导入即抛 ValueError。
+
+#### 5. 文档 [DOCS]
+- `phase3_thinking_levels_design.md`：§1/§3.1/§3.2/§5.2/§8 对齐代码，新增 §3.5"传输层与后端兼容性"（权威定义：双后端约定对照、开关语义、误配后果）。
+- `phase2_sampling_profiles_design.md` / `adr-model-sampling-profiles.md`（新增 D7 决策：传输位置开关）/ `glossary-model-sampling.md`：追加 2026-08-29 修正标注（保留 2026-08-28 历史结论），更新传输矩阵/词条/传递链路；术语表顺带修正 profile_loader 浅拷贝→深拷贝、函数签名等陈旧描述。
+
+#### 6. 已知遗留 [NOTE]
+- Token 估算仍走 vLLM `/tokenize`：ninfer 无此端点，`VllmTokenEstimator` 降级为 `len//2` 粗估（不报错、不影响链路，预警精度下降）；ninfer 等价端点为 `POST /v1/responses/input_tokens`，后续可加 ninfer 引擎分支。
+
+---
+
+## 2026-08-29 - Phase 3：思考强度多级控制（四档切换）(`backend/app/agent/config/`, `backend/app/schemas.py`, `backend/app/routers/chat.py`, `frontend/`) [AGENT]
+
+### 变更内容
+
+#### 1. 后端核心：`thinking_level` 透传链路 [BACKEND]
+- **`model_sampling_profiles.yaml`**：顶层新增 `thinking_level_map: {low, medium, high→xhigh}`，作为 thinking 档 reasoning_effort 的动态覆写映射。
+- **`profile_loader.py`**：
+  - `get_sampling_profile` 扩展为 `get_sampling_profile(enable_thinking, thinking_level=None)`，支持 `thinking_level` 覆写 `reasoning_effort`（仅 thinking 档生效，fast 档忽略）。
+  - 返回值从 `dict(profile)` 浅拷贝升级为 `copy.deepcopy(profile)`，保护嵌套 `extra_body.chat_template_kwargs` 段不被覆写污染。
+  - 覆写路径 `result.setdefault("chat_template_kwargs", {})["reasoning_effort"]` 直接操作 profile 顶层 key。
+  - 可选语义：`profiles.get("thinking_level_map")` + 缺键跳过，不抛错。
+  - `_load_profiles` 校验循环新增 `_NON_PROFILE_KEYS = {"thinking_level_map"}` 白名单，排除非 profile 顶层 key。
+- **`schemas.py`**：`ChatRequest` 新增 `thinking_level: Literal["low", "medium", "high"] | None = None`，非法值在 API 层 422 拦截。
+- **`chat.py`**：`/message`(L59-63) + `/stream`(L158-162) 两处 `configurable` 构造紧跟 `enable_thinking` 后透传 `thinking_level`；`resume` 端点不改动（现状不传 enable_thinking，不继承档位）。
+
+#### 2. 中间件层对称扩展 [BACKEND]
+- **`rag_prompt_injector_middleware.py` / `prompt_compiler_middleware.py`**：
+  - 新增 `client_thinking_level = configurable.get("thinking_level")` 读取。
+  - `get_sampling_profile(client_enable_thinking, client_thinking_level)` 两参数调用。
+
+#### 3. 测试扩展 [TEST]
+- **`test_sampling_profile_loader.py`**：+9 个 Phase 3 用例（high/low/None 覆写、fast 忽略、map 缺失/缺键、深拷贝、白名单回归）。
+- **`test_rag_prompt_injector_middleware.py`** / **`test_prompt_compiler_middleware.py`**：各 +3 个 Phase 3 用例（high→xhigh / None→medium / fast+high→不注入）。
+- **全量后端测试**：119 passed / 4 deselected / 0 failed。
+
+#### 4. 前端 UI：四档分段选择器 [FRONTEND]
+- **`types/index.ts`**：新增 `ThinkingLevel = 'off' | 'low' | 'medium' | 'high'` 类型；`ChatRequest` 增加 `thinking_level` 字段。
+- **`useChatStream.ts`**：`enableThinking` 布尔 ref 升级为 `thinkingLevel` 四档 ref（默认 `medium`）；`enableThinking` 改为只读 computed（`thinkingLevel.value !== 'off'`）；`thinkingLevelParam` computed 用于 payload（`off` 时 `undefined`）；流式(L291) 和非流式(L315) payload 同步新增 `thinking_level`。
+- **`ChatView.vue`**：移除"深度思考" ToggleSwitch，替换为 `<SegmentedControl>`（关闭/轻思考/标准思考/深度思考），默认"标准思考"。
+- **`SegmentedControl.vue`**：新建通用分段选择器组件，Tailwind + 暗色模式支持，本地打包。
+
+#### 5. 端到端验证 [MANUAL]
+- **`manual_verify_sampling_request_body.py`**：支持 `--level low|medium|high` 参数，验证 thinking 档各 level 对应的 `reasoning_effort`（low/medium/xhigh）正确到达 vLLM 请求体。
+
+---
+
 ## 2026-08-28 - Phase 2 修正：reasoning_effort 注入位置修复 (`model_sampling_profiles.yaml`, 测试, 文档) [AGENT]
 
 ### 变更内容

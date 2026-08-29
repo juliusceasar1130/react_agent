@@ -6,8 +6,8 @@ tags: [frontend, vue, pinia, streaming, ui, navigation]
 openwiki:
   roles: [frontend, domain]
   change_kinds: [ui, protocol]
-  source_paths: [frontend/src/stores/messages.ts, frontend/src/api/chat.ts, frontend/src/views/ChatView.vue, frontend/src/components/chat/MessageItem.vue, frontend/src/components/chat/MessageList.vue, frontend/src/components/chat/QuestionRail.vue, frontend/src/composables/useScrollSpy.ts, frontend/src/components/chat/SubagentCard.vue]
-  symbols: [useMessagesStore, useChatStream, SubagentCard, ChartGroupCard, QueryResultGroup, StreamingMessage, useScrollSpy, UserQuestionItem, QuestionRail]
+  source_paths: [frontend/src/stores/messages.ts, frontend/src/api/chat.ts, frontend/src/views/ChatView.vue, frontend/src/components/chat/MessageItem.vue, frontend/src/components/chat/MessageList.vue, frontend/src/components/chat/QuestionRail.vue, frontend/src/composables/useScrollSpy.ts, frontend/src/components/chat/SubagentCard.vue, frontend/src/composables/useChatStream.ts, frontend/src/components/common/SegmentedControl.vue]
+  symbols: [useMessagesStore, useChatStream, SubagentCard, ChartGroupCard, QueryResultGroup, StreamingMessage, useScrollSpy, UserQuestionItem, QuestionRail, ThinkingLevel, SegmentedControl]
   validation_commands: [cd frontend && npx vue-tsc --noEmit]
   invariants:
     - Streaming frames are partitioned per session and per subagent_id; streaming-phase and finalized rendering are separate responsibilities.
@@ -31,6 +31,15 @@ openwiki:
 
 - `frontend/src/composables/useChatStream.ts` 驱动 SSE 消费者；事件通过 `frontend/src/api/chat.ts::parseStreamEvent` 流转（白名单 + 按类型守卫，参见 [streaming-protocol](../workflows/streaming-protocol.md)）。
 - `StreamingMessage` / `FinalizedStreamingMessage` / `SubagentSessionState` 类型位于 `frontend/src/types/index.ts`；内部标记移除和子代理重建位于 `stores/messages.ts`。
+
+## 思考强度分段选择器
+
+输入工具栏的思考控制是四档分段选择器（Phase 3 实现；规范：`openspec/changes/phase3-thinking-levels/spec.md`），替换了 Phase 2 的"深度思考" ToggleSwitch：
+
+- `frontend/src/components/common/SegmentedControl.vue` — 通用分段选择器组件（`modelValue` + `options`，`update:modelValue` 事件；Tailwind + 暗色模式，本地打包符合离线约束）。
+- `frontend/src/views/ChatView.vue` — 渲染四个档位：关闭（`off`）/ 轻思考（`low`）/ 标准思考（`medium`）/ 深度思考（`high`），默认"标准思考"。
+- `frontend/src/composables/useChatStream.ts` — `thinkingLevel` ref（`ThinkingLevel = 'off' | 'low' | 'medium' | 'high'`，来自 `frontend/src/types/index.ts`）；`enableThinking` 改为只读 computed（`thinkingLevel.value !== 'off'`）；`thinkingLevelParam` 在 `off` 时返回 `undefined`。流式与非流式**两处 payload** 均携带 `enable_thinking` + `thinking_level`。
+- 后端契约：`ChatRequest.thinking_level: Literal["low","medium","high"]` 仅 `enable_thinking=true` 时生效，映射到 `reasoning_effort`（low→low / medium→medium / high→xhigh）；完整链路见 [采样参数组合与动态注入](../architecture/sampling-profiles.md)。
 
 ## 消息与产物渲染
 

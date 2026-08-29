@@ -28,7 +28,7 @@ openwiki:
 | `build_agent_graph` | `backend/app/agent/service.py` | LangGraph 工厂（`managed_runtime=True`），缓存模块级 `_MANAGED_AGENT_SERVICE` 单例，使图构建更轻量 |
 | `_create_local_checkpointer` / `_create_local_async_checkpointer` | `backend/app/agent/service.py` | 本地模式持久化：`PostgresSaver`（同步）/ `AsyncPostgresSaver` + 基于 `DATABASE_URL` 的 `psycopg_pool` |
 | `_build_main_system_prompt` / `_main_prompt_loader` | `backend/app/agent/service.py` | 通过共享 `SystemPromptLoader`，基于 `MAIN_SYSTEM_PROMPT_PATH` 模板将主代理的系统提示词构建为普通字符串（详见 [agent-prompts](agent-prompts.md)） |
-| `_create_llm` | `backend/app/agent/llm.py` | 模型工厂：默认使用 `ReasoningAwareChatDeepSeek`（别名 `QwenChatDeepSeek`），在 `use_ollama` 时使用 `ChatOllama`；将 vLLM 的 `reasoning`/`reasoning_content` 字段映射到 `additional_kwargs["reasoning_content"]` |
+| `_create_llm` | `backend/app/agent/llm.py` | 模型工厂：默认使用 `ReasoningAwareChatDeepSeek`（别名 `QwenChatDeepSeek`），在 `use_ollama` 时使用 `ChatOllama`；将 vLLM 的 `reasoning`/`reasoning_content` 字段映射到 `additional_kwargs["reasoning_content"]`。采样参数按三段传输分层组装：标准参数（temperature/top_p/presence_penalty）走顶层，vLLM 非标准参数（top_k/min_p/repetition_penalty）走 `extra_body`，`enable_thinking` 走 `extra_body.chat_template_kwargs`——请求期的 profile 覆写遵循同一分层（见 [sampling-profiles](sampling-profiles.md)） |
 | `LlamaCppTokenEstimator` / `VllmTokenEstimator` | `backend/app/agent/utils/*_token_estimator.py` | 用于上下文警告/摘要的 token 估算；估算引擎由 `settings.token_estimator_engine` 选择 |
 | `SQLAgentService` (wrapper) | `backend/app/services/chat_service.py` | FastAPI 兼容层：`process_stream`、`process_message`、`process_stream_resume`；此外，`initialize_agent_service` / `get_agent_service` / `shutdown_agent_service` 单例已接入 `backend/app/main.py` 中的应用生命周期 |
 
@@ -41,6 +41,8 @@ openwiki:
    - 主代理：使用子代理、主工具 `[AskUserQuestion()]`、由 `_build_main_system_prompt()` 生成的基于文件的主系统提示词（[agent-prompts](agent-prompts.md)）、`SummarizationMiddleware`（其 `exact_token_counter` 在计数前将所有系统消息物理合并到位置 0）、`ContextWarningMiddleware`、`RagPromptInjectorMiddleware`，以及调用限制中间件（`ModelCallLimitMiddleware` / `ToolCallLimitMiddleware` 分别由 `settings.agent_model_call_run_limit` / `agent_tool_call_run_limit` 配置）。
 2. 持久化：本地模式创建检查点器；托管模式跳过（由 LangGraph 注入）。
 3. `_create_agent_from_components` 完成图构建。关闭时，`aclose()` 释放本地异步连接池。
+
+两条初始化路径（`_initialize_agent` 与 `_ainitialize_agent`）还调用 `_load_profiles()`（`backend/app/agent/config/profile_loader.py`）做采样参数配置的 eager load + fail-fast 校验——YAML 缺失、profile 不全或未知段会在启动时直接抛错（见 [sampling-profiles](sampling-profiles.md)）。
 
 ## 不变量
 
@@ -60,3 +62,4 @@ openwiki:
 - 工厂位于 `backend/app/agent/llm.py::_create_llm`；针对 vLLM 的提供商特定采样参数会封装在 `extra_body` 中（`top_k`、`repetition_penalty`）。
 - 推理（思考）内容映射位于 `ReasoningAwareChatDeepSeek`；测试：`backend/tests/agent/test_chat_deepseek_integration.py`。
 - token 估算器切换（`llama_cpp` 或 `vllm`）仅通过配置完成：`TOKEN_ESTIMATOR_ENGINE`（参见 [deployment-and-testing](../operations/deployment-and-testing.md)）。
+- 请求期的采样参数覆写（thinking/fast 二档 + `thinking_level` 强度）由中间件从 `configurable` 注入，与 `_create_llm` 的 init-time 默认值形成两层：客户端显式传参才覆写（`None` 时保留启动默认）。传输位置开关 `REASONING_EFFORT_TRANSPORT`（ninfer=top_level / vLLM ≤0.27.1=chat_template_kwargs）见 [sampling-profiles](sampling-profiles.md)。

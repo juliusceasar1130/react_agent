@@ -3,12 +3,21 @@
 #
 # 三段结构与 _create_llm() 的传输分层完全一致：
 #   top_level: OpenAI 标准参数 (temperature, top_p, presence_penalty)
-#   extra_body: vLLM 特有参数 (top_k, min_p, repetition_penalty)
-#   chat_template_kwargs: 模板变量 (enable_thinking, reasoning_effort)
+#   extra_body: 顶层字段 (reasoning_effort 声明位) + top_k, min_p, repetition_penalty
+#   chat_template_kwargs: 模板变量 (enable_thinking)
 #
-# 注意：reasoning_effort 必须放在 chat_template_kwargs 段（而非 extra_body 顶层），
-# 因为 Qwen3 模板渲染时以 chat_template_kwargs 的键作为 Jinja2 变量读取；
-# extra_body 顶层参数 vLLM 接受但不传给模板（2026-08-28 行为验证确认）。
+# 注意：reasoning_effort 在本文件中声明于 extra_body 段（中性声明），
+# 由 profile_loader 按 REASONING_EFFORT_TRANSPORT 移到实际传输位置：
+#   top_level（默认，ninfer）：LangChain 合并进请求体顶层；ninfer 仅接受顶层
+#   reasoning_effort，且对 chat_template_kwargs 做白名单校验（非白名单键 400）。
+#   chat_template_kwargs（vLLM ≤0.27.1）：模板变量通道；该版本顶层参数
+#   接受但不传给模板，仅 ctk 通道生效。
+
+# Phase 3: UI 思考级别 → reasoning_effort 映射（可选，缺失时走 profile 默认值）
+thinking_level_map:
+  low: low
+  medium: medium
+  high: xhigh
 
 thinking:
   top_level:
@@ -19,9 +28,9 @@ thinking:
     top_k: 20
     min_p: 0.0
     repetition_penalty: 1.0
+    reasoning_effort: medium
   chat_template_kwargs:
     enable_thinking: true
-    reasoning_effort: medium
 
 fast:
   top_level:

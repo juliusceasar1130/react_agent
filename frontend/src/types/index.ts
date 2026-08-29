@@ -325,12 +325,16 @@ export interface StreamingMessage {
   subagents?: Record<string, SubagentSessionState>
 }
 
+// Phase 3: 思考强度四档
+export type ThinkingLevel = 'off' | 'low' | 'medium' | 'high'
+
 // 聊天请求类型 - 2025-01-01
 export interface ChatRequest {
   message: string
   session_id: string
   stream: boolean
-  enable_thinking?: boolean // 新增：是否启用思考模式
+  enable_thinking?: boolean
+  thinking_level?: 'low' | 'medium' | 'high' // Phase 3：仅 enable_thinking=true 时生效
 }
 
 // 聊天响应类型 - 2025-01-01

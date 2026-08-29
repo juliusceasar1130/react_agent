@@ -72,7 +72,7 @@
 | `top_k` | 20 | 20 | extra_body |
 | `min_p` | 0.0 | 0.0 | extra_body |
 | `repetition_penalty` | 1.0 | 1.0 | extra_body |
-| `reasoning_effort` | medium（显式指定） | 不传（模板不读取） | extra_body.chat_template_kwargs |
+| `reasoning_effort` | medium（显式指定） | 不传（模板不读取） | 传输位置由 `REASONING_EFFORT_TRANSPORT` 决定（见 D4 修正） |
 | `enable_thinking` | true | false | extra_body.chat_template_kwargs |
 
 ---
@@ -139,12 +139,14 @@ Phase 1 已完成 `enable_thinking` 布尔值从前端到 vLLM 网络包的端�
 
 > **修正（2026-08-28）**：`reasoning_effort` 必须放在 `chat_template_kwargs` 段而非 `extra_body` 顶层。Qwen3 模板渲染时以 `chat_template_kwargs` 的键作为 Jinja2 变量读取 `reasoning_effort`；`extra_body` 顶层参数 vLLM 接受但不传给模板（行为验证：顶层 5 档无差异，模板通道 low/medium/xhigh 输出长度 1864/2338/3858 阶梯递增）。
 
+> **修正（2026-08-29，ninfer 切换）**：上述结论仅对 vLLM 单后端成立。推理框架切为 ninfer 后，两框架约定相反（ninfer 仅接受请求体顶层 `reasoning_effort`，且对 `chat_template_kwargs` 内非白名单键直接 400；vLLM ≤0.27.1 仅 `chat_template_kwargs` 模板通道生效）。现 `reasoning_effort` 在 YAML 的 `extra_body` 段做中性声明，由 loader 按环境变量 `REASONING_EFFORT_TRANSPORT`（`top_level` 默认=ninfer / `chat_template_kwargs`=vLLM ≤0.27.1）移到实际传输位置。详见 [Phase 3 设计 §3.5](phase3_thinking_levels_design.md)。
+
 ### D5. 参数分层：复用现有约定
 
 与 [_create_llm()](../../backend/app/agent/llm.py) 传输分层完全一致：
 - **顶层**：`temperature`, `top_p`, `presence_penalty`（OpenAI 标准参数）
 - **extra_body**：`top_k`, `min_p`, `repetition_penalty`（vLLM 特有参数）
-- **extra_body.chat_template_kwargs**：`enable_thinking`, `reasoning_effort`（Qwen3 模板变量）
+- **extra_body.chat_template_kwargs**：`enable_thinking`（`reasoning_effort` 在 `extra_body` 段中性声明，由 `REASONING_EFFORT_TRANSPORT` 决定最终落点，见 D4 修正）
 
 ### D6. 双中间件保持现状
 
@@ -161,7 +163,7 @@ Phase 1 已完成 `enable_thinking` 布尔值从前端到 vLLM 网络包的端�
 | **快答模式 (Fast Mode)** | `enable_thinking=false` 时激活，低温度(0.7)+低top_p(0.8)+高presence_penalty(1.5)，跳过推理直接输出 |
 | **参数分层 (Parameter Layering)** | 采样参数按 OpenAI SDK 兼容性分两层传输：顶层标准参数 + extra_body vLLM 特有参数 |
 | **enable_thinking** | vLLM + Qwen3 的思考开关，通过 `chat_template_kwargs.enable_thinking` 传入 |
-| **reasoning_effort** | vLLM 推理强度控制参数，可选 `low`/`medium`/`xhigh`（模板实际值域），通过 `chat_template_kwargs.reasoning_effort` 传入（Qwen3 模板变量） |
+| **reasoning_effort** | 推理强度控制参数，可选 `low`/`medium`/`xhigh`（模板实际值域），传输位置由 `REASONING_EFFORT_TRANSPORT` 决定（2026-08-29 修正，见 D4） |
 | **thinkingLevelMap** | UI 思考级别到 reasoning_effort 的映射表，当前二档方案不使用，留作未来扩展 |
 | **profile_loader** | `backend/app/agent/config/profile_loader.py` 模块，启动时加载 YAML，提供 profile 查询和 model_settings 覆写函数 |
 
@@ -374,7 +376,7 @@ _load_profiles()  # eager load + fail-fast 校验
           → model_settings["top_p"] = 0.95/0.8           (顶层)
           → model_settings["presence_penalty"] = 0.0/1.5  (顶层)
           → model_settings["extra_body"]["top_k"] = 20   (extra_body)
-          → model_settings["extra_body"]["chat_template_kwargs"]["reasoning_effort"] = "medium"  (thinking 档，chat_template_kwargs)
+          → model_settings["extra_body"]["reasoning_effort"] = "medium"  (thinking 档，传输位置由 REASONING_EFFORT_TRANSPORT 决定，默认顶层)
           → model_settings["extra_body"]["chat_template_kwargs"]["enable_thinking"] = true/false
 ```
 

@@ -2,7 +2,7 @@
 
 ## 状态
 
-已决定 (2026-08-28)
+已决定 (2026-08-28)；2026-08-29 补充 D7（ninfer 切换，传输位置开关）
 
 ## 背景
 
@@ -48,18 +48,31 @@
 
 > **修正（2026-08-28）**：`reasoning_effort` 必须放在 `chat_template_kwargs` 段而非 `extra_body` 顶层。Qwen3 模板渲染时以 `chat_template_kwargs` 的键作为 Jinja2 变量读取 `reasoning_effort`；`extra_body` 顶层参数 vLLM 接受但不传给模板（行为验证：顶层 5 档无差异，模板通道 low/medium/xhigh 输出长度 1864/2338/3858 阶梯递增）。
 
+> **修正（2026-08-29）**：该结论仅对 vLLM 单后端成立。推理框架切为 ninfer 后约定相反（ninfer 仅接受顶层，`chat_template_kwargs` 内非白名单键直接 400），单一位置无法同时满足两者，由 D7 引入传输位置开关。
+
 ### D5. 参数分层：复用现有约定
 
 与 [_create_llm()](backend/app/agent/llm.py) 的传输分层完全一致，YAML 采用显式三段结构：
 - **top_level**：`temperature`, `top_p`, `presence_penalty`（OpenAI 标准参数）
 - **extra_body**：`top_k`, `min_p`, `repetition_penalty`（vLLM 特有参数）
-- **chat_template_kwargs**：`enable_thinking`, `reasoning_effort`（Qwen3 模板变量）
+- **chat_template_kwargs**：`enable_thinking`（`reasoning_effort` 仅在 transport=chat_template_kwargs 时落此段，见 D7）
 
 loader 按段机械搬运，不做隐式分类。未来新增参数只需放入正确段即可，未识别段名会直接抛异常。
 
 ### D6. 双中间件保持现状
 
 [PromptCompilerMiddleware](backend/app/agent/middleware/prompt_compiler_middleware.py) 和 [RagPromptInjectorMiddleware](backend/app/agent/middleware/rag_prompt_injector_middleware.py) 各自保留独立的 `_inject_thinking_config` 方法，共用配置加载模块（`profile_loader.py`）。注入逻辑幂等，重复执行无副作用。
+
+### D7. reasoning_effort 传输位置开关（2026-08-29 补充，ninfer 切换）
+
+`reasoning_effort` 的传输位置由环境变量 `REASONING_EFFORT_TRANSPORT` 声明（默认 `top_level`）：
+
+- `top_level`（ninfer）：发请求体顶层。ninfer 仅接受此位置，且对 `chat_template_kwargs` 内非白名单键直接 400 `chat_template_option_not_supported`；
+- `chat_template_kwargs`（vLLM ≤0.27.1）：发模板变量通道。该版本顶层参数接受但不透传模板，仅 ctk 通道生效。
+
+YAML 中统一声明于 `extra_body` 段（中性声明），`get_sampling_profile()` 按 transport 移到实际位置；`enable_thinking` 不受开关影响，始终在 `chat_template_kwargs`（两端都接受）。切换推理框架只需改 `.env` 一行并重启，代码/YAML/前端不动。误配后果：ninfer 上误配 ctk → 首个请求 400（显性）；vLLM 上误配 top_level → 档位静默失效、思考开关仍正常。
+
+**动机**：D4 的结论（2026-08-28）仅对 vLLM 单后端成立；两框架对 `reasoning_effort` 的传输位置约定相反，单一位置无法同时满足。细节见 [Phase 3 设计 §3.5](../thinking_mode/phase3_thinking_levels_design.md)。
 
 ## 后果
 
@@ -79,6 +92,6 @@ loader 按段机械搬运，不做隐式分类。未来新增参数只需放入�
         → apply_profile_to_model_settings(...)      ← 按分层规则写入 model_settings
           → model_settings["temperature"] = ...     (顶层)
           → model_settings["extra_body"]["top_k"] = ...  (extra_body)
-          → model_settings["extra_body"]["chat_template_kwargs"]["reasoning_effort"] = ...  (chat_template_kwargs)
+          → model_settings["extra_body"]["reasoning_effort"] = ...  (传输位置由 REASONING_EFFORT_TRANSPORT 决定，默认顶层；vLLM ≤0.27.1 时落 chat_template_kwargs)
           → model_settings["extra_body"]["chat_template_kwargs"]["enable_thinking"] = ...  (chat_template_kwargs)
 ```

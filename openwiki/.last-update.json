@@ -1,8 +1,8 @@
 {
-  "updatedAt": "2026-08-23T14:15:36.628Z",
+  "updatedAt": "2026-08-29T13:46:25.411Z",
   "command": "update",
-  "gitHead": "e7dae350b2793d86bdb7340689e07058702201fd",
-  "model": "gpt-5-nano",
-  "status": "complete",
+  "gitHead": "b78727c758f9e3e28067dffd0769a06cdeb55b42",
+  "model": "deepseek-v4-flash",
+  "status": "interrupted",
   "language": "zh-CN"
 }

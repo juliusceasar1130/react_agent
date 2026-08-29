@@ -1,5 +1,5 @@
 """
-一次性验证脚本：证明采样参数真正到达 vLLM 网络请求体（阶段 C §7.2 网络层验证）。
+一次性验证脚本：证明采样参数真正到达 LLM 服务网络请求体（阶段 C §5.3 端到端验证；适用于 ninfer / vLLM 等 OpenAI 兼容后端）。
 
 原理：
 1. 复用阶段 A 的 profile_loader 加载 thinking/fast 两档参数组合
@@ -7,11 +7,10 @@
 3. 模拟 LangChain 框架的 request.model.bind(**model_settings) 绑定
 4. 用自定义 httpx transport 拦截实际 HTTP 请求体并打印
 
-用法: python backend/tests/manual_verify_sampling_request_body.py [thinking|fast]
+用法: python backend/tests/manual_verify_sampling_request_body.py [thinking|fast] [--level low|medium|high]
 """
 
 import json
-import sys
 
 import httpx
 
@@ -50,14 +49,25 @@ class RecordingTransport(httpx.BaseTransport):
 
 
 def main() -> None:
-    mode = sys.argv[1] if len(sys.argv) > 1 else "thinking"
-    enable_thinking = mode == "thinking"
+    import argparse
+
+    parser = argparse.ArgumentParser(description="Phase 3 端到端验证：采样参数实际到达 LLM 请求体")
+    parser.add_argument("mode", nargs="?", default="thinking", choices=["thinking", "fast"],
+                        help="思考模式：thinking 或 fast")
+    parser.add_argument("--level", default=None, choices=["low", "medium", "high"],
+                        help="Phase 3：thinking 档强度（仅 mode=thinking 时生效）")
+    args = parser.parse_args()
+
+    enable_thinking = args.mode == "thinking"
+    thinking_level = args.level if enable_thinking else None
+    level_desc = f" (thinking_level={thinking_level})" if thinking_level else ""
 
     # 1. 加载 profile 并应用（等价于中间件 _inject_thinking_config 的逻辑）
-    profile = get_sampling_profile(enable_thinking)
+    profile = get_sampling_profile(enable_thinking, thinking_level)
     model_settings: dict = {}
     apply_profile_to_model_settings(model_settings, profile)
-    print(f"[1] profile_loader 注入后的 model_settings: {json.dumps(model_settings, ensure_ascii=False, indent=2)}")
+    print(f"[1] profile_loader 注入后的 model_settings{level_desc}:")
+    print(json.dumps(model_settings, ensure_ascii=False, indent=2))
 
     # 2. 构造带自定义 transport 的 httpx client，捕获请求体
     recorder = RecordingTransport()
@@ -81,7 +91,7 @@ def main() -> None:
     bound.invoke([HumanMessage(content="你好")])
 
     # 4. 打印捕获到的网络请求体
-    print("\n[2] 实际发往 vLLM 的 HTTP 请求体（网络层捕获）:")
+    print("\n[2] 实际发往 LLM 服务的 HTTP 请求体（网络层捕获）:")
     for body in recorder.captured:
         print(json.dumps(body, ensure_ascii=False, indent=2))
 
@@ -96,7 +106,7 @@ def main() -> None:
         "enable_thinking": body.get("chat_template_kwargs", {}).get("enable_thinking"),
     }
     if enable_thinking:
-        checks["reasoning_effort"] = body.get("chat_template_kwargs", {}).get("reasoning_effort")
+        checks["reasoning_effort"] = body.get("reasoning_effort")
     print("\n[3] 参数核对:")
     for k, v in checks.items():
         print(f"  {k}: {v}")
@@ -109,7 +119,11 @@ def main() -> None:
         "enable_thinking": enable_thinking,
     }
     if enable_thinking:
-        expected["reasoning_effort"] = "medium"
+        expected["reasoning_effort"] = {
+            "low": "low",
+            "medium": "medium",
+            "high": "xhigh",
+        }.get(thinking_level, "medium")
     for k, expected_v in expected.items():
         actual_v = checks[k]
         status = "✅" if actual_v == expected_v else "❌"

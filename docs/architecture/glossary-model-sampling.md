@@ -17,7 +17,7 @@ YAML 配置文件（`model_sampling_profiles.yaml`）中定义的一组完整的
 采样参数按 OpenAI SDK 兼容性分为三层传输，YAML 采用显式三段结构与之对应：
 - **top_level**：OpenAI 标准参数（`temperature`, `top_p`, `presence_penalty`），直接放在 `model_settings` 根级
 - **extra_body**：vLLM 特有参数（`top_k`, `repetition_penalty`, `min_p`），包裹在 `model_settings["extra_body"]` 中以规避 OpenAI SDK 参数强拦截
-- **chat_template_kwargs**：Qwen3 模板变量（`enable_thinking`, `reasoning_effort`），包裹在 `model_settings["extra_body"]["chat_template_kwargs"]` 中
+- **chat_template_kwargs**：Qwen3 模板变量（`enable_thinking`；`REASONING_EFFORT_TRANSPORT=chat_template_kwargs` 时另含 `reasoning_effort`），包裹在 `model_settings["extra_body"]["chat_template_kwargs"]` 中
 
 loader 按段机械搬运，未识别段名直接抛异常，不靠隐式硬编码分类。
 
@@ -27,13 +27,17 @@ vLLM + Qwen3 的思考开关，通过 `chat_template_kwargs.enable_thinking` 传
 
 ## reasoning_effort
 
-vLLM 的推理强度控制参数，通过 `chat_template_kwargs.reasoning_effort` 传入（Qwen3 模板变量，渲染时以 `chat_template_kwargs` 的键作为 Jinja2 变量）。可选值：`low`/`medium`/`xhigh`（Qwen3 模板实际值域）。思考模式默认 `medium`。
+推理强度控制参数，可选值：`low`/`medium`/`xhigh`（Qwen3 模板实际值域）。思考模式默认 `medium`，UI 思考档位经 `thinking_level_map` 覆写。
 
-> **修正（2026-08-28）**：早期版本描述为 `extra_body.reasoning_effort`（顶层），行为验证确认 vLLM 接受顶层参数但不传给模板，必须放入 `chat_template_kwargs` 段才生效。
+传输位置由环境变量 `REASONING_EFFORT_TRANSPORT` 决定（2026-08-29 起）：YAML 中统一声明于 `extra_body` 段（中性声明），`get_sampling_profile()` 按 transport 移到实际位置：
+- `top_level`（默认，ninfer）：请求体顶层；ninfer 仅接受此位置，`chat_template_kwargs` 内非白名单键直接 400；
+- `chat_template_kwargs`（vLLM ≤0.27.1）：模板变量通道（Jinja 模板只读该段）。
+
+> **修正（2026-08-28）**：早期版本描述为 `extra_body.reasoning_effort`（顶层），行为验证确认 vLLM 接受顶层参数但不传给模板，必须放入 `chat_template_kwargs` 段才生效。（仅对 vLLM 单后端成立，2026-08-29 ninfer 切换后由 `REASONING_EFFORT_TRANSPORT` 统一决定，见上。）
 
 ## thinkingLevelMap
 
-UI 思考级别到 vLLM `reasoning_effort` 值的映射表（`low→low`, `medium→medium`, `high→xhigh`, `max→xhigh`）。`off` 档对应 `enable_thinking=false`（快答模式，模板不读取 `reasoning_effort`）。当前二档方案不使用此映射，思考模式使用配置文件指定的默认值。未来扩展为多级别时可启用。
+UI 思考级别到 `reasoning_effort` 值的映射表（`low→low`, `medium→medium`, `high→xhigh`，见 YAML `thinking_level_map`）。`off` 档对应 `enable_thinking=false`（快答模式，不传 `reasoning_effort`）。Phase 3 起由前端四档选择器启用；覆写值同样按 `REASONING_EFFORT_TRANSPORT` 落位。
 
 ## _inject_thinking_config
 
@@ -41,4 +45,4 @@ UI 思考级别到 vLLM `reasoning_effort` 值的映射表（`low→low`, `mediu
 
 ## profile_loader
 
-[backend/app/agent/config/profile_loader.py](backend/app/agent/config/profile_loader.py) 模块，启动时一次性加载 YAML 配置。`_load_profiles()` 做 fail-fast 校验（文件存在、thinking/fast 两 profile 齐全、无未知段，否则直接抛异常），在 `_initialize_agent` / `_ainitialize_agent` 中主动触发。`get_sampling_profile` 返回 `dict(profile)` 浅拷贝防止缓存污染。提供 `get_sampling_profile(enable_thinking: bool)` 和 `apply_profile_to_model_settings(model_settings, profile)` 两个函数供中间件调用。
+[backend/app/agent/config/profile_loader.py](backend/app/agent/config/profile_loader.py) 模块，启动时一次性加载 YAML 配置。`_load_profiles()` 做 fail-fast 校验（文件存在、thinking/fast 两 profile 齐全、无未知段，否则直接抛异常），在 `_initialize_agent` / `_ainitialize_agent` 中主动触发。`get_sampling_profile(enable_thinking, thinking_level=None)` 返回 `copy.deepcopy` 深拷贝防止缓存污染，并按 `REASONING_EFFORT_TRANSPORT` 将 `reasoning_effort` 移到实际传输位置。提供 `get_sampling_profile(...)` 和 `apply_profile_to_model_settings(model_settings, profile)` 两个函数供中间件调用。

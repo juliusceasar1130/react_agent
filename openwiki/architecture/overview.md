@@ -43,6 +43,7 @@ _图注：从 Vue 前端经由 FastAPI 流式适配器进入 DeepAgent 图、其
 | 区域 | 规范页面 | 所属入口点 |
 |---|---|---|
 | 智能体装配、LLM 工厂、双重初始化 | [智能体服务](agent-service.md) | `backend/app/agent/service.py`，`backend/app/agent/llm.py` |
+| 模型采样参数动态注入（thinking/fast 二档 + 思考强度） | [采样参数组合与动态注入](sampling-profiles.md) | `backend/app/agent/config/`，`backend/app/agent/middleware/*.py`，`backend/app/routers/chat.py` |
 | 系统提示模板与加载器 | [智能体提示](agent-prompts.md) | `backend/app/agent/prompts/main_system_prompt.md`，`backend/app/agent/subagents/sql/base_system_prompt.md`，`backend/app/agent/utils/system_prompt_loader.py` |
 | 状态与瞬态上下文沙箱隔离 | [状态与上下文](state-and-context.md) | `backend/app/agent/state.py`，`backend/app/agent/context.py` |
 | SQL 领域子智能体 | [SQL 子智能体](subagent-sql.md) | `backend/app/agent/subagents/sql/` |
@@ -63,6 +64,7 @@ _图注：从 Vue 前端经由 FastAPI 流式适配器进入 DeepAgent 图、其
 - 单轮检索数据（RAG 文档、词典 DDL）通过 LangGraph **Context API**（`context_schema=RequestContext`）传输，绝不经由检查点状态 — 参见 [状态与上下文](state-and-context.md)。
 - 瞬态工具负载通过 `Command(update={"messages", "tool_artifact"})` 旁路通道进入 `CustomState.tool_artifact`，而不是普通的工具返回字符串 — 参见 [制品生命周期](../workflows/artifact-lifecycle.md)。
 - 前端流事件在三个位置注册（类型联合、`STREAM_EVENT_TYPES` 白名单、`parseStreamEvent` 的 switch 语句）— 参见 [流式协议](../workflows/streaming-protocol.md)。
+- 客户端思考配置（`enable_thinking` / `thinking_level`）经 `config["configurable"]` 透传，由主智能体与 SQL 子智能体的两个中间件**对称**注入采样参数组合；`/api/chat/resume` 端点不继承该配置（与 Phase 1/2 限制一致）— 参见 [采样参数组合与动态注入](sampling-profiles.md)。
 
 ## 从哪里开始
 

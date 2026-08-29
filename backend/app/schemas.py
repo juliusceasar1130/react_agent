@@ -63,6 +63,7 @@ class ChatRequest(BaseModel):
     session_id: Optional[str] = None
     stream: Optional[bool] = False
     enable_thinking: Optional[bool] = None  # 新增：支持客户端动态控制思考模式
+    thinking_level: Literal["low", "medium", "high"] | None = None  # Phase 3：思考强度，仅 enable_thinking=true 时生效
 
 
 class ContextWarningPayload(BaseModel):

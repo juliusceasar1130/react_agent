@@ -31,7 +31,7 @@ openwiki:
 
 | 分组 | 变量 | 控制内容 |
 |---|---|---|
-| LLM | `DEEPSEEK_API_KEY`、`DEEPSEEK_BASE_URL`、`DEEPSEEK_MODEL`、`OLLAMA_*`、`AGENT_TEMPERATURE`、`AGENT_MAX_TOKENS` | 供应商选择（[agent-service](../architecture/agent-service.md)） |
+| LLM | `DEEPSEEK_API_KEY`、`DEEPSEEK_BASE_URL`、`DEEPSEEK_MODEL`、`OLLAMA_*`、`AGENT_TEMPERATURE`、`AGENT_MAX_TOKENS`、`REASONING_EFFORT_TRANSPORT`（`top_level`=ninfer / `chat_template_kwargs`=vLLM ≤0.27.1） | 供应商选择（[agent-service](../architecture/agent-service.md)）；`reasoning_effort` 的传输位置由采样 profile 注入使用（[sampling-profiles](../architecture/sampling-profiles.md)）——切换推理框架只改这一行并重启 |
 | Prompts | `MAIN_SYSTEM_PROMPT_PATH`（主编排器提示词）、`SYSTEM_PROMPT_PATH`（SQL 子代理提示词） | 文件支持的系统提示词模板的路径；默认值解析为已提交的 `backend/app/agent/prompts/` 和 `backend/app/agent/subagents/sql/` 文件（[agent-prompts](../architecture/agent-prompts.md)） |
 | Databases | `DATABASE_URL`（聊天会话 + 代理检查点 + pgvector `rag_store`）、`ANALYTICS_DATABASE_URL` + `ANALYTICS_DB_SEARCH_PATH`（业务 SQL 目标） | 两个不同的 Postgres 角色：应用数据库与分析数据库 |
 | SQL safety | `SQL_AGENT_TOP_K`、`SQL_RESULT_HARD_LIMIT`、`SQL_RESULT_PREVIEW_ROWS`、`DIMENSION_RESULT_HARD_LIMIT`、`DIMENSION_TABLES`、`SQL_LINTER_ENABLED`、`SQL_LINTER_DISABLED_RULES`、`SQL_CHECKER_MODE` | [tools-and-sql-linter](../architecture/tools-and-sql-linter.md) 中的防护流水线 |

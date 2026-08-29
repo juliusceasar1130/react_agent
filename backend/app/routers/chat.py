@@ -59,6 +59,8 @@ async def send_message(chat_request: ChatRequest, db: Session = Depends(get_db))
     config = {"configurable": {"thread_id": str(session_id)}}
     if chat_request.enable_thinking is not None:
         config["configurable"]["enable_thinking"] = chat_request.enable_thinking
+    if chat_request.thinking_level is not None:
+        config["configurable"]["thinking_level"] = chat_request.thinking_level
     agent_service = get_agent_service()
 
     # 使用Agent处理消息
@@ -156,6 +158,8 @@ async def stream_message_post(
             config = {"configurable": {"thread_id": str(session_id)}}
             if chat_request.enable_thinking is not None:
                 config["configurable"]["enable_thinking"] = chat_request.enable_thinking
+            if chat_request.thinking_level is not None:
+                config["configurable"]["thinking_level"] = chat_request.thinking_level
 
             full_content = ""
             has_reasoning = False

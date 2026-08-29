@@ -41,6 +41,8 @@ dist/
 build/
 .pytest_cache/
 .pytest_tmp/
+# Pytest tmp_path artifacts (Windows 路径分隔符被吞导致 repo 根目录出现畸形目录名)
+000_*pytest_tmp*/
 .superpowers/
 .coverage
 htmlcov/

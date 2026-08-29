@@ -398,6 +398,7 @@ class PromptCompilerMiddleware(AgentMiddleware[SqlSubAgentState, RequestContext]
             runnable_config = ensure_config()
             configurable = runnable_config.get("configurable") or {}
             client_enable_thinking = configurable.get("enable_thinking")
+            client_thinking_level = configurable.get("thinking_level")
 
             # 2. 如果客户端显式指定了参数，我们对当次模型请求参数进行安全改写
             if client_enable_thinking is not None:
@@ -405,7 +406,7 @@ class PromptCompilerMiddleware(AgentMiddleware[SqlSubAgentState, RequestContext]
                     request.model_settings = {}
 
                 # 加载采样参数组合并覆写 model_settings
-                profile = get_sampling_profile(client_enable_thinking)
+                profile = get_sampling_profile(client_enable_thinking, client_thinking_level)
                 apply_profile_to_model_settings(request.model_settings, profile)
 
                 logger.info(

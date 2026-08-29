@@ -26,6 +26,12 @@ def _clear_lru_cache():
     _load_profiles.cache_clear()
 
 
+@pytest.fixture(autouse=True)
+def _default_effort_transport(monkeypatch):
+    """统一默认 transport=top_level，避免开发机环境变量干扰存量用例。"""
+    monkeypatch.setenv("REASONING_EFFORT_TRANSPORT", "top_level")
+
+
 def test_prompt_compiler_injects_thinking_profile():
     """测试 1: enable_thinking=True 时注入 thinking profile"""
     from langchain_core.runnables import RunnableConfig
@@ -52,9 +58,10 @@ def test_prompt_compiler_injects_thinking_profile():
         assert request.model_settings["top_p"] == 0.95
         # extra_body 参数
         assert request.model_settings["extra_body"]["top_k"] == 20
-        # chat_template_kwargs 参数（含 reasoning_effort）
+        # reasoning_effort 参数（extra_body 顶层，LangChain 合并进请求体顶层）
+        assert request.model_settings["extra_body"]["reasoning_effort"] == "medium"
+        # chat_template_kwargs 参数
         assert request.model_settings["extra_body"]["chat_template_kwargs"]["enable_thinking"] is True
-        assert request.model_settings["extra_body"]["chat_template_kwargs"]["reasoning_effort"] == "medium"
     finally:
         var_child_runnable_config.reset(token)
 
@@ -116,5 +123,116 @@ def test_prompt_compiler_enable_thinking_none_no_override():
         middleware._inject_thinking_config(request)
         assert request.model_settings["temperature"] == 0.5
         assert request.model_settings["extra_body"]["custom_key"] == "custom_value"
+    finally:
+        var_child_runnable_config.reset(token)
+
+
+# -----------------------------------------------------------------------------
+# Phase 3: thinking_level 覆写
+# -----------------------------------------------------------------------------
+
+def test_prompt_compiler_thinking_level_high_overrides_effort():
+    """测试 4: thinking_level=high 时覆写 reasoning_effort=xhigh"""
+    from langchain_core.runnables import RunnableConfig
+    from langchain_core.runnables.config import var_child_runnable_config
+
+    middleware = PromptCompilerMiddleware()
+    state = SqlSubAgentState()
+    initial_sys_msg = SystemMessage(content="你是一个 SQL 专家。")
+    request = ModelRequest(
+        system_message=initial_sys_msg,
+        messages=[HumanMessage(content="查询在制车")],
+        state=state,
+        model=MagicMock(),
+    )
+
+    config: RunnableConfig = {"configurable": {"enable_thinking": True, "thinking_level": "high"}}
+    token = var_child_runnable_config.set(config)
+
+    try:
+        middleware._inject_thinking_config(request)
+        assert request.model_settings is not None
+        assert request.model_settings["extra_body"]["reasoning_effort"] == "xhigh"
+    finally:
+        var_child_runnable_config.reset(token)
+
+
+def test_prompt_compiler_thinking_level_none_defaults_medium():
+    """测试 5: thinking_level=None 时 reasoning_effort=medium（Phase 2 兼容）"""
+    from langchain_core.runnables import RunnableConfig
+    from langchain_core.runnables.config import var_child_runnable_config
+
+    middleware = PromptCompilerMiddleware()
+    state = SqlSubAgentState()
+    initial_sys_msg = SystemMessage(content="你是一个 SQL 专家。")
+    request = ModelRequest(
+        system_message=initial_sys_msg,
+        messages=[HumanMessage(content="查询在制车")],
+        state=state,
+        model=MagicMock(),
+    )
+
+    config: RunnableConfig = {"configurable": {"enable_thinking": True, "thinking_level": None}}
+    token = var_child_runnable_config.set(config)
+
+    try:
+        middleware._inject_thinking_config(request)
+        assert request.model_settings is not None
+        assert request.model_settings["extra_body"]["reasoning_effort"] == "medium"
+    finally:
+        var_child_runnable_config.reset(token)
+
+
+def test_prompt_compiler_fast_with_thinking_level_ignores_level():
+    """测试 6: fast + thinking_level=high 时不注入 reasoning_effort"""
+    from langchain_core.runnables import RunnableConfig
+    from langchain_core.runnables.config import var_child_runnable_config
+
+    middleware = PromptCompilerMiddleware()
+    state = SqlSubAgentState()
+    initial_sys_msg = SystemMessage(content="你是一个 SQL 专家。")
+    request = ModelRequest(
+        system_message=initial_sys_msg,
+        messages=[HumanMessage(content="查询在制车")],
+        state=state,
+        model=MagicMock(),
+    )
+
+    config: RunnableConfig = {"configurable": {"enable_thinking": False, "thinking_level": "high"}}
+    token = var_child_runnable_config.set(config)
+
+    try:
+        middleware._inject_thinking_config(request)
+        assert request.model_settings is not None
+        assert "reasoning_effort" not in request.model_settings.get("extra_body", {})
+    finally:
+        var_child_runnable_config.reset(token)
+
+
+def test_prompt_compiler_thinking_level_high_transport_ctk(monkeypatch):
+    """测试 7: transport=chat_template_kwargs + thinking_level=high → reasoning_effort 落在 ctk 段"""
+    from langchain_core.runnables import RunnableConfig
+    from langchain_core.runnables.config import var_child_runnable_config
+
+    monkeypatch.setenv("REASONING_EFFORT_TRANSPORT", "chat_template_kwargs")
+
+    middleware = PromptCompilerMiddleware()
+    state = SqlSubAgentState()
+    initial_sys_msg = SystemMessage(content="你是一个 SQL 专家。")
+    request = ModelRequest(
+        system_message=initial_sys_msg,
+        messages=[HumanMessage(content="查询在制车")],
+        state=state,
+        model=MagicMock(),
+    )
+
+    config: RunnableConfig = {"configurable": {"enable_thinking": True, "thinking_level": "high"}}
+    token = var_child_runnable_config.set(config)
+
+    try:
+        middleware._inject_thinking_config(request)
+        assert request.model_settings is not None
+        assert request.model_settings["extra_body"]["chat_template_kwargs"]["reasoning_effort"] == "xhigh"
+        assert "reasoning_effort" not in request.model_settings["extra_body"]
     finally:
         var_child_runnable_config.reset(token)

@@ -182,12 +182,14 @@
                       off-label="等待完整"
                     />
                     <div class="h-3.5 w-px bg-neutral-200/80 mx-0.5"></div>
-                    <ToggleSwitch
-                      v-model="enableThinking"
-                      label="深度思考"
-                      :show-status="true"
-                      on-label="已开启"
-                      off-label="已关闭"
+                    <SegmentedControl
+                      v-model="thinkingLevel"
+                      :options="[
+                        { label: '关闭', value: 'off' },
+                        { label: '轻思考', value: 'low' },
+                        { label: '标准思考', value: 'medium' },
+                        { label: '深度思考', value: 'high' },
+                      ]"
                     />
                     <span
                       v-if="isSending"
@@ -263,6 +265,7 @@ import VariantB from '@/components/chat/VariantB.vue'
 import { useSessionsStore } from '@/stores/sessions'
 import { useChatStream } from '@/composables/useChatStream'
 import ToggleSwitch from '@/components/common/ToggleSwitch.vue'
+import SegmentedControl from '@/components/common/SegmentedControl.vue'
 import SessionList from '@/components/common/SessionList.vue'
 import MessageList from '@/components/chat/MessageList.vue'
 import WelcomeDashboard from '@/components/chat/WelcomeDashboard.vue'
@@ -275,7 +278,7 @@ import { useScenarioPanelStore } from '@/stores/scenarioPanel'
 
 const sessionsStore = useSessionsStore()
 const scenarioPanelStore = useScenarioPanelStore()
-const { isSending, streamMode, enableThinking, contextWarning, sendMessage, stopStreaming } = useChatStream()
+const { isSending, streamMode, thinkingLevel, contextWarning, sendMessage, stopStreaming } = useChatStream()
 
 const inputText = ref('')
 const isSidebarOpen = ref(false)

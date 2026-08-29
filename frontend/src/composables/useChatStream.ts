@@ -15,7 +15,7 @@ import { ref, computed } from 'vue'
 import { sendChatStream, sendChatMessage, sendChatResumeStream } from '@/api/chat'
 import { useMessagesStore } from '@/stores/messages'
 import { useSessionsStore } from '@/stores/sessions'
-import type { ContextWarningPayload, Message, StreamEvent, StreamToolCall } from '@/types'
+import type { ContextWarningPayload, Message, StreamEvent, StreamToolCall, ThinkingLevel } from '@/types'
 
 const assertNever = (value: never): never => {
   throw new Error(`未处理的流式事件: ${JSON.stringify(value)}`)
@@ -30,7 +30,11 @@ export function useChatStream() {
   const sessionsStore = useSessionsStore()
 
   const streamMode = ref(true)  // 流式模式开关状态
-  const enableThinking = ref(true) // 新增：思考模式开关状态，默认开启
+  const thinkingLevel = ref<ThinkingLevel>('medium') // Phase 3：四档思考强度，默认"标准思考"
+  const enableThinking = computed(() => thinkingLevel.value !== 'off')
+  const thinkingLevelParam = computed(() =>
+    thinkingLevel.value === 'off' ? undefined : thinkingLevel.value
+  )
   
   const activeStreamControllersMap = ref<Record<string, AbortController>>({})
   const sendingSessionsMap = ref<Record<string, boolean>>({})
@@ -288,7 +292,8 @@ export function useChatStream() {
           message: content, 
           session_id: sessionId, 
           stream: true,
-          enable_thinking: enableThinking.value // 新增透传
+          enable_thinking: enableThinking.value,
+          thinking_level: thinkingLevelParam.value,
         },
         handleEvent,
         { signal: controller.signal }
@@ -312,7 +317,8 @@ export function useChatStream() {
       message: content,
       session_id: sessionId,
       stream: false,
-      enable_thinking: enableThinking.value // 新增透传
+      enable_thinking: enableThinking.value,
+      thinking_level: thinkingLevelParam.value,
     })
     contextWarningsMap.value[sessionId] = response.context_warning ?? null
 
@@ -386,7 +392,7 @@ export function useChatStream() {
   return {
     isSending,
     streamMode,
-    enableThinking, // 新增导出
+    thinkingLevel, // Phase 3：四档思考强度
     contextWarning,
     sendMessage,
     resumeMessage,

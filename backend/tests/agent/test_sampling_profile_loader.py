@@ -25,6 +25,12 @@ def _clear_lru_cache():
     _load_profiles.cache_clear()
 
 
+@pytest.fixture(autouse=True)
+def _default_effort_transport(monkeypatch):
+    """统一默认 transport=top_level，避免开发机环境变量干扰存量用例。"""
+    monkeypatch.setenv("REASONING_EFFORT_TRANSPORT", "top_level")
+
+
 # -----------------------------------------------------------------------------
 # Helpers
 # -----------------------------------------------------------------------------
@@ -307,7 +313,7 @@ def test_apply_profile_idempotent():
 
 
 def test_apply_profile_overrides_existing_values():
-    """已有 model_settings 值被 profile 覆写。"""
+    """已有 model_settings 値被 profile 覆写。"""
     model_settings: dict = {"temperature": 0.5, "extra_body": {"top_k": 10}}
     profile = {
         "top_level": {"temperature": 1.0},
@@ -318,3 +324,186 @@ def test_apply_profile_overrides_existing_values():
 
     assert model_settings["temperature"] == 1.0
     assert model_settings["extra_body"]["top_k"] == 20
+
+
+# -----------------------------------------------------------------------------
+# Phase 3: thinking_level 覆写
+# -----------------------------------------------------------------------------
+
+# YAML fixture 含 thinking_level_map（Phase 3 新增）
+_YAML_WITH_MAP = """
+thinking_level_map:
+  low: low
+  medium: medium
+  high: xhigh
+
+thinking:
+  top_level:
+    temperature: 1.0
+  extra_body:
+    top_k: 20
+    reasoning_effort: medium
+  chat_template_kwargs:
+    enable_thinking: true
+
+fast:
+  top_level:
+    temperature: 0.7
+  extra_body:
+    top_k: 20
+  chat_template_kwargs:
+    enable_thinking: false
+"""
+
+
+def _setup_yaml(tmp_path, monkeypatch, content: str = _YAML_WITH_MAP):
+    """写入 YAML fixture 并 patch _YAML_PATH。"""
+    import backend.app.agent.config.profile_loader as pl
+    yaml_path = tmp_path / "model_sampling_profiles.yaml"
+    yaml_path.write_text(content, encoding="utf-8")
+    monkeypatch.setattr(pl, "_YAML_PATH", yaml_path)
+    _load_profiles.cache_clear()
+
+
+def test_load_profiles_contains_thinking_level_map(tmp_path, monkeypatch):
+    """YAML 加载后含 thinking_level_map 且值正确。"""
+    _setup_yaml(tmp_path, monkeypatch)
+    result = _load_profiles()
+    assert "thinking_level_map" in result
+    assert result["thinking_level_map"]["low"] == "low"
+    assert result["thinking_level_map"]["medium"] == "medium"
+    assert result["thinking_level_map"]["high"] == "xhigh"
+
+
+def test_load_profiles_unknown_section_still_raises_with_map(tmp_path, monkeypatch):
+    """白名单跳过 thinking_level_map 后，真正的未知段仍会拋错。"""
+    _setup_yaml(tmp_path, monkeypatch, _YAML_WITH_MAP + "  unknown_section:\n    key: value\n")
+    with pytest.raises(ValueError, match="未知段"):
+        _load_profiles()
+
+
+def test_get_sampling_profile_with_thinking_level_high(tmp_path, monkeypatch):
+    """thinking + high -> reasoning_effort=xhigh，其余参数不变。"""
+    _setup_yaml(tmp_path, monkeypatch)
+    profile = get_sampling_profile(True, thinking_level="high")
+    assert profile["extra_body"]["reasoning_effort"] == "xhigh"
+    assert profile["top_level"]["temperature"] == 1.0
+    assert profile["extra_body"]["top_k"] == 20
+
+
+def test_get_sampling_profile_with_thinking_level_low(tmp_path, monkeypatch):
+    """thinking + low -> reasoning_effort=low。"""
+    _setup_yaml(tmp_path, monkeypatch)
+    profile = get_sampling_profile(True, thinking_level="low")
+    assert profile["extra_body"]["reasoning_effort"] == "low"
+
+
+def test_get_sampling_profile_thinking_level_none_defaults_medium(tmp_path, monkeypatch):
+    """thinking + None -> reasoning_effort=medium（Phase 2 兼容）。"""
+    _setup_yaml(tmp_path, monkeypatch)
+    profile = get_sampling_profile(True, thinking_level=None)
+    assert profile["extra_body"]["reasoning_effort"] == "medium"
+
+
+def test_get_sampling_profile_fast_ignores_thinking_level(tmp_path, monkeypatch):
+    """fast + high -> 不传 reasoning_effort（忽略传入值）。"""
+    _setup_yaml(tmp_path, monkeypatch)
+    profile = get_sampling_profile(False, thinking_level="high")
+    assert "reasoning_effort" not in profile.get("extra_body", {})
+
+
+def test_get_sampling_profile_map_missing_ignores_level(tmp_path, monkeypatch):
+    """YAML 不含 map + thinking_level=high -> 不覆写，用 profile 默认 medium。"""
+    _setup_yaml(tmp_path, monkeypatch, """
+thinking:
+  top_level:
+    temperature: 1.0
+  extra_body:
+    reasoning_effort: medium
+  chat_template_kwargs:
+    enable_thinking: true
+
+fast:
+  top_level: {}
+  extra_body: {}
+  chat_template_kwargs:
+    enable_thinking: false
+""")
+    profile = get_sampling_profile(True, thinking_level="high")
+    assert profile["extra_body"]["reasoning_effort"] == "medium"
+
+
+def test_get_sampling_profile_map_key_missing_skips(tmp_path, monkeypatch):
+    """YAML 含 map 但缺键（只留 low/medium）+ thinking_level=high -> 不覆写。"""
+    _setup_yaml(tmp_path, monkeypatch, """
+thinking_level_map:
+  low: low
+  medium: medium
+
+thinking:
+  top_level: {}
+  extra_body:
+    reasoning_effort: medium
+  chat_template_kwargs:
+    enable_thinking: true
+
+fast:
+  top_level: {}
+  extra_body: {}
+  chat_template_kwargs:
+    enable_thinking: false
+""")
+    profile = get_sampling_profile(True, thinking_level="high")
+    assert profile["extra_body"]["reasoning_effort"] == "medium"
+
+
+def test_get_sampling_profile_returns_deep_copy(tmp_path, monkeypatch):
+    """嵌套段修改也不污染缓存（深拷贝验证）。"""
+    _setup_yaml(tmp_path, monkeypatch)
+    profile = get_sampling_profile(True, thinking_level="high")
+    # 修改嵌套段
+    profile["extra_body"]["reasoning_effort"] = "tampered"
+    profile["extra_body"]["top_k"] = 999
+
+    profile2 = get_sampling_profile(True, thinking_level="high")
+    assert profile2["extra_body"]["reasoning_effort"] == "xhigh"
+    assert profile2["extra_body"]["top_k"] == 20
+
+
+# -----------------------------------------------------------------------------
+# REASONING_EFFORT_TRANSPORT 传输位置开关
+# -----------------------------------------------------------------------------
+
+def test_get_sampling_profile_transport_ctk_default_medium(tmp_path, monkeypatch):
+    """transport=chat_template_kwargs + thinking 默认 → medium 落在 ctk 段，extra_body 无残留。"""
+    monkeypatch.setenv("REASONING_EFFORT_TRANSPORT", "chat_template_kwargs")
+    _setup_yaml(tmp_path, monkeypatch)
+    profile = get_sampling_profile(True, thinking_level=None)
+    assert profile["chat_template_kwargs"]["reasoning_effort"] == "medium"
+    assert "reasoning_effort" not in profile["extra_body"]
+
+
+def test_get_sampling_profile_transport_ctk_with_level(tmp_path, monkeypatch):
+    """transport=chat_template_kwargs + thinking_level=high → xhigh 落在 ctk 段。"""
+    monkeypatch.setenv("REASONING_EFFORT_TRANSPORT", "chat_template_kwargs")
+    _setup_yaml(tmp_path, monkeypatch)
+    profile = get_sampling_profile(True, thinking_level="high")
+    assert profile["chat_template_kwargs"]["reasoning_effort"] == "xhigh"
+    assert "reasoning_effort" not in profile["extra_body"]
+
+
+def test_get_sampling_profile_transport_ctk_fast_no_effort(tmp_path, monkeypatch):
+    """transport=chat_template_kwargs + fast + level=high → 两段均不传 reasoning_effort。"""
+    monkeypatch.setenv("REASONING_EFFORT_TRANSPORT", "chat_template_kwargs")
+    _setup_yaml(tmp_path, monkeypatch)
+    profile = get_sampling_profile(False, thinking_level="high")
+    assert "reasoning_effort" not in profile.get("extra_body", {})
+    assert "reasoning_effort" not in profile.get("chat_template_kwargs", {})
+
+
+def test_get_sampling_profile_invalid_transport_raises(tmp_path, monkeypatch):
+    """REASONING_EFFORT_TRANSPORT 非法值 → fail-fast 抛 ValueError。"""
+    monkeypatch.setenv("REASONING_EFFORT_TRANSPORT", "bogus")
+    _setup_yaml(tmp_path, monkeypatch)
+    with pytest.raises(ValueError, match="REASONING_EFFORT_TRANSPORT"):
+        get_sampling_profile(True)
