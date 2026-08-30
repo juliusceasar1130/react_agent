@@ -122,7 +122,7 @@ def create_wrapped_query_tool(
 
             if any(err in check_result_str for err in SQL_ERROR_KEYWORDS):
                 logger.warning("SQL 语法检查失败: %s", check_result)
-                return f"SQL 语法检查失败:\n{check_result}\n请修正查询后重试。"
+                return f"Error: SQL 语法检查失败:\n{check_result}\n请修正查询后重试。"
 
             logger.debug("SQL 语法检查通过")
 
@@ -329,6 +329,7 @@ def create_sql_example_search_tool(
         )
         return examples
 
+    search_saved_correct_tool_uses.handle_tool_error = True
     return search_saved_correct_tool_uses
 
 
@@ -376,8 +377,9 @@ def create_db_value_lexicon_tool(lexicon_retriever: Any) -> Any:
             return "\n".join(lines)
         except Exception as e:
             logger.error(f"Error retrieving value lexicon: {e}", exc_info=True)
-            return f"Error retrieving value lexicon: {str(e)}"
+            return "Error: 检索列值物理词典失败: " + str(e)
 
+    search_db_value_lexicon.handle_tool_error = True
     return search_db_value_lexicon
 
 
@@ -426,8 +428,9 @@ def create_db_row_lexicon_tool(lexicon_retriever: Any) -> Any:
             return "\n".join(lines)
         except Exception as e:
             logger.error(f"Error retrieving row lexicon: {e}", exc_info=True)
-            return f"Error retrieving row lexicon: {str(e)}"
+            return "Error: 检索行内容物理词典失败: " + str(e)
 
+    search_db_row_lexicon.handle_tool_error = True
     return search_db_row_lexicon
 
 
@@ -474,6 +477,7 @@ def create_db_table_schema_tool(lexicon_retriever: Any) -> Any:
             return "\n".join(lines)
         except Exception as e:
             logger.error(f"Error retrieving table schema lexicon: {e}", exc_info=True)
-            return f"Error retrieving table schema lexicon: {str(e)}"
+            return "Error: 检索表结构物理词典失败: " + str(e)
 
+    search_db_table_schema.handle_tool_error = True
     return search_db_table_schema

@@ -65,6 +65,8 @@ class LlamaCppTokenEstimator:
             base_url=self.base_url,
             timeout=httpx.Timeout(self.timeout),
         )
+        # 失败熔断：tokenize 端点首次不可用后不再重试，后续直接走保守估算
+        self._unavailable = False
 
     def close(self) -> None:
         self._client.close()
@@ -84,6 +86,8 @@ class LlamaCppTokenEstimator:
         }
 
     def _tokenize(self, text: str) -> int | None:
+        if self._unavailable:
+            return None
         try:
             response = self._client.post(
                 self.endpoint_path,
@@ -91,7 +95,11 @@ class LlamaCppTokenEstimator:
             )
             response.raise_for_status()
         except httpx.HTTPError as exc:
-            logger.warning("调用 llama.cpp tokenize 失败，使用保守估算: %s", exc)
+            if not self._unavailable:
+                logger.info(
+                    "tokenize 端点不可用（%s），已熔断，后续轮次将直接使用保守估算", exc,
+                )
+                self._unavailable = True
             return None
 
         try:

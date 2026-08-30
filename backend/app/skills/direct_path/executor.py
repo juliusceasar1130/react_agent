@@ -5,6 +5,7 @@ SQL 执行层 (Executor)
 """
 
 import logging
+import re
 from typing import Any
 from sqlalchemy import text
 
@@ -39,15 +40,18 @@ def build_executed_sql(
                     
                     # 替换 {value}
                     replaced_fragment = sql_fragment.replace("{value}", bind_placeholder)
-                    
+
                     # 物理类型转换
-                    p_type = param_def.get("type", "string")
-                    if p_type == "integer":
-                        bind_vars[param_name] = int(val)
-                    elif p_type == "float":
-                        bind_vars[param_name] = float(val)
-                    else:
-                        bind_vars[param_name] = str(val)
+                    # 仅当替换后的 fragment 实际含 :param 占位符时才绑定参数（兼容 {value} 与字面 :param 两种写法），
+                    # 否则 SQL 中无对应占位符，多余绑定值会触发 psycopg "Unconsumed named parameter" 错误
+                    if re.search(rf":{re.escape(param_name)}(?![A-Za-z0-9_])", replaced_fragment):
+                        p_type = param_def.get("type", "string")
+                        if p_type == "integer":
+                            bind_vars[param_name] = int(val)
+                        elif p_type == "float":
+                            bind_vars[param_name] = float(val)
+                        else:
+                            bind_vars[param_name] = str(val)
 
                     line = line.replace(placeholder, replaced_fragment)
                     final_lines.append(line)

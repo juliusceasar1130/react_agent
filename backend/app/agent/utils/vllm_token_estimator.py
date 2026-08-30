@@ -39,6 +39,9 @@ class VllmTokenEstimator:
             base_url=self.base_url,
             timeout=httpx.Timeout(self.timeout),
         )
+        # 失败熔断：tokenize 端点首次不可用（如部署为 nInfer 无 /tokenize）后不再重试，
+        # 后续直接走保守估算，避免每轮多次无效同步 HTTP 往返
+        self._unavailable = False
 
     def close(self) -> None:
         self._client.close()
@@ -50,6 +53,8 @@ class VllmTokenEstimator:
         self.close()
 
     def _tokenize(self, payload_kwargs: dict[str, Any]) -> int | None:
+        if self._unavailable:
+            return None
         try:
             payload = {"model": self.model_name}
             payload.update(payload_kwargs)
@@ -59,7 +64,11 @@ class VllmTokenEstimator:
             )
             response.raise_for_status()
         except httpx.HTTPError as exc:
-            logger.warning("调用 vLLM tokenize 失败，使用保守估算: %s", exc)
+            if not self._unavailable:
+                logger.info(
+                    "tokenize 端点不可用（%s），已熔断，后续轮次将直接使用保守估算", exc,
+                )
+                self._unavailable = True
             return None
 
         try:

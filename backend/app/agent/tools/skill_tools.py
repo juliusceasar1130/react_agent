@@ -173,6 +173,10 @@ def load_skill(skill_name: str, runtime: ToolRuntime[RequestContext, SqlSubAgent
     return _build_load_skill_command(skill_name, runtime)
 
 
+# 强制开启错误拦截：异常转为 ToolMessage(status="error")，保证 ReAct 闭环自愈
+load_skill.handle_tool_error = True
+
+
 @tool
 def load_scenario(skill_name: str, scenario_name: str, runtime: ToolRuntime[RequestContext, SqlSubAgentState]) -> Command:
     """
@@ -192,3 +196,7 @@ def load_scenario(skill_name: str, scenario_name: str, runtime: ToolRuntime[Requ
         source="load_scenario",
     )
     return _build_load_scenario_command(skill_name, scenario_name, runtime)
+
+
+# 强制开启错误拦截：异常转为 ToolMessage(status="error")，保证 ReAct 闭环自愈
+load_scenario.handle_tool_error = True

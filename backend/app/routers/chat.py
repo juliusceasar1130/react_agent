@@ -8,7 +8,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
-from backend.app.database import get_db
+from backend.app.database import get_db, SessionLocal
 from backend.app import crud
 from backend.app.crud import MessageCreate
 from backend.app.schemas import (
@@ -27,6 +27,12 @@ def _encode_sse(event: Any) -> str:
     """编码 SSE data 行。"""
     serialized_event = serialize_chat_stream_event(event)
     return f"data: {json.dumps(serialized_event, ensure_ascii=False)}\n\n"
+
+
+def _persist_message(message: MessageCreate):
+    """短生命周期落库单条消息：开、存、即释放，避免流式全程占用数据库连接。"""
+    with SessionLocal() as db:
+        return crud.create_message(db, message)
 
 
 @router.post("/message", response_model=ChatResponse)
@@ -111,7 +117,6 @@ async def send_message(chat_request: ChatRequest, db: Session = Depends(get_db))
 async def stream_message_post(
     chat_request: ChatRequest,
     request: Request,
-    db: Session = Depends(get_db),
 ):
     """流式发送消息（POST方法）- 真正的流式处理
 
@@ -133,16 +138,16 @@ async def stream_message_post(
     if not session_id:
         raise HTTPException(status_code=400, detail="session_id不能为空")
 
-    # 检查会话是否存在
-    session = crud.get_session(db, session_id)
-    if not session:
-        raise HTTPException(status_code=404, detail="会话不存在")
+    # 检查会话是否存在并保存用户消息（短生命周期连接：开、存、即释放，不跨流式全程占用 DB 连接）
+    with SessionLocal() as db:
+        session = crud.get_session(db, session_id)
+        if not session:
+            raise HTTPException(status_code=404, detail="会话不存在")
 
-    # 保存用户消息
-    user_message = crud.create_message(
-        db,
-        MessageCreate(session_id=session_id, role="user", content=chat_request.message),
-    )
+        user_message = crud.create_message(
+            db,
+            MessageCreate(session_id=session_id, role="user", content=chat_request.message),
+        )
     agent_service = get_agent_service()
 
     async def generate():
@@ -244,8 +249,7 @@ async def stream_message_post(
                             "status": "completed"
                         })
                     
-                    crud.create_message(
-                        db,
+                    _persist_message(
                         MessageCreate(
                             session_id=session_id,
                             role="assistant",
@@ -327,8 +331,7 @@ async def stream_message_post(
                         len(final_tool_artifacts or {}),
                     )
 
-                    assistant_message = crud.create_message(
-                        db,
+                    assistant_message = _persist_message(
                         MessageCreate(
                             session_id=session_id,
                             role="assistant",
@@ -379,8 +382,7 @@ async def stream_message_post(
                 elif event_type == "error":
                     error_message = event.get("message") or "流式处理失败"
                     if not assistant_persisted:
-                        assistant_message = crud.create_message(
-                            db,
+                        assistant_message = _persist_message(
                             MessageCreate(
                                 session_id=session_id,
                                 role="assistant",
@@ -401,8 +403,7 @@ async def stream_message_post(
             raise
         except Exception as e:
             logger.error(f"流式处理异常: {e}", exc_info=True)
-            assistant_message = crud.create_message(
-                db,
+            assistant_message = _persist_message(
                 MessageCreate(
                     session_id=session_id,
                     role="assistant",
@@ -429,8 +430,7 @@ async def stream_message_post(
 
             if client_disconnected and not assistant_persisted and (full_content or tool_calls_map):
                 try:
-                    crud.create_message(
-                        db,
+                    _persist_message(
                         MessageCreate(
                             session_id=session_id,
                             role="assistant",
@@ -479,7 +479,6 @@ class ResumeChatRequest(BaseModel):
 async def stream_message_resume(
     chat_request: ResumeChatRequest,
     request: Request,
-    db: Session = Depends(get_db),
 ):
     """恢复挂起的消息流（真正的流式处理）"""
     logger.info("Received resume chat request via POST")
@@ -489,11 +488,13 @@ async def stream_message_resume(
     if not session_id:
         raise HTTPException(status_code=400, detail="session_id不能为空")
 
-    session = crud.get_session(db, session_id)
-    if not session:
-        raise HTTPException(status_code=404, detail="会话不存在")
+    # 检查会话是否存在并加载历史（短生命周期连接：开、存、即释放，不跨流式全程占用 DB 连接）
+    with SessionLocal() as db:
+        session = crud.get_session(db, session_id)
+        if not session:
+            raise HTTPException(status_code=404, detail="会话不存在")
 
-    messages = crud.get_messages_by_session(db, session_id)
+        messages = crud.get_messages_by_session(db, session_id)
     ask_user_tool_call_id = None
     for msg in reversed(messages):
         if msg.role == "assistant" and msg.tool_calls:
@@ -518,15 +519,16 @@ async def stream_message_resume(
         user_tool_results = json.dumps(chat_request.answers, ensure_ascii=False)
 
     user_answer_text = "; ".join([f"{k}: {v}" for k, v in chat_request.answers.items()])
-    crud.create_message(
-        db,
-        MessageCreate(
-            session_id=session_id,
-            role="user",
-            content=f"[澄清回答] {user_answer_text}",
-            tool_results=user_tool_results
+    with SessionLocal() as db:
+        crud.create_message(
+            db,
+            MessageCreate(
+                session_id=session_id,
+                role="user",
+                content=f"[澄清回答] {user_answer_text}",
+                tool_results=user_tool_results
+            )
         )
-    )
 
     agent_service = get_agent_service()
 
@@ -628,8 +630,7 @@ async def stream_message_resume(
                             "status": "completed"
                         })
                     
-                    crud.create_message(
-                        db,
+                    _persist_message(
                         MessageCreate(
                             session_id=session_id,
                             role="assistant",
@@ -716,8 +717,7 @@ async def stream_message_resume(
                         len(final_tool_artifacts or {}),
                     )
 
-                    assistant_message = crud.create_message(
-                        db,
+                    assistant_message = _persist_message(
                         MessageCreate(
                             session_id=session_id,
                             role="assistant",
@@ -768,8 +768,7 @@ async def stream_message_resume(
                 elif event_type == "error":
                     error_message = event.get("message") or "恢复流式处理失败"
                     if not assistant_persisted:
-                        assistant_message = crud.create_message(
-                            db,
+                        assistant_message = _persist_message(
                             MessageCreate(
                                 session_id=session_id,
                                 role="assistant",
@@ -790,8 +789,7 @@ async def stream_message_resume(
             raise
         except Exception as e:
             logger.error(f"恢复流式处理异常: {e}", exc_info=True)
-            assistant_message = crud.create_message(
-                db,
+            assistant_message = _persist_message(
                 MessageCreate(
                     session_id=session_id,
                     role="assistant",
@@ -818,8 +816,7 @@ async def stream_message_resume(
 
             if client_disconnected and not assistant_persisted and (full_content or tool_calls_map):
                 try:
-                    crud.create_message(
-                        db,
+                    _persist_message(
                         MessageCreate(
                             session_id=session_id,
                             role="assistant",

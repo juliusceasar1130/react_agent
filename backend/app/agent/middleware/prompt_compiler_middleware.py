@@ -184,10 +184,10 @@ class PromptCompilerMiddleware(AgentMiddleware[SqlSubAgentState, RequestContext]
                 try:
                     import json
                     import re
-                    # 剥离可能存在的 "[数据真实查询时刻: ...]\n" 前缀以正确解析 JSON 列表
+                    # 剥离可能存在的 "[查询时刻: ...]\n" 前缀以正确解析 JSON 列表（(?:数据真实)? 兼容旧版前缀的历史 checkpoint 数据）
                     cleaned_content = content_str
                     if isinstance(cleaned_content, str):
-                        cleaned_content = re.sub(r"^\[数据真实查询时刻: [^\]]+\]\n", "", cleaned_content.strip())
+                        cleaned_content = re.sub(r"^\[(?:数据真实)?查询时刻: [^\]]+\]\n", "", cleaned_content.strip())
                     data = json.loads(cleaned_content)
                     if isinstance(data, list):
                         is_json_success = True

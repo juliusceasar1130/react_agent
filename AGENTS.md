@@ -50,6 +50,7 @@ langgraph dev --allow-blocking
 - 主键统一使用 UUID 字符串
 - 优先遵循现有模块边界，不随意把逻辑重新塞回单文件
 - 新增第三方包需更新 `requirements.txt`
+- **DB Session 生命周期规范**：普通 REST 端点用 `Depends(get_db)`（请求级短生命周期）；SSE 流式 / WebSocket 等长生命周期端点**严禁**持有注入的 Session 贯穿整个流，必须用 `with SessionLocal() as db:` 即借即用即还，防止并发流耗尽连接池（参考 `/stream` 与 `/resume` 的 `_persist_message` 短生命周期落库 helper）
 - **注意双初始化路径**：`SQLAgentService` 有同步 (`_initialize_agent`) 和异步 (`_ainitialize_agent`) 两条初始化路径，分别用于 LangGraph 托管模式和 FastAPI 本地模式。修改工具注册、中间件装配、RAG 接线时，必须同步更新两边
 - **LangChain 工具错误与异常处理规范**：
   1. **异常类型统一**：工具内部遇到可预期的业务/参数错误时，必须统一 `raise ToolException(...)`，严禁抛出未经拦截的裸异常（如 `ValueError`、`Exception`），防止图崩溃中断。

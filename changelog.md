@@ -1,3 +1,41 @@
+## 2026-08-30 - 架构复审修复：流式 DB Session 解耦、日志配置化、工具错误契约补全等 6 项 (`routers/chat.py`, `main.py`, `config.py`, `prompt_compiler_middleware.py`, `direct_path/executor.py`, `subagents/sql/tools.py`, `skill_tools.py`, `*token_estimator.py`, 测试, 文档) [AGENT]
+
+针对三轮架构复审（`temp/architecture_review_backend.md` + agy / Claude Code 两份独立 recheck）的修复实施，经 agy 与 Claude Code 独立代码审核确认无阻塞回归（agy 全量 `pytest backend/tests` 130 passed）。
+
+### 变更内容
+
+#### 1. 流式长连接 DB Session 生命周期解耦 [FIX, P0]
+- **`routers/chat.py`**：`/stream` 与 `/resume` 移除全程持有的 `Depends(get_db)`；新增 `_persist_message()` 短生命周期 helper（`with SessionLocal() as db:` 即借即用即还），前置校验/用户消息落库包入短事务，流式期间全部落库点（interrupt/final/error/断连补存）改用该 helper。消除 SSE 长连接跨整个流持有连接、并发流耗尽连接池的风险。非流式 `/message` 保持 `Depends(get_db)` 不变。
+
+#### 2. 日志级别配置化 + 第三方库降噪 [FIX, P0]
+- **`config.py`**：新增 `log_level`（`LOG_LEVEL` 环境变量，默认 `INFO`）；**`main.py`**：移除硬编码 `basicConfig(level=logging.DEBUG)`，非法级别兜底 INFO；`sqlalchemy.engine`/`httpx`/`httpcore`/`urllib3`/`openai`/`langsmith` 六个库无条件提级 WARNING，封住 SQL 与业务数据 DEBUG 泄漏链，且在全局 DEBUG 排错时不刷屏。
+
+#### 3. PromptCompiler prescan 时间前缀对齐（含旧格式双兼容） [FIX]
+- **`prompt_compiler_middleware.py`**：Stage 2 预扫描剥离时间戳的正则由旧格式 `^\[数据真实查询时刻: ...` 改为 `^\[(?:数据真实)?查询时刻: ...`——旧正则与 `sql_db_query` 实际输出 `"[查询时刻: ...]"` 前缀失配导致 JSON 成功检测长期死代码化，含 `"error"` 字段值的**成功**查询被关键词兑底误判失败并物理删除；修复后新旧前缀均可正确剥离（`(?:数据真实)?` 兼容历史 checkpoint 存量数据）。
+
+#### 4. direct_path executor 条件参数绑定 [FIX]
+- **`direct_path/executor.py`**：仅当 fragment 替换后实际含 `:{param}` 占位符（负向前瞻 `(?![A-Za-z0-9_])` 防前缀误匹配）才写入 `bind_vars`；修复纯开关参数（如 `has_defect_only_filter`）无占位符却强行绑定导致 psycopg `Unconsumed named parameter` 500。新增回归测试 `test_build_executed_sql_fragment_without_placeholder_not_bound`。
+
+#### 5. 工具错误契约补全 [FIX]
+- **`subagents/sql/tools.py` / `skill_tools.py`**：`search_saved_correct_tool_uses`、lexicon 三件套、`load_skill`、`load_scenario` 补 `handle_tool_error = True`（异常转 `ToolMessage(status="error")`，ReAct 自愈闭环）；`sql_db_query` 语法检查失败分支与 lexicon 三工具错误文案补 `"Error: "` 前缀（配合 PromptCompiler Stage 2 失败识别）。
+
+#### 6. Token 估算器 404 失败熔断 [FIX]
+- **`vllm_token_estimator.py` / `llama_cpp_token_estimator.py`**：新增 `_unavailable` 熔断标志，tokenize 端点首次 `httpx.HTTPError`（如 ninfer 无 `/tokenize` 返回 404）后仅打一条 INFO 并置位，后续调用零 HTTP 直接走保守估算——消除每轮对话 4N 次无效同步 HTTP（事件循环阻塞隐患 + 日志刷屏）。非 HTTP 错误（响应结构异常）不熔断，端点恢复需重启进程（保守估算只影响上下文阈值判断，可接受取舍）。解决 2026-08-29 ninfer 切换遗留的 Token 估算 404 遗留项。
+
+#### 7. 测试 [TEST]
+- 新增 `backend/tests/agent/test_tool_error_contract.py`：两 estimator 熔断行为（伪造客户端断言 `post_count == 1`）、lexicon 工具 `Error: ` 前缀 + `handle_tool_error` 拦截回归、skill 工具标志断言；`test_scenario_quick_panel_engine.py` 新增 executor 条件绑定回归。
+- 验证：目标套件全绿 + agy 全量 130 passed；真实 `/stream` E2E 正常（SSE 事件完整、消息正确落库）；重启后端后日志 0 WARNING/0 ERROR/0 404，熔断确认只触发一次。
+
+#### 8. 文档 [DOCS]
+- `AGENTS.md`：新增「DB Session 生命周期规范」（REST 用 `Depends(get_db)`；SSE/WebSocket 长生命周期端点必须 `with SessionLocal()` 短借短还）。
+- `README.md`：`.env` 参考配置新增 `LOG_LEVEL` 条目；分词引擎特性说明补熔断行为。
+- 独立审核报告：`temp/code_change_review_agy.md` / `temp/code_change_review_cc.md`（两份均结论：6 项全部达成、无阻塞回归）。
+
+#### 9. 已知遗留 [NOTE]
+- `executor.py` `int(val)/float(val)` 失败仍抛裸 ValueError → 500（既有问题，未纳入本次范围）；`/stream` 与 `/resume` 的 `generate()` 重复未收敛；熔断无恢复探测（重启后重置）；langchain 工具错误处理后续可评估迁移至 `ToolErrorMiddleware`（当前 langchain==1.3.14 已满足最低版本，但逐工具标记方式仍有效，暂不迁移）。
+
+---
+
 ## 2026-08-29 - ninfer 切换：reasoning_effort 400 修复 + 传输位置开关 (`profile_loader.py`, `model_sampling_profiles.yaml`, `.env`, 测试, 文档) [AGENT]
 
 ### 变更内容

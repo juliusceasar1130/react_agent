@@ -5,10 +5,16 @@ from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 
 # 配置日志（必须在导入其他模块之前）- 2026-01-02
+# 级别由 LOG_LEVEL 配置项控制（默认 INFO），避免生产环境全链路 DEBUG 将 SQL/业务数据写入日志
+from .config import settings
+
 logging.basicConfig(
-    level=logging.DEBUG,
+    level=getattr(logging, settings.log_level, logging.INFO),
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
+# 第三方库日志降噪：无论根级别如何，统一提级到 WARNING
+for _noisy_logger in ("sqlalchemy.engine", "httpx", "httpcore", "urllib3", "openai", "langsmith"):
+    logging.getLogger(_noisy_logger).setLevel(logging.WARNING)
 logger = logging.getLogger(__name__)
 
 from .database import get_db, create_tables

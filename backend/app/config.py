@@ -151,6 +151,9 @@ class Settings(BaseSettings):
     # 服务器配置
     debug: bool = _parse_debug_flag(os.getenv("DEBUG", "true"))
 
+    # 根日志器级别 (DEBUG/INFO/WARNING/ERROR)：生产环境建议 INFO，避免 SQL/业务数据进日志
+    log_level: str = os.getenv("LOG_LEVEL", "INFO").upper()
+
     # Agent配置
     agent_temperature: float = float(os.getenv("AGENT_TEMPERATURE", "0.1"))
     agent_max_tokens: int = int(os.getenv("AGENT_MAX_TOKENS", "2000"))

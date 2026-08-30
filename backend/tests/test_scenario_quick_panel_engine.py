@@ -82,6 +82,40 @@ ORDER BY id;"""
     assert "WHERE 1=1\n    AND days > make_interval(days => :stranded_days)\nORDER BY id;" in clean_sql
 
 
+def test_build_executed_sql_fragment_without_placeholder_not_bound():
+    """回归：sql_fragment 既无 {value} 也无 :param 占位符时，不应写入 bind_vars。
+
+    对应 project_vehicle_management.has_defect_only_filter 场景：
+    fragment 为固定片段，旧实现无条件绑定会触发 psycopg "Unconsumed named parameter" 错误。
+    """
+    from backend.app.skills.direct_path import build_executed_sql
+    raw_sql = """SELECT * FROM t
+    WHERE 1=1
+        {has_defect_only_filter}
+        {region_filter}
+    ORDER BY id;"""
+
+    parameters_def = {
+        "has_defect_only_filter": {
+            "type": "boolean",
+            "sql_fragment": 'AND vde."total_defect_count" > 0',
+        },
+        "region_filter": {
+            "type": "string",
+            "sql_fragment": "AND region = '{value}'",
+        },
+    }
+
+    user_params = {"has_defect_only_filter": "true", "region_filter": "华东"}
+    clean_sql, bind_vars = build_executed_sql(raw_sql, parameters_def, user_params)
+
+    # 固定片段仍应替换进 SQL（非整行剔除）
+    assert 'AND vde."total_defect_count" > 0' in clean_sql
+    assert ":region_filter" in clean_sql
+    # 无占位符的参数不得进入绑定字典
+    assert bind_vars == {"region_filter": "华东"}
+
+
 def test_format_result_table():
     from backend.app.skills.direct_path import format_result
     rows = [("V001", "ADP", 3.2), ("V002", "ADP", 2.1)]

@@ -33,7 +33,7 @@
 - **RAG 知识增强** - 支持 PGVector / Milvus Hybrid 检索，Milvus 可在 `Ollama` 与 `llama.cpp + Qwen3 Embedding` 之间切换，并可选接入 NVIDIA Rerank 精排
 - **反馈驱动型自演进 Few-Shot 案例库** - 前端支持用户对 AI 消息进行 👍 / 👎 / ⭐（收藏），管理员在审核面板对收藏的案例进行同步/异步审核。通过规则提取器（包括安全拦截、单步/多步 SQL 提取、空结果集过滤、澄清链路精准拓扑回溯和业务技能域隔离）及 LLM 提炼层（意图重写与 SQL 脱敏参数化），自动沉淀黄金案例入库，实现智能体在运行中自我学习与持续进化。
 - **多 System 消息终极合并自愈** - 在大模型调用前的临界时机，通过终极安全合并中间件（SafeMergeSystemMiddleware）利用原生的 `merge_message_runs` 自动将核心系统提示词与 RAG 背景知识合并，解决在 strict 模式的本地推理引擎（如 vLLM）中由于非首位 system 消息引发 of 400 校验报错，同时提升本地小参数大模型的 Attention 集中度与 Prefix Caching 效率
-- **vLLM 专属精确分词引擎** - 新增 `VllmTokenEstimator` 支持直接调用 vLLM 推理后端的 `/tokenize` 端点获取 100% 精确的 Token 计算结果，根治粗糙估算造成的边界溢出。可在 `.env` 中通过 `TOKEN_ESTIMATOR_ENGINE` 变量实现与 `llama_cpp` 引擎的平滑热切换。
+- **vLLM 专属精确分词引擎** - 新增 `VllmTokenEstimator` 支持直接调用 vLLM 推理后端的 `/tokenize` 端点获取 100% 精确的 Token 计算结果，根治粗糙估算造成的边界溢出。可在 `.env` 中通过 `TOKEN_ESTIMATOR_ENGINE` 变量实现与 `llama_cpp` 引擎的平滑热切换。tokenize 端点首次调用失败（如 ninfer 无此端点返回 404）后自动熔断：后续调用零 HTTP 直接走保守估算，仅打一条 INFO 日志，消除每轮请求的无效同步调用与错误刷屏。
 - **思考模式控制与推理折叠面板** - 支持 DeepSeek / Qwen 深度推理（Thinking）功能的开关控制与思考 Token 结构化 SSE 推送。前端提供柔和低饱和色 `ToggleSwitch` 模式实时切换开关以及 `<ReasoningAccordion>` 交互组件（包含极简微光矢量图标、全过程决策耗时计时器、流式打字机效果、自动折叠与 100% 文本忠实度 Smart Punctuation Joiner 智能标点粘合），全链路打通大模型思考过程呈现。
 - **澄清问答卡片 (AskUserQuestion)** - 支持基于 LangGraph 1.1.8 原生 `interrupt` 中断控制流的澄清问答。当大模型遇到需求模糊或执行技术权衡时，挂起流式响应并向下游输出结构化问答卡片；前端以毛玻璃轻量卡片形式渲染，支持单选/多选/自定义输入互斥，并提供 Hover 实时 Markdown 对比预览。用户确认提交后，通过 `/api/chat/resume` 恢复流式生成，并对历史卡片进行 disabled 锁定。
 - **Agent 技能文档化** - 新增技能相关的领域文档、问题追踪与标签分诊手册，提升智能体在特定任务下的标准化执行能力
@@ -129,6 +129,9 @@ OLLAMA_KEEP_ALIVE=-1
 AGENT_TEMPERATURE=0.1
 AGENT_MAX_TOKENS=2000
 MYSQL_DATABASE_URL='mysql+pymysql://...'
+
+# 运行时日志配置（可选）
+LOG_LEVEL=INFO                 # 后端根日志级别：DEBUG | INFO | WARNING 等，默认 INFO
 
 # 系统提示词模板路径配置 (可选，支持指定自定义 Markdown 模板)
 MAIN_SYSTEM_PROMPT_PATH=''   # 主智能体系统提示词模板路径，默认 backend/app/agent/prompts/main_system_prompt.md
