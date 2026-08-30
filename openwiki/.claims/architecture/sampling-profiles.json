@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "pageVersion": "sha256:1650d04e579548c07e03dfd52871037e9ef53c854c481e67ea29ed8e697f74d7",
+  "pageVersion": "sha256:d06dca6fce08d31355315364b8721724ef7a1930e514fad9bc2d9abcab9f6c9f",
   "claims": [
     {
       "id": "claim_2f2d94db15214e79899a7c102f06c826",
@@ -164,15 +164,23 @@
     },
     {
       "id": "claim_cd367b714cdd4146a5e812a87603bf66",
-      "statement": "前端契约：types/index.ts 定义 ThinkingLevel = 'off' | 'low' | 'medium' | 'high'；useChatStream.ts 的 thinkingLevel ref 默认 'medium'、enableThinking 是只读 computed（'off' 时 false）、thinkingLevelParam 在 off 时返回 undefined（不传），流式与非流式两处 payload 均同步携带 enable_thinking + thinking_level；ChatView.vue 用 SegmentedControl 四档（关闭/轻思考/标准思考/深度思考）替换原 ToggleSwitch。",
+      "statement": "前端契约：types/index.ts 定义 ThinkingLevel = 'off' | 'low' | 'medium' | 'high'（ChatRequest.thinking_level 仅收 low/medium/high）；2026-08-30 起 useChatStream.ts 的 thinkingLevel ref（默认 'medium'）等状态上提为模块级单例（L33-37，供 ChatView/MessageItem 等所有 useChatStream() 调用方共享），enableThinking 为只读 computed（'off' 时 false）、thinkingLevelParam 在 off 时返回 undefined（不传）；流式 payload（enable_thinking + thinking_level）在 handleStreamMessage 的 sendChatStream 调用处构造（约 L298-329），非流式 handleNormalMessage（约 L334-349）同样携带；resumeMessage 只发送 session_id + answers 不携带思考档位（与后端 resume 端点 config 仅含 thread_id 不继承档位一致）；ChatView.vue L185-193 用 SegmentedControl 四档 options（关闭/轻思考/标准思考/深度思考）替换原 ToggleSwitch。",
       "evidence": [
         {
-          "resource": "repo://frontend/src/composables/useChatStream.ts#L290-L322",
-          "version": "repo-lines-v1:sha256:9be5043d4587cf9f97754be1ed1b7c1381eb30d38b86021abf0a971828a3cf51:eyJzZWxlY3RlZExpbmVDb3VudCI6MzMsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjljMDEzOTZiNDc4YmIyMzhjNTI1OWNmNjI2MWFhYmYyMjI2OGQwMjQ0NGFiYTU2NjJlMDBkZjkwZGQ2NTQ1OWUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImExYjYxOTU5OWQzYjQ2OTAyNDZjNTU2Yjc3ZDdhNDY3ODBmMjBkYzRkYWUxYTM1MDA4Mzg4YTA1OWE0N2U0YTYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImIyZDhlNzMwMGJlNjllMDQwNDkzMDRjMmRhNzI4NjliNzE5MzllY2Y1YzcwNmQ3NmI1NzRlNTI4YzQxNTc2YzEiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImM3NjcwNWU2MzJlMjlkN2U1ZDMzNjU5Nzc4OWRlOTUwMjdjYTY1OWFlNzA3ZWQ5YzRhZWYwODVjMTk5NzMyZjkifQ"
+          "resource": "repo://frontend/src/composables/useChatStream.ts#L298-L329",
+          "version": "repo-lines-v1:sha256:17bdd305501b4fa961f4d99ff49d9e6a199683b69f7f0de078cf3bc389703b7e:eyJzZWxlY3RlZExpbmVDb3VudCI6MzIsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjRhY2U1NGU1NTY3Y2EwMjg4YTBiOWE0YTIxZWY4MmQyMDI4YTNiOWYzZWQ3MjNmYTA5NzVhZGViODA0ZWQyMDkiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjI3ZTU3ODhkNWQ5ZDczZDI0YTgxZGJjMGE1YTc0YmZhODJjOWMzYjNhZjk5ZTUyYWY3OTZlOTBiNDY4YThhM2QiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjU5M2Q1ZjdhNWM0M2E4YzdlNzM2M2IyN2IyNjA3YWU2ZmY5Mzk0MGNiYmRkOWI0NzQxNTc2YjhmZDgzZmI2MTkiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjM2YmI5ZGNiYmVlNTZiZjRmYzBkZDA5NTg1NTA0YzBjMmM5YzMwY2I2MjA4NDc0YWFmMjAwNWFlZDAwNmIyZmIifQ"
         },
         {
           "resource": "repo://frontend/src/composables/useChatStream.ts#L33-L37",
-          "version": "repo-lines-v1:sha256:8622dd5454daa90557cc2d60da9700fec696e9c42fa947e2dea3478393aa0f4e:eyJzZWxlY3RlZExpbmVDb3VudCI6NSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiYWUzZmMwNTRmNjVjNmNmN2YzZmZhOTM0NjBjZDI2MWIxYzM1MGRmYWM0YWQ5N2VjYmM0MjNiNTdmMjVjNWQ3NyIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiZDUyOWI1MmY4MWU0ZWY5MWNkNjkwYTJiYTQwZmIyNGMwOGUxNGM3YzdjNTI3NGU1Y2JhNmY0MWYwZmViYmQwZCIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZGZkMWMwZDllMjgyYjEwZGJhYjE4NGQxOGMzM2IxMjZhNjg0MzM1Mjg5OGE5Y2VhNWIwYTE2ZDRhOTcwZDk0ZSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiYjI5N2M5NzY3ZTg3N2ZlNjQzYWRhYzAzY2IwZDNlZTU0NTJjM2M1YTFhYWZjZDkwOGFjMjU1MGNjMDY2N2I5YiJ9"
+          "version": "repo-lines-v1:sha256:01404aff6f8d4534724efbdd953d1ad0eceb2834be558b803ad6bae8a15aa6cc:eyJzZWxlY3RlZExpbmVDb3VudCI6NSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiZWY0NTkwNmEyNGJlYjkyMDM3OTRhMGQxNjFiN2VmMWE2Yzk5YTI1NDkxMTcxZjU5MDAxODBhNTJiYmFhNGI0YSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiYWRjMTJhNzA5ZmVmZDBhZmRlNTlhMDY2N2MyOGY3ZGJlMzFmZTUwODFiNjFhMDUwMWJkYTJjMDVhMzJiY2ZiMiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiYjRkNmYwMGQxNzMxOTAxY2M2MTE5YzY0MmU1Yjk4NjExZDdjMDNhNTFiMjlkODA0MmFjYmJiZThlZjMxZDY0ZiIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiMTJlN2NjNjU0ODNjZWMzNDY5NzUyZjE3ZWZkODU3YjYyMzExMjczZjZiZDBhYjIzMTEyMDdjYmY3Y2RhZDcxMCJ9"
+        },
+        {
+          "resource": "repo://frontend/src/composables/useChatStream.ts#L334-L349",
+          "version": "repo-lines-v1:sha256:313ec4ee8862510f57417d07d8ec263206c3f04ad9e8ea723de0e1f759d8cd54:eyJzZWxlY3RlZExpbmVDb3VudCI6MTYsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjBhNWFlNTkyOTEzNWQxZTdlMzdhYWI5MjYxOTE0OWUwMTZmYzMwYWRlOTk3ZTMyMjc0ODY2OTJhYzkwOTY0NGIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjI3ZTU3ODhkNWQ5ZDczZDI0YTgxZGJjMGE1YTc0YmZhODJjOWMzYjNhZjk5ZTUyYWY3OTZlOTBiNDY4YThhM2QiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjMwZDRmOGRjMDk1MjUzNjc2MzYxMDczNWFhMmYxYzFjOTA0N2RhZjk1ZTBkMTA0MTg1Y2FjODUyMmYzM2E4NDAiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6Ijc4OGZkODViYjI2MzY5ZThiMDc1YzhkOGFhOTMyOGU2YTFjNmMxMzQ3MzU1YTkyZGU5YWQwMzU1MWUxNzQ3MWUifQ"
+        },
+        {
+          "resource": "repo://frontend/src/composables/useChatStream.ts#L384-L391",
+          "version": "repo-lines-v1:sha256:f699362abccd1f3375e4baa68ff7965f1886d3681551c2ddd02d60c700fa31ae:eyJzZWxlY3RlZExpbmVDb3VudCI6OCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiZjYzYjk0YmIxNDcwODViYTQ2ODA2ODQ0OTA5YmJmNTVjZmUyYjc2ZDExMmJmZGNiMjQ4YmE0ODU4MzRjNGRkZiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiNDYyMjBkMWM5ODI2YWJhM2JjNzYxNGM5ZDgwMzJkNjcwNTUzZmFmYjVmYTllZDJmZTQzNmEwZGVkNDdiODNiOSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZDY1NzBlYjA3ZjI5NzhjN2E0ZmU5MWFmZjdjMDU3ZmFmNjJjYjI0N2YyNDYxOGMxNDM3MWVlNDQ5ZjU4MzQ0ZiIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZmIzNzQwYzk3Y2Q0ZTA2NDBkM2Q3YmZhYzFiYTM1MWE4NjMwMGIwOTM1Nzg4ZTQ0YWM2YzQwMzc0N2UyZTY4YyJ9"
         },
         {
           "resource": "repo://frontend/src/types/index.ts#L328-L338",
@@ -180,7 +188,7 @@
         },
         {
           "resource": "repo://frontend/src/views/ChatView.vue#L185-L193",
-          "version": "repo-lines-v1:sha256:46ff66dd99447834400b735f2f0af5b8dba68b189aadf141318339be1147b9b1:eyJzZWxlY3RlZExpbmVDb3VudCI6OSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiYjQ2N2MxYTJlOGM4MjNhZWViNmQ2YmY3ZWRiMWRjZjk0ZTFhZGRkMzEyMzc2MzI3ZmE5NjExYWJkNDk2ZThkMiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiNWY2MjRhM2Y4N2NkNjQ2YWNmMTY3YjU5N2U5NTllN2MwM2ZjNWRhZTAyOGRmOTE2ZDc1ZjVmZDkyMzMyNmEzMCIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiMjNiNDQ5YzU1NmZjNjYzYmMzNTViYzA0Yjk0ZDE2NWJhZTNjNDc5YzFlMDM2NjNjODcwY2I4OTM5NWJiMzRlMiIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiMDU5YzNiMzk2MzBmZThjMzdhMTQyYjNmM2NmZDIzOGUwOGNiNGFhYTYyOGRkM2JjN2Y4Y2Q3NGM3YzYzMGIzOCJ9"
+          "version": "repo-lines-v1:sha256:275d9fe4ef44f587dfacd4d69920aedbc1e28c536f3999feeacae7d6e15fdaa4:eyJzZWxlY3RlZExpbmVDb3VudCI6OSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNzM2YzYyMzU4ZmVhY2ZjYzExNWYwNjZhZGM2YzYwMjA4ZTA4ODRkODY5MTMzMDBlMjJiODg4YzhiYzk1YjQxZSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiNjM1MmZmOTgzNjE2OTQ1ZTA5YWI1MmM2ZGM1YmMzODU2ZmIyYTY5N2JlNWJjMDI4ZWI3MWYyYjNlMmVmYzM4OSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiNDk1YWUxODljZDBiNjk0MTZmMjY1NjU0M2Q1Y2IwYWViMTc5YTBmZmVlMzkyODA2OTM0YTY4MzhmOGJmMDU2NSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiYjA5MzU0MWRlMzcwNTFjODc3OTdjNGZiN2FkMzEzMjEyMjI4NzQxOWE4ODhlNDQxNDQ0Y2Y0NWU2NTEwODJhZiJ9"
         }
       ]
     },
@@ -291,6 +299,6 @@
   ],
   "verification": {
     "by": "openwiki/0.4.3",
-    "at": "2026-08-30T09:34:27.074Z"
+    "at": "2026-08-30T11:05:45.248Z"
   }
 }

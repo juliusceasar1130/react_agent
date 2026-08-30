@@ -1,0 +1,186 @@
+{
+  "schemaVersion": 1,
+  "pageVersion": "sha256:35a8930bb41382375715d365d8ec9bce3e1947b082772c2f9cd12937c17fd055",
+  "claims": [
+    {
+      "id": "claim_cef9c4a12f2148af8fdc5541e1481e22",
+      "statement": "AskUserQuestion 是继承 langchain_core.tools.BaseTool 的工具：其 _run 调用 LangGraph 原生 interrupt({\"type\": \"ask_user_question\", \"questions\": questions}) 暂停图执行，并把用户答案字典作为 interrupt 的返回值返回给 LLM。",
+      "evidence": [
+        {
+          "resource": "repo://backend/app/agent/tools/ask_user_question.py#L66-L79",
+          "version": "repo-lines-v1:sha256:7a0444532eccab47f784b26f89793b2ded769356920d0ca99a7fa99d4191d1e9:eyJzZWxlY3RlZExpbmVDb3VudCI6MTQsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImEyM2M1ZmQ5NTY5MjljN2FiYzI5OTI2YTQyODc3NThjNThmYjhhOTZmODI0YWE1ZTg4YWNkMWYzZDFhNjkwYTciLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQ5MzkxYTQxZDA2ZGQ5ZGUwMjNlZmM1NGY3NTE1NGUyOWQ4YTI0MDJlOTZmNDc1NjAzYWMyM2Y0MzViODYzN2UiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImQ4MTkyZWYwZGZjOGViNDExNmJhNTgzYzlhMzU2YzJiZjI0MTBiODdmYTMyZGY1MTY0NWU4ZDNkMjE1ZTYwNjQiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjowLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_e2d08471739a4196bddc13f529998230",
+      "statement": "AskUserQuestionSchema 约束 questions 列表 1~4 个 QuestionItem，并通过 field_validator(mode=\"before\") 兼容三种大模型输入形态：标准 JSON 数组、markdown 代码块包裹的 JSON、Python 字面量；解析失败时抛出带两种解析错误详情的 ValueError。",
+      "evidence": [
+        {
+          "resource": "repo://backend/app/agent/tools/ask_user_question.py#L23-L64",
+          "version": "repo-lines-v1:sha256:19bdd48a19d46dd6f1f7dee4be34d49f17a8f2146ee9c477b7911f476dc27ca9:eyJzZWxlY3RlZExpbmVDb3VudCI6NDIsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjFiZTA4MDA1ZDhjYWFkYjM1OTQwNTU1NjdhNGZkZjQxZjZlZDQ0MThiMjMzYTNmZTgxMDQ2NTVhMWE1ZjE5MDUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImFkZDAyYjVkZGJiMjllOGVhOWE0NjhiZTM5YTU0Nzg4NTU0YWM0ZTI1MTdjYWM0YWM2YWQ4ZjQ3YmQ2OGM5MjkiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjMyMmE3MzZkYzBiNWYxYzcyZDc2OWIyMGNkMWQ0N2MwMjA5ZjRiYjE0Njg0NDc0OGNjZGUyOGE3MTM1YTA2OTAiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImQ5NjViNmZiYWQ2NDdmZmNjOTdmODI1NzNlY2U2ZTAxMzQ1ZTBlNzlkZGMxNTgzNjFjNDI4NGYyODkxOTNhNjQifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_89ac5b4f1c564268bf2c28a06f16ec0b",
+      "statement": "QuestionItem 契约：question 文本同时充当用户回复答案字典的 Key；multiSelect 决定单选/多选；options 为 None 或空时前端降级为纯文本输入框；header 用于卡片徽章；每个条目必须是单一维度澄清，禁止在单个问题中混合选择和自由输入（须拆成两个 QuestionItem）。",
+      "evidence": [
+        {
+          "resource": "repo://backend/app/agent/tools/ask_user_question.py#L11-L21",
+          "version": "repo-lines-v1:sha256:4ba71688300e3de779027d1a4fb08c03063d0e0297242f399b03a7891978f500:eyJzZWxlY3RlZExpbmVDb3VudCI6MTEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImFlN2U0MWZkN2MxOWY5MjdjOWY0ZmYzNmZmM2NjZmI4YjYzMjEzMDg1ODU1YmM5ZGRlMWM3YjJlNDliNmE3MjkiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjEwMjIxNmIwZTZmZDVmYWM0NTU5ZGU2ODY1NTI0Njc2YjMxMDdmYzI0Zjg5NzM5NTdkNTcxZWQ1MDk3NTA5YWYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjVjYjI2MzU1Yzc2OTAyYmI5MGJlMTJkYmU5MDU5YzNhMzlhNzYyNDljNGUxNDkxNDA4ZDUzMjFlMWYzMGNmMzQiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjQ1YzE4MWU5OWYxZTg4NzQwNjMyMTAwZmQ2OTQ1ZjBmMmNiYmMzMjJmYjBmNmE4ZjAwOTZjMjFjNjk4YTNjMzIifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_8608d0f5393043269f134b9f0acb4589",
+      "statement": "interrupt SSE 事件由 chat_service 的 _stream_execution_loop 在 astream 结束后经 agent.aget_state 检查 state.tasks[0].interrupts 构造：值必须是 dict 且 type == \"ask_user_question\"，随后解析 AskUserQuestion 工具调用归属以附加 subagent_id/subagent_name/subagent_title，emit interrupt 事件后直接 return（不发 final）；事件 schema 由 schemas.py 的 InterruptStreamEvent 定义。",
+      "evidence": [
+        {
+          "resource": "repo://backend/app/schemas.py#L260-L266",
+          "version": "repo-lines-v1:sha256:24888940b5b9665d87a4ce912d81842edfe4cabe82eb003b6a29c65f3bbd6d6b:eyJzZWxlY3RlZExpbmVDb3VudCI6NywiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiYjVlMjM0MTY2YmY3MDE5NjkxYTNhNmVjODRlNmJjZjFjMDBmZjE1MzA4NmJjNTQ3NGI4OGM5MDdhYTgxMmIwMCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiYzg4YzYwM2JmNTU0OGU2NDljZmVkMWZjNzk0MzQwZGQwNmNlODQ0NmYyZmY3NDdiZmI4OTNlOWY2Y2YwM2Y4ZiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiMTBjZWM3MmYxOWJkMjM1YWY1Y2E4ODRhNTRiYjNjOGY0YmY2Mzk1Y2Q1MGU4ZTU1ODMwNzc4MjY5NmY2YTJhYSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZDgwZWQ0YzZiYWQyMGZhNjc0ZDMyYzgxMDlmN2U1ZDdmYmU4OGJkMGZmNDMwMjdlYTgwOTJkNDdmYzI4ZWQ1YiJ9"
+        },
+        {
+          "resource": "repo://backend/app/services/chat_service.py#L1040-L1098",
+          "version": "repo-lines-v1:sha256:d4257e2b7d861a1ecfe838fde5ecb5ab1245df6a2b15d9e5a95e89bbf29389e6:eyJzZWxlY3RlZExpbmVDb3VudCI6NTksImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImVmYjE5NDJlOWQ1Y2YwZGM5YzQ3MTE4MzFjNGIyMmRmMmYwMWVkMjAzNjE4ZGQ4Njg3NTQwOTA2YTg5ODkxNTMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjdjYWNhNGY0OWU5MDk0NjUzNDUwNGY2YTk0Y2NjODdhZjQ1NzgzMmJkNzQ5NjM0YzY0NzQ5N2Q2YzFjMmQ5ZTYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImJjOWVhNGI3OGEzYzY3YmEzMTljMGM1NjNjZDM2NTBjOGUxMjA3YjJmNTIyYzM0ODU4MWYwNDE5NmJlNmFiM2EiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImRlNjU2MzhiNGRlMjA0ZjA4NmIxYzI0MDA0MDgwNzRjODNjNDMzZTNiZGQ5MWFlYTIzMjdmNWY3MWFhNGZiMGQifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_6b5dc51eb9364cb19d3e99a551277e21",
+      "statement": "stream_message_post 收到 interrupt 事件时：将已聚合的 tool_calls 全部冻结为 completed，若无 AskUserQuestion 调用则合成 id 为 ask_user_{session_id} 的工具调用，以 \"我们需要您的进一步确认：\" 文本持久化 assistant 消息（含 tool_calls/tool_results/tool_artifacts），透传 interrupt SSE 事件后结束该流。",
+      "evidence": [
+        {
+          "resource": "repo://backend/app/routers/chat.py#L216-L263",
+          "version": "repo-lines-v1:sha256:6ea101c00b2bdcb20de066ec847ba88b8f53f3f77384ee47140ea8c7450c8920:eyJzZWxlY3RlZExpbmVDb3VudCI6NDgsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjU0NGJkMTdhMDY3ZWIxOGM4NDk5MzI0YjA2YTAzNWE0ZjU3NTI3NTg2M2M5M2I4OGYwZTQ5ZGY5NjZjODJkYjIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjZlMTM4OGM5NWExMjcyZjUwM2I0ZGJkMWFhYTA5ODg2ZTZlMWVmYzM4MjY3MGQ2MzEyNWI3ZmIwYjEyZWFhY2YiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjMxNDIxNTcwNzE3OTdjNmZhYWYzNzU0MzU2M2RmMmVjNzI0NmEyNjE1M2E2ZjZkNTgwZmI1YmM4ODExNThmNDkiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImNjNDIzOTVhODU4NTY5ZmI5ZDViMjg0MjZlMTkzZWM1ODNmMjY5Yjc0MGViNDE4ZGEyODkwNGM5YWFmNDgzYTQifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_15c8d2d96e934a8dba07635075b7da4f",
+      "statement": "stream_message_resume（POST /api/chat/resume）：倒序遍历会话已持久化 assistant 消息的 tool_calls 查找 AskUserQuestion 工具调用 id，将用户答案以 {tool_call_id: json(answers)} 形式持久化为 role=user、content 为 \"[澄清回答] ...\"、tool_results 字段的消息；未找到 id 时退化为直接序列化 answers。恢复流的 final 事件落库前会把 ask_user_tool_call_id 从 tool_results 中剔除（答案本身已持久化在 user 消息上）。",
+      "evidence": [
+        {
+          "resource": "repo://backend/app/routers/chat.py#L497-L531",
+          "version": "repo-lines-v1:sha256:6be27608360e0ed528829b55680b1315bedf1b108f93083f358e63dfd160a105:eyJzZWxlY3RlZExpbmVDb3VudCI6MzUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImZlY2ExOWU3MDMyMTVhYjM1YWE4Njk1OTBlNDQ5MjM2OTg4YzA0ZThlNGVjMjBhZTE5NGRjODc5MmEzMjE1NzYiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjJhOWY4YzJiYzdhMTQxYTAyMmFmM2ZlYjhhYjUwMDhlYzI1NzU3ZWYyNGFjZDA0OWY1MDg5YTc0YjdjOWFlODEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjIyNzkzMDY5MTA2YjdjYWM2N2JmYjNlZWU4ZGEyMjhlMjQ2MzA1MGU4OTk2MTRmMDM0ZDVkYjNhNTc2NjJhY2QiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6Ijc1MDUyNjkyMTZiMDlhN2E1ODY4OWM1MTJmODE5N2NlZTUwNzdmOTMzODQwOWU2ZGNlOGMyZDkzNzU1ZGVhNWMifQ"
+        },
+        {
+          "resource": "repo://backend/app/routers/chat.py#L695-L712",
+          "version": "repo-lines-v1:sha256:4f29230c2882728c05d74bb5f0f633322895052ad112e772ec75fdd3763ae859:eyJzZWxlY3RlZExpbmVDb3VudCI6MTgsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImQwZmU4Njk1ZDcxMWE4MmZhM2Q3OTgxZTFkMTJlNDVjNGUzMGIxMTZhNWQ3NWQzMzMyZGJiZGY2N2Y4OWE3NjciLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjdlYjcwMjU3NTkzZGEwNmY2ODJhM2RkZGE1NGE5ZDI2MGQ0ZmM1MTRmNjQ1MjM3ZjVjYTc0YjA4ZjhkYTYxYTYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImNjMzU0YzEwNzAyNTU0NjE1MDMzMjg3MDYxNTFiZDAwMjFiYWEzMTU4ZjM5MzVlNDcwMzhiZGIxNWI0OGU3NDUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImU2ODc0M2ViYjlmZDU5MWJhYWI4NGJkZWI5ZGUzZTc5ZWY1NTRiODBmZDkwYzlkNTU1YmRmZjY5ZjIzZDIyMjEifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_92706e73bfb04d44a3b534949171933f",
+      "statement": "process_stream_resume 将 Command(resume=answers) 作为 input_data 重新喂入与正常流相同的 _stream_execution_loop，使恢复流复用同一套事件提取、状态去重与中断检测逻辑。",
+      "evidence": [
+        {
+          "resource": "repo://backend/app/services/chat_service.py#L659-L671",
+          "version": "repo-lines-v1:sha256:7b155e43aa1fdb2d571b31e529f2f3fe01858a8c207c7d1c806c1446e37432d5:eyJzZWxlY3RlZExpbmVDb3VudCI6MTMsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjU4ZjMxNWEyMjc4NmIyZDM3MDAyMTFlZDcxN2ZjY2RmZDljODc0Y2FhOTE1MTkzZTNlYjAxMGQ4NTY3NjY1NTMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjNhZjg0ZGQ1YWY3MGExNDVkZGFiYjIwMDgxYTRjNjhkNjVhNjYwN2U2Y2NmYTZiZjRjNGI4YWQyZTE2ZjEyNjUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImE2OWRkNmMzNDg1NDRjMThhYzcyYmJjZmNmYTBiNWRjNGE3NDk0ZTQzZTgxM2RlZmVkOWUyNjJjMzhkMzlkNDciLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjUzM2YxNDFjMGZjZjRiOTRlMjQ3OWFhY2U1MjZlMmFiZWVhMTViZmI4ZGE0MmIwN2I0MTk3ZmEwNmRkMzU3ZDcifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_f93bc3aa439b4dddb4c669692c779cc0",
+      "statement": "useChatStream.ts 的流控/偏好状态（streamMode、thinkingLevel、activeStreamControllersMap、sendingSessionsMap、contextWarningsMap）声明在模块顶层函数体外，是模块级单例：ChatView（isSending 锁定主输入框、stopStreaming 停止生成）与 MessageItem（resumeMessage 澄清提交）两个调用方读写同一份状态；isSending 是 computed(sendingSessionsMap[currentSessionId])，stopStreaming 从共享 map abort 控制器。",
+      "evidence": [
+        {
+          "resource": "repo://frontend/src/composables/useChatStream.ts#L31-L37",
+          "version": "repo-lines-v1:sha256:833c92338af17c6f8b4a17f3f02b5b2c7e9fe1e434fddecb1d20eb085cc9155f:eyJzZWxlY3RlZExpbmVDb3VudCI6NywiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNDY5N2Y2MjI2OTI2NGVjZjg4OTVhNzA4M2U3NzlhMTVkMWU4NTg1ZTkxMjMyMTllZTFkNDkxYjkyZGRmYTVmNCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiYWRjMTJhNzA5ZmVmZDBhZmRlNTlhMDY2N2MyOGY3ZGJlMzFmZTUwODFiNjFhMDUwMWJkYTJjMDVhMzJiY2ZiMiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiNWUxNGU3Mjg1MDY2M2Y4ZGE3Y2UyNDNlYjJmNmQ0N2ZiZjM2ZTJjOGJlYTY4YjE0YTM3NzM1NjI0MmMxNDUwYSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiMTJlN2NjNjU0ODNjZWMzNDY5NzUyZjE3ZWZkODU3YjYyMzExMjczZjZiZDBhYjIzMTEyMDdjYmY3Y2RhZDcxMCJ9"
+        },
+        {
+          "resource": "repo://frontend/src/composables/useChatStream.ts#L62-L71",
+          "version": "repo-lines-v1:sha256:4b96915eb0acbc8b6d6fa936cc88972395024d901681445a697560d1b5c761a8:eyJzZWxlY3RlZExpbmVDb3VudCI6MTAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijc3MTdhM2MwYmE2MDBjYzAwMjkxYzZkZTYzNTgzNjc0OGJmOTc1NDM5OGVmMTY0NzFjOWM4OTA3MTIwZTgzN2EiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjU2MjY3OTM1ZmM2MzM0NjVkODQ4YjQwYTRlZDY5NjdlN2I3YTMyM2Y4MWNkNTNjMTEwYWUyMTAyOTY4N2FhMTMiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImJkNzRhZjZjZGU5NGRkODI2NWJiODM2MmNlMWQ2ZGE5N2EyYTJjY2ZiNjMyMTAzNGYzMTJkOGE5OTQyY2YxMjIiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjdmNjBkNjhlYTM0OWE0Zjk3YzMxZWI4OTZmOTdkZjIyMjAxZGJkZjk0NTBkNGVjZWQ3ZmVkNDI5MTEzOTFkZDEifQ"
+        },
+        {
+          "resource": "repo://frontend/src/composables/useChatStream.ts#L96-L101",
+          "version": "repo-lines-v1:sha256:0e9f0e7bbb1582792849869a818720f72a1505bd866e9872d7225ddd41d61f45:eyJzZWxlY3RlZExpbmVDb3VudCI6NiwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNTNjNGY1N2QyMmYxZWRjYzAxOTAxMGU2NDYwM2FmYzhiYzAxYzQ0MDAxMmFkYTYxMzE1NGRkMDhiODUxYjNlZiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMjdlNTc4OGQ1ZDlkNzNkMjRhODFkYmMwYTVhNzRiZmE4MmM5YzNiM2FmOTllNTJhZjc5NmU5MGI0NjhhOGEzZCIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiMzdkOWUwYjE5NDQ2ODFiNTE5M2VhMzMxZWNkNDYwN2ViYTJiMGQxNDRlMDU3Y2Y1NTFiMTUxZTQ1NTMzZmYyYyIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiNDMyMDRjMjVhYjU4ODAzNGYwMWZjMzQzZmJjNDcyZjdhMDMyZWNmZjI0YmYwYzBmODZhMThkNDEzMTkxY2EzOSJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_d8162cfce8714841898ad871b07627d3",
+      "statement": "resumeMessage（2026-08-30 H3 修复）开头先检查 streamingMessagesMap[currentSession.id]，条目不存在（历史会话/页面刷新后）则先调 startStreamingMessage 初始化，再置 isStreaming=true、清 isInterrupted；否则 messages store 的 appendStreamingContent/appendStreamingReasoning/upsertStreamingToolCall/setStreamingToolResult/completeStreamingMessage 的 if (!msg) return 守卫会静默丢弃 resume 期间全部流式事件，界面静止无字直到流结束全量重拉后\"突变\"展示。",
+      "evidence": [
+        {
+          "resource": "repo://frontend/src/composables/useChatStream.ts#L354-L375",
+          "version": "repo-lines-v1:sha256:02395c255c53183d746d57f12e7f5182e60bed4f411deff61f4b4053bf8583b5:eyJzZWxlY3RlZExpbmVDb3VudCI6MjIsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImQ4Yzk3ZTUzZGEyMDhhZWRmODM0MDI2NmMyZDg2Y2FmZTdlNGNkM2ZkMWRjZTM1OTRjNTdlNWQyZGYyZDFlNDUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQ4OTNmNDBlMzc4MWViODk2YzgyZDA0NmEwODA2N2ExMWUzNWNkZjJmMWRmYWYyNmZlYTkwYjhkYjY2NzY0MTMiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjA5MTY1Mjk4YjI0NTBlNDAwMjJlM2IxY2E4NWUzZTk0NDVmZWQ0NTM1ODgzZDkyMzRjNWE0ZjBiNjNkNzhlMTYiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImI1NTNkY2FlNjI2NTU4MTdhYTg3ZWI3YTJkNDU4MmJiMDhkYzlkODUwYTBlZWViNmQ0NDFlMzU0ODY5OGY4MmUifQ"
+        },
+        {
+          "resource": "repo://frontend/src/stores/messages.ts#L331-L343",
+          "version": "repo-lines-v1:sha256:052fd92bd0f75ef43f2212c4b095799c73b83e88a714ad579566fb87f33fa6a8:eyJzZWxlY3RlZExpbmVDb3VudCI6MTMsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjFlOWQ4ZTI0MjViNWQwNTcwNWM0Zjc4YzQ5ZWZiOTcwMzBmOTkwY2Q2MzUxYjg5ODI5OWRhMzdmYTk0Yjc4OGEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjhhY2I1ZDFhMmM3M2FiMWYwY2E2YmUwZjgxMWM4Y2Y2OTE2MzhiMjdhMjJmNTA5OTRiNTI2OTY2OTdkYWJiNTEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjhjNThmNzg2OWRjYmQ0NmY0MTNmZWVkMmEzNGYzNmUyOWJiZDBhMjAxNTA0OTJiMDdmZjdiZDk5ZTBlZGI1NTciLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjU1MmRmMmEyMDRjMWUyY2IyNDc5MWE5MzYwMTcxNTY3ZDk0NDI2MmNlMDE1MGZlNDdiYWE3YzBjNjJmMTJmNjkifQ"
+        },
+        {
+          "resource": "repo://frontend/src/stores/messages.ts#L539-L541",
+          "version": "repo-lines-v1:sha256:d6e8813ae3d60b5ebc75735671fdd803eaa045e675d2b05f10a91056b4ec0891:eyJzZWxlY3RlZExpbmVDb3VudCI6MywiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiYTY4YmM4NDlmNjdiM2E4YWI2ODQ4YTQxMzllOGIxZDFlM2VjNWM5ZTBmNmMzYjdlMjYxNDY0ODAzMTE0ZjVkNSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMWVjY2U0YjgxNTQ2OTliOTQwYmE2NTBkNzRlYjMwZDA1YjUzYzI4MGFiZWY3MDQxNGM2MDllYzY5ZGQ1MGM2MCIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZmQ4OTg1NGM1MDJlM2JmZjg5NmNlOTAzMmQ5ZjdkYTFmNmIzZGViMzI4MzM3ZGI4ZWUwYzczYmUxNGEyYzdmYyIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiYWU1MDk1NThlZWQyYjg2NzkxMDc5NjhkOWVhN2Q3MzdmNTlkYzFmZTkwNGE0ZjRkMDNmZTI3YTU5YzVkM2M4MSJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_7e3977de57fa448e90b0461b16bd26bf",
+      "statement": "resumeMessage 的控制器与错误处理：新建 AbortController 写入共享 activeStreamControllersMap 并随 sendChatResumeStream 传递 signal；abort 错误走 finalizeStreamingInterrupted（保留片段落定），其他错误走 clearStreamingMessage + 重拉同步 + 重新抛出；finally 中仅当 map 里仍是本控制器时删除并清理 sendingSessionsMap。MessageItem 的 handleQuestionSubmit 在失败时复位 isLocalSubmitted 供用户重试。",
+      "evidence": [
+        {
+          "resource": "repo://frontend/src/components/chat/MessageItem.vue#L1005-L1014",
+          "version": "repo-lines-v1:sha256:8a8e16d921ad28e322f0cadec4600aa242444534cc5ef0682cadd88c63049a74:eyJzZWxlY3RlZExpbmVDb3VudCI6MTAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImZhMTliMWQwMWYxNzczODYzODRiYWRmODIwY2Q2OTlhYmUwOTdhNDQzZTZlZDhkMzE5MzhjYzI2OGJkNzg4YTkiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImUyMmZhYTUzNWJkMmVhM2Q1MmU3NDFlZDQ1NDQzNWI3ZmU0OWU4MzU4NmU5NDNkOThkODJiYmZiMjRkMWY1YzUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjhhNzQ0OTFmNjVlNGJhOTc0NjU3YTRkNGQ2YTE4MDQ4ZmI4ZmNiNjUwMDkwNjdhYTI2YTJhODcwNWVlZmI2Y2EiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImJkZmY4YWEwZGNkOWNmNDQ0MWIzODZmZTU3ZDNhZjg3ZWUxM2ViMjFiZjA2ZTU3NWQzNDYyMDk4ZDcxYmQ4NjEifQ"
+        },
+        {
+          "resource": "repo://frontend/src/composables/useChatStream.ts#L377-L414",
+          "version": "repo-lines-v1:sha256:b7111c6a335c5e14c09143edcf45e983a9b752c890af8746b66baeca8c95d150:eyJzZWxlY3RlZExpbmVDb3VudCI6MzgsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjhhNDM2ZWQ0YWU3ZTBmYTE2ODc5NmI3Y2YwNmJmNTZmOGIzODRhMzJiNTVlNWY5ZmQ0NTA4OWFmZTBiMDc3YzMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQ4OTNmNDBlMzc4MWViODk2YzgyZDA0NmEwODA2N2ExMWUzNWNkZjJmMWRmYWYyNmZlYTkwYjhkYjY2NzY0MTMiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjhhNGIxMTY1N2JlOTEyN2M5OTY5NjMzMzQ0YzVmMzI4NTZlOGE3YmUyZTAyY2U4NzY3MzYyYjhiYTFhZjg3MGUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjI1ZGFhZDk0YWJlNGViOWM1NzU5MGZlOThkOGZmZjQ3NjQ3Yzk5MjQxOGM0ZDVlOTIyZTlhMDcyMjBkYTJmMTEifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_d6dc7b5cfa9044bdbe90283ea9fb4a86",
+      "statement": "abortSessionStream(sessionId)（2026-08-30 M8 修复）中止指定会话的活跃 AbortController 并清理 sendingSessionsMap / contextWarningsMap 条目；sessions store 的 deleteSession 第一步调用它、再调删除 API，避免删除后底层 SSE 长连接在后台空跑至后端生成完毕。",
+      "evidence": [
+        {
+          "resource": "repo://frontend/src/composables/useChatStream.ts#L42-L51",
+          "version": "repo-lines-v1:sha256:2382293de0c393d76b76c81ca91d27963ec781b2e50f3844def9290860095f20:eyJzZWxlY3RlZExpbmVDb3VudCI6MTAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijk3MmE0MjkzODJiMmUxNDcxOGUwZTM3YjA1NzBhOGExNzAyOTkxZmNkODQ5OGNkODQwNjBhOGJmNGYwNTAxN2IiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQxMmNhMzQ1Y2NmNzViZjljMDgwNmJjZTY5NWJlOGRlODA4Yjc5OTg0MjUxYTdhNTRkMjAyY2Y2MTAxZGQ0NTEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjVkODBmMjRiZDMwZjA2NWU3NDk1NDhhNWY5ODUzOGU5MTBlM2NmZTdkZmFjODk5YmE2NmM4OGEyNWM5MmUxOTYiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjAzNDllNDYyMmY5YTVlMWY3OWIzY2Q0YmM1NzI3OGY5YzlhOWQ2N2FjMjczYTY3MDZhMjI4ODFiOTc3ZTBmNzUifQ"
+        },
+        {
+          "resource": "repo://frontend/src/stores/sessions.ts#L76-L96",
+          "version": "repo-lines-v1:sha256:f2421e7e123a3fd3102c28ecbffb710fe5e157c02e55b27128977998ac806ccd:eyJzZWxlY3RlZExpbmVDb3VudCI6MjEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjY1ZDhjMmYwZGM5YmM1MjU1MDI0MDQwODU1ZjQ5ZjlmNWM2ZDgyMzA1NzhhZTUyNTkwYWY4ODE1M2I4Yjg4YjgiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjcxMzQ1MTgwMTA1YjBjNjZhNzdkYWQ1MWJiMzc5MDFhMzczMmM5NjU0YmE0ZGUzOTgxZjgxZTE4MTc1MjQ4YmYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjU4NTA4YjZjYjA1ODlhYmE3NTAzMjAyZGUyYzhmODdlZDliMTljZDU4NjUzZmQwMWEzZTY3NWUzYWI3YjU5NjciLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImEzMGU4NjNkM2I2MDFkN2I4ZDFlYTEwNDVhY2UwNzRkMmQ3Y2Q3MTQ3MDM2M2QwZjZmZmQ5OTAzZTk3MzY2NDgifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_069a0ebeeda24072bdfa7253b5b9a749",
+      "statement": "AskUserQuestionCard 交互契约：answers 以 question 文本为 key，多选存 string[]、单选存 string；提交时若同时选中选项并填写自定义输入则拼接为 \"{selected}; 关联输入: {custom}\"，纯文本题取 custom；提交后 isSubmitted 锁定卡片，支持 Ctrl/Cmd+Enter 快捷提交，canSubmit 要求每题至少一个选择或自定义输入。",
+      "evidence": [
+        {
+          "resource": "repo://frontend/src/components/chat/AskUserQuestionCard.vue#L177-L290",
+          "version": "repo-lines-v1:sha256:a8b6e46e4a2848bdc5babef8e75a8d74bb115a8031eea2e88d3d81a8a2628974:eyJzZWxlY3RlZExpbmVDb3VudCI6MTE0LCJmaXJzdFNlbGVjdGVkTGluZUhhc2giOiI0MGIwYWJiZGUwMDAxMDk0OGQ2ZjU0NTAzNjEzOTNhNTk1OGNjMDYyMThlODY3ZGY5NTg1M2Q4ZGQ4Yjk1M2U5IiwibGFzdFNlbGVjdGVkTGluZUhhc2giOiJlMjJmYWE1MzViZDJlYTNkNTJlNzQxZWQ0NTQ0MzViN2ZlNDllODM1ODZlOTQzZDk4ZDgyYmJmYjI0ZDFmNWM1IiwicHJlY2VkaW5nQ29udGV4dExpbmVDb3VudCI6MywicHJlY2VkaW5nQ29udGV4dEhhc2giOiIzYmRmZWRmYTEwMmNmMTY5ZjQyZTI2MDM1YjY2ZGQyODZjNjcwNjM3ZWIxMDI0ZTIyNWYwZWIxN2ViODFlNmVkIiwiZm9sbG93aW5nQ29udGV4dExpbmVDb3VudCI6MywiZm9sbG93aW5nQ29udGV4dEhhc2giOiJiMTEzOTUyNzFmMjk1NGM3NTgwY2E2OTdkZGY2NDUxMzYxMmE1YzgxYzI4ZDUwMDc0YWRjODA0MWNlYTkwZDc2In0"
+        }
+      ]
+    },
+    {
+      "id": "claim_2ad48515245644c9bab843096c139aa9",
+      "statement": "前端澄清渲染入口：MessageItem 的 questions 来自流式态或消息体，isQuestionSubmitted 在无流式态（历史加载）时恒为 true（卡片禁用），isAwaitingClarification 驱动\"等待您的确认...\"状态行；FloatingClarificationDock 仅在 isInterrupted 且 questions 非空时悬浮提示，并滚动聚焦到 .ask-user-question-card 表单。",
+      "evidence": [
+        {
+          "resource": "repo://frontend/src/components/chat/FloatingClarificationDock.vue#L48-L61",
+          "version": "repo-lines-v1:sha256:57bee8b8214dcfdb638a0849bde5fc7a161e90e8716243b54d038ee89f79e9fc:eyJzZWxlY3RlZExpbmVDb3VudCI6MTQsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImY3NTE5NGI2MTdiMDcyZjE2MGYyN2U5NzQ5ZDY0OGMzYjdkM2U2OGVhNDkyZTk2NDc0OWYxNzgwMzU3MDg0MmMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijg1ODBiNzY1MThkYWU5NzlmYWViZDAyMzY3YTI5MjkyYTUwZDk3NjA5MjI1MWEzOGE2Y2UzMDg4MGJhNDI4MjUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImIxMTA4NTA4ZWQ2NjZjNjhmZDliMWUwZTI3MTM5YTNhZDEzMzc5YmZhZGI2OGZkMDE2MzVhMzFjNzViOThlMmUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImFjMWIwNWM1MzZhYmZjYmVhMWNlNzlkMDA4MzcwNWQ5MGQzMzU0MjdlMGNkZDMwNjY0ZWU0NWJjNzMyYWZkMzQifQ"
+        },
+        {
+          "resource": "repo://frontend/src/components/chat/MessageItem.vue#L961-L987",
+          "version": "repo-lines-v1:sha256:1ab3b33d38058b390ecfdbc10e113dab888943157ee75d091990a1d06cf5941c:eyJzZWxlY3RlZExpbmVDb3VudCI6MjcsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQ5ZmJjMzQ2NzIxZWIxYTg2MzA1M2ZlNWUzODM5MmZmNDQ1OWFlODg3ZWNjNzRlZDFkYWViMTI3ODMwZGJkNGYiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjEwYThmNjBmZTNjNTBiMGNmNTM0NzIyMTEzZmU5MGQ3MzQxNDM4N2NlOTJlNTk3OGM4MmNiZDgwMWNjMDUwMGQiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjNkOTllMzI1ZDQ1Njk5YjA1MDMxYjY3NjBhYjk5YjA4NGU2ZDAzNWRmN2JlMWFkMWU0YzNjNDk3Y2E0NTBlZDkiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6Ijg4NDhjM2Q3NDNlMDc0ZGI0MDMxZjAxYjVhZTg5YjgxOTc0NDNmMjg5ZDdkOTdjMWZmYmVmYWQxZDA5YTM4ZmYifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_c42c7d5f4ff3497f81a2368ffc74642d",
+      "statement": "澄清流程的后端回归测试：backend/tests/test_routers_coverage.py::test_chat_resume_endpoint 验证 POST /api/chat/resume 建立 SSE 流（含 get_messages_by_session 历史扫描与 process_stream_resume 桩）；::test_chat_stream_endpoint_with_tool_artifact_and_interrupt 验证 interrupt 路径持久化 assistant 消息时携带 tool_artifacts 与 completed 工具调用。",
+      "evidence": [
+        {
+          "resource": "repo://backend/tests/test_routers_coverage.py#L235-L313",
+          "version": "repo-lines-v1:sha256:5f32a325cfb8348ef28b4df3d1ebf2f87e537939eabf3bef608f3832f6c5fd63:eyJzZWxlY3RlZExpbmVDb3VudCI6NzksImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjFmMzFjZTRhYzhmNTE1NmRkNTYxYWIxZDY4OGRjM2Q4ZjM5OWY1M2Q5YTVmNzUyMzhkZmQwZDE5MzkyNjE2YjYiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAxYmE0NzE5YzgwYjZmZTkxMWIwOTFhN2MwNTEyNGI2NGVlZWNlOTY0ZTA5YzA1OGVmOGY5ODA1ZGFjYTU0NmIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjMwNzYyNWVmZGNhOTI5NjhmODM1OTc4YWYxNTFjYTIwMzYzZGU0ZTg2YzU4MTQzZWY0OWEyNzNlOTI3ZDE4OWEiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjowLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUifQ"
+        }
+      ]
+    }
+  ],
+  "verification": {
+    "by": "openwiki/0.4.3",
+    "at": "2026-08-30T11:05:45.248Z"
+  }
+}

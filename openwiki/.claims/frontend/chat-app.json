@@ -1,0 +1,292 @@
+{
+  "schemaVersion": 1,
+  "pageVersion": "sha256:999d2fc2d78117028d635f542f3a359912a3659454b8b1fc628d7b046f502da9",
+  "claims": [
+    {
+      "id": "claim_be54130c9cec453b8fcdd39ef90de89d",
+      "statement": "useChatStream.ts 的流控/偏好 ref（streamMode、thinkingLevel、activeStreamControllersMap、sendingSessionsMap、contextWarningsMap）是模块级单例（声明在函数体外），ChatView（sendMessage/stopStreaming/isSending）与 MessageItem（resumeMessage）两个调用方共享同一份状态，使 resume 期间主输入框锁定与\"停止生成\"跨组件生效；修复前每次调用生成相互隔离的局部实例导致这两条链路失效（2026-08-30 H2）。",
+      "evidence": [
+        {
+          "resource": "repo://frontend/src/components/chat/MessageItem.vue#L1005-L1014",
+          "version": "repo-lines-v1:sha256:8a8e16d921ad28e322f0cadec4600aa242444534cc5ef0682cadd88c63049a74:eyJzZWxlY3RlZExpbmVDb3VudCI6MTAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImZhMTliMWQwMWYxNzczODYzODRiYWRmODIwY2Q2OTlhYmUwOTdhNDQzZTZlZDhkMzE5MzhjYzI2OGJkNzg4YTkiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImUyMmZhYTUzNWJkMmVhM2Q1MmU3NDFlZDQ1NDQzNWI3ZmU0OWU4MzU4NmU5NDNkOThkODJiYmZiMjRkMWY1YzUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjhhNzQ0OTFmNjVlNGJhOTc0NjU3YTRkNGQ2YTE4MDQ4ZmI4ZmNiNjUwMDkwNjdhYTI2YTJhODcwNWVlZmI2Y2EiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImJkZmY4YWEwZGNkOWNmNDQ0MWIzODZmZTU3ZDNhZjg3ZWUxM2ViMjFiZjA2ZTU3NWQzNDYyMDk4ZDcxYmQ4NjEifQ"
+        },
+        {
+          "resource": "repo://frontend/src/composables/useChatStream.ts#L31-L37",
+          "version": "repo-lines-v1:sha256:833c92338af17c6f8b4a17f3f02b5b2c7e9fe1e434fddecb1d20eb085cc9155f:eyJzZWxlY3RlZExpbmVDb3VudCI6NywiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNDY5N2Y2MjI2OTI2NGVjZjg4OTVhNzA4M2U3NzlhMTVkMWU4NTg1ZTkxMjMyMTllZTFkNDkxYjkyZGRmYTVmNCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiYWRjMTJhNzA5ZmVmZDBhZmRlNTlhMDY2N2MyOGY3ZGJlMzFmZTUwODFiNjFhMDUwMWJkYTJjMDVhMzJiY2ZiMiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiNWUxNGU3Mjg1MDY2M2Y4ZGE3Y2UyNDNlYjJmNmQ0N2ZiZjM2ZTJjOGJlYTY4YjE0YTM3NzM1NjI0MmMxNDUwYSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiMTJlN2NjNjU0ODNjZWMzNDY5NzUyZjE3ZWZkODU3YjYyMzExMjczZjZiZDBhYjIzMTEyMDdjYmY3Y2RhZDcxMCJ9"
+        },
+        {
+          "resource": "repo://frontend/src/views/ChatView.vue#L281-L281",
+          "version": "repo-lines-v1:sha256:8b5392e6f9ca4b70dffbae3d8fb95865c3dd3be3f80ac9400763b5c113b78b9b:eyJzZWxlY3RlZExpbmVDb3VudCI6MSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiOGI1MzkyZTZmOWNhNGI3MGRmZmJhZTNkOGZiOTU4NjVjM2RkM2JlM2Y4MGFjOTQwMDc2M2I1YzExM2I3OGI5YiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiOGI1MzkyZTZmOWNhNGI3MGRmZmJhZTNkOGZiOTU4NjVjM2RkM2JlM2Y4MGFjOTQwMDc2M2I1YzExM2I3OGI5YiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiMTAzZjU3NTc1MTBlNDU1NmYyOGNkYWQ2YWI2MjBhZTMwNmUyYjIwMDM2YWE3MzU1MjFmYmU4MWJhOTU1Y2ZmZCIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiMzZlYmU2NjMwMGFkYWE3MTBhMDVkYzQzNzY4YTEyMjIzYWViOThjYjI2MzBmM2ZlYjBjMTFhZjBjYWUzZTYyMSJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_55a98776df274b58aab87d62c03094ba",
+      "statement": "abortSessionStream(sessionId) 中止该会话的活跃 SSE AbortController 并清理 sendingSessionsMap/contextWarningsMap 条目；sessions.ts::deleteSession 将其作为第一步调用（abort 先于删除 API），避免删除流式中的会话后底层 SSE 连接后台空跑至后端生成完毕（2026-08-30 M8）。",
+      "evidence": [
+        {
+          "resource": "repo://frontend/src/composables/useChatStream.ts#L43-L51",
+          "version": "repo-lines-v1:sha256:2241c462b8b55625722eded1073298210bda120f2e0b6c473ad885848d4e939e:eyJzZWxlY3RlZExpbmVDb3VudCI6OSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiZmZiOWFkZjQwNDc4MTYxMTViYjhmOTE3YjBhNzY5M2U2ODdmOWUzZWRhOTMwNmVmMzA5ODgzZTAzNjQ0NzQ0NCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiNDEyY2EzNDVjY2Y3NWJmOWMwODA2YmNlNjk1YmU4ZGU4MDhiNzk5ODQyNTFhN2E1NGQyMDJjZjYxMDFkZDQ1MSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZDIxY2Y1ZTMyNTZiZTNkNGY5ODIyOWZjMTZiMWY1MTU2NDNlOTk4NjQ0ZjMxOTliM2QyN2U1NGQyYzk4MmMzZiIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiMDM0OWU0NjIyZjlhNWUxZjc5YjNjZDRiYzU3Mjc4ZjljOWE5ZDY3YWMyNzNhNjcwNmEyMjg4MWI5NzdlMGY3NSJ9"
+        },
+        {
+          "resource": "repo://frontend/src/stores/sessions.ts#L76-L96",
+          "version": "repo-lines-v1:sha256:f2421e7e123a3fd3102c28ecbffb710fe5e157c02e55b27128977998ac806ccd:eyJzZWxlY3RlZExpbmVDb3VudCI6MjEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjY1ZDhjMmYwZGM5YmM1MjU1MDI0MDQwODU1ZjQ5ZjlmNWM2ZDgyMzA1NzhhZTUyNTkwYWY4ODE1M2I4Yjg4YjgiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjcxMzQ1MTgwMTA1YjBjNjZhNzdkYWQ1MWJiMzc5MDFhMzczMmM5NjU0YmE0ZGUzOTgxZjgxZTE4MTc1MjQ4YmYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjU4NTA4YjZjYjA1ODlhYmE3NTAzMjAyZGUyYzhmODdlZDliMTljZDU4NjUzZmQwMWEzZTY3NWUzYWI3YjU5NjciLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImEzMGU4NjNkM2I2MDFkN2I4ZDFlYTEwNDVhY2UwNzRkMmQ3Y2Q3MTQ3MDM2M2QwZjZmZmQ5OTAzZTk3MzY2NDgifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_fe1a156c54e946d9a01a531bc2c17b29",
+      "statement": "resumeMessage 对历史会话/刷新后 streamingMessagesMap[sessionId] 条目不存在的场景前置 startStreamingMessage 初始化流式条目；否则 store 各 append/complete 动作的 if (!msg) return 守卫会静默丢弃 resume 期间的全部流式事件，界面在恢复期间完全静止（2026-08-30 H3）。",
+      "evidence": [
+        {
+          "resource": "repo://frontend/src/composables/useChatStream.ts#L354-L375",
+          "version": "repo-lines-v1:sha256:02395c255c53183d746d57f12e7f5182e60bed4f411deff61f4b4053bf8583b5:eyJzZWxlY3RlZExpbmVDb3VudCI6MjIsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImQ4Yzk3ZTUzZGEyMDhhZWRmODM0MDI2NmMyZDg2Y2FmZTdlNGNkM2ZkMWRjZTM1OTRjNTdlNWQyZGYyZDFlNDUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQ4OTNmNDBlMzc4MWViODk2YzgyZDA0NmEwODA2N2ExMWUzNWNkZjJmMWRmYWYyNmZlYTkwYjhkYjY2NzY0MTMiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjA5MTY1Mjk4YjI0NTBlNDAwMjJlM2IxY2E4NWUzZTk0NDVmZWQ0NTM1ODgzZDkyMzRjNWE0ZjBiNjNkNzhlMTYiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImI1NTNkY2FlNjI2NTU4MTdhYTg3ZWI3YTJkNDU4MmJiMDhkYzlkODUwYTBlZWViNmQ0NDFlMzU0ODY5OGY4MmUifQ"
+        },
+        {
+          "resource": "repo://frontend/src/stores/messages.ts#L539-L541",
+          "version": "repo-lines-v1:sha256:d6e8813ae3d60b5ebc75735671fdd803eaa045e675d2b05f10a91056b4ec0891:eyJzZWxlY3RlZExpbmVDb3VudCI6MywiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiYTY4YmM4NDlmNjdiM2E4YWI2ODQ4YTQxMzllOGIxZDFlM2VjNWM5ZTBmNmMzYjdlMjYxNDY0ODAzMTE0ZjVkNSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMWVjY2U0YjgxNTQ2OTliOTQwYmE2NTBkNzRlYjMwZDA1YjUzYzI4MGFiZWY3MDQxNGM2MDllYzY5ZGQ1MGM2MCIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZmQ4OTg1NGM1MDJlM2JmZjg5NmNlOTAzMmQ5ZjdkYTFmNmIzZGViMzI4MzM3ZGI4ZWUwYzczYmUxNGEyYzdmYyIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiYWU1MDk1NThlZWQyYjg2NzkxMDc5NjhkOWVhN2Q3MzdmNTlkYzFmZTkwNGE0ZjRkMDNmZTI3YTU5YzVkM2M4MSJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_9b9228603a04473ca71cce3854e588d7",
+      "statement": "createEventHandler(sessionId, hasTerminalEventRef) 统一 handleStreamMessage 与 resumeMessage 的 SSE 事件分发，穷尽覆盖 13 类事件（token/reasoning/status/tool_call/tool_result/rag_context/lexicon_context/tool_artifact/subagent_change/plan_update/final/error/interrupt），final/error/interrupt 置位 hasTerminalEvent；plan_update 分支为空操作预留（后端从不 emit 该事件）。",
+      "evidence": [
+        {
+          "resource": "repo://frontend/src/composables/useChatStream.ts#L161-L293",
+          "version": "repo-lines-v1:sha256:01fc04ae9954c721011c6bb06c0b5ebae27c728756d587c67a9f4678277bdc90:eyJzZWxlY3RlZExpbmVDb3VudCI6MTMzLCJmaXJzdFNlbGVjdGVkTGluZUhhc2giOiI3ZGIxMTBmODJiNTFjYjYzMDVmZjA4ZTEwZWFiNjU3YjViOTJhNzY0YTc5ZDIyNzQ4Y2Q3NzczOGVlOWIwOTQxIiwibGFzdFNlbGVjdGVkTGluZUhhc2giOiIyN2U1Nzg4ZDVkOWQ3M2QyNGE4MWRiYzBhNWE3NGJmYTgyYzljM2IzYWY5OWU1MmFmNzk2ZTkwYjQ2OGE4YTNkIiwicHJlY2VkaW5nQ29udGV4dExpbmVDb3VudCI6MywicHJlY2VkaW5nQ29udGV4dEhhc2giOiIxNmM3YTMyYTc1YzcxYzNhNjAwMjgwMDdjN2EzMWI0OGY3M2U1N2ZmOTI0MjNjNGUwM2U2NjIxYWIyN2YzMDU1IiwiZm9sbG93aW5nQ29udGV4dExpbmVDb3VudCI6MywiZm9sbG93aW5nQ29udGV4dEhhc2giOiI3ODg5Y2JlYmVhY2FlNTMyZjc0Y2E0ZWZlZDQzZmFmNmMxYzA4ODM0YjBkOTk0ZmUxMmYzYjY1ZGJhMDY4NWI2In0"
+        }
+      ]
+    },
+    {
+      "id": "claim_2525075036234e3aad544c28def8ae2f",
+      "statement": "api/chat.ts::parseStreamEvent 的 final 分支校验（isRecord）并解析 subagents 为服务端快照 Record；useChatStream 的 final 分支将其传入 completeStreamingMessage，服务端快照优先于本地流式累积（后端额外字段如 description 得以保留）；final 中的 context_warning 不解析——后端同时通过 status(source=context_warning) 事件通道下发，属冗余副本（2026-08-30 H1）。",
+      "evidence": [
+        {
+          "resource": "repo://frontend/src/api/chat.ts#L230-L266",
+          "version": "repo-lines-v1:sha256:230bccb0f6fad5349598572037256d8b814f75fb04e07433dc8d5fbe87450581:eyJzZWxlY3RlZExpbmVDb3VudCI6MzcsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImNjZjRlMWNkM2NjYWQxMzg5YWYyYzIxODVhM2ZjNGJiYjQ4Zjk2NTI3NTYxZTA5OGU5NjYxOGFlMzQ5ZjIwZTUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjliNjJmNjBkODU5MGE1NzljZjQ2ZjhkNjczNzhjNGM1NzJiOTYyY2VjY2RiOTBjN2E1ZjdiNDJiOTYwNzgyYTQiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6Ijg0Mzg0OWE1ZTQxYWJiNjE0Zjg4OTk0NDA4Y2EwNGExZjQ0YTU1MjIyMmNmYTgzYzBiNDRmNDVmMDM3ZWM3ZjAiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjU1MzUwOGEzNDY2MjlkYmY3MjI1ZmUxODIxMDhjZTQwNWI4Y2NmYjEwY2RiMmJjOTYxOWNjMTYxODM2ZTVmNzYifQ"
+        },
+        {
+          "resource": "repo://frontend/src/composables/useChatStream.ts#L249-L263",
+          "version": "repo-lines-v1:sha256:f3cd0565c8084faf73e72ee2b65876d92a95514314295301e2cc21a504efca1b:eyJzZWxlY3RlZExpbmVDb3VudCI6MTUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjZhYzJjYTA3NjAwM2RhMDZiZWYwNWM0NWQ3Y2VjYjk2ZjE5Y2E2ZTAyNDMwZTAwYzE5MGJmMzFiMDNmMzJmNjEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjgxMDU2MDRlN2EyNWUyYWRmZDQ1MTZiY2UyODg1NzFlMTlkNjQzYTMxMTJjYjlkNzI5NGFhNzJkNjk4YjE5NWMiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjIyODk0ZDI1ZmNkYWJlMDExMTAwNzExNmQ3MGIxNGVjZDY5OGFlZTkwMDYxYmUyY2Q2MmU4NzhhOWQ1NzY4ZDciLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImZjYjUzZTJkNjAwZDFjODNjOTdjOGQwMjlhMDQxYzkyZjE2OGNhMzI3NmUxYmEwOTNiNjFkOWYxMTIzYTVmNzcifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_bfeea3a802794e2baa042276b875e545",
+      "statement": "api/chat.ts::readSSEStream 提供 SSE 消费健壮性：跨 chunk buffer 累积、[DONE] 前必须已见 final/error/interrupt 终端事件、未知事件按 schema 拒收并告警、尾部残留 payload 校验、finally releaseLock；handleStreamMessage 与 resumeMessage 在流结束后再校验 hasTerminalEvent 并抛\"流式响应未正常结束\"。",
+      "evidence": [
+        {
+          "resource": "repo://frontend/src/api/chat.ts#L331-L425",
+          "version": "repo-lines-v1:sha256:a71f80d8a90912bd5b13e09ac3f71f87002a6a03b6bddef3f34ac37a986939fe:eyJzZWxlY3RlZExpbmVDb3VudCI6OTUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjE1YzYyOWI3NmRiZTViODYzNmQ5M2M5YjQwNjBjMGVmMDU2ZTEwODViMWM0ZGUxOWMyZDBjNjMyNGVlMjg2OGIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQxMmNhMzQ1Y2NmNzViZjljMDgwNmJjZTY5NWJlOGRlODA4Yjc5OTg0MjUxYTdhNTRkMjAyY2Y2MTAxZGQ0NTEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjQ0YTE5ODExZTNkNWQ4MGZhNmFjNDEzMjg2Mjk2NTg4NTBjMGMzMDliYzE3MTdmYzE5N2VlODFkMjg1YjIxMjUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjVmMmY5ZmVhMDYzZjA4YzlkZjJlZmQ4MTQxYjM1OWYyZWFlMjI3NDVkNGM2YzcyMmIzNzQyYzJhZTE3ZjE3NGUifQ"
+        },
+        {
+          "resource": "repo://frontend/src/composables/useChatStream.ts#L298-L329",
+          "version": "repo-lines-v1:sha256:17bdd305501b4fa961f4d99ff49d9e6a199683b69f7f0de078cf3bc389703b7e:eyJzZWxlY3RlZExpbmVDb3VudCI6MzIsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjRhY2U1NGU1NTY3Y2EwMjg4YTBiOWE0YTIxZWY4MmQyMDI4YTNiOWYzZWQ3MjNmYTA5NzVhZGViODA0ZWQyMDkiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjI3ZTU3ODhkNWQ5ZDczZDI0YTgxZGJjMGE1YTc0YmZhODJjOWMzYjNhZjk5ZTUyYWY3OTZlOTBiNDY4YThhM2QiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjU5M2Q1ZjdhNWM0M2E4YzdlNzM2M2IyN2IyNjA3YWU2ZmY5Mzk0MGNiYmRkOWI0NzQxNTc2YjhmZDgzZmI2MTkiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjM2YmI5ZGNiYmVlNTZiZjRmYzBkZDA5NTg1NTA0YzBjMmM5YzMwY2I2MjA4NDc0YWFmMjAwNWFlZDAwNmIyZmIifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_8d8189f0fef44c32a820e8ef48ff8ba5",
+      "statement": "ChatView 主输入框与 WelcomeDashboard 首页输入框共用 handleEnterKey：e.isComposing 时（IME 候选词合成中）不拦截 Enter，上屏后才 preventDefault 并发送，避免未转换拼音被误当消息发出（2026-08-30 M1）；ChatView 的 Shift+Enter 分支用 .prevent 拦截原生换行、仅保留手动拼接 inputText += '\\n'，修复双换行/中间换行被追加到末尾的问题。",
+      "evidence": [
+        {
+          "resource": "repo://frontend/src/components/chat/WelcomeDashboard.vue#L127-L132",
+          "version": "repo-lines-v1:sha256:f3077e1104453fe0ad858ec308d16894908a15938cdce0c982d5d12785479e27:eyJzZWxlY3RlZExpbmVDb3VudCI6NiwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiMzgwZDE0M2VlZDdhYmIyMDgzYzdjZTcwMjViOTRlNWViNjllNmQ1ZGVhZWU4Y2RjYjE2N2FmMmFjMDMzYWE0NiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiNDEyY2EzNDVjY2Y3NWJmOWMwODA2YmNlNjk1YmU4ZGU4MDhiNzk5ODQyNTFhN2E1NGQyMDJjZjYxMDFkZDQ1MSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZjEwYzBjODllZjViN2Y4NWM4Y2FjZDQ2ZGQzNjExZWIzZDc1ZjI0N2JkZDMwOGRkNGQ2Zjk3MDYzYzM3ZjBjOSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiNjc0ZWU2ZWJlNmYxOWU2Y2Q1MTY2MjFmZWE3ZWVlNTY2ODYwNmY5M2Q5YzkwOGNmNTg0MjlmZmQzZjI3MTM5MCJ9"
+        },
+        {
+          "resource": "repo://frontend/src/components/chat/WelcomeDashboard.vue#L23-L29",
+          "version": "repo-lines-v1:sha256:a3ab1bc5d923f8a4154f370bb2579ff9fb74def4ae7b5e3328d6f0d76419deae:eyJzZWxlY3RlZExpbmVDb3VudCI6NywiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiOTcyZmJiNjUyN2JiYjVhZmUyNWI2YzA0ZjhlOGU4NmRmYzBiZWNhNTM5NDNiZjkxMjAxOWI0YmEzMTdlZGNlNiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMGI1OTJlMDdiNGNmNTNhODM4NmM1NjgwY2ZiN2YzZTRlNzU0Mjk2OWM4NzI2YWM1ZWQzMjc1M2Y4Y2E5NTk3NCIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiYjBhYjU0NjUyOTFlZDAxNGM4MTk0NjUzMDJiNmE0NWY0MDk3MTU1MzhiODU0MzJhYTljMTE5N2YyOTk5MWM3OSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiNGM4Y2FlZjQ4YTIwZDY4ZDdmNjAwMzQzZGUzNWJiZjJkN2IwMTM3MWMzZmI3OGI5YjQxMzUxNDUyNWI2Yzk0YiJ9"
+        },
+        {
+          "resource": "repo://frontend/src/views/ChatView.vue#L160-L171",
+          "version": "repo-lines-v1:sha256:17989cb9c5daf39382c94dc88a3bee43d7b7f84faff5e0dfa07b43d9c0fc81e6:eyJzZWxlY3RlZExpbmVDb3VudCI6MTIsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjVlN2VhODFhMzMyZDg0OTQ4ZjM3YWVjMmU2YmJkZDM1NWY3NTQxNDA0YjcwM2Y4ZTdiOWJkMTJkYjgxY2RkM2YiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjlkMjRhMjFiMTUzODA3ZTY3MTZkZTQ3YTQ0Yzg1YTI1MjZmYmEwYzM1OTJlODRkYjAyYjA0NWQxYmVhYTk0N2MiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImFlYTg3ZWRhZjIxZTQ2NzJiMTcwZWNmMjBiNTljZTBkYTJjNWYzNmMzZTdjMWYzMzgzNDIyOWU0NzM2MDI5ODAiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjkzODNiNGUxMDg0ZjVlNmE2MWM5OWMzMTI4NzY4YmFiZTZjZTNhNmZkNzJjMThhZGUwMmVjMjljN2FhMzhiMjUifQ"
+        },
+        {
+          "resource": "repo://frontend/src/views/ChatView.vue#L403-L425",
+          "version": "repo-lines-v1:sha256:fd23c022cc7d969089beb110fda68cebc633228556ce9b1891908a843a87488b:eyJzZWxlY3RlZExpbmVDb3VudCI6MjMsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjBiMzFlYjY0NDJiNGU4MjY3ZTkyNjNmODUzZTQ5OGJkOGRiNzcyYWMwYmZhNTNkOWRmNjE0ODQxNDRkMTJkZDgiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQxMmNhMzQ1Y2NmNzViZjljMDgwNmJjZTY5NWJlOGRlODA4Yjc5OTg0MjUxYTdhNTRkMjAyY2Y2MTAxZGQ0NTEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImJhY2M1OTcyYzNjOGE4MjkzYTBjYjYzMDcwZGI0YTEzZmM4ZWFmMDQ2MDYwNjE1MWVlZjU5NGM0MjI4NzJjMGQiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImIwNzQ3MWVlMjRkZjAxMzE4OTQ4YmQ4MjFkMzUwNTk5MTAyMjZmYmNiOTBiYTRiODE5ZDc0Mjk0OWZhNzczODcifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_264335e0e19a4a41895f6315f0a2b7f5",
+      "statement": "useRequestGuard 提供 requestId/isFresh 请求序号竞态防护；scenarioPanel store 为领域树、参数元数据、直通查询三路独立守卫（fetchGuard/paramsGuard/queryGuard），响应/错误/finally 收尾全分支加 isFresh 检查，快速切场景/翻页时丢弃过期响应（2026-08-30 M5）。",
+      "evidence": [
+        {
+          "resource": "repo://frontend/src/composables/useRequestGuard.ts#L4-L21",
+          "version": "repo-lines-v1:sha256:dd07de8367afe30621c60619e9c5b4a4ed57edaeaa143561b37cd3dae7d9e1de:eyJzZWxlY3RlZExpbmVDb3VudCI6MTgsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijg2Njc4MTJmYTljNTNmMGRhZmMyNzg0OGU5OGU3YmM1NzRlZTM2MDA2NzI2ZjRhOWEzOWE4MjE1OWI4NThhMjMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjU2MGIyNjY2ZTBlMDNjNWFiNWYyYzQzMDA5MTg0MjQ2NWQ0MDM1MDM0NTk1MWNmYjAyNjNlYWY1ODg4YzgxMTIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImI5MjcwNmJiNzUxNjcyNDhkZWYyNWFlZGMxZTZkZTdhMWIwNWMxZjhlM2JlZGI0YTFiZjZjYjgxZmU2MWRiNzYiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjoxLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImQxMGIzNmFhNzRhNTliY2Y0YTg4MTg1ODM3ZjY1OGFmYWYzNjQ2ZWZmMmJiMTZjMzkyOGQwZTkzMzVlOTQ1ZDIifQ"
+        },
+        {
+          "resource": "repo://frontend/src/stores/scenarioPanel.ts#L104-L139",
+          "version": "repo-lines-v1:sha256:e3f5b1f5a1d11cf5db573f675476ad0ea75429060ca7c686538cd46935e68fdf:eyJzZWxlY3RlZExpbmVDb3VudCI6MzYsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjFjNjc2OTk2NTA3N2MyNzIzN2IxNGE5YjBiYTcyOGYzMTRjMzMxNWRhOTA5N2U2NDVhYjMzNjIwMzUzOTMwNDQiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjcxMzQ1MTgwMTA1YjBjNjZhNzdkYWQ1MWJiMzc5MDFhMzczMmM5NjU0YmE0ZGUzOTgxZjgxZTE4MTc1MjQ4YmYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjNkMTg2YmQyNjI2NTk5NTRlODhkZmM5YWQxOTRhY2Y5OTBkZGQyOWU3MDFkYTBjYTMwMTAzZmJiOTQ1MjgxZTgiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImJjZmEyNjMwYTRiMGViYzk5ZTZlZTQ0OWQ3YmE0MDU2NTFhMTE1YmIyYzgxOGEzNTM2NGI0NTFmZDQ3MzhlMmIifQ"
+        },
+        {
+          "resource": "repo://frontend/src/stores/scenarioPanel.ts#L160-L186",
+          "version": "repo-lines-v1:sha256:1067cfcabeb8962d8dc125637e8c5004cd8efc47d30527f61aab9ae5f8cd23dc:eyJzZWxlY3RlZExpbmVDb3VudCI6MjcsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjUwYmZlODdkYWQ3MDgxYjZlZDRmMjVjZjJmZTJjY2IxOWFjMzM4MDNkNWI4NzQ4Y2RmYTUyMWQ4NDRlYjJmMmEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjcxMzQ1MTgwMTA1YjBjNjZhNzdkYWQ1MWJiMzc5MDFhMzczMmM5NjU0YmE0ZGUzOTgxZjgxZTE4MTc1MjQ4YmYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImJlN2UyNzExNTA1MTVlMGM1YTBlZmVmMTc0OTA5YTRjYmMyOTljYTg2NTI3Njg4MGYwMDdiYzg1MTYwZGQ0ZmUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImFkYWU1MTI3MjM2N2JlMTM4NDQ5ODgxZWYwOGZlY2VlOTk5YjNjYjM3NTY2MDFlMzliNjk4Y2JiZDllMDI0Y2YifQ"
+        },
+        {
+          "resource": "repo://frontend/src/stores/scenarioPanel.ts#L23-L26",
+          "version": "repo-lines-v1:sha256:fa7b2fdc1d03a03ae230b29b9f6af41fcb88dc17e3ce058727cd4f2dca2aeee9:eyJzZWxlY3RlZExpbmVDb3VudCI6NCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNmI3YzZjZTllNzk3NmE0YjFmNDgyNGI0ODBiM2MwMDc1YmIwODNmYzg4NWQ3YWYyODUwZWRkMTM5YjczOWFlMCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiZDI1M2Y1YmQ3NTU3ZDFkY2E4Y2RiOTRhMWEyMzAwOTQwMTYzM2NlZjhiY2FiNjcxNzcyNjhjMmFmZmY3NDU4YSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiMDczNDFiMGEyMDczM2EyYWVhYjk5MjkzYWU0YzAyMTE2MjI1MzY2NGNlOTBkMTdlYmQ2MWY4MzRmNDU1MDViNCIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiNjAwNzhkZGQ0MDAwZjVjZTQ5MzU2Mzg4M2Y5MzAzNTE2YWM5OGI0ZmExMGRmMGMxYTFkMmNmYjNjNWQyZmVhOCJ9"
+        },
+        {
+          "resource": "repo://frontend/src/stores/scenarioPanel.ts#L73-L89",
+          "version": "repo-lines-v1:sha256:682c4babe4050fda55a6032d69504d030e072e862f74f1d5e9fee9ab5d3839f1:eyJzZWxlY3RlZExpbmVDb3VudCI6MTcsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjA3Y2E2NjcxYzUwNWIxMTE0OWEwN2UzODIwZDkzYTBhN2EzNWQ4MzZmMzM0YTViNjIxYmU0ZTg3ODg0MjNkZTYiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjcxMzQ1MTgwMTA1YjBjNjZhNzdkYWQ1MWJiMzc5MDFhMzczMmM5NjU0YmE0ZGUzOTgxZjgxZTE4MTc1MjQ4YmYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImZhNTg5MDk3NTZlNmM3ZDU4ZGFlMjcyZmRhOWEyMmUyYzRlOTVhMzY2NGQ4NzY3MjA5MjNkYTkzNTE0MTYyNjEiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjdmOGJjOTQzMGI3OTg0MTVhNzBhODUyN2Q0MjE3ZjZlY2ZlMTU1NDdlYTM1MGJmN2JmMDdlMTRkNWY0ODIyOGMifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_ae00d99240494780963df658ccbe8c26",
+      "statement": "executeScenarioApi 单独设置 timeout: 60000（直通查询是真实 SQL 执行，放宽慢查询超时），而 frontend/src/api/index.ts 的全局 axios 实例 timeout: 10000；getScenariosApi / getScenarioParamsApi 仍走全局 10s 超时（2026-08-30 M2）。",
+      "evidence": [
+        {
+          "resource": "repo://frontend/src/api/index.ts#L3-L9",
+          "version": "repo-lines-v1:sha256:74888428ae68b1c0626b9ae1cd81cea4fc34add56a637fbacb25122d8aca43b8:eyJzZWxlY3RlZExpbmVDb3VudCI6NywiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiODk4NGU5OWQ1ZmQ0ZDc5Y2Y5OGMyZDgyY2NkMzI4ZjE4ODMyMzBjNWQyOTVhOTE0OTY0MTgwYWZjZDI5YzFhMiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMTBhOGY2MGZlM2M1MGIwY2Y1MzQ3MjIxMTNmZTkwZDczNDE0Mzg3Y2U5MmU1OTc4YzgyY2JkODAxY2MwNTAwZCIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjIsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiODFlMzI3ZTQxNmY4MDI3YjJlYzc1ZjViMDUwM2I2ZjU0Yjk1NmEzOThkMGFjZDAwMjlhYjVjMzkwODI4YTIwYSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiMzkzZDVhOWZlN2Y4YzE0MmNiNjE2ZWQ4YWEyOWI2MDljYzNhMzQxYjlmYjcxMDc3Y2JjZWQ3YWI3Nzc3OGY0ZCJ9"
+        },
+        {
+          "resource": "repo://frontend/src/api/scenarios.ts#L91-L113",
+          "version": "repo-lines-v1:sha256:4b885dbb1e77e62de42e4ad4c38e522ba5d15eabcce0dcb8ba49474ab481340c:eyJzZWxlY3RlZExpbmVDb3VudCI6MjMsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQ1ZDVhYmFjYTIyNjgwYWU5NTMzNjcwMGRmNzY2MzYxOTdhN2NiNmMwMDRmNGNkNzlhYzFiMWZkMmYwYWM0YTUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImUyMmZhYTUzNWJkMmVhM2Q1MmU3NDFlZDQ1NDQzNWI3ZmU0OWU4MzU4NmU5NDNkOThkODJiYmZiMjRkMWY1YzUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6Ijg3NjUzY2RmYjkzOTVmNzI0ODg1MjA1M2Q5OWZmMmFhYWRkYzRiMzVmMjNmZTI4MDhkM2ZmYjU3Zjc3MmY3NDYiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjowLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_c71a0218d9e347d6b9fd75520fc2566e",
+      "statement": "VariantB 抽屉 fetchTableData 采用 tableDataGuard 请求序号 + 落定时 activeTable 目标表比对双守卫，快速切换抽屉时丢弃过期响应、防止旧表数据覆盖新表；已知遗留为无 AbortController 主动中断（防覆盖已达成，可接受）（2026-08-30 M9）。",
+      "evidence": [
+        {
+          "resource": "repo://frontend/src/components/chat/VariantB.vue#L489-L529",
+          "version": "repo-lines-v1:sha256:0d16ee93c04f6437afe0f99e62998754e79648c08716871dc9be11070fa51a67:eyJzZWxlY3RlZExpbmVDb3VudCI6NDEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjUwZGRhNTIxNTNiMzVjY2YwMDkwMDAzNzQ3MjU2ODIyYzg4MzMyN2RhZDUxYmRmYzZiMDAxOTVhNzRmNTVhMjUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImUyMmZhYTUzNWJkMmVhM2Q1MmU3NDFlZDQ1NDQzNWI3ZmU0OWU4MzU4NmU5NDNkOThkODJiYmZiMjRkMWY1YzUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImEyOGYxM2NjYTJhN2EzNzE5Y2VmOWRjZjhmZDM5Njk2MzI5ZTU2YjAyOTI5ZjA2OGFhYmIyZTYxNDg4ZTdlODYiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImIxMTM5NTI3MWYyOTU0Yzc1ODBjYTY5N2RkZjY0NTEzNjEyYTVjODFjMjhkNTAwNzRhZGM4MDQxY2VhOTBkNzYifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_d04301c11bbb4a4b9ff1bffcb7701eb5",
+      "statement": "messages store 以 streamingMessagesMap 按会话划分流式状态：startStreamingMessage 创建临时 StreamingMessage，completeStreamingMessage 删除临时条目并落定（subagents 服务端快照优先），且仅当会话等于 latestRequestedSessionId 时才推入视图防止污染其他会话；memory*Map 旁路缓存按消息 id 只增不清、deleteSession/clearMessages 均不回收（已知遗留 M3）。",
+      "evidence": [
+        {
+          "resource": "repo://frontend/src/stores/messages.ts#L209-L226",
+          "version": "repo-lines-v1:sha256:d215fb3ff50ababc1b029122f90820065719867fc3e77e6eb8166d5e855113bb:eyJzZWxlY3RlZExpbmVDb3VudCI6MTgsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjM0NjlhYjU4YjQ3NzBkZmQzMGU2MGE3Y2ZmNTdiMzJlOWMzNzU3MzU1MDk1MTg4MTU1NDMwMjJjMGM2ODU2NjMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjcxMzQ1MTgwMTA1YjBjNjZhNzdkYWQ1MWJiMzc5MDFhMzczMmM5NjU0YmE0ZGUzOTgxZjgxZTE4MTc1MjQ4YmYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImY2NmIyNmViMjczMzIwMzExY2IwMjEyMzY2ZmMxY2M5NWFiZDc5M2MwMTI0M2NhODY1NDRmYzgyZTVlNWEwZjgiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjE0ZmNjYWJhNjRjY2QxOWFmNDNlMjFkOTcwODYxZTM1ZmZhNzljZjZiM2I0Mjc0N2EwMWRiNTZlZDlmNTI5NjgifQ"
+        },
+        {
+          "resource": "repo://frontend/src/stores/messages.ts#L539-L617",
+          "version": "repo-lines-v1:sha256:6207b543082fb31d8885261bd4988484abf0c095358d240ea4728ccd829c8c10:eyJzZWxlY3RlZExpbmVDb3VudCI6NzksImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImE2OGJjODQ5ZjY3YjNhOGFiNjg0OGE0MTM5ZThiMWQxZTNlYzVjOWUwZjZjM2I3ZTI2MTQ2NDgwMzExNGY1ZDUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjcxMzQ1MTgwMTA1YjBjNjZhNzdkYWQ1MWJiMzc5MDFhMzczMmM5NjU0YmE0ZGUzOTgxZjgxZTE4MTc1MjQ4YmYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImZkODk4NTRjNTAyZTNiZmY4OTZjZTkwMzJkOWY3ZGExZjZiM2RlYjMyODMzN2RiOGVlMGM3M2JlMTRhMmM3ZmMiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImJiNTNiNTUwYTQ3MmEwYjFhYmFlMjFmMDg5ODA0YmUwNWEzZmM4ZmI3NWM1ODBkMTc2NjMxNjdhMmM0NzdjYzUifQ"
+        },
+        {
+          "resource": "repo://frontend/src/stores/messages.ts#L72-L101",
+          "version": "repo-lines-v1:sha256:4119a9570f0f315261b493bc02b4598dc8bb2b242de19e34f07a0fe557539d3f:eyJzZWxlY3RlZExpbmVDb3VudCI6MzAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjVlOWI5NWIyMmQ1Y2VlZDU0YmM0NDU3OTc4NzVmOTA1OWJmZjI5NmZmN2M3ZDQ4MzBjMjAxNWMwOTkyOWZmYWMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjU2NjBmNzdiN2ZkNTNkMTI0YWQ5YzhmMTA3MTM0NDIxYmUxNzk1ZWRhZjZmOGE4MTAzZjdlN2FmODE0ODliN2MiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjQ0N2YyMjAzZGUzYWNhNjVhNjVhNjFmYjU3MmVmOTRkMTA5YzQ3OWZiNDQzMjZkMThhZWEzNGU2YjhiNTM5YjUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImRjMGYxNGQxYjA4NDQ0ODY3N2RiMmVkYzEyM2MwNmU5MjAzZjE2YTEwNTU0YjAyYmZiMjM5NTllZjgwMjgxZWEifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_f4e402fc35ca45a6bd3631dc2d560ec3",
+      "statement": "fetchMessages 优先解析消息持久化的 subagents JSON 字符串（parseJson），旧数据（无 subagents 列）回退到 reconstructSubagents 从 tool_calls/tool_results JSON 重构 SubagentSessionState（仅工具链），实现历史加载后子代理卡片状态恢复；渲染文本同时剥离 <context_redacted>/<context_collapsed> 内部标记。",
+      "evidence": [
+        {
+          "resource": "repo://frontend/src/stores/messages.ts#L104-L154",
+          "version": "repo-lines-v1:sha256:1b61b89188df0fc8f3aa9aeefb05d9a977a0aca1363b68a40fc457a0a156d865:eyJzZWxlY3RlZExpbmVDb3VudCI6NTEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImRlYzg2YTRjY2E2NDNjMjc0ZDkyZjc4MTQ2ZmQ4MmIyMjlmOTdkZjgwZWUzZDJkZjE1NjM5NTllNjYzYzk1M2YiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjcxMzQ1MTgwMTA1YjBjNjZhNzdkYWQ1MWJiMzc5MDFhMzczMmM5NjU0YmE0ZGUzOTgxZjgxZTE4MTc1MjQ4YmYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjZmODYyMGJkODJkMDIyM2RkY2U1YTRiZjY0NmI1NGM4YTY3ZjI4OWIwM2Q5YjRiYTI1OTk3NjBhMGZmOTI2NGMiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImM0MTZiOGRhODlkMjkzYmY2MzA4YjIxZjdmZDNjZWQ4NGY3OGMwNTRkNTdlOWZkNWJkMGE3OGE3Y2JmMTJkYjgifQ"
+        },
+        {
+          "resource": "repo://frontend/src/stores/messages.ts#L24-L70",
+          "version": "repo-lines-v1:sha256:c6d28c9508eb31a4b5545a42dd043a786fc932fd4d6e3b645bfd719ca1bfe88a:eyJzZWxlY3RlZExpbmVDb3VudCI6NDcsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQ1ZGU3YWE1MDcyNWVmMWQwZmYyODczY2I1NDZlMTAzNmUyNDBkYjA2NDVhYjAxYTFiYjEyZTI5NWUwZDM5YzAiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImUyMmZhYTUzNWJkMmVhM2Q1MmU3NDFlZDQ1NDQzNWI3ZmU0OWU4MzU4NmU5NDNkOThkODJiYmZiMjRkMWY1YzUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjI1YTJmMWYyNGJiNTNhZWEyZmViZjMyODYzMTIzYzJjNmU3NWQwZWYxYjZjNTc4Yzk0MGE4NjBiY2ZhY2ZjOWUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImQwYmMyZmVkN2VkZjE2NmFhNjg0MjlkNzY4OWRjZDNkMzY3YjhlZTZjN2IyYzc0YzMwMWEzMGVkYWY0Zjg4ZjMifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_7866fd787d834fde9537bdaafd2f17ee",
+      "statement": "SubagentSessionState（frontend/src/types/index.ts）以任务调用 call_id 为 id，含 name/title/description/status/reasoningText/toolCalls/toolResults/content 等字段；ensureSubagentState 在流式阶段按 subagent_id 运行时初始化（status='running'，name 缺省回退 'sql_domain_agent' 并经 formatSubagentTitle 生成标题）——流式阶段与最终化渲染分离是仓库约定，渲染方按 subagent_id 分区。",
+      "evidence": [
+        {
+          "resource": "repo://frontend/src/stores/messages.ts#L228-L263",
+          "version": "repo-lines-v1:sha256:1d30a68b4f09a858d8782b531d4871fb6c3f6940d80e269b4b0afa01e79eb60c:eyJzZWxlY3RlZExpbmVDb3VudCI6MzYsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjBmMzVkOTg2NjE2NzYzM2ZlYjhhNWEwYWRiNGUyZjhlZTQ4YTk1ZjgyYmVkZjcyMDg1ZGM4Mzk3ZjcyNDY1MGIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImExN2ZhNjgyMjRjNTU5Y2M1NGU1YjhjOGY0MGFlNzQ5NTg3MDlkNjEzZWJkYmI3ZDJmNTI1ODJlOTMwOGJjYjMiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjU4NTA4YjZjYjA1ODlhYmE3NTAzMjAyZGUyYzhmODdlZDliMTljZDU4NjUzZmQwMWEzZTY3NWUzYWI3YjU5NjciLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjIwYmU0OTc0MjY0ZTg2NzIzNzk3NjYyY2JiMWNmOGVmNjA3ZGM4NjU5ODc5YzFiNDg3YjNmNDhhMjY2NjdmMzQifQ"
+        },
+        {
+          "resource": "repo://frontend/src/types/index.ts#L49-L63",
+          "version": "repo-lines-v1:sha256:860388a3fcc3aff50c9402c86070c9e9af447f128f5e5c760d85a46752be9806:eyJzZWxlY3RlZExpbmVDb3VudCI6MTUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjkyZDM4MjVhYzRkYTUyOTBkOTBhOGI1MWYyZWM2MDYwNWNiYjQ4MWU2ZjZlZmQ0OWRjNTQ2NTljYTdjNmZlMGQiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImUyMmZhYTUzNWJkMmVhM2Q1MmU3NDFlZDQ1NDQzNWI3ZmU0OWU4MzU4NmU5NDNkOThkODJiYmZiMjRkMWY1YzUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjQ4ZmIzNDIzYmFiNWM2MmUyZDlhOWVhZjk1NzBkZjVkNzc1OTBmZDYyYmNkZWIyMDg3NDc1ODE3NGNjMmIzYWEiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjM3OWRhMDk3YjBhOTk2MGQxNmNmMjI2YWRlZGI1ZDgxMTZkZDEwMWYxOTY0MjRmMTA5N2FhZWI5ZGI1YTZiOTkifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_795d544472f94e069754e863e65a28a4",
+      "statement": "stopStreaming abort 当前会话控制器后，sendMessage 的 catch 分支（AbortError）调用 finalizeStreamingInterrupted：保留已生成片段（content/reasoningText/toolCalls/toolResults/subagents）并落定为本地 is_interrupted 消息（id 后缀 -interrupted），子代理状态置为 interrupted——停止生成不丢弃已产出的内容。",
+      "evidence": [
+        {
+          "resource": "repo://frontend/src/composables/useChatStream.ts#L135-L141",
+          "version": "repo-lines-v1:sha256:7ce881eeac3df948e1a34bdf5dd8eb739a325d91dc7923f4574da8f0b33787a3:eyJzZWxlY3RlZExpbmVDb3VudCI6NywiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiMDhkYjc0NjA4MTgyY2I3Y2E0ZDlmYmE0OWEzOTQ5OWE3ZjM5MDdiNGVhMDMzYjE0OTJhZDVjZjBiZWVlZWNlZCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiOWI2MmY2MGQ4NTkwYTU3OWNmNDZmOGQ2NzM3OGM0YzU3MmI5NjJjZWNjZGI5MGM3YTVmN2I0MmI5NjA3ODJhNCIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZTM2MDg2NDVmYzY5OTU3OTc3NWM4NzQ0NjFhODA3MGY1MmE2MmM4ZDMzNmJhODRlMjFkNWEzZWMyYWE5YWMxZiIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiMjQ1Y2VjMDViYmIxMjIyY2E0OTRmZWZjOGZjODJhM2NkNTIwYmI3OTkxYmIzZTVhNTJhYTdlMmM2NjBiNjAzNiJ9"
+        },
+        {
+          "resource": "repo://frontend/src/composables/useChatStream.ts#L96-L101",
+          "version": "repo-lines-v1:sha256:0e9f0e7bbb1582792849869a818720f72a1505bd866e9872d7225ddd41d61f45:eyJzZWxlY3RlZExpbmVDb3VudCI6NiwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNTNjNGY1N2QyMmYxZWRjYzAxOTAxMGU2NDYwM2FmYzhiYzAxYzQ0MDAxMmFkYTYxMzE1NGRkMDhiODUxYjNlZiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMjdlNTc4OGQ1ZDlkNzNkMjRhODFkYmMwYTVhNzRiZmE4MmM5YzNiM2FmOTllNTJhZjc5NmU5MGI0NjhhOGEzZCIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiMzdkOWUwYjE5NDQ2ODFiNTE5M2VhMzMxZWNkNDYwN2ViYTJiMGQxNDRlMDU3Y2Y1NTFiMTUxZTQ1NTMzZmYyYyIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiNDMyMDRjMjVhYjU4ODAzNGYwMWZjMzQzZmJjNDcyZjdhMDMyZWNmZjI0YmYwYzBmODZhMThkNDEzMTkxY2EzOSJ9"
+        },
+        {
+          "resource": "repo://frontend/src/stores/messages.ts#L480-L520",
+          "version": "repo-lines-v1:sha256:13fd8aa8c5efdef5319186d08968a4be46f3e7c30cae721ce5af923c11ba3647:eyJzZWxlY3RlZExpbmVDb3VudCI6NDEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjFmZTdmY2YxOWI5ZDA2MGI3NDZiYjA3YmNiYWNkYzhjODAzNzY1NmIzZWI1MmQwOWI1NmFiMTAxZDRlYmEzNmYiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjE0MTlhNmRjYzA0ZTIxM2EzYzdhNzdhNDU2YjAxZTc2ZDFlZjc4Y2QwMGJiZWMxZDhmODE0NThmZTkzZWRjNTYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjZkZWFmZDE5Y2UzNzc3NGM0NWViZjBjNzhkN2QyMTE1YmJjMWFjMWNkOTMzNWZkNmVlYjQ1ZGJlZjM4MjE5YTIiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjQwMGU0MDkxYzQ0MTliYzY1M2E2ZmYzNzU5MGMyNjM4MTg1MGNkOGI1NjgyNTU1YmE5ZGU2ZjcxNDY5NTIxZTMifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_1dca93ddd51b44908506cf15f99cc40d",
+      "statement": "thinkingLevel（模块级单例 ref，默认 'medium'，类型 ThinkingLevel = off|low|medium|high）经 enableThinking / thinkingLevelParam 注入流式 sendChatStream 与非流式 sendChatMessage 两处 payload；off 时 thinking_level 为 undefined，后端契约仅 enable_thinking=true 时生效并映射到 reasoning_effort。",
+      "evidence": [
+        {
+          "resource": "repo://frontend/src/composables/useChatStream.ts#L308-L318",
+          "version": "repo-lines-v1:sha256:95a572453e2937a6a39f68749a8b096160f8981f258c25f31de1e4c79dfa844b:eyJzZWxlY3RlZExpbmVDb3VudCI6MTEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjExZGY4N2E0NzMxNmM3MDhjNTUwMjA5OGU5YWY2YzQ0NTM0ZWI4MGJlYWRjZjYwNjMwMjhlZmNhODU5MzdhYmUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjI5MjUyMzcwZjQ4YWE3MDQxMzBjNzRiYTJiZTdiZjU0NjkwZWY4NTgzMGY4ZDJmNDExMGRhODlkYjZmZGY2YWIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImZiZmFlZjAwYWEzNzYxOGJlMDM5NTg4MjQ0MjljNTcyNTE5NjU3ZmIxNDVjMWVlNTMxNjM5ODNkOTc0Y2Q3M2UiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImZiZjc4Mjk3MTFkMGFlZTM3YjljOWZiNjFhOTUzZWY1NmRmYWQ4YWJmMWIyYzk2OTM5YmFhNjU5OGRiOWQ0OGYifQ"
+        },
+        {
+          "resource": "repo://frontend/src/composables/useChatStream.ts#L33-L34",
+          "version": "repo-lines-v1:sha256:702280fd7e0cd1106e1262b7c6b64b449badcd455d270ae7742b1c01b85fe489:eyJzZWxlY3RlZExpbmVDb3VudCI6MiwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiZWY0NTkwNmEyNGJlYjkyMDM3OTRhMGQxNjFiN2VmMWE2Yzk5YTI1NDkxMTcxZjU5MDAxODBhNTJiYmFhNGI0YSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMjg1OWVjNTcyZjE1ZjY1YjlhYjY0YTNjODkwYmY3Njc1YjZmZjk4NmRlZTljZGYyNjIxZTYzNDAzN2IwZmI4ZSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiYjRkNmYwMGQxNzMxOTAxY2M2MTE5YzY0MmU1Yjk4NjExZDdjMDNhNTFiMjlkODA0MmFjYmJiZThlZjMxZDY0ZiIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiNWMzYTk3MzE4YzcxN2Y4ZDRmYTI2NDE3OTc3ZThlYjM4ZTMxNDE2NzRmOTQ3OThkZDBhZWQ5MTQyMmI5OTVmNiJ9"
+        },
+        {
+          "resource": "repo://frontend/src/composables/useChatStream.ts#L334-L341",
+          "version": "repo-lines-v1:sha256:4cfca3b7bb996d81e691309c56725e992d6fea95c93492cc70380ff6d8ac178d:eyJzZWxlY3RlZExpbmVDb3VudCI6OCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiMGE1YWU1OTI5MTM1ZDFlN2UzN2FhYjkyNjE5MTQ5ZTAxNmZjMzBhZGU5OTdlMzIyNzQ4NjY5MmFjOTA5NjQ0YiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiNjQ3NWU5NGE5MDRhYzQ5YjMxNTRkNDY3MmE2NmU4NjI5Yjg2ZGFjNzRlM2UyOTM3YmU2OTI3YWUzZGExMWM1MyIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiMzBkNGY4ZGMwOTUyNTM2NzYzNjEwNzM1YWEyZjFjMWM5MDQ3ZGFmOTVlMGQxMDQxODVjYWM4NTIyZjMzYTg0MCIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZjFjMzg0YjdjOTg0YjhiMWNjNGJiMzlhZjJmOGZhOTU5ZDZkYmM1ZTE2YWVlY2M0ZDZiMDUzOTFhMDYwMTY3ZCJ9"
+        },
+        {
+          "resource": "repo://frontend/src/composables/useChatStream.ts#L57-L60",
+          "version": "repo-lines-v1:sha256:29499072f3806fa73f307dd775032c533574723140e193674c47d239765c6b16:eyJzZWxlY3RlZExpbmVDb3VudCI6NCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiM2Q5MTU2ZmY5ZTFiMjBhYzEzNzFmYjYyY2FjZDViYzQ4MTE1MDY1YjFiY2Y3YmMyZTFmMDhjOWVmOTFmNWI4NCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiNTYyNjc5MzVmYzYzMzQ2NWQ4NDhiNDBhNGVkNjk2N2U3YjdhMzIzZjgxY2Q1M2MxMTBhZTIxMDI5Njg3YWExMyIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiMTI3MWZkMDc4ODE0ZjQ2NTNiMjdhNDhlNzM5NjE1YTk3ZTU2NzZmZjlhMGMzMWUzMzJjZTUxMTI3NjdiZGFkOCIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiODJmYmYwNDZiZTU2OWIxYjJjODgxODIyYTU5N2UxYzM4OTExMjQ0Y2JjNmY1MWVhMDdlMDU3ZTM3NGU0NTA0OCJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_c74cdee60c4345609dba6a5d0d1f7459",
+      "statement": "useScrollSpy 不变量：rAF 节流的滚动处理器；ACTIVATION_OFFSET_TOP=120px 判定活动消息（用户消息顶部在容器顶部+120px 或更高）；距底部 BOTTOM_THRESHOLD=40px 内强制最后一个用户问题为活动；ResizeObserver 在流式内容增长时重新校准；scrollToMessage 平滑滚动到 el.top-16px 并强制重排重新触发 .highlight-pulse（1.2s 后自动移除）；onUnmounted 取消 rAF、定时器、监听器与 observer。",
+      "evidence": [
+        {
+          "resource": "repo://frontend/src/composables/useScrollSpy.ts#L10-L11",
+          "version": "repo-lines-v1:sha256:23fc393abb83b6a321fdd70481fa98aac3aab2e563c629ab8dab146e4dea7097:eyJzZWxlY3RlZExpbmVDb3VudCI6MiwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiMTQwZDkwNjVmNjdmNzIwNjYzN2JlMDMxMzcyYjZiODhiYzg2NDUzNjQ0OTU4NmM2ODYxNjFhYWY0MGFhZDgyNyIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMTZiNDE2MzgzMDNlNDEwMTYxZGUzZjMxNTQwMmVkZjViNjM0NmNiZjQ1NGM0Njc1NmQ0MDIwZDAwM2I0OTQ3NCIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiNmFiNDRiZjQwYWNlYTYzOGQ5ZWJiZjI5ZWQ5MDdhNWY1MmMyYzBhZDAyOGZhZTU3YTc5Zjg1ZTMwZjIzYWY3NCIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZjUyY2Y4YWQyM2FlMGU3OGRmYWYyNjM0ODg0MjgxNjZjODJiZmU0YzY2NWQ0YWFhYzlmNDE5NDNiYjBkOTEwYSJ9"
+        },
+        {
+          "resource": "repo://frontend/src/composables/useScrollSpy.ts#L22-L52",
+          "version": "repo-lines-v1:sha256:2e0379e1ecef6e80dd33dace5846b1b5ec81a568f97718220db6c85d6c7f3705:eyJzZWxlY3RlZExpbmVDb3VudCI6MzEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImM4MDQzMTgyYzQ0NTVlYTc4MDQwODc1NWY1OGM4YjU2MTE3MmNkMmM4MmIzN2E5NGMzYmI0NTM2MzdkMzcxNTkiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjI3ZTU3ODhkNWQ5ZDczZDI0YTgxZGJjMGE1YTc0YmZhODJjOWMzYjNhZjk5ZTUyYWY3OTZlOTBiNDY4YThhM2QiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImVhZDkwOWViNzZlYzZjNjcwZmUzZGJmODAyMmYyMmU5MTVkYTBiMzkwMjM1NDk1OTg5MzUzZGI2NWM3MzI2ODQiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImVmZTk3ZmUyNzkyMDQ5Zjc0NzQyNDA5M2FhNjkzOTA5MjEyMjZlOWVjNmE5MjU2N2NkZGZhMWVhNDdhNjFjNDYifQ"
+        },
+        {
+          "resource": "repo://frontend/src/composables/useScrollSpy.ts#L62-L85",
+          "version": "repo-lines-v1:sha256:cdfec5d04c7301867eaa56e8007d00a144cededb86e6f972ad199314da2b5bd4:eyJzZWxlY3RlZExpbmVDb3VudCI6MjQsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjViMWVjNmYyOTExN2JjYzlkNGM4NzRkODc2OTI3MmU0OTgwODQ0NjA3YWE2OWM2NjgwZDYwMTk4ZDhhNTlkMTMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjI3ZTU3ODhkNWQ5ZDczZDI0YTgxZGJjMGE1YTc0YmZhODJjOWMzYjNhZjk5ZTUyYWY3OTZlOTBiNDY4YThhM2QiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjljNzlmNjZkZTFhMGY2NmIwZWU2MzVhNDc5OTI2MTJhMzZkMjA2YWEyMzcxODY0M2E4ZTFjMDQxYzM5YTNkZTAiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjYzY2JlY2IzMzRmM2ZkOGE2NjJlZDU1M2Y0YWIyZjE2YWIwYmFhYWJmN2FiMTFhYTUyODhkMmRmOGU1MmU4YTAifQ"
+        },
+        {
+          "resource": "repo://frontend/src/composables/useScrollSpy.ts#L93-L126",
+          "version": "repo-lines-v1:sha256:4737a6a4fc3158cd9a23abaf96f124c377a6e16f085234924459e952cbd72164:eyJzZWxlY3RlZExpbmVDb3VudCI6MzQsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImMwYmY2Y2M3MjE2Y2U3YzY4MjBmZjBhMjJjNjcwYjZlMjQ4NDczNzQzMzFlZTA3MzA5OGExNDc0YzVhMTA4MWQiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImIyMzUyNTg5YzM0ZDNjNjA2ODU5MzFiNmVjYzRkNTA5OTFhN2M1NmM4ZmJhMjg5NDExNDY1NzY5MDI3MmNhYzMiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjJkMGVjOWI3YWQ3YTFhZDk3MjVmNDM0YmM3ZjFlYmM3NmIwMjU3MWVjMjgyOTU2MmUxYzdjNjc1ZDhjYmM0MjIiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjY0NDI0OGU3ZWY2YmQxYjlhZjQ5MjY0OTQ1OGIyZjZiY2FjZDMzYzRlYjU2MTM0NTFmMGUyN2ZhZjUyNDkwNzEifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_3f84f4825ad8423e973d9c67abd98344",
+      "statement": "问题导航栏装配契约：MessageList 计算 userQuestions（role=user 的消息，index 从 1 开始）并调用 useScrollSpy 返回 activeId/scrollToMessage/calculateActiveMessage；对 sessionsStore.currentSessionId 的 watch 在 fetchMessages 之前将 activeMessageId 重置为 null；defineExpose 向 ChatView 暴露 scrollToBottom/scrollToMessage；QuestionRail 在 questions.length<2、loading 为真或 md 断点以下（hidden md:flex）隐藏，且仅实现鼠标交互（无键盘导航，规范 §2.1 为未实现意图）。",
+      "evidence": [
+        {
+          "resource": "repo://frontend/src/components/chat/MessageList.vue#L125-L130",
+          "version": "repo-lines-v1:sha256:906d357c599e7e3848a4eb81343cf7b5f94b5b89a57e7b6bcba328b5f95c2109:eyJzZWxlY3RlZExpbmVDb3VudCI6NiwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiOWY3MmM1MmRjN2MzMGM1YzFlNWQ3ODg5NjQyMjQ0MDg5Njk1MTlmNjZjNTE2YzBmZjgyNWNhYmVkMGYwMzgyOCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMGE3ZDE4ZDVjODI4ODRhYzFlMmY4YmUwYzg0ZjMxM2Y2MjgwMmFkYmI2YjVhMTI2MTA2NDJmNjMzNjUyZjE0MSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiNDQ3ZjIyMDNkZTNhY2E2NWE2NWE2MWZiNTcyZWY5NGQxMDljNDc5ZmI0NDMyNmQxOGFlYTM0ZTZiOGI1MzliNSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiMmIxMmVjYjYyMmQxN2NhZjE1NDRjN2RhYjU1MzdiODA2YTg0ODU2ZDcwZjI2MGIxZjhlNmJlMTMxYjIyYjNkMCJ9"
+        },
+        {
+          "resource": "repo://frontend/src/components/chat/MessageList.vue#L180-L183",
+          "version": "repo-lines-v1:sha256:067b4e268731666851c5acbb434dad28ed1f6d1a3778cb11ada030bf648a436f:eyJzZWxlY3RlZExpbmVDb3VudCI6NCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiYjlhYTAxZmFjZThlNjkyMzFkYjQwMzYwZTEzNjk4NGQyMzAzODM1ZDFlZjM0MzQ2NTM0OWIzOWE3OWYzZmFkMCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMTBhOGY2MGZlM2M1MGIwY2Y1MzQ3MjIxMTNmZTkwZDczNDE0Mzg3Y2U5MmU1OTc4YzgyY2JkODAxY2MwNTAwZCIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiNmU4ZDA3ZjhkMzBlYzkxNDU4NmYzZWQwM2EzMzcwODdiZTdmOTQwYTExYmVlZjdkOGNlZDI5MThjNGY1MmU4MyIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjEsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZDZhYmQ2Mjc4MDIxYTM4ZjY2OGFlM2IzNDQ2MjQ4ODU4Y2YxZWQ4NzIwMmFhNzYxNTA1YWZmYzg0MjVlNDI2NSJ9"
+        },
+        {
+          "resource": "repo://frontend/src/components/chat/QuestionRail.vue#L3-L10",
+          "version": "repo-lines-v1:sha256:5fb0107dc1425c41fea45907e6cee3b80d5322dcd1f2d76778af24a32edbd346:eyJzZWxlY3RlZExpbmVDb3VudCI6OCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiMGM2ODJmNmU2MGUwZDQ2NmQyNTFlNmI3NDUxM2QyZTY4OTk4NmI1MWNkMGE4YTc2MmI1NDkyM2E2MWExZTFhNyIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMjFjM2E5ZjdhNmEwMzM3ZDhhMGVlM2Y3Yjg0MWFiZTU1ZTU4N2ZkYmQ1YmRkOGIwYTFiYThhOTJiNmJjOGYzOSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjIsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiYzc0OGJhYjk4NmFiNzY5NzI0MWQ1ODcyMGNhOTRiOTFhZWNjNzZkNWNkNjQ1NTQwNDAzZjA5MGM5YzAxODQ1ZCIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiN2VjMDQ5NTljZWE3YjljNGY4YTA5MDU5OWIwYjRlZjE2OWIzZjdlMzgxOWU3ZDZjYTJhODM5NWMyY2ZlZGU4NiJ9"
+        }
+      ]
+    }
+  ],
+  "verification": {
+    "by": "openwiki/0.4.3",
+    "at": "2026-08-30T11:05:45.248Z"
+  }
+}

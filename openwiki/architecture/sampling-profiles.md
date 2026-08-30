@@ -7,7 +7,7 @@ openwiki:
   roles: [architecture, runtime, domain]
   change_kinds: [config, lifecycle, public-api]
   source_paths: [backend/app/agent/config/profile_loader.py, backend/app/agent/config/model_sampling_profiles.yaml, backend/app/agent/middleware/prompt_compiler_middleware.py, backend/app/agent/middleware/rag_prompt_injector_middleware.py, backend/app/agent/service.py, backend/app/schemas.py, backend/app/routers/chat.py, frontend/src/composables/useChatStream.ts, frontend/src/types/index.ts, frontend/src/views/ChatView.vue, frontend/src/components/common/SegmentedControl.vue, docs/architecture/adr-model-sampling-profiles.md, docs/architecture/glossary-model-sampling.md, docs/thinking_mode/phase2_sampling_profiles_design.md, docs/thinking_mode/phase3_thinking_levels_design.md, openspec/changes/phase2-sampling-profiles-stage-c/spec.md, openspec/changes/phase3-thinking-levels/spec.md]
-  symbols: [get_sampling_profile, apply_profile_to_model_settings, _load_profiles, _get_effort_transport, _inject_thinking_config, thinking_level_map, ChatRequest, SegmentedControl, ThinkingLevel]
+  symbols: [get_sampling_profile, apply_profile_to_model_settings, _load_profiles, _get_effort_transport, _inject_thinking_config, thinking_level_map, ChatRequest, SegmentedControl, ThinkingLevel, thinkingLevel, enableThinking, thinkingLevelParam, isSending, abortSessionStream]
   test_paths: [backend/tests/agent/test_sampling_profile_loader.py, backend/tests/agent/middleware/test_prompt_compiler_middleware.py, backend/tests/agent/middleware/test_rag_prompt_injector_middleware.py, backend/tests/manual_verify_sampling_request_body.py]
   invariants:
     - enable_thinking/thinking_level 经 LangChain configurable 透传，双中间件（RagPromptInjectorMiddleware + PromptCompilerMiddleware）对称注入采样参数组合；只改一边会被 AGENTS.md 约定视为错误。
@@ -18,7 +18,7 @@ openwiki:
   validation_commands: ["cd backend && python -m pytest tests/agent/test_sampling_profile_loader.py tests/agent/middleware/test_prompt_compiler_middleware.py tests/agent/middleware/test_rag_prompt_injector_middleware.py -q", "cd frontend && npx vue-tsc --noEmit"]
 verified:
   - by: openwiki/0.4.3
-    at: 2026-08-30T09:34:27.074Z
+    at: 2026-08-30T11:05:45.248Z
 sources:
   - id: openwiki-source-46e27c281a38b08a21958ae2
     resource: repo://backend/app/agent/config/model_sampling_profiles.yaml
@@ -62,7 +62,7 @@ sources:
     resource: repo://openspec/changes/phase2-sampling-profiles-stage-c/spec.md
   - id: openwiki-source-498d91cb54f5f142eef1e7ba
     resource: repo://openspec/changes/phase3-thinking-levels/spec.md
-generated: { by: "openwiki/0.4.3", at: "2026-08-30T09:34:27.074Z" }
+generated: { by: "openwiki/0.4.3", at: "2026-08-30T11:05:45.248Z" }
 ---
 
 # 模型采样参数组合与动态注入（Sampling Profiles）
@@ -135,7 +135,7 @@ YAML 顶层 `thinking_level_map` 提供 UI 思考级别 → `reasoning_effort` �
 
 ```mermaid
 flowchart TD
-    UI["ChatView.vue 四档分段选择器 SegmentedControl"] --> CS["useChatStream.ts thinkingLevel ref off/low/medium/high"]
+    UI["ChatView.vue 四档分段选择器 SegmentedControl"] --> CS["useChatStream.ts 模块级单例 thinkingLevel ref off/low/medium/high"]
     CS -->|"payload: enable_thinking + thinking_level"| R["routers/chat.py /message 或 /stream"]
     R -->|"configurable.enable_thinking / thinking_level"| G["LangGraph 图"]
     G --> M1["RagPromptInjectorMiddleware._inject_thinking_config（主代理）"]
@@ -150,9 +150,10 @@ _采样参数注入链路：前端档位 → 请求字段 → configurable → �
 请求侧契约：
 
 - `backend/app/schemas.py::ChatRequest`：`enable_thinking: Optional[bool]` + `thinking_level: Literal["low", "medium", "high"] | None`（Phase 3 用 `Literal` 在 API 层校验枚举值，非法值 422，不依赖中间件 try/except 兜底）。
-- `backend/app/routers/chat.py`：`/message` 与 `/stream` **两处**在 `configurable` 构造中透传 `enable_thinking` 与 `thinking_level`；`resume` 端点现状连 `enable_thinking` 都不传，**不继承思考档位**（与 Phase 1/2 限制一致）。
-- 前端映射（`frontend/src/composables/useChatStream.ts`）：`ThinkingLevel = 'off' | 'low' | 'medium' | 'high'`（默认 `medium`）；`enableThinking = computed(() => thinkingLevel.value !== 'off')`；`thinkingLevelParam` 在 `off` 时返回 `undefined`（不传）。流式与非流式**两处 payload** 同步携带 `thinking_level`。
-- `frontend/src/components/common/SegmentedControl.vue`：新建通用分段选择器（Tailwind + 暗色模式，本地打包，符合离线约束），替换原"深度思考" ToggleSwitch。
+- `backend/app/routers/chat.py`：`/message` 与 `/stream` **两处**在 `configurable` 构造中透传 `enable_thinking` 与 `thinking_level`；`resume` 端点 config 只含 `thread_id`，连 `enable_thinking` 都不传，**不继承思考档位**（与 Phase 1/2 限制一致）。
+- 前端映射（`frontend/src/composables/useChatStream.ts`）：2026-08-30 起 `thinkingLevel` ref（默认 `medium`）等状态上提为**模块级单例**（L33-37），供 `ChatView` / `MessageItem` 等所有 `useChatStream()` 调用方共享；`enableThinking = computed(() => thinkingLevel.value !== 'off')`、`thinkingLevelParam` 在 `off` 时返回 `undefined`（不传）。流式 payload（`enable_thinking` + `thinking_level`）在 `handleStreamMessage` 的 `sendChatStream` 调用处构造（约 L298-329），非流式 `handleNormalMessage`（约 L334-349）同样携带；`resumeMessage` 只发送 `session_id` + `answers`，**不携带思考档位**（与后端 `resume` 端点 config 仅含 `thread_id` 不继承档位一致）。
+- `frontend/src/views/ChatView.vue`（L185-193）：`SegmentedControl` 四档 options（关闭/轻思考/标准思考/深度思考）绑定 `thinkingLevel`，替换原"深度思考" ToggleSwitch；`frontend/src/components/common/SegmentedControl.vue` 为通用分段选择器（Tailwind + 暗色模式，本地打包，符合离线约束）。
+- 流控生命周期细节（`isSending`、`abortSessionStream`、`stopStreaming`、AbortController 管理等）见 [前端流式生命周期](../frontend/streaming-lifecycle.md)，本页不展开。
 
 ## 不变量与测试
 
@@ -168,7 +169,7 @@ _采样参数注入链路：前端档位 → 请求字段 → configurable → �
 2. **新增采样参数**：在 YAML 的 `top_level` / `extra_body` / `chat_template_kwargs` 段中加键，并按[`_create_llm`](agent-service.md) 的传输分层确认落点（标准参数顶层、vLLM 非标准参数 extra_body、模板变量 ctk）。
 3. **切换推理后端**：只改 `.env` 的 `REASONING_EFFORT_TRANSPORT`（`top_level`=ninfer / `chat_template_kwargs`=vLLM ≤0.27.1）并重启；不要改代码或 YAML 结构。
 4. **新增 profile 档位**：需要新的 `_REQUIRED_PROFILES` 成员 + YAML 段落，并检查 `get_sampling_profile` 的选择逻辑。
-5. **前端档位变更**：`ThinkingLevel` 联合类型（`frontend/src/types/index.ts`）、`useChatStream.ts` 的 ref 与两个 payload、`ChatView.vue` 的 `SegmentedControl` options 三处需同步。
+5. **前端档位变更**：`ThinkingLevel` 联合类型（`frontend/src/types/index.ts`）、`useChatStream.ts` 的模块级单例 `thinkingLevel` ref（L33-37）与两个 payload（流式 `handleStreamMessage` 约 L298-329、非流式 `handleNormalMessage` 约 L334-349）、`ChatView.vue` 的 `SegmentedControl` options（L185-193）三处需同步；`resumeMessage` 不携带思考档位，无需改动。
 6. **行为语义变更**：先更新设计权威文档（ADR / Phase 2、3 设计 / openspec spec），再同步本页与测试。
 
 非目标：`temperature`/`top_p` 不随 level 变化（用户确认"仅控 reasoning_effort"）；不扩展为每档独立完整参数组（`thinking_level_map` 为未来扩展留了复用空间）。

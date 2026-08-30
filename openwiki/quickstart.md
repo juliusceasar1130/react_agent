@@ -6,9 +6,6 @@ tags: [quickstart, navigation]
 openwiki:
   roles: [repository]
   change_kinds: [navigation]
-verified:
-  - by: openwiki/0.4.3
-    at: 2026-08-30T09:34:27.074Z
 sources:
   - id: openwiki-source-b6de53dbd98682810a0d22dd
     resource: repo://backend/app/agent/config/profile_loader.py

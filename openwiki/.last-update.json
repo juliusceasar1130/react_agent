@@ -1,8 +1,8 @@
 {
-  "updatedAt": "2026-08-30T09:49:56.856Z",
+  "updatedAt": "2026-08-30T11:22:29.999Z",
   "command": "update",
   "gitHead": "f53f9a92baf445d19e577a37695845119b795af7",
   "model": "deepseek-v4-flash",
-  "status": "complete",
+  "status": "interrupted",
   "language": "zh-CN"
 }

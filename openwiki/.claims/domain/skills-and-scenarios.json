@@ -1,0 +1,206 @@
+{
+  "schemaVersion": 1,
+  "pageVersion": "sha256:f254bb38c32797c0c327c15bee353a94450d8e6f167824396036fdb760cb94d9",
+  "claims": [
+    {
+      "id": "claim_d0b81176a14f48da8882ac78c45e98be",
+      "statement": "discover_domains 扫描 backend/app/skills/domains/ 目录：每个领域目录必须包含 meta.py（导出 DOMAIN_META['name'] 且与目录名一致）与 domain.md；缺少 meta.py 时跳过该目录，缺少 domain.md 时抛出 ValueError，重复领域名同样报错。",
+      "evidence": [
+        {
+          "resource": "repo://backend/app/skills/discovery.py#L46-L85",
+          "version": "repo-lines-v1:sha256:c46394b1ae4a8223684cb495e2e4b19eaa706553a433ea99b202ea26a942ba0f:eyJzZWxlY3RlZExpbmVDb3VudCI6NDAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjA5ZDlkZDY5NGMyZmVhNTE5M2MyM2ZmOGI5MDcyYTIyYjJmNmI5MmMzYmZjMGI0ODlhNWY1MGU1MzFhZWMwN2YiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjE0NGMxNThlMjk1N2YzOTAzOTlmNWRkNDIxZTAzMmViOGYyZTEyNDlkMmFlMDMwNDNmNGUzMzlmYmUxMWEyYzEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImQ4NTAwM2M2NjdlMDllNjJhMTJmODg3NWI1ODExYTc4NDQ3ZmYyODYyNjk4MTc4ZDBjMzJlNzNhZmRiNjBhMzQiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjUzMDdhZDE4ZjNhYWNjYmYwYWZhYTBkYmNhOGI3ZTk4YmFhMTU5OWQ5NjYzYmY3ZTU2ZDczMzRjMDZkMTAyYWMifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_5d04e4f7e06c45d0a34fb4c8c789076e",
+      "statement": "discover_scenarios 扫描 domains/<domain>/scenarios/ 下的每个子目录：必须存在 scenario.py 且导出 SCENARIO 或 SCENARIO_META 字典；场景名必须等于目录名、skill_name 必须等于所属领域名；自动派生 required_inputs/optional_inputs，并对 sql_template_refs/script_refs 逐个做资产路径校验。",
+      "evidence": [
+        {
+          "resource": "repo://backend/app/skills/discovery.py#L88-L155",
+          "version": "repo-lines-v1:sha256:0242fd4abc1ade5dc1452209ae8d8450b5feec74bfe14156ff9b4474f7be0db6:eyJzZWxlY3RlZExpbmVDb3VudCI6NjgsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjkyNThjZDMwZDE4ZDg2ZjNkYWExYmY2ZmM4NDgyM2FhODJmMGE1ZDRiNGMzMmRhNzYwZjVkZTIxNTc2NjQ5MTYiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjE0NGMxNThlMjk1N2YzOTAzOTlmNWRkNDIxZTAzMmViOGYyZTEyNDlkMmFlMDMwNDNmNGUzMzlmYmUxMWEyYzEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImJhYWNkYWZlZWEwYWVjZmYxY2JkNDhkMDE0ODRjMTA5Y2Y4NTAyMmE1NDMyNDdlODRmNjJlOWE4NTY1ZWM4OTciLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjowLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_8d49d5b9457c448d9229522d00086f7a",
+      "statement": "reload_skills 重新运行发现流程并以原子方式替换模块级 _RegistryState（discovered_domains / scenarios_by_skill / domain_skills / skills 四个字段整体更新）；在模块导入时执行一次，之后由 POST /api/chat/skills/reload 触发；任何异常被捕获并返回 False 而不破坏旧状态。",
+      "evidence": [
+        {
+          "resource": "repo://backend/app/skills/registry.py#L37-L91",
+          "version": "repo-lines-v1:sha256:bed18c6714988aac0e1d32fa3f7fd4156f98764af0f33b4aabbd47a941a30003:eyJzZWxlY3RlZExpbmVDb3VudCI6NTUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjU3YzQ2YmVhYzQ4Y2FiMzgxYjk0NDBmZDgyNDUwZGUxMTVjZjAzY2U2NzBiZWZhNmVlNzMyOGE0ODMwNGI0OGUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjVjYzVhYWVjMDY3YmI3YzI0NTE2ZjdlN2JhNmQ4MzRlZWQzZDBiZWVkNGUwNGFjYzBhNmU0ZWE1NGUwZTRkYTUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjNlYjMyOTRiNjU3YzgyZjdkNmM1N2EwYzFlNDc1ZWUxOGYxYmM1MGRkOGM3NjY3YWQ5NDAzMmQxNTA1MjZlNmUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjNkNzNiZDNiNTc0NTZlOTdlYjg5MGE2OTg1MGMzMTY3Mzg4ZjI5NTgxY2E4ZWFmMzRiZGRjMjNjOWFiY2YwY2UifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_85ceccbb667645339a8a17c2454f1f36",
+      "statement": "注册表读取函数 get_all_skills / get_domain_skills / list_scenarios_by_skill / get_scenario_by_name 从 _RegistryState 取数，为 SkillMiddleware 的提示词注入（render_domain_for_llm 渲染 skills 列表）以及仪表盘 /api/chat/skills 与场景端点 /api/scenarios 提供数据。",
+      "evidence": [
+        {
+          "resource": "repo://backend/app/skills/registry.py#L93-L116",
+          "version": "repo-lines-v1:sha256:14dea30abe52f693aa7101592446432ec45e6a1d335df7caf54437a4c7157e02:eyJzZWxlY3RlZExpbmVDb3VudCI6MjQsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImZlZTAzZDQzZDFlY2U2ZGFmMWYxODZjMzBiMDY0YzRmY2UzMmUyNmZlNmUwYzNjMDdkMDZkZmZhZGE3YjdmZDciLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjExMzA2ODlmNjk1ZTA1MjhmNzRkNmIyYjZkNjE5NTY2M2U2MDg0OWViM2Q3MGVjYTEzMjU3Zjk4NmNjZGNmOWIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjVhMjA1YjlmODczY2M4MjkxNzMwMzFiOGNjN2YyNTg1MjE2NWJjODA3M2Q2YjBiNDIwN2JkMzY5MzFkNGE1MzciLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjoxLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjdlYjcwMjU3NTkzZGEwNmY2ODJhM2RkZGE1NGE5ZDI2MGQ0ZmM1MTRmNjQ1MjM3ZjVjYTc0YjA4ZjhkYTYxYTYifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_738f3694014e4c7fbba12faf26698a92",
+      "statement": "LLM 可见工具 load_skill / load_scenario（backend/app/agent/tools/skill_tools.py）由 SkillMiddleware 注册：load_skill 追加 skills_loaded（FIFO 上限 3）并设置 active_skill；load_scenario 要求父技能已加载，以 'skill.scenario' 复合键写入 scenarios_loaded 并设置 active_scenario；两者均带 handle_tool_error = True 使异常转为 ToolMessage(status='error')。",
+      "evidence": [
+        {
+          "resource": "repo://backend/app/agent/state.py#L36-L41",
+          "version": "repo-lines-v1:sha256:d45c809e85f43a667dc0e2cecbdd7c509a02735d9f24c1e742253085c6a11a6f:eyJzZWxlY3RlZExpbmVDb3VudCI6NiwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiZTQ5Mjk5ZDYxM2I2MWYyMGFlYjZlMjViYTM3ZGJmNzg4OTY0NTZhZGFmYzEzMDc2ZjA5MzYyZDliNmIxYmEyOCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiM2U3NThkZmQ0OGVjYWJkOTIwMjBlMzkwOTY3MThhNTVjNTNiMDMwNTY3NWYzNDRhMTQ2MzFkMjdjMDU4NjA0YSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZWE2ZGRlZjUyZDMzYmJlYTA3MzZjMmFiMWUzY2QxZDY4MjA3MmI1ZjNmZTBjNzg3ZGYxN2ExOTBkY2E0NmM3NSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjIsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiYWQ2NDcwZjY1Y2I0Y2ZlYWJjNzFiMTI2NzRkYzI3NDE4MzMwMmViNzdkMzVlNzdlNDJlYWZjNTdhNzM3NjI4ZiJ9"
+        },
+        {
+          "resource": "repo://backend/app/agent/tools/skill_tools.py#L33-L153",
+          "version": "repo-lines-v1:sha256:be0f1c28070ecfb3a4d9c22ba449fd9938be9a361c2821a4d12d324697695cb7:eyJzZWxlY3RlZExpbmVDb3VudCI6MTIxLCJmaXJzdFNlbGVjdGVkTGluZUhhc2giOiIyYzlhYzRkOTVkZDc2MjA2MTU5YmYzMWNlYTk0NDJkYTJlODkxOGVkM2U4ODNmM2RhMDcyMzFjZDA1OWZiMTgzIiwibGFzdFNlbGVjdGVkTGluZUhhc2giOiJjOTIyMDRjNjVmNTAyZGMxNjQ1NGI2MjQwODU2YTlhYjdhZGUwMDNhOGU5Zjg2MzMzZWMwYjdjOWU0MDk0OTFkIiwicHJlY2VkaW5nQ29udGV4dExpbmVDb3VudCI6MywicHJlY2VkaW5nQ29udGV4dEhhc2giOiJmOWJlYTQyYTAwNjliNmZjYWNmN2Y5YTZhNTM1Yzc2ZDYwNWQwZjE0ZTY4Y2Y3MTM5YmZjZGJkYjE2OTE4ZGJiIiwiZm9sbG93aW5nQ29udGV4dExpbmVDb3VudCI6MywiZm9sbG93aW5nQ29udGV4dEhhc2giOiI5OTYxYzVkZjFhOTU4ZDc3MzhlZmYyNDZkYWYxN2M3YTJkMjQ3ZWZlYTk3Zjk2Y2ZmZjMyNmEyMTIwMzMxM2NjIn0"
+        }
+      ]
+    },
+    {
+      "id": "claim_95da3a7455f74fafb2260ad1a5968960",
+      "statement": "is_direct_path_enabled（backend/app/routers/scenarios.py）判定直通：存在 direct_path_enabled 键时取其布尔值，否则要求 sql_template_refs 与 default_template 同时非空；GET /api/scenarios 树形端点据此仅返回直通开启的场景（当前为 paint_shop_vehicle_logistics 下的 stranded_vehicle_detection 与 project_vehicle_management；defect_analysis 域全部场景显式 direct_path_enabled=False）。",
+      "evidence": [
+        {
+          "resource": "repo://backend/app/routers/scenarios.py#L19-L47",
+          "version": "repo-lines-v1:sha256:ca7c0f8ee199232e1202e4c0233f53dcf97991002da97f7f198a6347ea1a90cf:eyJzZWxlY3RlZExpbmVDb3VudCI6MjksImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjYwYmM1MjM3MDUyNDkzMmViZDUwNzEyYmIzMWNiMmQxMjkwYzZlZTliNjMxNjM3ODYyMmMzNDFjNDgyMGU0OGMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjY4YjFmMTdmMzkyNGMxNDIzMTFhMjY1MDNiNDZlYjAzNDFhODBlZDczY2M3YjFiYzMyZjJhNzVhMjEyZDNkNjEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjM3YWMxZGNjNzg3YWE2YjNlMzlmM2I4MGM1M2I4OTIyMDQ5NWJhOGQyOGI4OGYxNzAyMjMxZjE3MjExNDRjOTQiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjE1NzY0Nzg1ZmYyNGRmYjU2MTliN2ViOTc5NmI0YTgwNjQzYjc4NzU4MGE3YWZjZTRkYzc4YTZhY2UyOTkxNmIifQ"
+        },
+        {
+          "resource": "repo://backend/app/skills/domains/paint_shop_vehicle_logistics/scenarios/stranded_vehicle_detection/scenario.py#L5-L25",
+          "version": "repo-lines-v1:sha256:0b07b230e82903c2a357941274b9bfe149ac1c9f17ff9e5dcb44934061ad6975:eyJzZWxlY3RlZExpbmVDb3VudCI6MjEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAxNDRkZmI5N2I1NGIwNGFiMDI1OTM1ZTRlMTRjNDFjNGZlNDg0MWM4NDIyN2NmMzQ2MDhjOGI3OTU5NjZiNjQiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjI1OGQ4ZjE3NWQ3MzI3OGIzM2EwNzJiNTIwZDkwNWZiNTA0Y2JkMWVmMDE2NTMxZjgyODc3MWQxZmVhMjFlODgiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImY2YzYyNGMzYjgzNjc0YWQzYTQ1NTlhZDFhOTg3MTU0YzBjOTdlOGEwNmFjY2E4ODM5YzBlZDAyMTA5NjhkYTkiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjgyZGQ3N2M5Yjg5NTM1YWU4NjBjZTM4MDU0ODA5MzhlNjYyODNiYzgwNzc1MjJkMGMyNjcyZmJlZDUwYjk1ODUifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_edbe5b4b395948278cc80e51c6d6d2e1",
+      "statement": "场景端点 GET /{domain}/{scenario}/params 委托 resolve_params 返回参数定义/默认值/模板元数据，POST /{domain}/{scenario}/execute 委托 execute_scenario + format_result 返回格式化结果；两者对 ValueError 返回 404，其余异常记录日志并返回 500。",
+      "evidence": [
+        {
+          "resource": "repo://backend/app/routers/scenarios.py#L50-L94",
+          "version": "repo-lines-v1:sha256:6db10c08cdc9561da916d8890a4f3549f07d0c7ee99ffac488fee736e2dba6a8:eyJzZWxlY3RlZExpbmVDb3VudCI6NDUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjM5MjlhZDFkOWEyYWE2MTEzYjdjNGIwYmFjYjcwNTBkNTVlYzE4ZTQ3ZWYwNDgyMDdmMGJkNzYyNzQzZDFiYmYiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjBkNWFhYzk1OTYzMWQwMDJkNTc5N2NhYTY0NmJlYjc3NTVjODNkYjZhNTBiOTY5MjZhYjgxMTQ5MmNkNzhiMmQiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjFhNTNhYTUxZmJkZjNiMjg4ZmM0Yjc2MTg5YzQ4MGZjNDZmY2YyNTFhYjk3ODFiNTE4YjczMWI3OTAyYTE3ZTciLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjowLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_5b21a9ad9d814564a74cefcf44a60f24",
+      "statement": "build_executed_sql 按行处理 SQL 模板：空参数（None/''/纯空白）的占位行整行删除，有值参数以 sql_fragment 替换并按参数 type（integer/float/string）做物理类型转换；仅当替换后的 fragment 实际含 ':param' 占位符（负向前瞻 (?![A-Za-z0-9_]) 防前缀误匹配）时才写入 bind_vars——2026-08-30 修复了纯固定开关片段（如 has_defect_only_filter）无占位符却强行绑定导致的 psycopg 'Unconsumed named parameter' 500。",
+      "evidence": [
+        {
+          "resource": "repo://backend/app/skills/direct_path/executor.py#L15-L67",
+          "version": "repo-lines-v1:sha256:4e24ec31ca668e257da0ca69c93a9160b8ae61810a432f41edd4c590cfb2a80f:eyJzZWxlY3RlZExpbmVDb3VudCI6NTMsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImQwZmFhNzMxOTZkYzc4YWM2ODc1MDc5YzE2Yjk1MTYwZTQ2MmNlOGJmYTRiMThiZWRkZWYzMzAxNzgxNjQ2NzkiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjlkYjA4ZGQwYTcyZTRmNTkxMTQxYjQ5NTBkYTUzYTQ4MWEzNGMzYTUyODJkMzM2YjAzZTViYjVkYThkNzIyY2YiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjRmNTIxOGRkNWVjM2EwZmIyNjRhNzQ1MDYyMjc0YzhhYTE0M2NjYTVmNjFlMWU3ZDdkY2IyMTBiMzJiYTEzMjQiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImZiOGFkNmZjYTU4MDEyZGM5ZThjYTgyOGQ4YzJjODY1YjAzNDJlZjM1N2I4YzcwNjg0MWZlNTlkODhhZWFjYzgifQ"
+        },
+        {
+          "resource": "repo://backend/tests/test_scenario_quick_panel_engine.py#L85-L116",
+          "version": "repo-lines-v1:sha256:5d5977d99f274ebc9a8d9458c3e33120d5eb95bdc3e525f2547f7d87816472f5:eyJzZWxlY3RlZExpbmVDb3VudCI6MzIsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjkyM2UyODBlNDE4ZjM2OTg0ZGFhZDMxMDc3YWIyZjU3NmZkMTFmMWE5ZWZiMjhkNjhkODA3MzEwMzQxZDkyNTUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjU5NTQxMmIxMGM5MzYwZWRlODI0MGIyNjBhYTQxNmY0YjgyZGZmZjFmNDMyZTI1ZTJkZDg1YzUyMDYxMzM2YTIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImNjMDUwNTdjMzg0ZmE0NDgyNDc2ZDJmZjI5MWQ2OGZkNzU1MTgwN2ZkYTE3OGRlZTU0ZTc1ZTAyMWI5NzUyNDAiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjVhZGYwYjcwNTkwYjFiODQ5ZDFkZjI3NTA5NzRmODg0ZWUxYmI1MzI3MDcxYTJjZDY0N2E5YzI2YTYwNmQ4ZTkifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_41cde332f0d5432eaa134edb6b5e592a",
+      "statement": "execute_scenario 通过 get_scenario_by_name 取场景，按 template_name → default_template → 首个 sql_template_ref 的顺序选择模板，read_asset_text 读取 SQL 文本后构建净化 SQL，并先执行真实 COUNT(*) 子查询求 total_count，再以 page_size 钳制在 1..500 的 LIMIT/OFFSET 子查询包裹执行并返回 (rows, columns, total_count)。",
+      "evidence": [
+        {
+          "resource": "repo://backend/app/skills/direct_path/executor.py#L70-L131",
+          "version": "repo-lines-v1:sha256:e2f201550cb865c9b56b97724c4b5e67c2c4d178c60c9e299c3eb806368f54bb:eyJzZWxlY3RlZExpbmVDb3VudCI6NjIsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImNiNjk4MTc5NmI0YjlkNzBlMDE3MmUxZTFkYWQ2N2ZmNTFhYjdjZGJhYTNjZjFkZGYzOWM4NzllYmIxNDFkZTMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImQzOWM0MTYyNjc1Y2Y2MGE4ZmU1ZDMxYjU4NmUwZTMwYWZmMzgzZWQzZmU3NmUzNjIwMmJjMmM0YjE5NjQ0NmUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImQ3ZDQ5OTNjMmY0ZDc4MDdiNTkxN2FlMDMyOGE3ZjEyN2FjMmI4MjYxNjVkNjYzMmU3YTJmY2FmNTkwZGVlOWEiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjowLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_11766a13968b413bbf57c7cc7e550198",
+      "statement": "resolver 层：infer_widget 按参数 type 与是否有 source_table 推断控件（string+source_table→select、array→multiselect 等）；resolve_source_options 对 source_table/source_column 去重值查询带 60s 内存缓存，多列/复杂表达式降级为 []；resolve_params 汇总参数定义、默认值（example_values 首项或显式 default）与选项（显式 options / source_table 查询 / example_values）。",
+      "evidence": [
+        {
+          "resource": "repo://backend/app/skills/direct_path/resolver.py#L19-L141",
+          "version": "repo-lines-v1:sha256:3bd6088dcb654322971bf323ec4b145e8791d85e4c534ba59652ef421c2a321a:eyJzZWxlY3RlZExpbmVDb3VudCI6MTIzLCJmaXJzdFNlbGVjdGVkTGluZUhhc2giOiI3ZjVhOTc0NDFmNzMzY2RkYzk0NzM1ZDkzYjgzMTA2Mjg4ZTI3MGRlNWU1NmQ0YThlMTJiYjY5NTNhM2Y2MDk3IiwibGFzdFNlbGVjdGVkTGluZUhhc2giOiIxNDE5YTZkY2MwNGUyMTNhM2M3YTc3YTQ1NmIwMWU3NmQxZWY3OGNkMDBiYmVjMWQ4ZjgxNDU4ZmU5M2VkYzU2IiwicHJlY2VkaW5nQ29udGV4dExpbmVDb3VudCI6MywicHJlY2VkaW5nQ29udGV4dEhhc2giOiI1M2E4YjNjMTI3NmEzYzAzZWZiYTVlOGZiMTNlM2FlZjhlNDJjZWI1ZWFmNjRiOWU1NzlhNjI5Zjg2NzUxOWMzIiwiZm9sbG93aW5nQ29udGV4dExpbmVDb3VudCI6MCwiZm9sbG93aW5nQ29udGV4dEhhc2giOiJlM2IwYzQ0Mjk4ZmMxYzE0OWFmYmY0Yzg5OTZmYjkyNDI3YWU0MWU0NjQ5YjkzNGNhNDk1OTkxYjc4NTJiODU1In0"
+        }
+      ]
+    },
+    {
+      "id": "claim_9f27d6b2458e4fd8bf35e8588744d2cf",
+      "statement": "format_result 按 output_type 将查询行格式化为前端组件可直接消费的 JSON：'scalar' 取首行首列 + label '查询结果'；'chart' 生成 categories/series；默认 'table' 输出 columns/rows/row_count/total_count/page/page_size/total_pages/is_truncated。",
+      "evidence": [
+        {
+          "resource": "repo://backend/app/skills/direct_path/formatter.py#L11-L70",
+          "version": "repo-lines-v1:sha256:37aff511182c8b4540e228ddb46b45856e1bdc393bbf10f7f57b45d03ce75588:eyJzZWxlY3RlZExpbmVDb3VudCI6NjAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjdlYTQzN2I3Mjg5MjJjYjljODAyNTRhZTljZmE1YzQ5MjQyYTM1ODMwNzk1ZDYyOTM3N2QwNzFiNGNkYjFjNmUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjE0MTlhNmRjYzA0ZTIxM2EzYzdhNzdhNDU2YjAxZTc2ZDFlZjc4Y2QwMGJiZWMxZDhmODE0NThmZTkzZWRjNTYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjdiYmFiOWI2MDE5NTVhZTNlOTk0OGI1ZDRlODk1ZTAxMjM0NTBkZGUzMGMxOWJkNDU1YTk0MDA3MGE2NmYyYjUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjowLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_061183f181e7447e960f5b79fd1fbfef",
+      "statement": "前端超时分层（2026-08-30 前端审计修复）：全局 axios 实例（frontend/src/api/index.ts）timeout: 10000；executeScenarioApi（frontend/src/api/scenarios.ts）为真实 SQL 执行单独传 timeout: 60000，避免慢查询被全局 10s 整单中断；getScenariosApi / getScenarioParamsApi 等列表/参数类请求保持 10s 快速失败。",
+      "evidence": [
+        {
+          "resource": "repo://frontend/src/api/index.ts#L3-L9",
+          "version": "repo-lines-v1:sha256:74888428ae68b1c0626b9ae1cd81cea4fc34add56a637fbacb25122d8aca43b8:eyJzZWxlY3RlZExpbmVDb3VudCI6NywiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiODk4NGU5OWQ1ZmQ0ZDc5Y2Y5OGMyZDgyY2NkMzI4ZjE4ODMyMzBjNWQyOTVhOTE0OTY0MTgwYWZjZDI5YzFhMiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMTBhOGY2MGZlM2M1MGIwY2Y1MzQ3MjIxMTNmZTkwZDczNDE0Mzg3Y2U5MmU1OTc4YzgyY2JkODAxY2MwNTAwZCIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjIsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiODFlMzI3ZTQxNmY4MDI3YjJlYzc1ZjViMDUwM2I2ZjU0Yjk1NmEzOThkMGFjZDAwMjlhYjVjMzkwODI4YTIwYSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiMzkzZDVhOWZlN2Y4YzE0MmNiNjE2ZWQ4YWEyOWI2MDljYzNhMzQxYjlmYjcxMDc3Y2JjZWQ3YWI3Nzc3OGY0ZCJ9"
+        },
+        {
+          "resource": "repo://frontend/src/api/scenarios.ts#L95-L112",
+          "version": "repo-lines-v1:sha256:5afa5949400b1d9b2b2c042ee2b56d950c6e38848d1e2727dfdbfcd3a548351c:eyJzZWxlY3RlZExpbmVDb3VudCI6MTgsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImJkMTRlNGJlZWRmMzMxY2Q4ZDFmYWE5YzFhNTg3YmFmMjU5NzI0OTY3MWMzMDQ3NDYxM2I0OTNkMjg3Mjg4ZWIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjljOTE4ZDg4MTg2ZTU5YmZkNzM2NjI3MGU4NDgzMjE5ODQyZjAwNzU1YTQwNjZmZWIwNGU4YzBiNzIyNmQwNjkiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjQ4M2U1MjliZjBhNzIxN2FkYjgxMjgwNDViYmVjZWQyNGMyODVmNDYyZmZhYjc4YmJmOTY1MzE4YzE5ZTM4MDIiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjoxLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUyMmZhYTUzNWJkMmVhM2Q1MmU3NDFlZDQ1NDQzNWI3ZmU0OWU4MzU4NmU5NDNkOThkODJiYmZiMjRkMWY1YzUifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_6d23f136d05e44598801b62443f6e14f",
+      "statement": "scenarioPanel store（frontend/src/stores/scenarioPanel.ts）为 loadScenarioParams / executeQuery 各设独立 useRequestGuard（paramsGuard / queryGuard，与领域树 fetchGuard 隔离）；响应赋值、错误落定、loading 收尾全分支经 isFresh(requestId) 守卫，快速切场景/翻页/换模板时过期响应整体跳过；loadScenarioParams 成功后自动触发第一次 executeQuery(1)。",
+      "evidence": [
+        {
+          "resource": "repo://frontend/src/stores/scenarioPanel.ts#L104-L138",
+          "version": "repo-lines-v1:sha256:476547c95f388aa7950c3c702f334ad0ed3e6f340461c5a1599201e5a94aa33b:eyJzZWxlY3RlZExpbmVDb3VudCI6MzUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjFjNjc2OTk2NTA3N2MyNzIzN2IxNGE5YjBiYTcyOGYzMTRjMzMxNWRhOTA5N2U2NDVhYjMzNjIwMzUzOTMwNDQiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjE0MTlhNmRjYzA0ZTIxM2EzYzdhNzdhNDU2YjAxZTc2ZDFlZjc4Y2QwMGJiZWMxZDhmODE0NThmZTkzZWRjNTYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjNkMTg2YmQyNjI2NTk5NTRlODhkZmM5YWQxOTRhY2Y5OTBkZGQyOWU3MDFkYTBjYTMwMTAzZmJiOTQ1MjgxZTgiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImI4OTg2MmFkZGJkNWMzODkxZmY0ODczM2I0NTJiOThmOWZmMDgyNjkxNGQ1M2Q2OTlhMjUyZTU3NWQ3ZThjYjUifQ"
+        },
+        {
+          "resource": "repo://frontend/src/stores/scenarioPanel.ts#L160-L186",
+          "version": "repo-lines-v1:sha256:1067cfcabeb8962d8dc125637e8c5004cd8efc47d30527f61aab9ae5f8cd23dc:eyJzZWxlY3RlZExpbmVDb3VudCI6MjcsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjUwYmZlODdkYWQ3MDgxYjZlZDRmMjVjZjJmZTJjY2IxOWFjMzM4MDNkNWI4NzQ4Y2RmYTUyMWQ4NDRlYjJmMmEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjcxMzQ1MTgwMTA1YjBjNjZhNzdkYWQ1MWJiMzc5MDFhMzczMmM5NjU0YmE0ZGUzOTgxZjgxZTE4MTc1MjQ4YmYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImJlN2UyNzExNTA1MTVlMGM1YTBlZmVmMTc0OTA5YTRjYmMyOTljYTg2NTI3Njg4MGYwMDdiYzg1MTYwZGQ0ZmUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImFkYWU1MTI3MjM2N2JlMTM4NDQ5ODgxZWYwOGZlY2VlOTk5YjNjYjM3NTY2MDFlMzliNjk4Y2JiZDllMDI0Y2YifQ"
+        },
+        {
+          "resource": "repo://frontend/src/stores/scenarioPanel.ts#L23-L26",
+          "version": "repo-lines-v1:sha256:fa7b2fdc1d03a03ae230b29b9f6af41fcb88dc17e3ce058727cd4f2dca2aeee9:eyJzZWxlY3RlZExpbmVDb3VudCI6NCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNmI3YzZjZTllNzk3NmE0YjFmNDgyNGI0ODBiM2MwMDc1YmIwODNmYzg4NWQ3YWYyODUwZWRkMTM5YjczOWFlMCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiZDI1M2Y1YmQ3NTU3ZDFkY2E4Y2RiOTRhMWEyMzAwOTQwMTYzM2NlZjhiY2FiNjcxNzcyNjhjMmFmZmY3NDU4YSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiMDczNDFiMGEyMDczM2EyYWVhYjk5MjkzYWU0YzAyMTE2MjI1MzY2NGNlOTBkMTdlYmQ2MWY4MzRmNDU1MDViNCIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiNjAwNzhkZGQ0MDAwZjVjZTQ5MzU2Mzg4M2Y5MzAzNTE2YWM5OGI0ZmExMGRmMGMxYTFkMmNmYjNjNWQyZmVhOCJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_6bc215595325489aa6cd082dfecaf3e9",
+      "statement": "VariantB.vue 的 Bento 数据字典抽屉 fetchTableData 用请求序号（tableDataGuard.next()/isFresh）+ activeTable 目标表比对双重守卫：快速切换抽屉时，过期响应或已切到其他表的数据直接丢弃，旧表数据不覆盖新表；loading/error 收尾同样仅在守卫通过时落定。",
+      "evidence": [
+        {
+          "resource": "repo://frontend/src/components/chat/VariantB.vue#L494-L529",
+          "version": "repo-lines-v1:sha256:7562f7c09aa636b39e20d5fa9164e56057d2066c903aab90204ecb4b423560d5:eyJzZWxlY3RlZExpbmVDb3VudCI6MzYsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijk4NjE0YzUwNDhmOTZmOWI1ZGUzMzU3OTQ5M2RkNDI3ZGM5Zjg0NDAwNGJjNjJkNDlhMDI4NGM5NjExM2E3ODgiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImUyMmZhYTUzNWJkMmVhM2Q1MmU3NDFlZDQ1NDQzNWI3ZmU0OWU4MzU4NmU5NDNkOThkODJiYmZiMjRkMWY1YzUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjE2MGIzNWZjYmY3NmRkODBkZTUwODkzMDAwNTNhNzhiZThiNTQwYzIyOWU3Zjk1ZTE5ZTJjOTM5MTY5ZDM1YzQiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImIxMTM5NTI3MWYyOTU0Yzc1ODBjYTY5N2RkZjY0NTEzNjEyYTVjODFjMjhkNTAwNzRhZGM4MDQxY2VhOTBkNzYifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_1978ec31bdba49e7b8738da583871128",
+      "statement": "聚焦测试：test_scenario_quick_panel_api.py 覆盖 schema 校验、列表、参数解析与无效场景名 404；test_scenario_quick_panel_engine.py 覆盖 widget 推断、条件参数绑定（含无占位符固定片段回归）、表格/标量格式化与 stranded_vehicle_detection 场景元数据；test_routers_coverage.py 覆盖 GET /api/chat/skills 与 POST /api/chat/skills/reload。",
+      "evidence": [
+        {
+          "resource": "repo://backend/tests/test_routers_coverage.py#L51-L74",
+          "version": "repo-lines-v1:sha256:061c57f92b1653ebc7a8488b967e17f91275d9a3feeb7bbc935bad28c2365a32:eyJzZWxlY3RlZExpbmVDb3VudCI6MjQsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjY5YjY2MjQ3YjIwZGUyYjU4YjhhOTliYTVhZGQ0NWQ5NjlhMGZlZWEyNTllYmUyYzMxZmRkOTAwNDQxYmQ5NTIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImEzYTA4MTljMWQxZmY3ZWQxOTRhMGJjMTRlMDRhMWI1OGViYTJmZTcxOTc4NzIwOTBiNmI2ZjRjMTQ3NzcyOWUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjJmZWJiMmU5NWNiZmI5ODBhZjNjZmY1NWY5MzdjZGNjZWNkMzdiYzYzZWY0NjM3NGM4OTc4YzU3MTcyYjI4M2QiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImIzY2JmODk1OTQxODc1NzU5NmViY2M4ZTRmNjI3YmU2YzY5YzgyY2EwMjdlOGMyMDk3MzQyZDE0YTM5MGZmMjMifQ"
+        },
+        {
+          "resource": "repo://backend/tests/test_scenario_quick_panel_api.py#L13-L102",
+          "version": "repo-lines-v1:sha256:2c8bd5cf771ba26b583973716f2322211cc8d4e22c3a3c9743d76c04b3235e5e:eyJzZWxlY3RlZExpbmVDb3VudCI6OTAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImNiNzAwZDA0NjRiNjZhZDVhODAwYzQ1N2ZiMmU4MWUxYTYzMDRlMDE1OTk2MTE1MWJkMDBhZGIzMzE0YWE2NzkiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjdlYjcwMjU3NTkzZGEwNmY2ODJhM2RkZGE1NGE5ZDI2MGQ0ZmM1MTRmNjQ1MjM3ZjVjYTc0YjA4ZjhkYTYxYTYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjAyOTViMjdjYmIyYmYyYWQxZWNmZmYyMTdhZDg3MzZmYmQ4YTM3ZWIwZWEwZmEzN2M4NjQ3ZDY1MDc1MDM0OTEiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjowLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUifQ"
+        },
+        {
+          "resource": "repo://backend/tests/test_scenario_quick_panel_engine.py#L42-L160",
+          "version": "repo-lines-v1:sha256:d9c3ff43b5276b98a7df66b2427c9b452f75d27b817e1a3b02d299b45795f2ee:eyJzZWxlY3RlZExpbmVDb3VudCI6MTE5LCJmaXJzdFNlbGVjdGVkTGluZUhhc2giOiI3NDk0NWVlYTZlNzFlZDc3ZDFlMzJiZWZkMDE5MjczZjAxYTQxODJkOTU5OGRmOTYxNGQ4MTY0MjgxNzI0MzI0IiwibGFzdFNlbGVjdGVkTGluZUhhc2giOiI3ZWI3MDI1NzU5M2RhMDZmNjgyYTNkZGRhNTRhOWQyNjBkNGZjNTE0ZjY0NTIzN2Y1Y2E3NGIwOGY4ZGE2MWE2IiwicHJlY2VkaW5nQ29udGV4dExpbmVDb3VudCI6MywicHJlY2VkaW5nQ29udGV4dEhhc2giOiIxN2U2YzYyMDU0YmVkYzMzNDNkYzcwMDIyMzM2NjhmM2ViMDFiZmNlY2JlNTUzMzcyN2UzOTg4NWU2OWRiNWZiIiwiZm9sbG93aW5nQ29udGV4dExpbmVDb3VudCI6MCwiZm9sbG93aW5nQ29udGV4dEhhc2giOiJlM2IwYzQ0Mjk4ZmMxYzE0OWFmYmY0Yzg5OTZmYjkyNDI3YWU0MWU0NjQ5YjkzNGNhNDk1OTkxYjc4NTJiODU1In0"
+        }
+      ]
+    },
+    {
+      "id": "claim_361dde7906194f60abd9ca6b0f902fc5",
+      "statement": "添加新领域技能无需代码变更：创建 backend/app/skills/domains/<domain_name>/（meta.py + domain.md + 可选 scenarios/）后 reload_skills() 或 POST /api/chat/skills/reload 即可加载；docker-compose.yml 将宿主机 ./backend/app/skills/domains 挂载到容器 /app/backend/app/skills/domains，技能内容可热发布而无需重建镜像。",
+      "evidence": [
+        {
+          "resource": "repo://backend/app/skills/registry.py#L37-L91",
+          "version": "repo-lines-v1:sha256:bed18c6714988aac0e1d32fa3f7fd4156f98764af0f33b4aabbd47a941a30003:eyJzZWxlY3RlZExpbmVDb3VudCI6NTUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjU3YzQ2YmVhYzQ4Y2FiMzgxYjk0NDBmZDgyNDUwZGUxMTVjZjAzY2U2NzBiZWZhNmVlNzMyOGE0ODMwNGI0OGUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjVjYzVhYWVjMDY3YmI3YzI0NTE2ZjdlN2JhNmQ4MzRlZWQzZDBiZWVkNGUwNGFjYzBhNmU0ZWE1NGUwZTRkYTUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjNlYjMyOTRiNjU3YzgyZjdkNmM1N2EwYzFlNDc1ZWUxOGYxYmM1MGRkOGM3NjY3YWQ5NDAzMmQxNTA1MjZlNmUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjNkNzNiZDNiNTc0NTZlOTdlYjg5MGE2OTg1MGMzMTY3Mzg4ZjI5NTgxY2E4ZWFmMzRiZGRjMjNjOWFiY2YwY2UifQ"
+        },
+        {
+          "resource": "repo://docker-compose.yml#L15-L16",
+          "version": "repo-lines-v1:sha256:842e2d735747616bcfb97dc38492a16777a67fd606e458b13430568b3994f652:eyJzZWxlY3RlZExpbmVDb3VudCI6MiwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiM2FlZDQyMTZjMTZmNjExNWNlZTNmZDhmMGNiZDU0NjRhMWZlZWNlNTM1YzkwNTcxZTJhNjM4ZDdiYmIxZjY0YSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiYzhmMjcwMGFlZWQwZmNkZWJjZjBmYThlOGU5NjBlNWFlMjMyNGUzYjZhYjAyYjc1ZTE0MDJhNTlmNDhkNTU1ZiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZmNjMDkyZDI4YTliYzVlN2UzZjE0ZDA1MTUwNGQxMDBkZTBmODI4OWM3NzMyNDBmM2M4NmNkMmM0N2E0ZmZlZCIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiMmE5NTM1NDAzODY3ZDYwODU2YmM3ZWQ5MGNhYzNkOGJhYWRlZTIzY2U2MDJiZmM2NDg4MmNmZTExZTI3ZTJiOSJ9"
+        }
+      ]
+    }
+  ],
+  "verification": {
+    "by": "openwiki/0.4.3",
+    "at": "2026-08-30T11:05:45.248Z"
+  }
+}
