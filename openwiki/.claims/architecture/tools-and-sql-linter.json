@@ -1,0 +1,262 @@
+{
+  "schemaVersion": 1,
+  "pageVersion": "sha256:7366ff6a514da00af96a9866e93c7b1aabe4aca2e0458a714d311802a5c56795",
+  "claims": [
+    {
+      "id": "claim_c218f40822ab498cbcf422c89aff8197",
+      "statement": "包装后的 sql_db_query 与 search_saved_correct_tool_uses 都受技能门禁约束：required_skill 必须存在于 runtime.state['skills_loaded'] 中，否则不抛异常而是返回 'Error: 请先使用 load_skill(...)' 字符串，让 LLM 自行纠正。",
+      "evidence": [
+        {
+          "resource": "repo://backend/app/agent/subagents/sql/tools.py#L274-L280",
+          "version": "repo-lines-v1:sha256:2be74187800ed5c795269caedd2e6494b4200fbc902df142bc85564cc290fd1a:eyJzZWxlY3RlZExpbmVDb3VudCI6NywiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiZWI0NzljZDZhZjZkNTEwY2ZkNjg1ZWNmODZhNjc0YjljNDM2MzRlOWY5Y2VjZWViMTRkNzQ4YzFhOTllNzEwNiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiNTUwMzJlOTY0ZDA5MzIzNTFlNWQxODUyNjkyODFiMTcxYTNhMDliMDhiMjg2ZTY2MWVhNDcwMzIzYzgyZWI0ZCIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiODBlMTllMWU3OWE0MTM3M2M0NmY1ZDgwNzgxNzVjYzkxYTdhYzI3NjZhYmQ2MWFhYjI3ZjY2ZmQ3Y2I2ZDBhNyIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiMmFmNTZlZGFkZGE1NDFjYjFkYjk1MjBlN2E0NmY0ZmE1ODYyY2NjOWZjNWU5NTY4ZmZmY2YzNWFiNDEyNzFlYyJ9"
+        },
+        {
+          "resource": "repo://backend/app/agent/subagents/sql/tools.py#L91-L97",
+          "version": "repo-lines-v1:sha256:441d338898ad188ee26bb0dad3eb46a6ff9f444d087e465c14b77475fe80757e:eyJzZWxlY3RlZExpbmVDb3VudCI6NywiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiZWI0NzljZDZhZjZkNTEwY2ZkNjg1ZWNmODZhNjc0YjljNDM2MzRlOWY5Y2VjZWViMTRkNzQ4YzFhOTllNzEwNiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiNTUwMzJlOTY0ZDA5MzIzNTFlNWQxODUyNjkyODFiMTcxYTNhMDliMDhiMjg2ZTY2MWVhNDcwMzIzYzgyZWI0ZCIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiMzVjYzIxMDg2NGJjMjJlYmQ4NTdmMzFmMmYwM2RhZDIxNmQwMjhkYmJjMWMyYWY0NTNlZDBkM2Q1MThhYTM4ZiIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiYmRlN2E2ODI4ZWVmMmZiZTk1ZDhhZTcyMTczMjYyOWMyYzgyOWMyNzg4Y2ZkZDllNDJhNzllZWRjNWJkM2ZkMiJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_a824747d5e804078983e4b1cc186e55d",
+      "statement": "当 settings.sql_linter_enabled 为真时，包装后的 sql_db_query 在执行前运行 validate_readonly_query，并把 SQLLintException 转换为 ToolException 回喂模型；当 settings.sql_checker_mode == 'safety' 时还运行 sql_db_query_checker，命中错误关键词时返回 'Error: SQL 语法检查失败' 字符串。",
+      "evidence": [
+        {
+          "resource": "repo://backend/app/agent/subagents/sql/tools.py#L99-L127",
+          "version": "repo-lines-v1:sha256:988661469826cd8dfba41658716a70c87d8d623a4ce76eeb49692f0a93729d06:eyJzZWxlY3RlZExpbmVDb3VudCI6MjksImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjEyMTY3MTE0YjdhY2JjYWUxYjZjNTEyNGEyYmNiZGFmNWVkOGQ0MzgyZDBiN2M4Y2JhYzk5NmI3NjgzNDlkMzQiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImY0NjhjYTZjYTAyNzA0MjVhNGRhOGU3MjhhOTRhMjE4MjNiNjZmODhiNzM0MDVlNWQ1N2QwNzRmZjNkOGRiNzkiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImQzODhkOTJmMzEyZTg0YzQ1NDU5MjA3OWU2MDdlZGY1Y2UyMGQyODQ3MDI2M2Q2MWYzNjc2YTJjYmQ3MTY2NDUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjNkY2EzODAwZGJlZjgyNDg3MzBlZDA2NmI0OWJiMTNkYmJlYjc5MWNlYzM1YjIxOWFjOTNlMTZmZWYyMjljN2YifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_9b5e00236c8d4ff5a4142d434b323c0b",
+      "statement": "包装后的 sql_db_query 通过 db.run_no_throw(include_columns=True) 执行，规范化 ISO-8601 日期与 Decimal→float，并强制行数硬上限（sql_result_hard_limit；经 sqlglot AST 提取表名判断为纯维度查询时用 dimension_result_hard_limit），随后返回 Command(update={'messages': [ToolMessage], 'tool_artifact': {...}})，使完整结果到达 UI 而不占用 LLM 上下文。",
+      "evidence": [
+        {
+          "resource": "repo://backend/app/agent/subagents/sql/tools.py#L129-L250",
+          "version": "repo-lines-v1:sha256:8fd583b01c148c632ed5b0c57b3317f8a6a262a11411518442da8ea1985f2395:eyJzZWxlY3RlZExpbmVDb3VudCI6MTIyLCJmaXJzdFNlbGVjdGVkTGluZUhhc2giOiJiNzkyNTIxN2E0NDE3NjdkOTYwN2YwNmRkMjZhYWE1MTIxNTU0MjY1Y2VjYTFkMGYyNjUyNDhmMmE0Zjc4YWQ0IiwibGFzdFNlbGVjdGVkTGluZUhhc2giOiJmOWIxOTgyZThkZDc0ODExODE0NmIzOWEyZDAwNjJmNDA4MWUzNDc3OWI4Njc1YzIzNGM0ZmIxMjRkYzM5MzkwIiwicHJlY2VkaW5nQ29udGV4dExpbmVDb3VudCI6MywicHJlY2VkaW5nQ29udGV4dEhhc2giOiIzMDcwMmM2ZTcxNjdmMDg4ZTRmMmYxYmU1NDZiZDQ4MmZmNjM2ZTZjODEzYzJlYmMyNjk1NDIwMDIwMjc3M2U1IiwiZm9sbG93aW5nQ29udGV4dExpbmVDb3VudCI6MywiZm9sbG93aW5nQ29udGV4dEhhc2giOiJiNzdiMDU2OTY2OTJhNTIxZThhNDE2YTllNTAxYzU1NmU5YzY4N2QxMzE4YzgxMDI1NDk2YjJhNjcwMmMxODk1In0"
+        },
+        {
+          "resource": "repo://backend/app/agent/subagents/sql/tools.py#L49-L62",
+          "version": "repo-lines-v1:sha256:052f1ba1c290695d15ce665e5b99471cf53646e28b1091b71ec8b51be6fd6b07:eyJzZWxlY3RlZExpbmVDb3VudCI6MTQsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjIwOGFiOTBlMTAzMTc5N2NlY2E4NDIxYjkxMDVlNDQyYzZhYWJiNTI5ZjI0NDUyODRkZjc3MzE5YTBjNDEyNzciLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjczYzhmMWYwY2EwNzhkOTYxYjhlY2NhOTMzZjM5YWNjNzBjYTkwMmM4YTIyNjJkMmU2NjM3YTU2YmVlYTE4ZjAiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjIxNjM5NDQ0NWQwNTE2MjJhNzQ2NWFjMGE3OWMzMDBlNDEyZjRhYTEwYjBkNDk5MmFjMzc0MjgzMGU1ZTRhYTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjZiNTg0NDk3YzYzYTM3MDc1YzRlYTZiNzc4YTJkYWU2ZjBiY2JjODE2OWNjZmU4MzFjYzgzZTU3YWE2NWI1YzUifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_92a39a3698594fe2b89f5c3cbe49028b",
+      "statement": "所有面向 LLM 的工具都由工厂在返回前显式设置 handle_tool_error=True：sql_db_query、search_saved_correct_tool_uses、三个 db_*_lexicon 词典工具、build_chart_artifact、export_to_csv，以及 load_skill / load_scenario。",
+      "evidence": [
+        {
+          "resource": "repo://backend/app/agent/subagents/sql/tools.py#L252-L252",
+          "version": "repo-lines-v1:sha256:237b1032bd7f7c94d731d4fadb6683e6d594e44df78109630ded0cb9f04a1cbe:eyJzZWxlY3RlZExpbmVDb3VudCI6MSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiMjM3YjEwMzJiZDdmN2M5NGQ3MzFkNGZhZGI2NjgzZTZkNTk0ZTQ0ZGY3ODEwOTYzMGRlZDBjYjlmMDRhMWNiZSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMjM3YjEwMzJiZDdmN2M5NGQ3MzFkNGZhZGI2NjgzZTZkNTk0ZTQ0ZGY3ODEwOTYzMGRlZDBjYjlmMDRhMWNiZSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiNzc0MDBiNDczNTZlNGIzMmRhMDhjZmEwY2Y4OGFlZjFjNmFkNmMxZWFmYTk0Y2MyY2FjNzRmY2U4YjQwMzU0OSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiNDExN2Y0YzFlZGQ0Y2Q5Yzg0ZmYzNDI0ZDdhMjc0YTMzYTM3Yzc0MzcwMWY5MzJjZmZjZTM4YTk2OWRlNDk2YiJ9"
+        },
+        {
+          "resource": "repo://backend/app/agent/subagents/sql/tools.py#L332-L332",
+          "version": "repo-lines-v1:sha256:d0fb1bfd6ca1f01569eed2cb9fe37710527b7e9682d886f88d45f3a4cefaf4e7:eyJzZWxlY3RlZExpbmVDb3VudCI6MSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiZDBmYjFiZmQ2Y2ExZjAxNTY5ZWVkMmNiOWZlMzc3MTA1MjdiN2U5NjgyZDg4NmY4OGQ0NWYzYTRjZWZhZjRlNyIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiZDBmYjFiZmQ2Y2ExZjAxNTY5ZWVkMmNiOWZlMzc3MTA1MjdiN2U5NjgyZDg4NmY4OGQ0NWYzYTRjZWZhZjRlNyIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiN2RhYWQ0YjhhMDRiOTI3YzVjMDU1NjQ1NjhhOGY1ODRkZDRlMWY2OTQxYjAwNzkzM2EzOWVhNGNhNDU4MmYxNiIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiMjdjOTAzNWJmOTJjODU3OWRmMmMxM2IyYzg1YzAwNWQzNmU2MWQ2NTU4NGY1ZTk0M2VlOGJmOWZkODJjMjJlZiJ9"
+        },
+        {
+          "resource": "repo://backend/app/agent/subagents/sql/tools.py#L382-L382",
+          "version": "repo-lines-v1:sha256:d0e387488e603ff3947ab993f74eb17e2e865296872420ad525bd27da8ffa04d:eyJzZWxlY3RlZExpbmVDb3VudCI6MSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiZDBlMzg3NDg4ZTYwM2ZmMzk0N2FiOTkzZjc0ZWIxN2UyZTg2NTI5Njg3MjQyMGFkNTI1YmQyN2RhOGZmYTA0ZCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiZDBlMzg3NDg4ZTYwM2ZmMzk0N2FiOTkzZjc0ZWIxN2UyZTg2NTI5Njg3MjQyMGFkNTI1YmQyN2RhOGZmYTA0ZCIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiNzFmNDBjZjQ4OTY5NTI0YjI2ZmFlODgxMmZmOWVhNGUxZTQxOTRkNTg5NTZjMDc0ZTNmMzRjZGQyMGE1MjRiZiIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiMjM1MDNmYzJmODg3NGE2NTI5ZWY5OGY5ODI3NGU1MDg1N2RlM2Q4MmYxMzVhNmNmMjkzMjg2YzBiOGEyY2JhZSJ9"
+        },
+        {
+          "resource": "repo://backend/app/agent/subagents/sql/tools.py#L433-L433",
+          "version": "repo-lines-v1:sha256:3661c650d0c47db92c82285a3c1cf84ff9c5d4e29c2daa4b15034d90cf322ee5:eyJzZWxlY3RlZExpbmVDb3VudCI6MSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiMzY2MWM2NTBkMGM0N2RiOTJjODIyODVhM2MxY2Y4NGZmOWM1ZDRlMjljMmRhYTRiMTUwMzRkOTBjZjMyMmVlNSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMzY2MWM2NTBkMGM0N2RiOTJjODIyODVhM2MxY2Y4NGZmOWM1ZDRlMjljMmRhYTRiMTUwMzRkOTBjZjMyMmVlNSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiMTRlZjI1YzI3NjE4MWIzNDZkNmNlZGZmZDJiZTc4MDg0YjVlOGI2MTY5ZTg2MjNmZTRmNmY2ZWVjZmEwZWViZCIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiMzk2MjY5OGFhYjJmMWE1MDdkOTA1NDFlNzA4MWQxNmMzMzYxZTBjYjA1MDA1YTRjN2RmZWE4YTg3YmYwMTAzYyJ9"
+        },
+        {
+          "resource": "repo://backend/app/agent/subagents/sql/tools.py#L482-L482",
+          "version": "repo-lines-v1:sha256:372626214920798ac8686c9b4490ac01710da82295910d8a963989dbc6a28ca1:eyJzZWxlY3RlZExpbmVDb3VudCI6MSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiMzcyNjI2MjE0OTIwNzk4YWM4Njg2YzliNDQ5MGFjMDE3MTBkYTgyMjk1OTEwZDhhOTYzOTg5ZGJjNmEyOGNhMSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMzcyNjI2MjE0OTIwNzk4YWM4Njg2YzliNDQ5MGFjMDE3MTBkYTgyMjk1OTEwZDhhOTYzOTg5ZGJjNmEyOGNhMSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiNjQ1NDdlOGEzNzgwNTI1NDUxNWRjMjM4YjVhODIzNjZlOTEzMjRlNGYwYzJjZGU5OWZhMmI2MmEzZjRhN2VmNyIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjEsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiYjMwMTliMzU4ZDhkOTY5NmQ5ZGMwZGQzODdkMjUyOWI1MjNjM2E2NGVkMTFmMTEyZWIwOWNhYWJkNTE4MjRkZSJ9"
+        },
+        {
+          "resource": "repo://backend/app/agent/tools/chart_artifact_tool.py#L346-L346",
+          "version": "repo-lines-v1:sha256:e3ff2c19c83ab423025ed0bc10fa4efc673fd8bc352482fd6da9a190fc8cb3df:eyJzZWxlY3RlZExpbmVDb3VudCI6MSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiZTNmZjJjMTljODNhYjQyMzAyNWVkMGJjMTBmYTRlZmM2NzNmZDhiYzM1MjQ4MmZkNmRhOWExOTBmYzhjYjNkZiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiZTNmZjJjMTljODNhYjQyMzAyNWVkMGJjMTBmYTRlZmM2NzNmZDhiYzM1MjQ4MmZkNmRhOWExOTBmYzhjYjNkZiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiNTVkZDRlMDJkYjQzNDA5YTI2YTNhMzYzNjhmNTNkMGRkNTNhNjE1OTA4NmZkYTdkMjYyNmYyNTE3ZTBlZWI3MSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjEsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiMGQ4NGU3ZDY4NTllNDMzY2VjOGViMmY0OTI5MTZmNjVlY2RmNTdjMTg3NTJiMGJmYjc4OWUxMzJmNDM4NTBjNyJ9"
+        },
+        {
+          "resource": "repo://backend/app/agent/tools/csv_export_tool.py#L184-L184",
+          "version": "repo-lines-v1:sha256:1a8c7ef1053db3c5e6fc84138537a3bdb690212a82fb5f469a3cda74991302df:eyJzZWxlY3RlZExpbmVDb3VudCI6MSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiMWE4YzdlZjEwNTNkYjNjNWU2ZmM4NDEzODUzN2EzYmRiNjkwMjEyYTgyZmI1ZjQ2OWEzY2RhNzQ5OTEzMDJkZiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMWE4YzdlZjEwNTNkYjNjNWU2ZmM4NDEzODUzN2EzYmRiNjkwMjEyYTgyZmI1ZjQ2OWEzY2RhNzQ5OTEzMDJkZiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZTE1MDUxZmJjODIwZGNkYWU1MGM4MTY4NWY4NmVjZWVlOWQzYWIwOGMzMmUzNTJjYjI3NTFiNTQxYjNhZGZkZSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjEsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiNzQ0M2ZlZGY5OTI3NGIxOGEyNmY4NzEyY2FkOTZhZDg0ZDRhNTE5NzY5MjU3MWRiOWNkNDkwOTc3ZWQ2ODIzNCJ9"
+        },
+        {
+          "resource": "repo://backend/app/agent/tools/skill_tools.py#L177-L177",
+          "version": "repo-lines-v1:sha256:b9d221bee34d7df477524a8f06c9da24547641089c9c468208faef731734ee47:eyJzZWxlY3RlZExpbmVDb3VudCI6MSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiYjlkMjIxYmVlMzRkN2RmNDc3NTI0YThmMDZjOWRhMjQ1NDc2NDEwODljOWM0NjgyMDhmYWVmNzMxNzM0ZWU0NyIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiYjlkMjIxYmVlMzRkN2RmNDc3NTI0YThmMDZjOWRhMjQ1NDc2NDEwODljOWM0NjgyMDhmYWVmNzMxNzM0ZWU0NyIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiOTFkOGNmNTk1NzY1Y2ZiMTExODQ0OWI4ODQ0NjgzNGYxNDQzZDEzMDhhYWU2ZWM3OTJjZTY4NGJiYmEzMjA2ZSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiOTk2MWM1ZGYxYTk1OGQ3NzM4ZWZmMjQ2ZGFmMTdjN2EyZDI0N2VmZWE5N2Y5NmNmZmYzMjZhMjEyMDMzMTNjYyJ9"
+        },
+        {
+          "resource": "repo://backend/app/agent/tools/skill_tools.py#L202-L202",
+          "version": "repo-lines-v1:sha256:755c7ad2b6bf29ac5b929d20270638b66255fdcf9579ee1b2ef6397ea1c1ff81:eyJzZWxlY3RlZExpbmVDb3VudCI6MSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNzU1YzdhZDJiNmJmMjlhYzViOTI5ZDIwMjcwNjM4YjY2MjU1ZmRjZjk1NzllZTFiMmVmNjM5N2VhMWMxZmY4MSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiNzU1YzdhZDJiNmJmMjlhYzViOTI5ZDIwMjcwNjM4YjY2MjU1ZmRjZjk1NzllZTFiMmVmNjM5N2VhMWMxZmY4MSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiOTFkOGNmNTk1NzY1Y2ZiMTExODQ0OWI4ODQ0NjgzNGYxNDQzZDEzMDhhYWU2ZWM3OTJjZTY4NGJiYmEzMjA2ZSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjAsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZTNiMGM0NDI5OGZjMWMxNDlhZmJmNGM4OTk2ZmI5MjQyN2FlNDFlNDY0OWI5MzRjYTQ5NTk5MWI3ODUyYjg1NSJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_11681d5be56e4dae9dc3cacdc1bd115a",
+      "statement": "N6 变更集（2026-08-30）补全了工具错误契约：为六把工具（search_saved_correct_tool_uses、三个 db_*_lexicon 词典工具、load_skill、load_scenario）加上 handle_tool_error=True，并为 sql_db_query 的语法检查失败分支与三个词典工具的失败文案补上 'Error: ' 前缀，使所有失败出口符合 PromptCompilerMiddleware 预扫描契约。",
+      "evidence": [
+        {
+          "resource": "repo://backend/tests/agent/test_tool_error_contract.py#L1-L6",
+          "version": "repo-lines-v1:sha256:856c12535cc9e2dfc832f29761066d18e356b8ea5b9ef7472063aad5d2a86455:eyJzZWxlY3RlZExpbmVDb3VudCI6NiwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiY2ZhZmY2YzYyMThhMWEyYTUzMzk5M2I3YTE5MzM0YWRhMTY2MDM2MjU1ODYxMmU1MjY3MjIzMGY0ZDdjYzQyZiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiYTMwM2VjZGQ0YTRkMTBmMTljNzNmZDQyZmQxMjQzN2ZkMzM1NGE4MjY4MTYwNWRhNTI1NWE5N2EzOTA2OGRiYiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjAsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZTNiMGM0NDI5OGZjMWMxNDlhZmJmNGM4OTk2ZmI5MjQyN2FlNDFlNDY0OWI5MzRjYTQ5NTk5MWI3ODUyYjg1NSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiOTE5YjVmNDM2NmJjN2Y0ODkzMTNkZDU1ODE2NDA0ZWI3NDc2ZGRmODUyODdlNmEzMDMyODA2YjY4MGQ0NjBkNiJ9"
+        },
+        {
+          "resource": "repo://changelog.md#L19-L26",
+          "version": "repo-lines-v1:sha256:47cea9526f8913725a143cd11aa2cbcca1d0a42df8720ad8b5760fefc2ce8147:eyJzZWxlY3RlZExpbmVDb3VudCI6OCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNDQ0ZGQyN2E0ZmVhN2VjNzQyN2QwYjQ4MTU0YWE3MWZkMDFkNmI3ZjRkMTY4NjUzOGE3MWZkZWEwZDk0MDI4OCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiYjVmMzllNmYwZjliMmNiOTliZmFhNTA0ZjdhOWU2NTQ3YTkzYWM3YmVmNzUwYWZlOThiMzFiNzkxZjNhZDU2OCIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiODZmYTBlNmE4YjQ4MzFmMTk0NGRmZDFhYTMyODZhN2Y0YmUyNjlkMTBkYWFlMDkyOTBhMzE2YzQ1MDZjN2YzYyIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiNmFkNGMxZWUwYWI2NDI4YjY4YjVlZDBlZTcxM2E1OGViZmQ5ZTViMDBkYWRlN2UxN2JhMDJhNDRmYTA5YmFjNCJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_bc67f07eb6f94a89bff3fa3e7b4f4b3f",
+      "statement": "工具失败统一带 'Error: ' 前缀：三个 db_*_lexicon 工具在检索器缺失时返回 'Error: Database lexicon retriever is not initialized or disabled.'，检索异常时返回 'Error: 检索...物理词典失败: ...' 字符串；build_chart_artifact 与 export_to_csv 把 SQLLintException 与通用异常统一转换为带 'Error: ' 前缀的 ToolException（linter 消息保留 X-SQL-LINTER-STATUS: FAILED 头）。",
+      "evidence": [
+        {
+          "resource": "repo://backend/app/agent/subagents/sql/tools.py#L346-L347",
+          "version": "repo-lines-v1:sha256:d378b7c0e34e1ff2e51e7bc6cf6bb5c941b6d33e71f0079f2f7d32d125839692:eyJzZWxlY3RlZExpbmVDb3VudCI6MiwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiYWQ4MjFiOWM3NDUwYzc0MmVlYzU2ZThiMDJiYzFiYTk2YmY5MDg3ZjBkYWZlMDE2NzZmYjdhMjM1ZmVkMzljNCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiM2JjY2NiZjAyYzFmZTEwNWZmNjNhNzllMzU5OThhOWU1ODFmMWFkMmU2ZDVhYWExMmY0ZDY1OTNjNzZlM2QzNyIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiYjA1MGRmMmU4MWUwY2EzYWQxNjk0ZGJiNDNhMzk3OTdlNDYwODRjYzhjMDhjMWZlZGU2MWFlODgwMDcxNmM2ZiIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZWVhMzYxMTIwN2YxNDBhYTM5NjZmNTk1MmUxYTJjZWZiYTM4ZWZlN2QyODJhODJjNTY2NjIyYjg0NjE0ODQwOCJ9"
+        },
+        {
+          "resource": "repo://backend/app/agent/subagents/sql/tools.py#L378-L380",
+          "version": "repo-lines-v1:sha256:445fa8a783318b33177f3045b55678f49cf69837c959788399ed0bafd73b84c9:eyJzZWxlY3RlZExpbmVDb3VudCI6MywiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiY2M4NGVjZmI0MGVmNTk5ODI1MTg3NWYxYTg4ZTY1YWE2MDRiYWI3OTA2MDliN2Y3YWFiZjIzMTY4Y2Y5ZjI2MSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiNjY3OWU0ZTNmM2I5YmExY2M5ZmEyMjhiMjYyZDc4ZWVmOGVlZDQ4ZjYyZjdhMjAwYmNiMTc1OGM0YjU5NmQ2NCIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZDE2N2Q0MGQ4YzdlYmMxYzRjNGM1NGM1MzZiNzVjMWNjM2M5MjRmNzgzMWFjZjkwNjVlZWY3NzM2ZjRhMTdkNSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZTlhMTQ3ZDk1MjFiYzFkMzM1N2ZmYjNkMjRhZjM5Y2YxYTAyNWUxNTI0ZTU1ZWI3YWZlNDNlZGZmZTk1OGU2ZCJ9"
+        },
+        {
+          "resource": "repo://backend/app/agent/subagents/sql/tools.py#L429-L431",
+          "version": "repo-lines-v1:sha256:b1e5ab5e95ee9dea099d546ba6cfa00e394931975b3cad0f80336099550201d6:eyJzZWxlY3RlZExpbmVDb3VudCI6MywiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiY2M4NGVjZmI0MGVmNTk5ODI1MTg3NWYxYTg4ZTY1YWE2MDRiYWI3OTA2MDliN2Y3YWFiZjIzMTY4Y2Y5ZjI2MSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMjM2OTI0MDM5MzQzMDljYTBmOGUxMzkwOGNkMjg2MjFkNWRhMGUyYzNlYzc3NWFlNzc5MjYwNTUxN2I4NzMwZSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiMTljYWI0M2I0NDRhYTk4MGJiYTE1ODgyMjEzNzlkZTliZmJhOWZlZGRmM2YyN2M1N2MyYjgxMTQxMzEwZmM0MCIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZTE1M2M0ZDI0MzczOGI0NjFiMGY5YTNhYWZkOGNiYzc5MTAxMWU5YjdmZmYzYzVlNWNhZGE5ODMwYzE5MWIxNCJ9"
+        },
+        {
+          "resource": "repo://backend/app/agent/subagents/sql/tools.py#L478-L480",
+          "version": "repo-lines-v1:sha256:e04fcbfe7c09e336d839f3b26b32e7b4ecd77bf34c2d8cc67be12d74b1420c86:eyJzZWxlY3RlZExpbmVDb3VudCI6MywiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiY2M4NGVjZmI0MGVmNTk5ODI1MTg3NWYxYTg4ZTY1YWE2MDRiYWI3OTA2MDliN2Y3YWFiZjIzMTY4Y2Y5ZjI2MSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiOWFjNjY0YzZkYjUzYzc5ZGQ2OGE2NGFjNWJlZjQwZDMyMzE3MzI3Zjc4NzBiNjEwNWNkNDg3NjlhMzlhYjE2YSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiNmM0MTBiNDQ2ZTA3NjNhZGZjYTgwMGUwNDYyNzVlNDI4OTM5Mjg5ZjZlYzc5OTAwZGVhNTg3MDc2ZjJhNjA3ZCIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiODYzYmY0MjY2YzUzZjZjMTM5MDA1NmU0MDk1MmVhOTMzMjQwODBjYzM1OTcwYTY4ZTdkMmY5MDFmMjllYzU2NiJ9"
+        },
+        {
+          "resource": "repo://backend/app/agent/tools/chart_artifact_tool.py#L337-L344",
+          "version": "repo-lines-v1:sha256:aaa5e859bb99eaa36a3fc4482c332c96dcb543b51a7c5d0df41c8ad11096b2c4:eyJzZWxlY3RlZExpbmVDb3VudCI6OCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNmIxOGU3Mzc2MmJiZmZkZTY3Y2ZlMzBkMTk1Nzc0YjZiZmRhZWJkN2VjM2I3NDU0NWIzNmRiNzc3YmNjODQxMiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiNzQyM2UyYzA3YjcyNWM0ODRmM2FlYTMzMzViMjNkZmM4NGE1ZGMzZjQzMTQ2ODU0ZWE4OTFmNzM4NmRkMWZlMSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiM2UyNGMwMjQxZWJkMzZiZmIzMjVmZWJiZGNhMGY3NTdjNzcxZTRiODJiZjljMzk4OWQ5MTQ3NGFjMjdmMWQ4ZiIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiYzg2MmIxYzZkMDBhYTI0MDkxZjliM2RmMTA3YTk5ZTFlODE0ZDc1YmFiYWVlOWRkYjViYmI4NjBiZjVjNGYzNCJ9"
+        },
+        {
+          "resource": "repo://backend/app/agent/tools/csv_export_tool.py#L175-L182",
+          "version": "repo-lines-v1:sha256:3d3addcc49a2d4b9f5b205e53aca162d3eeddcb5d086f095c75e650bb9c9db43:eyJzZWxlY3RlZExpbmVDb3VudCI6OCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNmIxOGU3Mzc2MmJiZmZkZTY3Y2ZlMzBkMTk1Nzc0YjZiZmRhZWJkN2VjM2I3NDU0NWIzNmRiNzc3YmNjODQxMiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiN2EwNmE2ODRkMDcyOTZhNWUxNWUyNzA0NDdmNmE3Zjc1YzQ2YzA4MTg4YWVkMjZkNGEyMzBhYjhkNzJmYTM3YSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiNzExOTAzY2YwMzlmMzA4Nzc2MjFmNTM3OGI0ZWY1NjQ2YjMwMmEzYTBlN2YxZGQyOTVkMDQyNjM2YzNiNTFhOCIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiYTg5NTRlY2YxNjkxNzcxYzljNzg5NGNlNWE1NDA1ZTUxZjBkMDFlM2EyNTVhMTViMWZjMWJmZWNkOTMyYzQ4YyJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_053eb66bb949472cbedcc175d03c2cae",
+      "statement": "PromptCompilerMiddleware 的 Stage 2 预扫描依赖这两个运行时标记：_DELETION_TARGET_CONFIG 对 sql_db_query / build_chart_artifact / export_to_csv 匹配 'X-SQL-LINTER-STATUS: FAILED' 或 'Error:' 运行时头以标记失败调用对进行物理删除；ULTIMATE_DELETION_TOOLS 对滑动窗口外的三个 search_db_*_lexicon 工具无条件物理删除；COLLAPSIBLE_TOOLS 把窗口外成功调用折叠为占位 ToolMessage。",
+      "evidence": [
+        {
+          "resource": "repo://backend/app/agent/middleware/prompt_compiler_middleware.py#L140-L205",
+          "version": "repo-lines-v1:sha256:002314692d6f9db9af5af321f24f1265a4bab72089f1219479a221342068fc61:eyJzZWxlY3RlZExpbmVDb3VudCI6NjYsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijg5YmIwYzJhNjNkOTM3YzIxYTg3ODcwN2JhYzYyYjFmNjQwYzI2NjhmNjU3NzkzOTJjZmMzM2Y4MDA1MTg2YzYiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImYxZjdkMDU1N2QzMGVkMDA2MzQyMzg5ODNhODkzY2EwNmRjNDcwZGI1ODFmNjA1Y2E4MTk4MWRiNjdlYWI4NmEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImMxZDFjMDc4OTkxYTdhMmJkZmUyMzQ3MmIwNGYyZGRmOGQ1MjAxMGNmNzQyMDY0NTYxOGMyZDdhZWZlZDI1MzYiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjUxMGJmNDQ5YWI4ZGEyZmEwMTg4ZDliMmZkMGM0NzExNzE2NTY5NTUxZDRkNjE3ZjA2NmU4MDk0Yjk3N2NiMjgifQ"
+        },
+        {
+          "resource": "repo://backend/app/agent/middleware/prompt_compiler_middleware.py#L38-L52",
+          "version": "repo-lines-v1:sha256:a5e62eed331a1eca0854cfb1fa4fa9cac8e3bafa64cb76aff1d4f0083033ff1e:eyJzZWxlY3RlZExpbmVDb3VudCI6MTUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjRiODczOTI0NjlmNDQ4YTY1OTUwNGY0ZDlkNTI2ZDM2ODY0ZTJkZmQ5YTY0Yjc3MjlkZDk1NTc0NTEwNjBjNDEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQxMmNhMzQ1Y2NmNzViZjljMDgwNmJjZTY5NWJlOGRlODA4Yjc5OTg0MjUxYTdhNTRkMjAyY2Y2MTAxZGQ0NTEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImVhYzgwMTRiZjNmYjgwODE2NThkOTI2NGViYjA2NWI1ZTQ0ZjIzYWRjNDM0ZTRmY2FmMDAzMWFlOWIxYTYwNzYiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImNhZWNjM2VjZjIwNmVjYTU3MWFmOGM5OTI2MTZiMzc4ODE4OGJlZmQ2MjZmNzlhODg3OWRmMjE1MzBiNDk3ODQifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_ca0d14522cbc4a35a9b689a421f032de",
+      "statement": "validate_readonly_query 是两层 SQL 安全门禁：先无条件执行 FORBIDDEN_SQL_PATTERN 正则物理阻断（即使 sql_linter_enabled 关闭也拦截 INSERT/UPDATE/DELETE/TRUNCATE/GRANT 等），再对 sqlglot 解析结果运行 11 条 AST 规则（解析失败退避为正则+多语句校验）；拦截时抛出 SQLLintException，消息以 'X-SQL-LINTER-STATUS: FAILED' 与 'Error: SQL Linter 拦截' 开头并附编号违规项与修复建议。",
+      "evidence": [
+        {
+          "resource": "repo://backend/app/agent/utils/sql_linter.py#L33-L45",
+          "version": "repo-lines-v1:sha256:4bde01f693832912ff2854d65fe4c0b3cc2748254b7c3e66ea1ec15d7174c920:eyJzZWxlY3RlZExpbmVDb3VudCI6MTMsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAxZTljNDBhYjk3OWQzNGJkYjA0N2E0NjAyMjJhNjlmOWQ5M2UzMzQwZDc5ZmRiMzljZmM1N2U4ZDA2MTFkNGYiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjgyNjUzMTMwZDU2NDY5MzllYjQ3NzkwN2EwZTIwZjFmNjE4NGU1ZmYyY2FlM2Q2ZWM4ZTNmNTA0NmJlMjU5OWIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6Ijk1OGQ4ZDZjYzk4N2Y1N2VlY2RlN2JhZjNmZTY1MWM5YjA0YWRhYjhjZjA5MTg1NDZkOTU0NjhiMWQ5ODFhNGYiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImU5MzcyOWQ2NTU3ZGM4MDg4YzA3ZmQ2NzA5NjhmZDBkNWVlNTVmMjQyNjBmODhmMWVmODJmMDkxZjMxNDY5MDYifQ"
+        },
+        {
+          "resource": "repo://backend/app/agent/utils/sql_linter.py#L671-L693",
+          "version": "repo-lines-v1:sha256:b9ec4b208ad5b92d5ad9629f9ad657ea25798498c1e6223ed75f6953449d9979:eyJzZWxlY3RlZExpbmVDb3VudCI6MjMsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjRjMjVkZGM4Mzk3YTJmN2ZiMTc3NDdiZjFhM2MwYmU4ZTlkMDFlOWVmNmQ5ZWU2NmRkNTc4N2Y4ZDNkNWRhZWYiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjZkOGVjNGU4NDI4OTVhYmZmMTI0YThkYzg5NzU0NTdjNTJjODBmM2FjZjBkOGZlNzg4ZGFkMDgzYTZkYjA2YzkiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImQzM2IyMzNjODE2MWNiYTM5N2NhNTIxZGZkODQ3MGY0Y2QyNGUzZGU2ODljYjQ4Mjk4OWQwMTBiMGUyMDZlMjMiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjFjZjYzN2QwZjRiMjcyYjcwNGUwYWI0ZTQwZDZhMzg5YzkzNmYyYjM3ZWM3MjFlZjI0NTlkMDNjZGM0ZjU1YWMifQ"
+        },
+        {
+          "resource": "repo://backend/app/agent/utils/sql_linter.py#L703-L744",
+          "version": "repo-lines-v1:sha256:25a3ba35fd0946aaccb5ff4be557e4fb3ff0e519b81a51e143259c8a5999f087:eyJzZWxlY3RlZExpbmVDb3VudCI6NDIsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImQ0MmI1NzA2N2ZmMzkwNGFkMDQxYjBkNDRjODExMzBjZGJkMmUwZDUxNjdlOTIxNTcyMzc2MDYzMjA3YzNiN2UiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjRlNjllYzA3Y2U1YzZmZDA4OGEzOTA1OWRhNGExOGNkMWMxZjViZWJiNmRhY2I1YWRhMjVmYWM1ODhlM2E2OTIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6Ijg5NGZkYWJmZDM1Y2FhZTRhMDI3YTIwZTIxYTgyNDE4MzVhOWQyZjQzMGYwMDg4NWExZTk5ZDlhM2U5ZjM3NjYiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjowLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_5156a8fd96914bb0ba97fda88a94ed8f",
+      "statement": "SQLLinter 是 BaseLintRule 的 AST 规则注册表：register() 遵循 settings.sql_linter_disabled_rules 与 rules_severity_override；11 条规则覆盖 DML/DDL、堆叠语句、schema 白名单、SELECT *、JOIN 列别名前缀、子查询深度、CTE 数量、JOIN 扇出唯一性（SEM-001，可用 '-- linter-bypass: SEM-001' 注释豁免）、事件表非去重 COUNT、标量子查询、NOT IN。",
+      "evidence": [
+        {
+          "resource": "repo://backend/app/agent/utils/sql_linter.py#L340-L344",
+          "version": "repo-lines-v1:sha256:8981d270ef35a163beeb45ddc09e5cf7f45c87644447c8d83443fb1006f68f45:eyJzZWxlY3RlZExpbmVDb3VudCI6NSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiYzI1NmZhNDBhZjlkOTJmZWI2MjBkMzBmNTlmNDg0OGMwMmFkYjdhMjUwMTk4M2JlODY3NDc0YmQzZTk4MGViYiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiNmYzNzU5ZTBlNDU0YWYzZjVmMTlhMGY3MGFlNmNmOTUyMmUyZGRlMzA2ZTEyOTA3MmFlMjIzOTIxNzQ4ZGNlOCIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiYzgwMTZlNDI0MmI4MWM1NTAzOTQ5OGJiMzQ2NWY4ZDkwYTk5NTdlNDZmNzk1MWVlNDNjM2E1NDY1MjNkMzJiZiIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZWU5MWE5MGUwN2Y1MzRhN2U4NmI3OTY1N2UwNWFmODlhYTY0NTI5YmYxN2YzNTQ5YzcxNzEyZDY2NDUzYTFjYyJ9"
+        },
+        {
+          "resource": "repo://backend/app/agent/utils/sql_linter.py#L56-L88",
+          "version": "repo-lines-v1:sha256:cd3893df8bbd6f842a8407cbc3f6452b4c5309bef334034da49c27b30bf76d22:eyJzZWxlY3RlZExpbmVDb3VudCI6MzMsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImQyODJjZWE0MzU4NTYwOTNhZDJiNGI5MzQzNTczZDM0ZTFkZTYyYTRjNDUzNzFjN2MwZDZjOTUxOWNjNDMwOTkiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQyNzJhNWI1Y2M2ZTczY2NjNmFiMDg3N2Y3ZTA2MmEzMTZmZjUzYWFlN2E3Mjk0MGUxOWM4ZDU5ZWMwMTA2OWQiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6Ijg1OGQ4MGFlZGRiNjI3ZGUzZTE4MzNjM2UxMGU4NjVkY2ZkNTllZjQ1MmMzYmY2YTEwZGRkYzY1NThlZWVjZjMiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjQyZWI4ZTlmNDZjMzFlNDAxNTQ0ZTdmM2ExNDkxYzNhNGFmYzI3OTI4YTYyYWM2ZDAzNmZhYzYyN2U5YWFhOTYifQ"
+        },
+        {
+          "resource": "repo://backend/app/agent/utils/sql_linter.py#L703-L714",
+          "version": "repo-lines-v1:sha256:c77b9b302fe561e47c50dbfd935dc7d1ff8d3c11800b049558b0f9d4be160532:eyJzZWxlY3RlZExpbmVDb3VudCI6MTIsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImQ0MmI1NzA2N2ZmMzkwNGFkMDQxYjBkNDRjODExMzBjZGJkMmUwZDUxNjdlOTIxNTcyMzc2MDYzMjA3YzNiN2UiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImFhMDliZDY0Njc1MWY4ZDgyOTkxNTA5NzNlZWY5YjM0OWQxMzcwODhmNzQxY2UzMDY2Y2NhMjhmYTkwNmY4ODYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6Ijg5NGZkYWJmZDM1Y2FhZTRhMDI3YTIwZTIxYTgyNDE4MzVhOWQyZjQzMGYwMDg4NWExZTk5ZDlhM2U5ZjM3NjYiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjRkN2NkZWM2NjAyMWRiZDQ0MTY4ZmQwNjg4MGM4NDIwNWI5NjNjN2JmY2UyMmQ2NWJmMjA5ZTY1N2JjMTIzMDUifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_68c10044d72248e7b95c0babce82c008",
+      "statement": "三个 db_*_lexicon 工具通过混合向量检索（value_index / row_index / schema_index 的 as_retriever）探测数据库物理词典，分别返回列值真实字面量、行实体主键与属性、清洗后 DDL 的 Markdown 表格，支撑提示词契约中'先探测词典自愈、后 AskUserQuestion'的流程；test_sql_lexicon_tools.py 验证输出格式与参数纯净性。",
+      "evidence": [
+        {
+          "resource": "repo://backend/app/agent/subagents/sql/tools.py#L336-L483",
+          "version": "repo-lines-v1:sha256:091980bd9617ade2706adf000aa622c4a1bb5812a9eb95ec02e243ecc1c468dc:eyJzZWxlY3RlZExpbmVDb3VudCI6MTQ4LCJmaXJzdFNlbGVjdGVkTGluZUhhc2giOiI3MzliNDAzYzM0NmQxMzEzMDhlY2MwNTA4MGVmMTY5MjJiYzNjZTM2MzA2MDliNDA0YTdkZTdkMjYzNDAxYWJiIiwibGFzdFNlbGVjdGVkTGluZUhhc2giOiJiMzAxOWIzNThkOGQ5Njk2ZDlkYzBkZDM4N2QyNTI5YjUyM2MzYTY0ZWQxMWYxMTJlYjA5Y2FhYmQ1MTgyNGRlIiwicHJlY2VkaW5nQ29udGV4dExpbmVDb3VudCI6MywicHJlY2VkaW5nQ29udGV4dEhhc2giOiIyN2M5MDM1YmY5MmM4NTc5ZGYyYzEzYjJjODVjMDA1ZDM2ZTYxZDY1NTg0ZjVlOTQzZWU4YmY5ZmQ4MmMyMmVmIiwiZm9sbG93aW5nQ29udGV4dExpbmVDb3VudCI6MCwiZm9sbG93aW5nQ29udGV4dEhhc2giOiJlM2IwYzQ0Mjk4ZmMxYzE0OWFmYmY0Yzg5OTZmYjkyNDI3YWU0MWU0NjQ5YjkzNGNhNDk1OTkxYjc4NTJiODU1In0"
+        },
+        {
+          "resource": "repo://backend/tests/agent/tools/test_sql_lexicon_tools.py#L12-L101",
+          "version": "repo-lines-v1:sha256:a144a9645e37b23a7577fda0af43f5870590d5019a2d1614d135c215bde4b0ea:eyJzZWxlY3RlZExpbmVDb3VudCI6OTAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjkzOWJlZTcwZjViNjY0YzI0MTI4NDJmZTQyMzc4OGFmY2EyYjZiM2VmOTEzNzEyMGY1ZTAzNTkwYzdmOTYzODYiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjY0ZmE4ZmQ1MGExNzY2YzY5NjhhODNjMDUwOWZjMzM4YjkwMmEwMmIxNDAyMTNjNTFmNDI1ZWRjMWVlMzU3NzUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjhlNmNkMjRmMmVjMWVmNGJkMzhiYzBkZjAxYjhkNThjMjE2ZGI2MDYzOTlhZTNkMGJhNDQ4NDkzNGQ0MTE2YzIiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjowLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_1e9bf8deb5e84b3097ccde1780a2b7d2",
+      "statement": "build_chart_artifact 与 export_to_csv 都是 linter 门控的旁路通道工具：先运行 validate_readonly_query，再在引擎上执行查询并返回 Command(update={'messages': [ToolMessage], 'tool_artifact': {...}})——图表工具校验序列字段与点数上限后把 chart_spec 写入 ArtifactStore，CSV 工具流式写出 file_export 产物并带 OOM 熔断（sql_export_max_rows 超限删除半成品），safe_record 不泄露 stored_path 物理路径。",
+      "evidence": [
+        {
+          "resource": "repo://backend/app/agent/tools/chart_artifact_tool.py#L211-L336",
+          "version": "repo-lines-v1:sha256:1024b82c9bf8df700dfdfbf82e6abed24060ba25b36efcfef20e2cc7152b2cd2:eyJzZWxlY3RlZExpbmVDb3VudCI6MTI2LCJmaXJzdFNlbGVjdGVkTGluZUhhc2giOiIyMjdlYzZlZDRkZTMwYmJhMmQ1YTVkNWE5YjYzNjg0NjBhMGM3NjA2YzA1OTRhM2M3YzViN2U0NDliNDgzOTgxIiwibGFzdFNlbGVjdGVkTGluZUhhc2giOiJlZjYwNzgyOGQ0MWQ1OWI4YzNmNGJmZjlkNGVkMmQ0ZDg2MjM0ZThmZjhhODNlOTk0ODhmMjI4YzVkMzMzM2VhIiwicHJlY2VkaW5nQ29udGV4dExpbmVDb3VudCI6MywicHJlY2VkaW5nQ29udGV4dEhhc2giOiIzZTQxZTY1YjZjYTJmNzhhMjJiOWFmYjE2MGQ0M2ViNmZjZDE4ODUxMGMzZWIwYmIzZGZmNjc0ZGI0ZWY4NmFjIiwiZm9sbG93aW5nQ29udGV4dExpbmVDb3VudCI6MywiZm9sbG93aW5nQ29udGV4dEhhc2giOiIwNzdjZGMwZWM0N2QyZThlZjlmNDg2OGU1YmJmYjlhYWE5NjIzZWNmNjc3MWI5NDVkNmViZGJjYjk5YTQwOTdmIn0"
+        },
+        {
+          "resource": "repo://backend/app/agent/tools/csv_export_tool.py#L70-L173",
+          "version": "repo-lines-v1:sha256:d5d1fd95c150287a408d8bea3c9c37147fb32ef7836cc58f602fdb7e2715fe95:eyJzZWxlY3RlZExpbmVDb3VudCI6MTA0LCJmaXJzdFNlbGVjdGVkTGluZUhhc2giOiJiNTY5Y2IwOTI4MGVlMDc4MTk0NWU0OGQ0MDQxYmQyZGZhYWU2OTFhZDJlYWJmNWQzY2JhMDg0NmM3MjE2Y2FhIiwibGFzdFNlbGVjdGVkTGluZUhhc2giOiJlZjYwNzgyOGQ0MWQ1OWI4YzNmNGJmZjlkNGVkMmQ0ZDg2MjM0ZThmZjhhODNlOTk0ODhmMjI4YzVkMzMzM2VhIiwicHJlY2VkaW5nQ29udGV4dExpbmVDb3VudCI6MywicHJlY2VkaW5nQ29udGV4dEhhc2giOiIwZmRhNDFkMmVkMWI3Mjg0YjYzOTlhYjJiMjEwZmIwZWM5MDZjZDk5NWM1N2UxMTQ5YWJjODIxMTIzNTg0YjUyIiwiZm9sbG93aW5nQ29udGV4dExpbmVDb3VudCI6MywiZm9sbG93aW5nQ29udGV4dEhhc2giOiJmMDMzZTRkMWY0NDNlOTBlNTJiMTdmMThmZTk4MjQ2NmQzYzA5OTE1MTg3MDY2ZDVlODQ0MjQwOWI4NDVlZDQwIn0"
+        }
+      ]
+    },
+    {
+      "id": "claim_62644bcd1fa54be183c63a45479992ac",
+      "statement": "工具工厂使用原生 runtime: ToolRuntime[...] 签名（绝不用 '| None = None' 联合类型），避免 Pydantic 序列化 CallableSchema 时崩溃，且面向 LLM 的 args 永不泄露 runtime；test_tools_main_and_subagent_compatibility.py 通过 _get_all_injected_args 验证注入契约并断言 'runtime' 不在 chart/csv 工具的 args 中。",
+      "evidence": [
+        {
+          "resource": "repo://backend/app/agent/subagents/sql/tools.py#L75-L75",
+          "version": "repo-lines-v1:sha256:c9c999ae96fdb3b991f6a6f97e728535e9ed9ccf189bc59823e643ea63f74838:eyJzZWxlY3RlZExpbmVDb3VudCI6MSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiYzljOTk5YWU5NmZkYjNiOTkxZjZhNmY5N2U3Mjg1MzVlOWVkOWNjZjE4OWJjNTk4MjNlNjQzZWE2M2Y3NDgzOCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiYzljOTk5YWU5NmZkYjNiOTkxZjZhNmY5N2U3Mjg1MzVlOWVkOWNjZjE4OWJjNTk4MjNlNjQzZWE2M2Y3NDgzOCIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZDZmZDFjNjM2N2QyN2YwNWFkNTg4OWQ2YzlkNjEyMmY1OGQzYWQ4ODI4Y2Q1MTE4Yjk4ODBkZGE2ZjM1ZGQxNiIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiMGNkYzNhN2RjZDQ3ZmNkODQ1ZDA0OTdmNzMxYWY2OTI5ZjZhZjI1YTZmMWRiOWRjMjQ4MzBjOWM2MjBhMWUzYyJ9"
+        },
+        {
+          "resource": "repo://backend/app/agent/tools/chart_artifact_tool.py#L191-L199",
+          "version": "repo-lines-v1:sha256:42f08b4c2aad33d87ff8a62ae10b1da5383abe27a952d03d38a49bb107bed277:eyJzZWxlY3RlZExpbmVDb3VudCI6OSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiZTI2ZDcyNjVlOTBlNmI1ZTQ4ZmE3ODYyMWYzMWJhYjQyZDcyN2UzMjgxNjZjMTcyNzMyMDQxMjEwZjU1YzIyMCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiOTM0MjM4MjZlZDJmY2M2YjE4NDlhM2NjZjE2YTNjOGJiOTIwNjY2YzBlODRlZDViZmY3NDY1ZTUyMzcxNDI3ZSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiNDY3YjY3Yzg0NzgyOTQxMzBhODFmMjg3NzE5MTEyZWVmZWYzMjQwYjAxMWYxYWUwMjI1Y2JmNTY4MmYyMGUwZSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZDQxNmM1ZTM0M2U4NjAzNmU5Njk1ZTZjYzk0MTVlMThiZmIyMDRkNzQ3OGUwOTFkMWE3MjFiZjM3OWU5Y2Y5YyJ9"
+        },
+        {
+          "resource": "repo://backend/app/agent/tools/csv_export_tool.py#L52-L56",
+          "version": "repo-lines-v1:sha256:88f46fa19534fb0125838e9f8b033272f6e51f603f76d93f6fd70a138e2f9a4a:eyJzZWxlY3RlZExpbmVDb3VudCI6NSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiYjY5NDAzZjk2Mzk5N2NiMmM2MjU5NDFjMjU4MjA3OTNkZDZhZjk4ZTc5ZWYwYTMwZDRjNjU3NmI3N2NjZmEyNCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiOTM0MjM4MjZlZDJmY2M2YjE4NDlhM2NjZjE2YTNjOGJiOTIwNjY2YzBlODRlZDViZmY3NDY1ZTUyMzcxNDI3ZSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiMmE1ZTRiYTQ0OTlmYjU0OTBhYjA4MzlkMmQ2MmE2ZjEzNjY0NWNmNjMyZDdmYWQ1Y2M4MTE4MTNmN2FjN2YyNiIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiOTViOWM0YmQzNTBiYTdmZmFmNzQ3M2ZmM2NjMzY4MDg3YmMxODlhMDdjNDU5NDgyZTZmY2VlNjlkZGY5NmI5ZiJ9"
+        },
+        {
+          "resource": "repo://backend/tests/agent/test_tools_main_and_subagent_compatibility.py#L160-L176",
+          "version": "repo-lines-v1:sha256:c417ac80f7eb2a34459e4d84980130559e31eb66392246260c1165c8b2979d40:eyJzZWxlY3RlZExpbmVDb3VudCI6MTcsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjU1ZWU2MDA4MjBkZjVmZDg1YTI0YzFiOTNiMmVkMWVmNTMzMzYxNjFiYWE0YzQ0MDVmODE3M2JkMWFjMDA2MTYiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAxYmE0NzE5YzgwYjZmZTkxMWIwOTFhN2MwNTEyNGI2NGVlZWNlOTY0ZTA5YzA1OGVmOGY5ODA1ZGFjYTU0NmIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6Ijg5MDQ4Nzg2MDEwM2JhNGIzNDJlOTFkM2JmZGU1MDE1MmQ1MDEzYmVmNDgzYWYxM2U3YTVjN2VkN2UzYjg3MjYiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjJmNWYwMjU5MTU4ODZhOGMyNmM1NzI0NTJiZTQ4OTk5YThjMmRmYTNmNzBjZDIxMTg3ZjEyN2QxYjg2NDVlNjIifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_b164641391e44922aa67a85e0ef862fc",
+      "statement": "constants.py 的 ToolNames 与 EXCLUDED_TOOLS 集中管理工具名；service.py::_prepare_tools 用包装后的 sql_db_query 替换 toolkit 原工具，并按 EXCLUDED_TOOLS 排除 sql_db_query_checker / sql_db_list_tables / sql_db_schema（强制经 skills 获取表信息），词典工具仅在 lexicon_retriever 存在时注入。",
+      "evidence": [
+        {
+          "resource": "repo://backend/app/agent/constants.py#L9-L25",
+          "version": "repo-lines-v1:sha256:e2f80bef739fb3aac3f96ec2054c3e22558a1e742b871f1a4cb8e83a6675ce1b:eyJzZWxlY3RlZExpbmVDb3VudCI6MTcsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjBjZDYxMmNhMDhhODg3ZGVhNjg5NzkxYjYyNjE1NzQzMmE2NDcxNGFlOWUxZWE3OWFkMjZhMWRlYmQ2Y2JkMGEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjliMzllMDIyZTBkODU0MTIwMDAzZDc5MGMyOGI3NTk2MmVkZDMwMzc1NmQ1MTMzM2RmNzQ1Y2ZiODZlYTExY2UiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjQ0ODQxOWZjM2NjOTFhY2IwYTFhYjA1MTIyMDk5OWZkOWQ4MjdjYzA1YTA0Mzg1Nzc5NmYyZWJkMDY5NzA0NmUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjY0NzBmZWFkZTE5MjIxYjkwMjUzYTcxMDg0NDljNDg5ZmIxMWI0NjlmMDc5NTk5ZTRjOGQ1YTIzNjVkNmJhZGYifQ"
+        },
+        {
+          "resource": "repo://backend/app/agent/service.py#L275-L349",
+          "version": "repo-lines-v1:sha256:a78437c1ea7af584ff66e76c3b498e2c19d0f513583e5dcf923ba4123a9617cf:eyJzZWxlY3RlZExpbmVDb3VudCI6NzUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjgyMjM4ODc2MGYxNjhjY2VlZTFhOTJjMGQ2MTZhODI2MzYxMTNkZWMzMTg3YmMzOTA5YzJkNTdjZDNhNjcxMmQiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImExNDZmNDMzMDcyYWIyMzk5NzJiMzFhNmNiMmQwMDdjYWU2MWU5OTUzMjAwZDhjM2E1MWY0ODBiNzlkMDE4ODMiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjBlZTVkMTdkNzkzNDE3MDk5ZTcwYThiOGY4YjEwM2VkM2E5MGNlMzQ3NmMyYTg1ODYyOTM2MTczMzU5NTI1MTAiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImZkNDIyOWNjNWY3ODM5MzAxMzQzMjMxOWFiMjA5NzliNjI5MjgzM2YxZjE4ZDQ5MTIwNDhjMDhjYTA2MzJjMDYifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_11d7f5a941cf488392da6657a35a3c06",
+      "statement": "test_tool_error_contract.py 是 N6 错误契约与 N5 tokenizer 熔断的聚焦回归：test_lexicon_tools_error_prefix_and_handle_flag 用抛异常的伪造检索器断言三个词典工具 handle_tool_error is True 且失败输出以 'Error: ' 开头，test_skill_tools_handle_flag 断言 load_skill/load_scenario 开关，两个 estimator 熔断测试断言首次 404 后 post_count == 1。",
+      "evidence": [
+        {
+          "resource": "repo://backend/tests/agent/test_tool_error_contract.py#L33-L64",
+          "version": "repo-lines-v1:sha256:6d197146107e658a11ebaf5095e535e10b49ae9d96ddb719f1b242f8ce1699f4:eyJzZWxlY3RlZExpbmVDb3VudCI6MzIsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjMxMWE2Y2VmYjAzM2I0MWEzMDg4N2E2MmM2ZmY1NzdlMWZmMmJlMmFlODU2NWU4M2Q4NzI3MWRmODY3ODEyNTAiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImU4ZWFiZjIxMTQ2NjczNDFiYjllZjkxMmE3MTc1ZWIxYjE5MTQwYzZkMDdlZTU1N2U1MGU5NmVmNjlmNjUxNmEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjM1OGJmMjU0NmE2MjU5YzU5YmVjNzhlZmVkMmJmMTNiMDUyNjA3ZDBkMzIzM2I4NjI0YmZiOTRiYjkwMzlmZTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjlkYWU1ZTA5NzllMGYxOWFiYTU0OTY4ZjQyMDRkOWU5YTM0Mjg2ZWE1NjUzOWM3ZDg3YzkzZDhkN2I4MzVmOGEifQ"
+        },
+        {
+          "resource": "repo://backend/tests/agent/test_tool_error_contract.py#L84-L107",
+          "version": "repo-lines-v1:sha256:9cb1c9790d0da415a2cb877539d39175d7789391aaf5f08bc0bd047250b71d40:eyJzZWxlY3RlZExpbmVDb3VudCI6MjQsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjNiYWEyOWQ4YWMzNzY2MTIwYTQ3NmMyNjE1ZDI4MDg1NjAzNGU4YWYxYzM4OTI0MDZlMDQ2NjMzODA2ODIyZGIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjM4MjYyNTJlMmI0MjlhZjFkZjdlODllNTIwYThiZDk4NGEzZmM5ZjhlY2E0MzYwOWRkM2YwMTJiYmQ3NDE1YTAiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImI5YjA0ZjhkMjYwMmI3ZjI2NDhkNmY5MjJkZTc2M2JmYjQzNzU1Yzg2ZTNiODFhNjgyNDBkZTcyOWRmMjI0YmMiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjowLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUifQ"
+        }
+      ]
+    }
+  ],
+  "verification": {
+    "by": "openwiki/0.4.3",
+    "at": "2026-08-30T09:34:27.074Z"
+  }
+}

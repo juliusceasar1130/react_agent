@@ -6,6 +6,49 @@ tags: [quickstart, navigation]
 openwiki:
   roles: [repository]
   change_kinds: [navigation]
+verified:
+  - by: openwiki/0.4.3
+    at: 2026-08-30T09:34:27.074Z
+sources:
+  - id: openwiki-source-b6de53dbd98682810a0d22dd
+    resource: repo://backend/app/agent/config/profile_loader.py
+  - id: openwiki-source-61b1044eaa543499e296aef4
+    resource: repo://backend/app/agent/context.py
+  - id: openwiki-source-b0a17fc9494308297a9d277f
+    resource: repo://backend/app/agent/middleware/prompt_compiler_middleware.py
+  - id: openwiki-source-da99e0252c3f71a583ce0b81
+    resource: repo://backend/app/agent/middleware/rag_prompt_injector_middleware.py
+  - id: openwiki-source-be1d78a2f8abe4d10dd814ee
+    resource: repo://backend/app/agent/service.py
+  - id: openwiki-source-e80de85d123786a60f124628
+    resource: repo://backend/app/agent/subagents/sql/tools.py
+  - id: openwiki-source-7fef2980ecaa695d2f8d3f90
+    resource: repo://backend/app/agent/utils/llama_cpp_token_estimator.py
+  - id: openwiki-source-979a5da7c8dfc9bf4d7b96f5
+    resource: repo://backend/app/agent/utils/vllm_token_estimator.py
+  - id: openwiki-source-4188bfee2e15d969d3152477
+    resource: repo://backend/app/config.py
+  - id: openwiki-source-181046f9b9fb4eb1d2d76114
+    resource: repo://backend/app/routers/chat.py
+  - id: openwiki-source-c052fae739a4f7f9af1d35f1
+    resource: repo://backend/app/schemas.py
+  - id: openwiki-source-41863953653ad4cd47aa60a2
+    resource: repo://backend/tests/agent/test_tool_error_contract.py
+  - id: openwiki-source-86488ad52172c293ceaa082e
+    resource: repo://docs/architecture/adr-model-sampling-profiles.md
+  - id: openwiki-source-0f7aec6b703e12a01bb0c167
+    resource: repo://docs/architecture/glossary-model-sampling.md
+  - id: openwiki-source-1195d204477ba1ef200811b5
+    resource: repo://frontend/index.html
+  - id: openwiki-source-a65b92db11e257b9aee419ec
+    resource: repo://frontend/src/api/chat.ts
+  - id: openwiki-source-96bc62ae64beb4d42595fccc
+    resource: repo://frontend/src/types/index.ts
+  - id: openwiki-source-8387524ace62d9d46eaeb53e
+    resource: repo://openspec/changes/phase2-sampling-profiles-stage-c/spec.md
+  - id: openwiki-source-498d91cb54f5f142eef1e7ba
+    resource: repo://openspec/changes/phase3-thinking-levels/spec.md
+generated: { by: "openwiki/0.4.3", at: "2026-08-30T09:34:27.074Z" }
 ---
 
 # OpenWiki 快速上手 — rearch_agent
@@ -29,9 +72,9 @@ openwiki:
 | 添加工具 / 加固 SQL 防护 | [工具与 SQL 检查器](architecture/tools-and-sql-linter.md) | `backend/app/agent/subagents/sql/tools.py`, `backend/app/agent/utils/sql_linter.py` | `create_wrapped_query_tool`, `SQLLinter`, `ToolNames` | `tests/agent/test_tools_main_and_subagent_compatibility.py`, `tests/agent/tools/` | `cd backend && python -m pytest tests/agent/test_tools_main_and_subagent_compatibility.py tests/agent/tools -q` |
 | 添加领域技能 / 场景 | [技能与场景](domain/skills-and-scenarios.md) | `backend/app/skills/domains/`, `backend/app/routers/scenarios.py` | `reload_skills`, `discover_domains`, `resolve_params` | `tests/test_scenario_quick_panel_api.py` | `cd backend && python -m pytest tests/test_scenario_quick_panel_api.py tests/test_scenario_quick_panel_engine.py -q` |
 | 添加中间件 / 变更提示编译 | [中间件流水线](architecture/middleware-pipeline.md) | `backend/app/agent/middleware/`, `backend/app/agent/service.py` | `SkillMiddleware`, `PromptCompilerMiddleware`, `_build_agent_components` | `tests/agent/middleware/`, `tests/agent/vector/sql_lexicon/test_rag_middleware.py` | `cd backend && python -m pytest tests/agent/middleware tests/agent/vector/sql_lexicon/test_rag_middleware.py -q` |
-| 切换采样参数 / 思考强度档位 | [采样参数组合与动态注入](architecture/sampling-profiles.md) | `backend/app/agent/config/profile_loader.py`, `backend/app/agent/config/model_sampling_profiles.yaml`, `backend/app/routers/chat.py`, `frontend/src/composables/useChatStream.ts` | `get_sampling_profile`, `apply_profile_to_model_settings`, `REASONING_EFFORT_TRANSPORT`, `thinking_level_map`, `ThinkingLevel`, `SegmentedControl` | `tests/agent/test_sampling_profile_loader.py`, `tests/agent/middleware/test_prompt_compiler_middleware.py`, `tests/agent/middleware/test_rag_prompt_injector_middleware.py` | `cd backend && python -m pytest tests/agent/test_sampling_profile_loader.py tests/agent/middleware/test_prompt_compiler_middleware.py tests/agent/middleware/test_rag_prompt_injector_middleware.py -q && cd frontend && npx vue-tsc --noEmit` |
+| 切换采样参数 / 思考强度档位 | [采样参数组合与动态注入](architecture/sampling-profiles.md) | `backend/app/agent/config/profile_loader.py`, `backend/app/agent/config/model_sampling_profiles.yaml`, `backend/app/routers/chat.py`, `frontend/src/composables/useChatStream.ts`；设计权威：`docs/architecture/adr-model-sampling-profiles.md`、`docs/architecture/glossary-model-sampling.md`、`openspec/changes/phase2-sampling-profiles-stage-c/spec.md`、`openspec/changes/phase3-thinking-levels/spec.md` | `get_sampling_profile`, `apply_profile_to_model_settings`, `REASONING_EFFORT_TRANSPORT`, `thinking_level_map`, `ThinkingLevel`, `SegmentedControl` | `tests/agent/test_sampling_profile_loader.py`, `tests/agent/middleware/test_prompt_compiler_middleware.py`, `tests/agent/middleware/test_rag_prompt_injector_middleware.py` | `cd backend && python -m pytest tests/agent/test_sampling_profile_loader.py tests/agent/middleware/test_prompt_compiler_middleware.py tests/agent/middleware/test_rag_prompt_injector_middleware.py -q && cd frontend && npx vue-tsc --noEmit` |
 | 编辑系统提示 / 主↔子代理协作契约 | [代理提示](architecture/agent-prompts.md) | `backend/app/agent/prompts/main_system_prompt.md`, `backend/app/agent/subagents/sql/base_system_prompt.md`, `backend/app/agent/utils/system_prompt_loader.py` | `SystemPromptLoader`, `_build_main_system_prompt`, `_build_system_prompt` | `tests/agent/test_main_system_prompt.py`, `tests/agent/utils/test_system_prompt_loader.py` | `cd backend && python -m pytest tests/agent/test_main_system_prompt.py tests/agent/utils/test_system_prompt_loader.py -q` |
-| 切换或扩展 LLM / 令牌引擎 | [代理服务](architecture/agent-service.md) | `backend/app/agent/llm.py`, `backend/app/agent/service.py` | `_create_llm`, `ReasoningAwareChatDeepSeek`, `VllmTokenEstimator` | `tests/agent/test_chat_deepseek_integration.py` | `cd backend && python -m pytest tests/agent/test_chat_deepseek_integration.py -q` |
+| 切换或扩展 LLM / 令牌引擎 | [代理服务](architecture/agent-service.md) | `backend/app/agent/llm.py`, `backend/app/agent/service.py`, `backend/app/agent/utils/llama_cpp_token_estimator.py`, `backend/app/agent/utils/vllm_token_estimator.py` | `_create_llm`, `_create_token_estimator`, `ReasoningAwareChatDeepSeek`, `VllmTokenEstimator`, `LlamaCppTokenEstimator`, `TOKEN_ESTIMATOR_ENGINE`（N5 熔断：`/tokenize` 首次 HTTP 失败即熔断，永久退回 `_estimate_fallback_tokens` 保守估算，不再逐请求重试） | `tests/agent/test_chat_deepseek_integration.py`, `tests/agent/test_tool_error_contract.py` | `cd backend && python -m pytest tests/agent/test_chat_deepseek_integration.py tests/agent/test_tool_error_contract.py -q` |
 | 添加流事件类型 | [流协议](workflows/streaming-protocol.md) | `backend/app/schemas.py`, `frontend/src/api/chat.ts`, `frontend/src/types/index.ts` | `ChatStreamEvent`, `STREAM_EVENT_TYPES`, `parseStreamEvent` | `tests/test_routers_coverage.py`, `tests/agent/test_subagent_stream_scoping.py` | `cd backend && python -m pytest tests/test_routers_coverage.py -q && cd frontend && npx vue-tsc --noEmit` |
 | 添加新的工件类型 | [工件生命周期](workflows/artifact-lifecycle.md) | `backend/app/artifacts/`, `backend/app/routers/artifacts.py` | `ArtifactKind`, `ArtifactStore`, `get_artifact_store` | `tests/agent/test_artifact_store_lifecycle.py`, `tests/test_tool_artifacts_persistence.py` | `cd backend && python -m pytest tests/agent/test_artifact_store_lifecycle.py tests/test_tool_artifacts_persistence.py -q` |
 | 变更状态 / 上下文沙箱隔离 | [状态与上下文](architecture/state-and-context.md) | `backend/app/agent/state.py`, `backend/app/agent/context.py` | `CustomState`, `SqlSubAgentState`, `RequestContext` | `tests/agent/test_state_sandboxing_concurrency.py`, `tests/agent/test_context_api_transient_flow.py` | `cd backend && python -m pytest tests/agent/test_state_sandboxing_concurrency.py tests/agent/test_context_api_transient_flow.py -q` |

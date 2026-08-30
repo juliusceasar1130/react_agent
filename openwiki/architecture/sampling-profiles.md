@@ -1,25 +1,83 @@
 ---
 type: 组件
 title: "模型采样参数组合与动态注入（Sampling Profiles）"
-description: "按前端 enable_thinking / thinking_level 逐请求动态覆写 LLM 采样参数（temperature/top_p/top_k/reasoning_effort 等）的配置子系统：YAML profile + profile_loader、三段传输结构、reasoning_effort 传输位置开关，以及双中间件注入与请求透传链路。"
+description: "按前端 enable_thinking / thinking_level 逐请求动态覆写 LLM 采样参数（temperature/top_p/top_k/reasoning_effort 等）的配置子系统：YAML profile + profile_loader、三段传输结构、reasoning_effort 传输位置开关，以及双中间件注入与请求透传链路。设计意图的权威来源是 ADR 与 Phase 2/3 设计/规范文档。"
 tags: [architecture, llm, sampling, middleware, config]
 openwiki:
   roles: [architecture, runtime, domain]
   change_kinds: [config, lifecycle, public-api]
-  source_paths: [backend/app/agent/config/profile_loader.py, backend/app/agent/config/model_sampling_profiles.yaml, backend/app/agent/middleware/prompt_compiler_middleware.py, backend/app/agent/middleware/rag_prompt_injector_middleware.py, backend/app/schemas.py, backend/app/routers/chat.py, frontend/src/composables/useChatStream.ts, frontend/src/components/common/SegmentedControl.vue]
-  symbols: [get_sampling_profile, apply_profile_to_model_settings, _load_profiles, _get_effort_transport, thinking_level_map, ChatRequest, SegmentedControl, ThinkingLevel]
-  test_paths: [backend/tests/agent/test_sampling_profile_loader.py, backend/tests/agent/middleware/test_prompt_compiler_middleware.py, backend/tests/agent/middleware/test_rag_prompt_injector_middleware.py]
+  source_paths: [backend/app/agent/config/profile_loader.py, backend/app/agent/config/model_sampling_profiles.yaml, backend/app/agent/middleware/prompt_compiler_middleware.py, backend/app/agent/middleware/rag_prompt_injector_middleware.py, backend/app/agent/service.py, backend/app/schemas.py, backend/app/routers/chat.py, frontend/src/composables/useChatStream.ts, frontend/src/types/index.ts, frontend/src/views/ChatView.vue, frontend/src/components/common/SegmentedControl.vue, docs/architecture/adr-model-sampling-profiles.md, docs/architecture/glossary-model-sampling.md, docs/thinking_mode/phase2_sampling_profiles_design.md, docs/thinking_mode/phase3_thinking_levels_design.md, openspec/changes/phase2-sampling-profiles-stage-c/spec.md, openspec/changes/phase3-thinking-levels/spec.md]
+  symbols: [get_sampling_profile, apply_profile_to_model_settings, _load_profiles, _get_effort_transport, _inject_thinking_config, thinking_level_map, ChatRequest, SegmentedControl, ThinkingLevel]
+  test_paths: [backend/tests/agent/test_sampling_profile_loader.py, backend/tests/agent/middleware/test_prompt_compiler_middleware.py, backend/tests/agent/middleware/test_rag_prompt_injector_middleware.py, backend/tests/manual_verify_sampling_request_body.py]
   invariants:
     - enable_thinking/thinking_level 经 LangChain configurable 透传，双中间件（RagPromptInjectorMiddleware + PromptCompilerMiddleware）对称注入采样参数组合；只改一边会被 AGENTS.md 约定视为错误。
     - thinking_level 仅对 thinking 档生效（覆写 reasoning_effort）；fast 档不传 reasoning_effort，忽略传入的 level。
     - get_sampling_profile 返回 copy.deepcopy，调用方修改不得污染 lru_cache 全局配置。
     - resume 端点不继承 enable_thinking/thinking_level（现状不传 configurable）。
+    - REASONING_EFFORT_TRANSPORT 非法值导入即抛 ValueError（fail-fast）。
   validation_commands: ["cd backend && python -m pytest tests/agent/test_sampling_profile_loader.py tests/agent/middleware/test_prompt_compiler_middleware.py tests/agent/middleware/test_rag_prompt_injector_middleware.py -q", "cd frontend && npx vue-tsc --noEmit"]
+verified:
+  - by: openwiki/0.4.3
+    at: 2026-08-30T09:34:27.074Z
+sources:
+  - id: openwiki-source-46e27c281a38b08a21958ae2
+    resource: repo://backend/app/agent/config/model_sampling_profiles.yaml
+  - id: openwiki-source-b6de53dbd98682810a0d22dd
+    resource: repo://backend/app/agent/config/profile_loader.py
+  - id: openwiki-source-b0a17fc9494308297a9d277f
+    resource: repo://backend/app/agent/middleware/prompt_compiler_middleware.py
+  - id: openwiki-source-da99e0252c3f71a583ce0b81
+    resource: repo://backend/app/agent/middleware/rag_prompt_injector_middleware.py
+  - id: openwiki-source-be1d78a2f8abe4d10dd814ee
+    resource: repo://backend/app/agent/service.py
+  - id: openwiki-source-181046f9b9fb4eb1d2d76114
+    resource: repo://backend/app/routers/chat.py
+  - id: openwiki-source-c052fae739a4f7f9af1d35f1
+    resource: repo://backend/app/schemas.py
+  - id: openwiki-source-eb1ab9fd7623f3e257356410
+    resource: repo://backend/tests/agent/middleware/test_prompt_compiler_middleware.py
+  - id: openwiki-source-bd7546b6934876fe814a7e82
+    resource: repo://backend/tests/agent/middleware/test_rag_prompt_injector_middleware.py
+  - id: openwiki-source-66e100a9640e1a70ac64270b
+    resource: repo://backend/tests/agent/test_sampling_profile_loader.py
+  - id: openwiki-source-b3d1ee16f6495555cb08dac7
+    resource: repo://backend/tests/manual_verify_sampling_request_body.py
+  - id: openwiki-source-86488ad52172c293ceaa082e
+    resource: repo://docs/architecture/adr-model-sampling-profiles.md
+  - id: openwiki-source-0f7aec6b703e12a01bb0c167
+    resource: repo://docs/architecture/glossary-model-sampling.md
+  - id: openwiki-source-56b3c9697acdfe4205a2bb50
+    resource: repo://docs/thinking_mode/phase2_sampling_profiles_design.md
+  - id: openwiki-source-8391d782f6a1863486dca03f
+    resource: repo://docs/thinking_mode/phase3_thinking_levels_design.md
+  - id: openwiki-source-95bc47c4497ebc63b8589fe1
+    resource: repo://frontend/src/components/common/SegmentedControl.vue
+  - id: openwiki-source-d2102e70999a32a3d0c41ad2
+    resource: repo://frontend/src/composables/useChatStream.ts
+  - id: openwiki-source-96bc62ae64beb4d42595fccc
+    resource: repo://frontend/src/types/index.ts
+  - id: openwiki-source-2364f8f02f9759bfd326b2cd
+    resource: repo://frontend/src/views/ChatView.vue
+  - id: openwiki-source-8387524ace62d9d46eaeb53e
+    resource: repo://openspec/changes/phase2-sampling-profiles-stage-c/spec.md
+  - id: openwiki-source-498d91cb54f5f142eef1e7ba
+    resource: repo://openspec/changes/phase3-thinking-levels/spec.md
+generated: { by: "openwiki/0.4.3", at: "2026-08-30T09:34:27.074Z" }
 ---
 
 # 模型采样参数组合与动态注入（Sampling Profiles）
 
 `backend/app/agent/config/` 承载"按请求动态覆写 LLM 采样参数"的配置子系统：`model_sampling_profiles.yaml` 声明 thinking / fast 两档参数组合，`profile_loader.py` 负责加载、校验与机械写入 `model_settings`，两个[中间件](middleware-pipeline.md)在 pre-model 时刻从客户端传入的 `configurable.enable_thinking` / `configurable.thinking_level` 打捞参数并注入。功能演进：Phase 2 实现思考/快答二档切换；Phase 3 在 thinking 档内增加 `thinking_level` 四档强度（UI 档位 → `reasoning_effort` 映射）。
+
+## 设计权威文档（Design Authority）
+
+本功能的设计意图权威来源如下（wiki 只做导航与运行时契约速览，不复制其内容；行为变更应先更新这些文档，再同步本页）：
+
+- **ADR**：`docs/architecture/adr-model-sampling-profiles.md` — D1–D7 决策记录：中间件层动态覆写（D1）、YAML 配置源与 fail-fast（D2）、仅思考/非思考二档泛化（D3）、reasoning_effort 与 enable_thinking 同时注入（D4）、参数分层复用现有约定（D5）、双中间件保持现状（D6）、reasoning_effort 传输位置开关（D7，ninfer 切换），以及"profile 全量覆写 init-time 默认"的覆写语义。
+- **术语表**：`docs/architecture/glossary-model-sampling.md` — 采样参数组合 / 思考模式 / 快答模式 / 参数分层 / `enable_thinking` / `reasoning_effort` / `thinkingLevelMap` 等术语定义与历史修正。
+- **Phase 2 设计**：`docs/thinking_mode/phase2_sampling_profiles_design.md` — 二档切换完整方案（需求来源、传输分层、被否决方案：双 LLM 实例 / 前端传完整参数集 / 环境变量扩展）。
+- **Phase 3 设计**：`docs/thinking_mode/phase3_thinking_levels_design.md` — 思考强度多级控制；§3.5 为 `REASONING_EFFORT_TRANSPORT` 传输位置开关的细节（ninfer 与 vLLM ≤0.27.1 的约定差异）。
+- **变更规范**：`openspec/changes/phase2-sampling-profiles-stage-c/spec.md`（阶段 C 端到端验收与收尾）、`openspec/changes/phase3-thinking-levels/spec.md`（四档选择器实现决策与测试清单）。
 
 ## 三段结构与传输分层
 
@@ -100,8 +158,9 @@ _采样参数注入链路：前端档位 → 请求字段 → configurable → �
 
 - 双中间件**对称注入**：`test_prompt_compiler_middleware.py` / `test_rag_prompt_injector_middleware.py` 各覆盖 enable_thinking True/False/None 三态 + Phase 3 的 level 覆写（`test_*_thinking_level_high_overrides_effort`、`test_*_thinking_level_none_defaults_medium`、`test_*_fast_with_thinking_level_ignores_level`、transport=ctk 对称用例）。
 - loader 语义：`backend/tests/agent/test_sampling_profile_loader.py`（`test_load_profiles_returns_both_modes`、`test_load_profiles_unknown_section_raises`、`test_get_sampling_profile_*` 系列、`test_get_sampling_profile_returns_deep_copy`、transport 四用例 `test_get_sampling_profile_transport_*`、`test_get_sampling_profile_invalid_transport_raises`）。
+- 覆写语义（ADR 后果）：客户端显式传 `enable_thinking` 时，profile 参数**全量覆写** `_create_llm` 的 init-time 默认值（非叠加）；`enable_thinking=None` 时中间件不覆写，保留启动默认——形成 `profile → init-time env 默认` 的 fallback 链。
 - 最小验证：`cd backend && python -m pytest tests/agent/test_sampling_profile_loader.py tests/agent/middleware/test_prompt_compiler_middleware.py tests/agent/middleware/test_rag_prompt_injector_middleware.py -q`；前端 `cd frontend && npx vue-tsc --noEmit`。
-- 端到端手工验证脚本：`backend/tests/manual_verify_sampling_request_body.py --level low|medium|high`（网络层抓包校验 reasoning_effort 到达 vLLM 请求体）。
+- 端到端手工验证脚本：`backend/tests/manual_verify_sampling_request_body.py [thinking|fast] [--level low|medium|high]`（httpx `RecordingTransport` 拦截实际 HTTP 请求体，校验 reasoning_effort 到达 LLM 网络包）。
 
 ## 变更配方
 
@@ -110,5 +169,6 @@ _采样参数注入链路：前端档位 → 请求字段 → configurable → �
 3. **切换推理后端**：只改 `.env` 的 `REASONING_EFFORT_TRANSPORT`（`top_level`=ninfer / `chat_template_kwargs`=vLLM ≤0.27.1）并重启；不要改代码或 YAML 结构。
 4. **新增 profile 档位**：需要新的 `_REQUIRED_PROFILES` 成员 + YAML 段落，并检查 `get_sampling_profile` 的选择逻辑。
 5. **前端档位变更**：`ThinkingLevel` 联合类型（`frontend/src/types/index.ts`）、`useChatStream.ts` 的 ref 与两个 payload、`ChatView.vue` 的 `SegmentedControl` options 三处需同步。
+6. **行为语义变更**：先更新设计权威文档（ADR / Phase 2、3 设计 / openspec spec），再同步本页与测试。
 
 非目标：`temperature`/`top_p` 不随 level 变化（用户确认"仅控 reasoning_effort"）；不扩展为每档独立完整参数组（`thinking_level_map` 为未来扩展留了复用空间）。

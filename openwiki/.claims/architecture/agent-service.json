@@ -1,0 +1,248 @@
+{
+  "schemaVersion": 1,
+  "pageVersion": "sha256:e093af8052a19600b93d82c03f57af40f652fcefd6e8efc683327270c5077ade",
+  "claims": [
+    {
+      "id": "claim_2f13e5bf9ffc48a081d0158615d0e0c3",
+      "statement": "SQLAgentService（backend/app/agent/service.py）是代理系统的组装核心；build_agent_graph 是 langgraph.json 中唯一的图工厂入口（指向 service.py:build_agent_graph），始终按托管模式创建并缓存模块级 _MANAGED_AGENT_SERVICE 单例，避免每次调用工厂都重新初始化模型/数据库元信息。",
+      "evidence": [
+        {
+          "resource": "repo://backend/app/agent/service.py#L681-L698",
+          "version": "repo-lines-v1:sha256:4682ac140996fdd479813b238f639bc339f2d717b5c16b8e9905e101815e6cca:eyJzZWxlY3RlZExpbmVDb3VudCI6MTgsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjI2MDk4MDg3YTU3NjMxYjcyNzJjNzZjNTdhOTViNmY1NjA1MWM4NzhhNTE3ZGFlMmU5OTUyN2ZjYmU2ZjkxYzUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImQxODNhYWJjOTE1ZjdiNDFkOGZjNGJmMGNkMjEwMmU4YjFhM2JiZTA0NTJjYWVhMWMzMzQ1ZDllZmJjNGQ3OWIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjFkOGJkZTg4OTE5NzU0NGQ0Y2FmMTU0YjRmMGQyZDhjYjQ2YzcwMmU1Y2M2M2EwOTU3OTM3Y2VjZjgwOTExNzQiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjowLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUifQ"
+        },
+        {
+          "resource": "repo://langgraph.json#L1-L9",
+          "version": "repo-lines-v1:sha256:29cc47702d1f01678928c09d5c121731313b524489939a72dde032035c8ded1d:eyJzZWxlY3RlZExpbmVDb3VudCI6OSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiODNlYWU3ZTZhNGQzYzcxYmNjOTYzMjhjNTE5ZmJhMjk0MWVlNDg2OTY4YTZkNjMyMmZiMDhjZWI0NGUzZWZkNiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiZTIyZmFhNTM1YmQyZWEzZDUyZTc0MWVkNDU0NDM1YjdmZTQ5ZTgzNTg2ZTk0M2Q5OGQ4MmJiZmIyNGQxZjVjNSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjAsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZTNiMGM0NDI5OGZjMWMxNDlhZmJmNGM4OTk2ZmI5MjQyN2FlNDFlNDY0OWI5MzRjYTQ5NTk5MWI3ODUyYjg1NSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjAsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZTNiMGM0NDI5OGZjMWMxNDlhZmJmNGM4OTk2ZmI5MjQyN2FlNDFlNDY0OWI5MzRjYTQ5NTk5MWI3ODUyYjg1NSJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_702c0f8073a043a2bdd82b98558dead6",
+      "statement": "同步 _initialize_agent 与异步 _ainitialize_agent 两条初始化路径都先调用 _load_profiles()（采样配置 eager load + fail-fast 校验，YAML 缺失或 profile 不全在启动即抛错），再调用共享的 _build_agent_components()，并各自创建对应持久化资源；AGENTS.md 明确要求两条路径保持 100% 同步。",
+      "evidence": [
+        {
+          "resource": "repo://AGENTS.md#L54-L54",
+          "version": "repo-lines-v1:sha256:8ea8f7ca640d1e1fdbb5ce5d6d68bea550fd2d87c5c467413950b47a3afd4c82:eyJzZWxlY3RlZExpbmVDb3VudCI6MSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiOGVhOGY3Y2E2NDBkMWUxZmRiYjVjZTVkNmQ2OGJlYTU1MGZkMmQ4N2M1YzQ2NzQxMzk1MGI0N2EzYWZkNGM4MiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiOGVhOGY3Y2E2NDBkMWUxZmRiYjVjZTVkNmQ2OGJlYTU1MGZkMmQ4N2M1YzQ2NzQxMzk1MGI0N2EzYWZkNGM4MiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiN2M4Mjk1ODAyY2JjMjExZWM0MjBkYjU2ODZiYjUyODFjMzFmYmU0Njk4M2Y2ODJhYzllM2Y5MGQ4N2U1YThjZiIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZWNlZWYxMTViODM4MDIzZTkxMzIwNTk0MzM3OWIzZjgxOWZmNDE3ZGE3ODg5ZTM0ZDY0YzYxOWVlZTE1NzQyMyJ9"
+        },
+        {
+          "resource": "repo://backend/app/agent/service.py#L615-L659",
+          "version": "repo-lines-v1:sha256:0d885281ae8fd435168565818caa335c659ce0f63327047e892359bb7758b755:eyJzZWxlY3RlZExpbmVDb3VudCI6NDUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImUyNWI5YTk5OTU2YzA0YzVjYTY4MDY5NTM2NmZlODlmOTI3NmQ1ZDY3YWFhNDQ4N2E3YWNjOTk3NzE2YmI5YzMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImIyOWM1MjQ0MzRjMDA5YWFmMGQ3ZmU5ZTJmZmU3MjJiMTcwY2Y4ZWIxYzhjMTU3NWU0ZTNiZDUxZTkyNmM3MWIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjcyMDAzZDJkODRiYTQ5ZDk4ZjFmNzEyOGU1YjM4OTJkMzRiY2UzNGUzODc2N2E5MTg5MmUzYjU0YmUyMzFlN2IiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjZjYjVkMTdhYmNhMTEzMDhhNmJjMTQ0Y2NkMDYyYTkyMjIxNThlN2VmOTZmODgxOGE4OWFkYTY4MmExMjRhOGEifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_6dd16e95ed5d40a59f233232dc488764",
+      "statement": "_build_agent_components() 以无状态方式组装全部组件（LLM、业务数据库、RAG、工具、token 估算器、SQL 子代理、主代理中间件列表与提示词），是两条初始化路径共享的组件单一来源；RAG doc_k 在有重排器时为 10、否则为 5。",
+      "evidence": [
+        {
+          "resource": "repo://backend/app/agent/service.py#L444-L597",
+          "version": "repo-lines-v1:sha256:8e93fd14b555435e9181165e13f6b4c1f4fa2012a9e4d7a630a45578bd1b224a:eyJzZWxlY3RlZExpbmVDb3VudCI6MTU0LCJmaXJzdFNlbGVjdGVkTGluZUhhc2giOiJlZGExMjQ3ZDc0NjE5MjBjZmNiZWFlNWM5YTc3ZDIwNmQyZmEyN2QzZWZmNWFmYjJkZTdmM2RlZDFiN2UyZmM3IiwibGFzdFNlbGVjdGVkTGluZUhhc2giOiJlNmIwNDQ5MTQ2OTcyMmU4MzYzYTk0ZTQwNDQ1MzhlMDEzYTJhMjE3ZTM2YjFlNTY4YmE2MGFjYjdiNGM4ZjJlIiwicHJlY2VkaW5nQ29udGV4dExpbmVDb3VudCI6MywicHJlY2VkaW5nQ29udGV4dEhhc2giOiI2N2UyNGNlOTQxOTAxYmQ2N2NhMzk4MTdhZTRlNTgyNDdhY2YxYjE3MWUzZDhhMTc3ZjE5OTI5OGE2Mzg1MDE1IiwiZm9sbG93aW5nQ29udGV4dExpbmVDb3VudCI6MywiZm9sbG93aW5nQ29udGV4dEhhc2giOiI0NTdhZjA2NzA5MjFiMzVmZTAyMWZmZjFlODQ5MzQ4MmJjNjAyMzE1Y2UxYjk4Yzk5ZWVkYTIwZjViZTFiMDlmIn0"
+        },
+        {
+          "resource": "repo://backend/app/agent/service.py#L460-L476",
+          "version": "repo-lines-v1:sha256:dbf5ead7696d280927bb32bfc3927ca7b48b4ecc3f4252ac3b106105c2c9fc58:eyJzZWxlY3RlZExpbmVDb3VudCI6MTcsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImI1NjljYjA5MjgwZWUwNzgxOTQ1ZTQ4ZDQwNDFiZDJkZmFhZTY5MWFkMmVhYmY1ZDNjYmEwODQ2YzcyMTZjYWEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjNiM2ZiN2U4ODI1NzlhYmYzYWExMDJkYmI1NDZkOGFjMDBkNzE2YTFkNmI2ZmFjMzUwMTQ0YjBmZWQzZjg5YTIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImY5NzM2ZmY2NDZiMjUwMGFlMDAyNDg1YWM4ZDBhZWJjZDU0MGU4MWNmNWFkYmJlM2VkZDRlMDg5NTNiOWFmZGQiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjBmNDljODVmYmNkMmNiNzVlZTAzZWUwMDNlNWEyNDlkODliYjJlNGI2NTE5YjZlZGFjZjBmNDY1YmU0MTM2OTcifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_088bd91af3164fac99e33b8e6d5cd99b",
+      "statement": "持久化按运行模式区分：托管（LangGraph）模式跳过本地 checkpointer 初始化，由 LangGraph 注入 Store/Checkpointer；本地模式创建 PostgresSaver（同步）/ AsyncPostgresSaver（异步）并管理基于 DATABASE_URL 的 psycopg 连接池；aclose() 释放本地异步连接池。",
+      "evidence": [
+        {
+          "resource": "repo://backend/app/agent/service.py#L190-L216",
+          "version": "repo-lines-v1:sha256:7fbcf3fbb0dedb57a7cc22ae42104da32c805669d039dbc66ea6d8395c95b55f:eyJzZWxlY3RlZExpbmVDb3VudCI6MjcsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjVmZTdjZTE0ZjEyMDQ3YTEwN2Y3ODNlNGE2YjQwMzdhZGYzY2U5NmM0Y2IwNWM0Yzc1MTU3M2UxNmIwMDIzMzIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAwNTk5YzRhZDIzNGViNjQyMjQyNTM4N2U5N2Q5ZjFmMjk4OTBjZTJhMmExY2UzMjJhNzc3NDNhMjlkNjM1NzUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjcyMDQxOTQyNDY3YzVmZDM5MmJmNzllYWQyZDA4MzkwMGVjYmM4OGM4Mzc4N2I4MTg0MmIyOGM4MDE2NjY2YzkiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjdlMjQxNDBhOTI3ZWY2NzM0NDE4ZDUzM2EyMzhkMzQ3MTNmMzY0M2YzMTBmNDRmYWZlZTVmZjBkMDQxMmE5OWUifQ"
+        },
+        {
+          "resource": "repo://backend/app/agent/service.py#L416-L442",
+          "version": "repo-lines-v1:sha256:65ef32296bac7a3404f71465eacc400f67e3f8687b81679022ab577269643940:eyJzZWxlY3RlZExpbmVDb3VudCI6MjcsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImI2ZTJjZDA4ZjE4MzVhZjZmODM4ZDU5ZThhODAxM2M4NGEyN2Y3NWU1NThhMzdhNDdmYjAwY2UwZDZkYWI2NTMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjBmZGY2ZDY0MDQ5NGQ5MmM1NTk0ZWIxYzViYThmNTg5NTU3YzhiMWI2OTdmMWNiOGI1ZjJkODc3MGIwZmVjNGMiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImZjYjIxMTQzOWMwYzY0MWQ2ODQ5ODlkNzdhYTIyZjIzMWM5ZTUyYTUwY2I0ODBjYjhmNWExMDRjMTk5M2Y5ZjkiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjA3N2YxNGYyMDVjOTAwYTNiZmRiOTU2ZDQ4MDY0ZTI0OTMyZjIxNGUyMTFjMTQ2MzBiOTc5YjUxYjYyN2JkZTgifQ"
+        },
+        {
+          "resource": "repo://backend/app/agent/service.py#L661-L678",
+          "version": "repo-lines-v1:sha256:a97a2dbbf30e2a2a2aa3613f605f15e31d4515bbb470cd13d8088e10f2e14844:eyJzZWxlY3RlZExpbmVDb3VudCI6MTgsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjkxMGFjYzVhODg2MWU4ZTdjZWFmNGMyZWJlZGU4MjAyNjVhMzQ1YjFlY2ZhNWEyNzUyOTkzZDU0NGUxOTQwNGMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjM0NmE5NmJmZGYyNDRiOGVmNTcwNDYyMGE3NDM1YjYxYjk0ZjcxMTU0NzIxYmYwNzBjZThlZjQ4NTQwY2M3YmQiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6Ijg0NTE5MDAyM2YzMmY3NGM2NWY3MTljZmVlZGI5NzBiZDUxMTlmYzhiNWYzNWUxMGQzMjZiYTM4M2VhMzRlMGQiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImFjYmFhODQ0YmRmZjE5NGRiNzA5ZjE3NjQwZGEwMDljODFjN2E4ZDQ3ZjkxMTQzYmEzNDE1ZWY1OTk2NGViNDgifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_2d73a862c0ea4325a8214e3fbea9188c",
+      "statement": "LLM 工厂 _create_llm（backend/app/agent/llm.py）默认实例化 ReasoningAwareChatDeepSeek（向后兼容别名 QwenChatDeepSeek），use_ollama=True 时改用 ChatOllama；ReasoningAwareChatDeepSeek 在同步反序列化与流式 chunk 转换两条路径上都将 vLLM 的 reasoning / reasoning_content 字段映射到 additional_kwargs[\"reasoning_content\"]。",
+      "evidence": [
+        {
+          "resource": "repo://backend/app/agent/llm.py#L26-L74",
+          "version": "repo-lines-v1:sha256:55a9547d6de30122e29bae228ed189885025d5001b2da3440463dfedae775d92:eyJzZWxlY3RlZExpbmVDb3VudCI6NDksImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImQ4NDBlNjM3ZDM4MjJhNjVkNjU4ZThjM2I1YzgwNWM0Njc4NzcxMjhjNGQ4MjJlZDE2MGU3MTIxZDBjM2RmNGIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImQ2NWRkNzY3NzJmYzdkNmZmODM1ZTI4ZmUzYjBlODUwMGZiOTY3NzJiODA2MjkzYzIyOTdmYTYyNTYwODJkYmEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjRmNTIxOGRkNWVjM2EwZmIyNjRhNzQ1MDYyMjc0YzhhYTE0M2NjYTVmNjFlMWU3ZDdkY2IyMTBiMzJiYTEzMjQiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjY5NmNhMzI4NzMwYjM4MmQ1YjY0Nzc2YjA5ZDRmNzk5NGViMjYxM2U0MmVkZDA2YjQ1Yjc4OThmN2E2YzA0MjQifQ"
+        },
+        {
+          "resource": "repo://backend/app/agent/llm.py#L77-L135",
+          "version": "repo-lines-v1:sha256:66cc0e0ab5df395a7363ac879e544d1aed3a86cf6aa1c1ab8440c22b02163e13:eyJzZWxlY3RlZExpbmVDb3VudCI6NTksImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjY1MTMwNDc1OTVlNDc0ZTk5MDI4ZGU2ODViNzk3NTBhNThlMTllYjZjZGE0ZTYzZWVlY2M5ZjgyYTdlZWVkNWUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjlhNDIyMTJlZGVjYjJhNDg0ZWJjZWFiOTk1MDRkYzhhOWIzNmViZWE5YWFjMzQ4YzkwMjExNDNmMWVhZWYyNWQiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjEwODVhNzU3YmEyYjI0NTJlZjY1NmNlZTIzZGQwM2E4NzQ3ZjQ5NDUyMzEwMDE0ZWNhZjE0YjRjZDgyNTQ0MjQiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjowLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_b28e5df75af64738a585b24aaf492238",
+      "statement": "_create_llm 的采样参数按三段传输分层组装：标准参数（temperature/top_p/presence_penalty）走顶层 kwargs，vLLM 非标准参数（top_k/min_p/repetition_penalty）封装进 extra_body，enable_thinking 放入 extra_body.chat_template_kwargs；请求期 profile 覆写遵循同一分层。",
+      "evidence": [
+        {
+          "resource": "repo://backend/app/agent/llm.py#L98-L129",
+          "version": "repo-lines-v1:sha256:065fb55472e9dbc3fb407f1422c66abefe980150cbf2abc8032bac824cb0bb81:eyJzZWxlY3RlZExpbmVDb3VudCI6MzIsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImRjMGI3ODQ2NDljNTg1MmMzZTY5MGZkODUyMGIxYmRlMDA4MDk0NTQyNzBjZTBmNWI2MDc1OTNjZjcyODNlMTgiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjZkN2I0YTllYzc2OGU4YmI3YzNmMDkwMTE4NzhkNGZhOTMzZTEzNmQ1MzYzZTc2NDZhMjdkNTQyOTNlMTliMmEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImFlYWFlMTkyNTE3ZTNlMzdjYjIzYTYyZjg0YTc0ZmU4NWZiMTZkZDMwN2EwNDc4Njk4ODRiMWUwMzlkMWJjMjEiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImYzNjMyZTliZjUzNzkxZTkyNDJjNmVkOTY0YzZiYTEyODVkMTU2MWY3YTFkMzM2MmM0NmQ4OTg3MWMwNTk1YTcifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_13bcef92e06444498649e0ff11310a93",
+      "statement": "token 估算器工厂 _create_token_estimator（service.py）的唯一选择旋钮是 TOKEN_ESTIMATOR_ENGINE（settings.token_estimator_engine，默认 llama_cpp）：vllm 分支实例化 VllmTokenEstimator（base_url/model 未单独配置时回退 deepseek_base_url/deepseek_model），否则实例化 LlamaCppTokenEstimator；两者超时均取 settings.llm_context_tokenizer_timeout。",
+      "evidence": [
+        {
+          "resource": "repo://backend/app/agent/service.py#L82-L103",
+          "version": "repo-lines-v1:sha256:e29423341857bb73eb0d929ce4ab794a31353e6a97c6ebf5b6b3e226599f451b:eyJzZWxlY3RlZExpbmVDb3VudCI6MjIsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImUwZmVhYjU4NzNmNzUxYzZkZDM3ODY3Mjg1ODE3YmQyNDEzYTM2NzYzNzQ5NDljMzM5ZGQyOWM2N2UyNDA1NTAiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjU5MDlhNTNhNjE4ZDAyOGUxZDMwMDBjMGE3YWJjZWVjYmU1ZmIzN2Y0ZTUxMWVmZTQ2NjQzZmFkNmU2Njg3MmYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjhlZWFjOWQ1Mzc1NTJmZmI4ZWEzZWZiZTRhNGYyOTM2Yjk4MDJiNGYzZDJjMzI2NDE2MjcyOGE4NWE5MmYyODciLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjdhOWU2YWQyNDkxMWY4NTJiNDgxNjA2ZGJlZjM2ODg3ZmM5YTk3OGExNmExYzMxZmUyNDI2YTU3Yzc2YTlmN2EifQ"
+        },
+        {
+          "resource": "repo://backend/app/config.py#L209-L218",
+          "version": "repo-lines-v1:sha256:78ca6c5aadcc6027b93858b29b5b35cde3ffb7ad5acebebeffa09b5cbfc29e01:eyJzZWxlY3RlZExpbmVDb3VudCI6MTAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjI0N2I0NjU1NjJkNDM5OTI3N2E3OTQ4NjE2YzZkNjMxMDg3ZTE0MDUyNzViM2M1MGQyZGU1MjViYTNjM2RhMjkiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjMwYzFmMTg4ZjE0MmVkN2E4MjQ2ODBiMjA3MTcyYzU1MTliYzYxNGE0OGZkYTdjZjE2N2VkYjhkZGY3OTk1NmMiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImQzZjY0MzAwNDFlYTU4MTYxZDEwOGZkM2IwYmM2ZWY2NmM3MjNiMmM2NTU3MDMzOTA0NDYzMzE2OWUxODZiYWEiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6Ijk4MGUyMWUwZTgzM2VkZjZiNDJiMzhmYzNmYzAxZTgzYjVhYWJlZDNmY2I0NGE5ZmU4M2JkZTU3NWUxYmRkY2EifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_cb9f596c7baf46d6ad92f2a791d7265a",
+      "statement": "LlamaCppTokenEstimator 与 VllmTokenEstimator 都通过 POST /tokenize 端点计数，并实现相同的失败熔断契约：首次 httpx.HTTPError（如 nInfer 无 /tokenize 返回 404）只打一条 INFO 日志并置 _unavailable=True，此后 _tokenize 直接返回 None、零 HTTP 往返，所有计数回退到 _estimate_fallback_tokens（llama_cpp: max(1, len(text))；vllm: max(1, len(text)//2)）；非 HTTP 错误（响应非 JSON、结构无法识别）仅打 WARNING 当次兜底、不熔断。",
+      "evidence": [
+        {
+          "resource": "repo://backend/app/agent/utils/llama_cpp_token_estimator.py#L18-L21",
+          "version": "repo-lines-v1:sha256:837f24b7c226ff70e36835dac5caaaf1227b0d997e1f5484fcd6ff3cf504cc3f:eyJzZWxlY3RlZExpbmVDb3VudCI6NCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiYjcxNWZmYmZhNzZmNzA3ZjgzZWJlNzEyNTI4M2JmNzRlODIxNWM4MzcxY2UzN2YxZjRmOGVlYjFlMGU3Nzk2ZSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMWI1OGZmYTNlMzYzZjRjMGUyMGU3ZTE0ZjdkYjg5ZjI3NTRmNmZhMWExOTFjNWVmYmE1Njg3YTA3NWE1M2I3YSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiMjYzNTcwZTI1NjYzNjYxMzQ1ZWU2NDVmZmYzZGYzZDJhN2FkNjk2OGY4ZjBiOTNiOGViOWJkOWU4NTNkYjk5ZSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiYjI5NmIyMjBhMzg3MWY5M2RhNGM3NDY5ZDdkYWNhNDcyZTU1YmNlM2RlNDc2OGZkODhjYWI3YzUwMzk4Njc2YyJ9"
+        },
+        {
+          "resource": "repo://backend/app/agent/utils/llama_cpp_token_estimator.py#L88-L129",
+          "version": "repo-lines-v1:sha256:260f7a7c572918ce4deb8112d627263d17fc285d8deb1c1eb0748435674e7142:eyJzZWxlY3RlZExpbmVDb3VudCI6NDIsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImFiODQ0OTE2ZTFiZjg0NzI3OTlkNzU2ODcxM2Q4YjZhMTM0NjVlNTEyOTdjNTdlYjZmZDE1Y2IzNzc3OTIxMTMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImQ2NWM4MTdhZDMzMDZiNGI0ZmY4MThkYTY0NDZlNDc3YzI4YTIyMGE1NTQyN2M5OWNmMzllZTUyNDJiN2Q4NjciLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImMzM2MyNDE3ZjYzZGMwM2IyZmJkMGJlMzNjNmQ3MjNkMGFkMzhiMTRlYzFjM2EwMTAxMjNkZTY4ZDgxNDA3MDEiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6Ijk4YmUwMWNiZWE4NmMxNGM1ZmYyYjFhNDNmMjAyMDA1N2JhOWIzOTZlZTY4MzE4YmMxNWRiZjBkMDRhZmQ0OWYifQ"
+        },
+        {
+          "resource": "repo://backend/app/agent/utils/vllm_token_estimator.py#L18-L21",
+          "version": "repo-lines-v1:sha256:a0b65ecd6ac8b213af705b03c59b99aaba0348e88f1918ba9423f1f656a530ac:eyJzZWxlY3RlZExpbmVDb3VudCI6NCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiYjcxNWZmYmZhNzZmNzA3ZjgzZWJlNzEyNTI4M2JmNzRlODIxNWM4MzcxY2UzN2YxZjRmOGVlYjFlMGU3Nzk2ZSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiYmMzMDFiODVkY2Q3MmJjOWI1MGZlMDIxZjZjYWVmYjY5NjhhYjc5ZGFkMjE3MDk3ZTI3YTRlNzc0MDkxNTY0OCIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiMjYzNTcwZTI1NjYzNjYxMzQ1ZWU2NDVmZmYzZGYzZDJhN2FkNjk2OGY4ZjBiOTNiOGViOWJkOWU4NTNkYjk5ZSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZjQ1NGE1NDFhNTNiMWI2NWU3ZGIxOWYxYzFhODc3OTQwOWExODJkMjgwNTcyOWE4ZWZlYTQzN2U1YTBiMTJiMyJ9"
+        },
+        {
+          "resource": "repo://backend/app/agent/utils/vllm_token_estimator.py#L55-L103",
+          "version": "repo-lines-v1:sha256:caec38d80c58bfe73b07954ca6aa7bb680d8949967af1231e8ad903751ab5d83:eyJzZWxlY3RlZExpbmVDb3VudCI6NDksImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjU0ZjUzMWJjNDcxYWZiNDhiZWE4NTFhNzgzZDhmNGQ0ZjEzNWZlODM2ZGRiOTg0YmUyYTc2MDQ4MTU0MDQ2M2EiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImQ2NWM4MTdhZDMzMDZiNGI0ZmY4MThkYTY0NDZlNDc3YzI4YTIyMGE1NTQyN2M5OWNmMzllZTUyNDJiN2Q4NjciLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjVhZDdkYmE5ZTFkZTZjMzhkYjI3ZDdlZjg5MTBmYWUyZmQ0MDQ1OTY3ZWM3ZWRjZTlhODM2MzRiZTIzOTJhZTgiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6Ijk4YmUwMWNiZWE4NmMxNGM1ZmYyYjFhNDNmMjAyMDA1N2JhOWIzOTZlZTY4MzE4YmMxNWRiZjBkMDRhZmQ0OWYifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_4a2de29a740e40989ffa744b5053beba",
+      "statement": "熔断是进程级且持久的：估算器实例在 _build_agent_components 中随 agent 服务创建，置位后端点恢复需重启进程；该设计消除了每轮对话多次无效同步 HTTP 往返（同步 httpx.Client 阻塞事件循环与日志刷屏的隐患），保守估算只影响上下文阈值判断。",
+      "evidence": [
+        {
+          "resource": "repo://backend/app/agent/service.py#L494-L494",
+          "version": "repo-lines-v1:sha256:8e7df2b3b25e785e4f6d14f1a9afb6d5930ef707a10e3d5d79d97dc6a29f5aeb:eyJzZWxlY3RlZExpbmVDb3VudCI6MSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiOGU3ZGYyYjNiMjVlNzg1ZTRmNmQxNGYxYTlhZmI2ZDU5MzBlZjcwN2ExMGUzZDVkNzlkOTdkYzZhMjlmNWFlYiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiOGU3ZGYyYjNiMjVlNzg1ZTRmNmQxNGYxYTlhZmI2ZDU5MzBlZjcwN2ExMGUzZDVkNzlkOTdkYzZhMjlmNWFlYiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiMGVmYzU5MzE4ZjkxYzU0N2JiZDMyNzNmZDc4Mjc1ZmQ4YzNhYjg3ZDY1NDQwNmRjYjk1NTlmOWU5NTY0ZTI3MCIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiNjYwNjEyYjBhNTU3ODkzZDYzMjVmNmM4NDhlYTRjYWFmYzkzOGMyNjEwOTE0YzM0M2FmYjk0ZTk0ZTAwNmM0NiJ9"
+        },
+        {
+          "resource": "repo://changelog.md#L23-L23",
+          "version": "repo-lines-v1:sha256:aabf8d79a63c59d898f5233d7193403e9e5db858875f78a9d6794a5146cacc49:eyJzZWxlY3RlZExpbmVDb3VudCI6MSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiYWFiZjhkNzlhNjNjNTlkODk4ZjUyMzNkNzE5MzQwM2U5ZTVkYjg1ODg3NWY3OGE5ZDY3OTRhNTE0NmNhY2M0OSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiYWFiZjhkNzlhNjNjNTlkODk4ZjUyMzNkNzE5MzQwM2U5ZTVkYjg1ODg3NWY3OGE5ZDY3OTRhNTE0NmNhY2M0OSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiYTI4ZTliYTNhODE1MDk0ODM5Yjk1YmFkN2I4ODdhZjY3MDZlZTljYzM0Y2I0NGJhZTNjMzI5MmE4MTIxNWNhZCIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiNGFhODJmNzRmMTEyNzk0YWQ2ZDZlNDRlMDkwYjRmYzZkYzA1NTgwMmU3N2I2NWQyMTU1NDNiMGNlMDlkNTQ3MyJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_8095a909c8974f75bac9a6dbf8a24616",
+      "statement": "估算器有两个消费方：ContextWarningMiddleware 在 wrap_model_call/awrap_model_call 中用 count_json_like_tokens 分别估算 system_message、messages、tools 并加 safety_buffer，达到 warn_tokens 时向 Command 写入 context_warning 载荷；SummarizationMiddleware 的 exact_token_counter 先把所有 system 消息物理合并到位置 0，vllm 引擎走 count_messages_tokens、llama_cpp 引擎回退 count_json_like_tokens。",
+      "evidence": [
+        {
+          "resource": "repo://backend/app/agent/middleware/context_warning_middleware.py#L69-L83",
+          "version": "repo-lines-v1:sha256:58e87533d6f9df5d53e7e104213c7c6e340d667e0cc8ff818b1fc367cecb2cc8:eyJzZWxlY3RlZExpbmVDb3VudCI6MTUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjBmM2MyYTk5NjY2NDExY2VkYmNhMzczN2E3Y2VkMDQ3NzAwYWQ0MDc0OWZlZmI4ZjVmYjEyYmU3NTk4NzE3ZGIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijc4NTMyYTI2ZTAyYjUwNDIyNDFhYThjMzU0ZGZiZjBlMWU4MWJhYmEyMzFlNDQ0YTA0MGM2NzRiMjQyZjJhMDgiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjVkMmY0OTY1OTJlYzZjYTZhMTAwYmZkMGExNWQ1MGQ1NDczMjdmZWYzOWRmZmRhMGI4YjdlODViYWQwMzYxYmUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjJhZTk4ZWM1YTYwY2U2NGFjYWIyY2M0YzQxYjY5NmUzZmQ1OGZmZWMzOWZkOTE4NDI1YzMxM2JiN2EzMzY5YmQifQ"
+        },
+        {
+          "resource": "repo://backend/app/agent/service.py#L541-L576",
+          "version": "repo-lines-v1:sha256:f00dcdfd0e7d2e17ccfa5b73668504e54fb34c7aa3ee6f995c68702800a2c922:eyJzZWxlY3RlZExpbmVDb3VudCI6MzYsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjNmZTA4MzMxOGI3ODVhM2FiMTE5OWM1YjQ0Mzg4NmJlYjQ4YmU4NTY0OGZkYjcxMjlkOGQzNzM2ZWQ0MjU5ZDciLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjU5MDlhNTNhNjE4ZDAyOGUxZDMwMDBjMGE3YWJjZWVjYmU1ZmIzN2Y0ZTUxMWVmZTQ2NjQzZmFkNmU2Njg3MmYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjhiMmZlMTYwMGFlMzFiYTNkYmVlMThiODBkZGQ2MDljZDBlNTgxZDkzODM5NGZkZWJjNmE2Y2UwOWUzMWY4ZTQiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjllOWQ5YjEzNDMwMTJlMTdmYzM4Zjc2YjIzYjcxYzI1ZWU5NTE1ZjEwNjQzYzU4YjBlNzYzYTg5OTYxNzI2OGUifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_f118851858d9462189c4f7a242bad450",
+      "statement": "TOKEN_ESTIMATOR_ENGINE（settings.token_estimator_engine，取值 llama_cpp | vllm）是估算引擎唯一的选择配置项，创建的估算器实例同时喂给 ContextWarningMiddleware（上下文告警）与 SummarizationMiddleware（摘要触发计数）。",
+      "evidence": [
+        {
+          "resource": "repo://backend/app/agent/service.py#L541-L584",
+          "version": "repo-lines-v1:sha256:f34a72206e3d1044a3ab3dd08d04e492fd82632406a3cffdff082ac8c90ca6e8:eyJzZWxlY3RlZExpbmVDb3VudCI6NDQsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjNmZTA4MzMxOGI3ODVhM2FiMTE5OWM1YjQ0Mzg4NmJlYjQ4YmU4NTY0OGZkYjcxMjlkOGQzNzM2ZWQ0MjU5ZDciLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjI5MGVjY2I4ZDIwMWZmMGUzY2E2ZGI4NTYwYmEzNmY0ZGMxNDFhMGQwMmFkM2VkYzUzNjVlNmQ5MjgxOWU4YmEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjhiMmZlMTYwMGFlMzFiYTNkYmVlMThiODBkZGQ2MDljZDBlNTgxZDkzODM5NGZkZWJjNmE2Y2UwOWUzMWY4ZTQiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImZiN2NiNjZjZGFhNzc2ODJlODI1YzhlOWZhNTFjYmQwMGRmNTA3OGY0YjhjZDQxZTExYjdkMTlmOGIwMDU4ZmMifQ"
+        },
+        {
+          "resource": "repo://backend/app/config.py#L209-L209",
+          "version": "repo-lines-v1:sha256:247b465562d4399277a7948616c6d631087e1405275b3c50d2de525ba3c3da29:eyJzZWxlY3RlZExpbmVDb3VudCI6MSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiMjQ3YjQ2NTU2MmQ0Mzk5Mjc3YTc5NDg2MTZjNmQ2MzEwODdlMTQwNTI3NWIzYzUwZDJkZTUyNWJhM2MzZGEyOSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMjQ3YjQ2NTU2MmQ0Mzk5Mjc3YTc5NDg2MTZjNmQ2MzEwODdlMTQwNTI3NWIzYzUwZDJkZTUyNWJhM2MzZGEyOSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZDNmNjQzMDA0MWVhNTgxNjFkMTA4ZmQzYjBiYzZlZjY2YzcyM2IyYzY1NTcwMzM5MDQ0NjMzMTY5ZTE4NmJhYSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiMDM0OTQyZGI4ZTEyNjhmZjRiNDJlMWU4OWM5ZTJkOTE3MWJjNjhkYmM0ZDRlNGNhMTQ2M2YxNDcyZTllNjNiOCJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_8abc2af9052c45d593ed55753b45fd23",
+      "statement": "中间件归属边界：主代理只携带编排/澄清工具 AskUserQuestion，不携带 SkillMiddleware 与领域工具；SQL 子代理（CompiledSubAgent name=sql_domain_agent，create_agent + SqlSubAgentState/RequestContext）独占 SkillMiddleware + PromptCompilerMiddleware；由 backend/tests/agent/test_agent_component_boundaries.py::test_main_agent_and_subagent_middleware_and_tools_boundaries 强制执行。",
+      "evidence": [
+        {
+          "resource": "repo://backend/app/agent/service.py#L513-L537",
+          "version": "repo-lines-v1:sha256:a5452c309971978e1507cb3a38e0bcada66c619d870542e8e315ede996a61069:eyJzZWxlY3RlZExpbmVDb3VudCI6MjUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjI4ODAyMDczZWEyODMwNWNiZWNkZjYyNjliODZlNjRhYzAzYTgyYjg2MDI3YzY3ODU4ZWMyNTlmNzRhYmQyM2UiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjU5MDlhNTNhNjE4ZDAyOGUxZDMwMDBjMGE3YWJjZWVjYmU1ZmIzN2Y0ZTUxMWVmZTQ2NjQzZmFkNmU2Njg3MmYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjQxNmE1ZjgyNjQ4MDFjZGQ5OTFkOTE0ZGY0NGM0ODViZGE0OGIzMTEzZjk4OTcwM2ZhMGZmODAwODA5NDA1NTciLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjhiMmZlMTYwMGFlMzFiYTNkYmVlMThiODBkZGQ2MDljZDBlNTgxZDkzODM5NGZkZWJjNmE2Y2UwOWUzMWY4ZTQifQ"
+        },
+        {
+          "resource": "repo://backend/app/agent/service.py#L578-L589",
+          "version": "repo-lines-v1:sha256:72531dbb4d965bb939c7b3e32b45fe1c71df5f2a0dd6ee244d4ff2db1cc05f4e:eyJzZWxlY3RlZExpbmVDb3VudCI6MTIsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImExNDRkZmMyNWVhNjM1YmE3YWQ1ZjMyOTY0MDhkMDkzMmMxMWFkM2MwOTAxMDlhZWQ0YzdjZTdiZjc5YzIwMDciLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjkyNjM1OTYzODRhZThkNTlhZmU1YTYxZDc5MmJmY2M2OTlmNWY4MWFjMjE5NWVmNzJkNTNkNDg2MGVhYmU5YjMiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjE4ZWUwYjYxNTMxZTBhNjBlMjE1NjQ1ZmNhYjhkYzQ4N2FlMzRmNWVhZDAxZTUwNWRiOGJjYjdlNWFmMGM1NmMiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImI1ZDM1MmQ3MWM5NjU0NmFkZDIyNDU3YmEwMTQ0YzA2OWRmYWRhMmRlMTM3NDg3NDVhNGMzMjAxNjRkMjYwYjUifQ"
+        },
+        {
+          "resource": "repo://backend/tests/agent/test_agent_component_boundaries.py#L21-L52",
+          "version": "repo-lines-v1:sha256:231f04f82f5d707d6dd16ee9199b2ca75bd04eae98939f0671edb4d4291de129:eyJzZWxlY3RlZExpbmVDb3VudCI6MzIsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjU4ZmRiOTllYjM2MTI5YTExNjFlNGFhYjgwMTljODU4OGVjODFmMmM3MTRiY2NlZGYxM2I2NDNkZjAwMWM5NTYiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImE3MDVhN2NmZmVmZTJkM2FiYzlmZTMzZThiYzQ4OTI0NjI2YjI2YmEwNDBmMGY0ZTFkMDI4NTE2ZTQ1OGZiZTYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImFhZjI3Njc1Y2U2NGRmNmIyNGZmNzg3MWFkYjJmNGEwMjc3M2NlNTkzNTI0YzQ1YzNmYzNkNjE4OGY1MTQ5MmUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUwYWUzMmUwNjgyZGRiNDRmOGM3Mzg3YjI1OTJiZjFmNmI4OTRjYjdkNzIzNGJhZWIyYzg0OTc5ZmNiZTRlNTUifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_edfafe496de24c6fa7abd9976a5789ad",
+      "statement": "调用限制中间件（ModelCallLimitMiddleware / ToolCallLimitMiddleware）由 settings.agent_model_call_run_limit / agent_tool_call_run_limit（大于 0 时启用）与 agent_call_limit_exit_behavior 配置，同时装配给 SQL 子代理与主代理，作为防死循环熔断保护。",
+      "evidence": [
+        {
+          "resource": "repo://backend/app/agent/service.py#L496-L511",
+          "version": "repo-lines-v1:sha256:8366ee0652fb3c17192b151cd2463e8561315a4b73d5891a40f6ffb85b98bf74:eyJzZWxlY3RlZExpbmVDb3VudCI6MTYsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImM4ODE1MzE5ZWQwMjVhMzQyZDM0OGQxM2ZmYmIzYjE5YTU2ZTJjMDkyNDgyOWFjZWU5ODgxNDJkMTMzMzYyNmUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjU1MDMyZTk2NGQwOTMyMzUxZTVkMTg1MjY5MjgxYjE3MWEzYTA5YjA4YjI4NmU2NjFlYTQ3MDMyM2M4MmViNGQiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzMzgxYTRhMDc2NzZiNmRjZmU5NDBmNjllM2ZmOWY4YmFmZGNiMTViYTU4NWE0MWU0MDAxMTlkOGU1Yjk4ZWYiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImY0M2EyYTBkMDljZjhiZjhlMWE4ZTYyNjAyNzZiNThlYTFhY2Q5ODBjOTNiZTJlMmJkYjdlYmEwNjQxOGE0MjEifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_73be9f2d9f5e4041b9b311a5062f9e4b",
+      "statement": "工具通过 _prepare_tools 构建：包装 sql_db_query（技能检查+语法检查+日期清洗+智能限流）、注入可选 SQL 示例检索、build_chart_artifact、export_to_csv、AskUserQuestion 与三个物理词典工具；各注入步骤遵循 try/except 降级（记录警告并继续），不使代理启动失败。",
+      "evidence": [
+        {
+          "resource": "repo://backend/app/agent/service.py#L254-L349",
+          "version": "repo-lines-v1:sha256:e28155ded59a338f955539c0cb80b1f4d32c8432637dc0473cc34dc5091fb63c:eyJzZWxlY3RlZExpbmVDb3VudCI6OTYsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjUzMjY5MDU0ZGE4NGZhMjdiY2NkMjI4YTk2YjkxMTZiZjlmMjNmNzJmZWJmMDM3OGE4ODQyMjUzNGIxYjBjZjkiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImExNDZmNDMzMDcyYWIyMzk5NzJiMzFhNmNiMmQwMDdjYWU2MWU5OTUzMjAwZDhjM2E1MWY0ODBiNzlkMDE4ODMiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjM5ZWZkOWUxNzJlNTE2NDhjYzY1N2RiZWEwNDYxM2ZiNzc5M2Q2ZjZjYmViOTIyZjE2YWVkYTZmZDRhMTlmNTEiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImZkNDIyOWNjNWY3ODM5MzAxMzQzMjMxOWFiMjA5NzliNjI5MjgzM2YxZjE4ZDQ5MTIwNDhjMDhjYTA2MzJjMDYifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_04177ed4cf294b5b8a14709db623bcb2",
+      "statement": "主系统提示词由 _build_main_system_prompt 通过共享 SystemPromptLoader 从 MAIN_SYSTEM_PROMPT_PATH 模板加载为普通字符串（不经 PromptTemplate 渲染），与 SQL 子代理提示词（_build_system_prompt）均文件化。",
+      "evidence": [
+        {
+          "resource": "repo://backend/app/agent/service.py#L74-L79",
+          "version": "repo-lines-v1:sha256:97fdf8130cca924c8697b5403ba194aa71e64690c09c30f3ab64941defc5bba6:eyJzZWxlY3RlZExpbmVDb3VudCI6NiwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiMjgxMzJiOWQ0NTIyN2NkMTYwNDNlNzAzOWU1ZDcwNGMwZTU1ZGQ3NTUwMGRlMDE1OTQzNDQyMGRlZTY0NmQ0NCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMWYyNDEzYjllOWVjYzU3NjBkYjA5ZTI1YThjMDAxOTE4ZTBlMDU4MGJhNDk1MWUxOTQxMDQzNzczNmEyMWQyZiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiOGVlNTRjOGFjYjYxYTEyMmRiYTJhODE5ZTgzZGYwOTZhYjkyNWY3Yjc5M2NhNWVhZGZhZGU1YTUxNGY5NWU1OCIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZDhkY2FjYmU4MDBlZDZlZDI5M2MyOWI0ZGY4NDRhM2IwYzc4NjI3MGEzYjI4YThmMTY0N2UyNzE3M2NmYzAwNiJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_7929da0ef61842e9aea8e286b6e069a4",
+      "statement": "FastAPI 生命周期（backend/app/main.py 的 lifespan）在启动时调用 initialize_agent_service()、关闭时调用 shutdown_agent_service()；chat_service.py 提供 SQLAgentService 兼容包装层（process_stream / process_message / process_stream_resume）与三段式单例管理（initialize/get/shutdown，asyncio.Lock 保护）。",
+      "evidence": [
+        {
+          "resource": "repo://backend/app/main.py#L46-L73",
+          "version": "repo-lines-v1:sha256:4ee0de63095e63bc01774926932dffcfed30c29da844dd71e73534476f9a6bab:eyJzZWxlY3RlZExpbmVDb3VudCI6MjgsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjEyMTZhZjgwMjIwZTU2NGE1YjI3NmQwY2JmNjA5YWQ5ZmNmZDM3YWNlZjdkNGU1NDU4NWQ1ZjE3MGZmM2ZmNjMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjU2NDg2Yzc5OTVjMTU5N2Y3NzJiNjJhNDlkMDJkYzk0NzFhZjY5OTlhMGJhYTg0YWVjNGZhOTdhYjdiNjIxZDAiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjUyZjczNzViZjFhODE0NGY1NjQ4YmVmYTRiYTdkYjc0ZDgyZjk0ZTM4ZGI3NTA4MDFiNWI4NTY0ODM2YTUyNmQiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjcyYjY2ODkyZjQ3NjhlNjE0MmUyMDYwYWVmZWQwNmFkMTYzYmY3YTZmODJlNmU1ODRmNjg2MDFiNDBlMGI3N2YifQ"
+        },
+        {
+          "resource": "repo://backend/app/services/chat_service.py#L1193-L1224",
+          "version": "repo-lines-v1:sha256:d3dd382827d4cb72ed2a24392aca32df1f29f8ec2aa9c3ad81e352e9338e4d90:eyJzZWxlY3RlZExpbmVDb3VudCI6MzIsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjU2NjJhYTMxYTRhYjg2ZWI0ZDdjZTExN2FiNDFhMDVlNDM4OGU0NjBiYTljZjI0Mjk0ZmMwNTZjYWRlMjgzNjEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjkzN2Q5OGM3ZGE2NGZiMTA1ZGZlNDEyNDg5OTQxMTAwZGRiMjUzYzczMDYxNTY5ZGViYjBjZDg4N2YyNmU3MWQiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjNlMDI0ZDQ5Y2E4NDAwYjliNmNjNTA3ZmFiOGJkYmFlYjJhZWVjZTVjM2EwZDIwOTQwZjQ1MjlhYmE0MDMyOGUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjowLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUifQ"
+        },
+        {
+          "resource": "repo://backend/app/services/chat_service.py#L600-L680",
+          "version": "repo-lines-v1:sha256:598c21845894aa194ce9a39f6f8caa2de551f8213d85eba4853f2397073c4649:eyJzZWxlY3RlZExpbmVDb3VudCI6ODEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjZkZjQ0ZDY4Nzg1NGRmOTkyNDhmMzUwYzQzYzc4OGRjYmQxMmRmZTFlYWMzN2Q3NGIwOWNmMGNiZTMwYTExNWEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImVjOWY3Yjk1YjExZDQwYzIwMWI2NzFjZWRjYWEwODkxZmUxMTlmODYxZTQzMmUyNjFlNmNkMjMwMmJjMzFjYTUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjlmYjdiZDQ5ZWVkNzRlNzJhNmZlNjIxZmU1M2I2NmVkNjNlZmRiYjEzNmQ5ZjYwNWY1YjQxMTBhNGQ5MWQ2YmEiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjAzNWE0MmFmZGUwYzAxNDQ0MDMzYTgxNzMxYjgyNTdhMThhOGI2YzVlMGZjYjg1MmZmZjExZjM3MjQ0ZGE4ODYifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_5436dd4d609c467d88c70e4266eb143f",
+      "statement": "token 估算器熔断契约由 backend/tests/agent/test_tool_error_contract.py 回归保护：test_vllm_estimator_breaker_on_http_failure 与 test_llama_cpp_estimator_breaker_on_http_failure 用每次 POST 都抛 404 的伪造客户端断言首次失败后的多次计数与首次一致，且 post_count == 1（熔断后不再发出 tokenize 请求）。",
+      "evidence": [
+        {
+          "resource": "repo://backend/tests/agent/test_tool_error_contract.py#L33-L64",
+          "version": "repo-lines-v1:sha256:6d197146107e658a11ebaf5095e535e10b49ae9d96ddb719f1b242f8ce1699f4:eyJzZWxlY3RlZExpbmVDb3VudCI6MzIsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjMxMWE2Y2VmYjAzM2I0MWEzMDg4N2E2MmM2ZmY1NzdlMWZmMmJlMmFlODU2NWU4M2Q4NzI3MWRmODY3ODEyNTAiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImU4ZWFiZjIxMTQ2NjczNDFiYjllZjkxMmE3MTc1ZWIxYjE5MTQwYzZkMDdlZTU1N2U1MGU5NmVmNjlmNjUxNmEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjM1OGJmMjU0NmE2MjU5YzU5YmVjNzhlZmVkMmJmMTNiMDUyNjA3ZDBkMzIzM2I4NjI0YmZiOTRiYjkwMzlmZTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjlkYWU1ZTA5NzllMGYxOWFiYTU0OTY4ZjQyMDRkOWU5YTM0Mjg2ZWE1NjUzOWM3ZDg3YzkzZDhkN2I4MzVmOGEifQ"
+        }
+      ]
+    }
+  ],
+  "verification": {
+    "by": "openwiki/0.4.3",
+    "at": "2026-08-30T09:34:27.074Z"
+  }
+}
