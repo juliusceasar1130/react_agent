@@ -19,6 +19,7 @@ import type {
   QuestionItem,
   LexiconContext,
   ToolArtifact,
+  SubagentSessionState,
 } from '@/types'
 
 const API_BASE = '/rearch/api/chat'  // 使用相对路径，适配 Nginx 代理
@@ -233,6 +234,7 @@ const parseStreamEvent = (payload: string): StreamEvent | null => {
         || !isOptionalString(parsed.created_at)
         || !isOptionalRecord(parsed.tool_results)
         || !isOptionalRecord(parsed.tool_artifacts)
+        || (parsed.subagents !== undefined && parsed.subagents !== null && !isRecord(parsed.subagents))
         || (
           parsed.tool_calls !== undefined
           && parsed.tool_calls !== null
@@ -256,6 +258,9 @@ const parseStreamEvent = (payload: string): StreamEvent | null => {
         tool_calls: parsed.tool_calls as StreamToolCall[] | null | undefined,
         tool_results: parsed.tool_results as Record<string, string> | null | undefined,
         tool_artifacts: isRecord(parsed.tool_artifacts) ? (parsed.tool_artifacts as Record<string, ToolArtifact>) : null,
+        // 2026-08-30: 补解析服务端子智能体快照（此前被静默丢弃，导致落定只能回退本地流式累积）
+        // 注：final 中的 context_warning 不解析——后端同时通过 status(source=context_warning) 事件通道下发，属冗余副本
+        subagents: isRecord(parsed.subagents) ? (parsed.subagents as unknown as Record<string, SubagentSessionState>) : null,
         message_id: parsed.message_id,
         created_at: parsed.created_at,
       }

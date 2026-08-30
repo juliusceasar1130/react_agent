@@ -4,6 +4,7 @@ import { createSessionApi, getSessionsApi, updateSessionApi, deleteSessionApi } 
 import type { Session, SessionCreate } from '@/types'
 import { useMessagesStore } from './messages'
 import { useRequestGuard } from '@/composables/useRequestGuard'
+import { abortSessionStream } from '@/composables/useChatStream'  // 2026-08-30: 删除会话前中止关联流（运行时调用，循环引用安全）
 
 export const useSessionsStore = defineStore('sessions', () => {
   // State
@@ -73,6 +74,8 @@ export const useSessionsStore = defineStore('sessions', () => {
   }
 
   const deleteSession = async (id: string) => {
+    // 2026-08-30: 若该会话有活跃流，先中止底层 SSE 连接，避免后台空跑浪费服务端算力
+    abortSessionStream(id)
     loading.value = true
     error.value = null
     try {

@@ -460,6 +460,7 @@ import {
   getDimensionTableApi,
   type DimensionTableData,
 } from "@/api/dimensions";
+import { useRequestGuard } from "@/composables/useRequestGuard";
 import DimensionTable from "@/components/artifacts/DimensionTable.vue";
 
 const props = defineProps<{
@@ -490,6 +491,8 @@ const activeTable = ref<string | null>(null);
 const tableData = ref<DimensionTableData | null>(null);
 const loading = ref(false);
 const error = ref<string | null>(null);
+// 2026-08-30: 快速切换抽屉时丢弃过期响应，防止旧表数据覆盖新表
+const tableDataGuard = useRequestGuard();
 
 async function openDrawer(tableName: string) {
   activeTable.value = tableName;
@@ -505,15 +508,23 @@ function closeDrawer() {
 
 async function fetchTableData() {
   if (!activeTable.value) return;
+  const requestId = tableDataGuard.next();
+  const requestedTable = activeTable.value;
   loading.value = true;
   error.value = null;
   try {
-    tableData.value = await getDimensionTableApi(activeTable.value);
+    const data = await getDimensionTableApi(requestedTable);
+    // 过期响应或已切换到其他表时直接丢弃
+    if (!tableDataGuard.isFresh(requestId) || activeTable.value !== requestedTable) return;
+    tableData.value = data;
   } catch (e: any) {
+    if (!tableDataGuard.isFresh(requestId)) return;
     error.value = e.message || "数据加载失败，请稍后重试";
     tableData.value = null;
   } finally {
-    loading.value = false;
+    if (tableDataGuard.isFresh(requestId)) {
+      loading.value = false;
+    }
   }
 }
 </script>

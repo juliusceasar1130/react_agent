@@ -10,6 +10,9 @@
 // - 2026-03-29 23:10 Asia/Shanghai: 新增流式请求取消能力，支持“停止生成”
 // - 2026-03-31 21:31 Asia/Shanghai: 移除宽松事件兜底，改为穷尽式处理统一 SSE 事件协议
 // - 2026-03-31 22:15 Asia/Shanghai: 停止生成后保留已生成片段，并明确落定为本地“已停止生成”消息
+// - 2026-08-30: 流控/偏好状态上提为模块级单例，修复 resume 时 ChatView 主输入框未锁定与“停止生成”失效（H2）；
+//   resumeMessage 前置初始化流式消息，修复历史会话/刷新后 resume 期间所有流式事件被静默丢弃（H3）；
+//   新增 abortSessionStream 导出，删除会话前中止关联 SSE 连接（M8）
 
 import { ref, computed } from 'vue'
 import { sendChatStream, sendChatMessage, sendChatResumeStream } from '@/api/chat'
@@ -25,20 +28,36 @@ const assertNever = (value: never): never => {
  * 流式聊天 Composable
  * 封装流式和非流式消息发送逻辑
  */
+// 2026-08-30: 模块级单例状态——供所有 useChatStream() 调用方（ChatView / MessageItem）共享，
+// 确保 resume 期间主输入框锁定（isSending）与“停止生成”（AbortController）跨组件生效
+const streamMode = ref(true)  // 流式模式开关状态
+const thinkingLevel = ref<ThinkingLevel>('medium') // Phase 3：四档思考强度，默认"标准思考"
+const activeStreamControllersMap = ref<Record<string, AbortController>>({})
+const sendingSessionsMap = ref<Record<string, boolean>>({})
+const contextWarningsMap = ref<Record<string, ContextWarningPayload | null>>({})
+
+/**
+ * 中止指定会话的活跃流式请求（供外部生命周期钩子调用，如 deleteSession）
+ * 2026-08-30: 删除会话后若不 abort，底层 SSE 长连接会在后台空跑到后端生成完毕
+ */
+export function abortSessionStream(sessionId: string): void {
+  const controller = activeStreamControllersMap.value[sessionId]
+  if (controller) {
+    controller.abort()
+    delete activeStreamControllersMap.value[sessionId]
+  }
+  delete sendingSessionsMap.value[sessionId]
+  delete contextWarningsMap.value[sessionId]
+}
+
 export function useChatStream() {
   const messagesStore = useMessagesStore()
   const sessionsStore = useSessionsStore()
 
-  const streamMode = ref(true)  // 流式模式开关状态
-  const thinkingLevel = ref<ThinkingLevel>('medium') // Phase 3：四档思考强度，默认"标准思考"
   const enableThinking = computed(() => thinkingLevel.value !== 'off')
   const thinkingLevelParam = computed(() =>
     thinkingLevel.value === 'off' ? undefined : thinkingLevel.value
   )
-  
-  const activeStreamControllersMap = ref<Record<string, AbortController>>({})
-  const sendingSessionsMap = ref<Record<string, boolean>>({})
-  const contextWarningsMap = ref<Record<string, ContextWarningPayload | null>>({})
 
   const isSending = computed(() =>
     sessionsStore.currentSessionId
@@ -342,7 +361,13 @@ export function useChatStream() {
     contextWarningsMap.value[currentSession.id] = null
 
     // 重新将对应会话的临时消息 isStreaming 设为 true，并清除 isInterrupted 状态
-    const targetMsg = messagesStore.streamingMessagesMap[currentSession.id]
+    // 2026-08-30: 历史会话/页面刷新后流式状态条目不存在，需先初始化，
+    // 否则 store 的 if (!msg) 守卫会静默丢弃 resume 期间的全部流式事件
+    let targetMsg = messagesStore.streamingMessagesMap[currentSession.id]
+    if (!targetMsg) {
+      messagesStore.startStreamingMessage(currentSession.id)
+      targetMsg = messagesStore.streamingMessagesMap[currentSession.id]
+    }
     if (targetMsg) {
       targetMsg.isStreaming = true
       targetMsg.isInterrupted = false

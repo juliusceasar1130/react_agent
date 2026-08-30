@@ -1,3 +1,42 @@
+## 2026-08-30 - 前端审计修复：resume 链路、协议解析、IME 与竞态/超时共 9 项 (`frontend/src` 8 文件, `frontend/docs/code-review-2026-08-30.md`) [AGENT]
+
+针对前端全量审计（59 文件 / 9500 行，报告 `frontend/docs/code-review-2026-08-30.md`）的修复实施，经 agy 与 Claude Code 双 agent 对 diff 独立复评均 APPROVED（无 blocker/major）。
+
+### 变更内容
+
+#### 1. resume 链路修复：流控状态单例化 + 恢复流前置初始化 [FIX, P0]
+- **`composables/useChatStream.ts`**：`streamMode` / `thinkingLevel` / `activeStreamControllersMap` / `sendingSessionsMap` / `contextWarningsMap` 从函数级 ref 上提为模块级单例，使 ChatView 与 MessageItem 两个 `useChatStream()` 调用方共享——修复澄清 resume 期间主输入框未锁定（可重复提交）与“停止生成”按钮跨组件失效；`resumeMessage` 对不存在的流式条目前置 `startStreamingMessage` 初始化，修复历史会话/页面刷新后 resume 期间全部流式事件被 store `if (!msg)` 守卫静默丢弃、完成后消息突变的链路。
+
+#### 2. `final` 事件补服务端 subagents 快照解析 [FIX, P1]
+- **`api/chat.ts`**：`parseStreamEvent` 的 `final` 分支此前漏解析后端下发的 `subagents` 字段（`chat_service.py` 1114-1138 camelCase 载荷），落定只能回退本地流式累积；补 `isRecord` 校验与提取后由 `payload.subagents ?? temp.subagents` 优先采纳服务端全量快照。`final` 中的 `context_warning` 确认走 `status(source=context_warning)` 通道下发，属冗余副本，不解析并留注释。
+
+#### 3. 中文输入法 Enter 误触发送 [FIX]
+- **`views/ChatView.vue` / `components/chat/WelcomeDashboard.vue`**：Enter 处理改为 `handleEnterKey`——`e.isComposing` 时不拦截（保留 IME 候选词确认上屏），上屏后才 `preventDefault` 并发送；WelcomeDashboard 顺带修正 Shift+Enter 也会发送（补 `.exact`）。
+
+#### 4. 快捷场景直通查询单独 60s 超时 [FIX]
+- **`api/scenarios.ts`**：`executeScenarioApi` 为真实 SQL 执行，单独放宽超时至 60s，避免慢查询被全局 10s 整单中断；列表/参数类 API 保持 10s 快速失败。
+
+#### 5. 场景面板请求竞态防护 [FIX]
+- **`stores/scenarioPanel.ts`**：新增独立的 `paramsGuard` / `queryGuard`（与领域树 guard 隔离）；`loadScenarioParams` / `executeQuery` 的响应赋值、错误落定、loading 收尾全分支加 `isFresh` 守卫，快速切场景/翻页时过期响应整体跳过。
+
+#### 6. 抽屉字典表竞态防护 [FIX]
+- **`components/chat/VariantB.vue`**：`fetchTableData` 加请求序号 + 目标表比对双守卫，快速切抽屉时旧表数据不覆盖新表。
+
+#### 7. 删除会话前中止活跃流 [FIX]
+- **`useChatStream.ts`** 新增模块级导出 `abortSessionStream(sessionId)`（abort 控制器 + 清共享 map）；**`stores/sessions.ts`** `deleteSession` 第一步调用。有意取舍：abort 先于删除 API，若删除失败则流已中止、已生成片段落定为本地“已停止生成”消息，需重发。引入 `sessions ↔ useChatStream` 循环 import（双方均仅函数体内调用对侧绑定，Vite ESM 安全，构建已验证）。
+
+#### 8. 补修：Shift+Enter 双换行 [FIX]
+- **`views/ChatView.vue`**：textarea 的 Shift+Enter 分支补 `.prevent` 拦截浏览器原生换行，修复双换行/中间换行被追加到末尾（复评发现，既有 bug）。
+
+#### 9. 验证与复评 [TEST/REVIEW]
+- `npx vue-tsc --noEmit` 零错误；`vite build` 成功（rollup 正常解析循环依赖）；vite dev 模块图冒烟零 error。
+- 双 agent diff 独立复评：agy（Gemini 3.7 Flash）与 cc（Claude Sonnet 4.6）均 APPROVED，无 blocker/major；发现项裁决：Shift+Enter 双换行已修；`sendingSessionsMap` 删除失败路径残留归入已知遗留；VariantB 无 AbortController 主动中断与 `subagents` 浅校验归入择期。
+
+#### 10. 已知遗留 [NOTE]
+- 择期项：M3（`memory*Map` 无界增长清理，含删除失败路径残留）、M4（deep watch 优化）、M6（错误处理统一 + 去 `alert()`/`window.confirm`）、M7（剪贴板降级）、M10（网络中断错位，先补查复现路径）；`plan_update` 死契约与 `final` 冗余 `context_warning` 保持现状（代码内已留注释）；低危 1-11 按机会处理。
+
+---
+
 ## 2026-08-30 - 架构复审修复：流式 DB Session 解耦、日志配置化、工具错误契约补全等 6 项 (`routers/chat.py`, `main.py`, `config.py`, `prompt_compiler_middleware.py`, `direct_path/executor.py`, `subagents/sql/tools.py`, `skill_tools.py`, `*token_estimator.py`, 测试, 文档) [AGENT]
 
 针对三轮架构复审（`temp/architecture_review_backend.md` + agy / Claude Code 两份独立 recheck）的修复实施，经 agy 与 Claude Code 独立代码审核确认无阻塞回归（agy 全量 `pytest backend/tests` 130 passed）。

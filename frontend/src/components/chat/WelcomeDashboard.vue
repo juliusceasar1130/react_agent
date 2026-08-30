@@ -22,7 +22,7 @@
           </svg>
           <input 
             v-model="localInput"
-            @keydown.enter="handleSubmit"
+            @keydown.enter.exact="handleEnterKey"
             type="text" 
             placeholder="在此直接提问，开启智能车间探索..." 
             class="flex-1 bg-transparent border-none focus:ring-0 focus:outline-none text-sm sm:text-base py-2 px-3 text-neutral-800 placeholder:text-neutral-400 font-normal"
@@ -122,6 +122,13 @@ const handleSubmit = () => {
   if (!localInput.value.trim()) return
   emit('submit', localInput.value.trim())
   localInput.value = ''
+}
+
+// 2026-08-30: IME 合成中不拦截 Enter（用于确认候选词），上屏后才发送
+const handleEnterKey = (e: KeyboardEvent) => {
+  if (e.isComposing) return
+  e.preventDefault()
+  handleSubmit()
 }
 
 const triggerPrompt = (prompt: string) => {

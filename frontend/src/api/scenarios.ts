@@ -90,6 +90,7 @@ export async function getScenarioParamsApi(
 
 /**
  * 执行快捷场景直通 SQL 查询
+ * 2026-08-30: 直通查询为真实 SQL 执行，单独放宽超时至 60s，避免慢查询被全局 10s 超时整单中断
  */
 export async function executeScenarioApi(
   domain: string,
@@ -105,6 +106,8 @@ export async function executeScenarioApi(
     page,
     page_size: pageSize,
   }
-  const data = await api.post(`/api/scenarios/${domain}/${scenario}/execute`, payload)
+  const data = await api.post(`/api/scenarios/${domain}/${scenario}/execute`, payload, {
+    timeout: 60000,
+  })
   return data as unknown as ScenarioQueryResult
 }

@@ -20,7 +20,10 @@ export const useScenarioPanelStore = defineStore('scenarioPanel', () => {
   const domains = ref<ScenarioDomainSummary[]>([])
   const isDomainsLoading = ref(false)
   const domainsError = ref<string | null>(null)
-  const fetchGuard = useRequestGuard()  // 防竞态
+  const fetchGuard = useRequestGuard()  // 防竞态：领域树
+  // 2026-08-30: 参数元数据与直通查询各自独立防竞态，快速切场景/翻页时丢弃过期响应
+  const paramsGuard = useRequestGuard()
+  const queryGuard = useRequestGuard()
 
   // 选中场景与模板状态
   const selectedDomain = ref<string | null>(null)
@@ -101,8 +104,10 @@ export const useScenarioPanelStore = defineStore('scenarioPanel', () => {
   async function loadScenarioParams(domain: string, scenario: string, templateName?: string) {
     isParamsLoading.value = true
     paramsError.value = null
+    const requestId = paramsGuard.next()
     try {
       const meta = await getScenarioParamsApi(domain, scenario, templateName)
+      if (!paramsGuard.isFresh(requestId)) return
       paramsMeta.value = meta
       activeTemplate.value = meta.default_template || (meta.templates?.[0]?.name ?? null)
 
@@ -124,9 +129,12 @@ export const useScenarioPanelStore = defineStore('scenarioPanel', () => {
       // 自动发第一次直通查询 (默认第 1 页)
       await executeQuery(1)
     } catch (err: any) {
+      if (!paramsGuard.isFresh(requestId)) return
       paramsError.value = err.message || '获取场景参数失败'
     } finally {
-      isParamsLoading.value = false
+      if (paramsGuard.isFresh(requestId)) {
+        isParamsLoading.value = false
+      }
     }
   }
 
@@ -154,6 +162,7 @@ export const useScenarioPanelStore = defineStore('scenarioPanel', () => {
     currentPage.value = targetPage
     isQueryLoading.value = true
     queryError.value = null
+    const requestId = queryGuard.next()
     try {
       const res = await executeScenarioApi(
         selectedDomain.value,
@@ -163,12 +172,16 @@ export const useScenarioPanelStore = defineStore('scenarioPanel', () => {
         currentPage.value,
         pageSize.value
       )
+      if (!queryGuard.isFresh(requestId)) return
       queryResult.value = res
     } catch (err: any) {
+      if (!queryGuard.isFresh(requestId)) return
       queryError.value = err.message || '直通查询执行失败'
       queryResult.value = null
     } finally {
-      isQueryLoading.value = false
+      if (queryGuard.isFresh(requestId)) {
+        isQueryLoading.value = false
+      }
     }
   }
 

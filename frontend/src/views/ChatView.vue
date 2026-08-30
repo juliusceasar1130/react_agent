@@ -161,8 +161,8 @@
                   <textarea
                     ref="textareaRef"
                     v-model="inputText"
-                    @keydown.enter.exact.prevent="handleSendMessage"
-                    @keydown.enter.shift="inputText += '\n'"
+                    @keydown.enter.exact="handleEnterKey"
+                    @keydown.enter.shift.prevent="inputText += '\n'"
                     placeholder="从任何想法开始... (Enter 发送，Shift+Enter 换行)"
                     class="w-full bg-transparent border-0 focus:ring-0 focus:outline-none min-h-[52px] max-h-[180px] resize-none text-sm text-neutral-800 placeholder:text-neutral-400 py-1.5 leading-relaxed"
                     :class="{ 'input-glow': isInputHighlighted }"
@@ -398,6 +398,15 @@ const handleCreateSession = async () => {
   if (isSending.value) return
   await sessionsStore.createSession({ title: '新对话' })
   closeSidebar()
+}
+
+// 2026-08-30: IME 合成中不拦截 Enter（用于确认候选词），上屏后才 preventDefault 并发送，
+// 防止未转换的拼音被误当作消息发出；Shift+Enter 分支用 .prevent 拦截原生换行，
+// 仅保留手动拼接（修复双换行/中间换行被追加到末尾的问题）
+const handleEnterKey = (e: KeyboardEvent) => {
+  if (e.isComposing) return
+  e.preventDefault()
+  void handleSendMessage()
 }
 
 const handleSendMessage = async () => {
